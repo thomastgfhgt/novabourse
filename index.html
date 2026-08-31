@@ -1,0 +1,2153 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NOVABOURSE</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0a0a0b; --surface:#131416; --surface-2:#1a1c1f; --surface-3:#212429;
+  --border:#26292d; --border-soft:#1c1e21;
+  --white:#f7f8f8; --muted:#9aa0a6; --dim:#5f656b;
+  --green:#32d583; --green-soft:rgba(50,213,131,.14); --green-line:rgba(50,213,131,.32);
+  --red:#f0616a; --red-soft:rgba(240,97,106,.14); --red-line:rgba(240,97,106,.32);
+  --neutral:#8b9299; --neutral-soft:rgba(139,146,153,.14);
+  --gold:#f0bf52; --gold-soft:rgba(240,191,82,.14);
+  --blue:#5b9cf8; --blue-soft:rgba(91,156,248,.14);
+  --t-bons:#f2c14e; --t-tendances:#ff7a52; --t-securise:#5b9cf8;
+  --t-croissance:#4ecb8f; --t-dividendes:#9b7cf6; --t-resultats:#3fb9c9;
+  --font:'Inter',-apple-system,sans-serif; --mono:'IBM Plex Mono',monospace;
+  --spring:cubic-bezier(.22,1,.36,1);
+  --r-lg:22px; --r-md:16px; --r-sm:12px;
+}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+body{background:var(--bg);color:var(--white);font-family:var(--font);font-size:16px;line-height:1.42;
+  -webkit-font-smoothing:antialiased;padding-bottom:110px;overflow-x:hidden;}
+body.locked{overflow:hidden;}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums;}
+button{font-family:inherit;border:none;background:none;color:inherit;text-align:left;cursor:pointer;
+  transition:transform 140ms var(--spring),background 200ms var(--spring),color 200ms var(--spring),opacity 200ms;}
+button:active{transform:scale(.97);}
+button:focus-visible{outline:2px solid var(--blue);outline-offset:3px;border-radius:10px;}
+input{font-family:inherit;}
+@media (prefers-reduced-motion:reduce){*{animation-duration:.001ms !important;transition-duration:.001ms !important;}}
+
+/* ---------- écrans & transitions ---------- */
+.screen{display:none;padding:0 0 20px;}
+.screen.active{display:block;}
+.screen.in-right{animation:inRight .42s var(--spring);}
+.screen.in-left{animation:inLeft .42s var(--spring);}
+.screen.fade{animation:fadeUp .34s var(--spring);}
+@keyframes inRight{from{opacity:0;transform:translateX(26px);}to{opacity:1;transform:none;}}
+@keyframes inLeft{from{opacity:0;transform:translateX(-22px);}to{opacity:1;transform:none;}}
+@keyframes fadeUp{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:none;}}
+.stagger{opacity:0;transform:translateY(12px);}
+.stagger.in{opacity:1;transform:none;transition:opacity .5s var(--spring),transform .5s var(--spring);}
+
+.pad{padding-left:20px;padding-right:20px;}
+
+/* ---------- barres de navigation ---------- */
+.navbar{position:sticky;top:0;z-index:15;display:flex;align-items:center;gap:10px;padding:10px 12px;
+  background:rgba(10,10,11,.82);backdrop-filter:blur(20px);border-bottom:1px solid transparent;
+  transition:border-color 200ms;}
+.navbar.solid{border-bottom-color:var(--border-soft);}
+.nav-btn{display:inline-flex;align-items:center;gap:3px;padding:8px 10px;border-radius:12px;
+  font-size:16px;font-weight:500;color:var(--blue);}
+.nav-btn svg{width:18px;height:18px;}
+.nav-title{flex:1;text-align:center;font-size:16px;font-weight:600;opacity:0;transition:opacity 200ms;}
+.navbar.solid .nav-title{opacity:1;}
+.nav-icon{width:36px;height:36px;border-radius:50%;background:var(--surface-2);display:flex;
+  align-items:center;justify-content:center;color:var(--white);flex-shrink:0;}
+.nav-icon svg{width:17px;height:17px;}
+.nav-icon.on{background:var(--gold);color:#1a1204;}
+
+.big-title{font-size:34px;font-weight:800;letter-spacing:-.028em;line-height:1.08;padding:6px 20px 0;}
+.sub-title{padding:6px 20px 0;font-size:14.5px;color:var(--muted);max-width:46ch;}
+
+/* ---------- segmented control ---------- */
+.seg{display:flex;gap:3px;padding:3px;margin:16px 20px 0;background:var(--surface-2);border-radius:100px;}
+.seg button{flex:1;text-align:center;padding:9px 6px;border-radius:100px;font-size:13.5px;font-weight:600;
+  color:var(--muted);white-space:nowrap;}
+.seg button.on{background:var(--surface-3);color:var(--white);box-shadow:0 1px 3px rgba(0,0,0,.4);}
+.seg.scroll{overflow-x:auto;scrollbar-width:none;}
+.seg.scroll::-webkit-scrollbar{display:none;}
+.seg.scroll button{flex:0 0 auto;padding:9px 16px;}
+
+/* ---------- cartes ---------- */
+.card{margin:14px 20px 0;padding:16px;border-radius:var(--r-lg);background:var(--surface);
+  border:1px solid var(--border-soft);}
+.card-h{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:4px;}
+.card-t{font-size:16px;font-weight:700;letter-spacing:-.01em;}
+.card-s{font-size:13px;color:var(--muted);line-height:1.5;}
+.list-card{margin:14px 20px 0;border-radius:var(--r-lg);background:var(--surface);
+  border:1px solid var(--border-soft);overflow:hidden;}
+.section-t{padding:26px 20px 8px;font-size:13px;font-weight:700;letter-spacing:.04em;
+  text-transform:uppercase;color:var(--dim);}
+
+/* ---------- scénario (cœur de l'appli) ---------- */
+.scn{margin-top:14px;}
+.scn-nums{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin-bottom:11px;}
+.scn-side{flex:1;}
+.scn-side.right{text-align:right;}
+.scn-lab{font-size:12px;font-weight:600;color:var(--muted);margin-bottom:3px;display:flex;align-items:center;gap:5px;}
+.scn-side.right .scn-lab{justify-content:flex-end;}
+.scn-lab svg{width:12px;height:12px;}
+.scn-val{font-family:var(--mono);font-size:26px;font-weight:600;letter-spacing:-.02em;line-height:1;}
+.scn-val.up{color:var(--green);} .scn-val.down{color:var(--red);}
+.scn-bar{position:relative;height:38px;border-radius:12px;overflow:hidden;background:var(--surface-2);display:flex;}
+.scn-seg{height:100%;display:flex;align-items:center;transition:width .85s var(--spring);width:50%;}
+.scn-seg.down{background:linear-gradient(90deg,rgba(240,97,106,.42),rgba(240,97,106,.2));justify-content:flex-start;padding-left:11px;}
+.scn-seg.up{background:linear-gradient(90deg,rgba(50,213,131,.2),rgba(50,213,131,.42));justify-content:flex-end;padding-right:11px;}
+.scn-seg span{font-family:var(--mono);font-size:12.5px;font-weight:600;white-space:nowrap;opacity:0;
+  transition:opacity .5s .35s;}
+.scn-bar.shown .scn-seg span{opacity:1;}
+.scn-seg.down span{color:#ffd7d9;} .scn-seg.up span{color:#c8f5df;}
+.scn-mid{position:absolute;left:50%;top:0;bottom:0;width:2px;background:var(--bg);opacity:.9;}
+.scn-legend{display:flex;justify-content:space-between;margin-top:7px;font-size:11.5px;color:var(--dim);}
+.scn-sum{margin-top:13px;font-size:13.5px;color:var(--muted);line-height:1.55;}
+.scn-sum b{color:var(--white);font-weight:600;}
+
+/* ---------- explications ---------- */
+.why{margin:12px 20px 0;border-radius:var(--r-lg);border:1px solid var(--border-soft);overflow:hidden;}
+.why.up{background:linear-gradient(180deg,rgba(50,213,131,.07),transparent 60%);border-color:var(--green-line);}
+.why.down{background:linear-gradient(180deg,rgba(240,97,106,.07),transparent 60%);border-color:var(--red-line);}
+.why-h{display:flex;align-items:center;gap:9px;padding:15px 16px 10px;font-size:15px;font-weight:700;}
+.why.up .why-h{color:var(--green);} .why.down .why-h{color:var(--red);}
+.why-h svg{width:17px;height:17px;}
+.why ul{list-style:none;padding:0 16px 16px;}
+.why li{display:flex;gap:10px;font-size:13.5px;color:var(--muted);line-height:1.55;padding:7px 0;}
+.why li b{color:var(--white);font-weight:600;}
+.why li::before{content:'';flex-shrink:0;width:6px;height:6px;border-radius:50%;margin-top:8px;}
+.why.up li::before{background:var(--green);}
+.why.down li::before{background:var(--red);}
+
+/* ---------- lignes du catalogue ---------- */
+.row{display:block;width:100%;padding:14px 16px;border-bottom:1px solid var(--border-soft);text-align:left;}
+.row:last-child{border-bottom:none;}
+.row:active{background:var(--surface-2);transform:none;}
+.row-top{display:grid;grid-template-columns:1fr 62px 96px;align-items:center;gap:10px;}
+.r-tick{font-family:var(--mono);font-size:16px;font-weight:600;display:flex;align-items:center;gap:6px;}
+.r-name{font-size:12.5px;color:var(--dim);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.dotmark{width:6px;height:6px;border-radius:50%;flex-shrink:0;}
+.dotmark.mine{background:var(--green);} .dotmark.done{background:var(--blue);}
+.r-spark{height:34px;} .r-spark svg{width:100%;height:100%;display:block;}
+.r-right{text-align:right;}
+.r-price{font-family:var(--mono);font-size:15.5px;font-weight:600;}
+.r-day{font-family:var(--mono);font-size:11.5px;font-weight:600;margin-top:2px;}
+.r-day.up{color:var(--green);} .r-day.down{color:var(--red);}
+.r-scn{display:flex;align-items:center;gap:8px;margin-top:11px;}
+.r-mini{flex:1;height:8px;border-radius:100px;overflow:hidden;background:var(--surface-2);display:flex;}
+.r-mini i{height:100%;display:block;}
+.r-mini i.d{background:rgba(240,97,106,.55);} .r-mini i.u{background:rgba(50,213,131,.62);}
+.r-pair{font-family:var(--mono);font-size:11.5px;font-weight:600;white-space:nowrap;}
+.r-pair .u{color:var(--green);} .r-pair .d{color:var(--red);} .r-pair .s{color:var(--dim);}
+.r-cta{display:flex;align-items:center;gap:7px;margin-top:11px;font-size:12.5px;font-weight:600;color:var(--blue);}
+.r-cta svg{width:13px;height:13px;}
+
+/* ---------- fiche ---------- */
+.stk-head{padding:2px 20px 0;}
+.stk-name{font-size:15px;color:var(--muted);font-weight:500;}
+.stk-tick{font-size:34px;font-weight:800;letter-spacing:-.03em;line-height:1.1;margin-top:2px;}
+.stk-price{font-family:var(--mono);font-size:38px;font-weight:600;letter-spacing:-.03em;line-height:1.1;margin-top:12px;}
+.stk-chg{display:inline-flex;align-items:center;gap:7px;margin-top:8px;font-family:var(--mono);font-size:15px;font-weight:600;
+  padding:5px 11px;border-radius:100px;}
+.stk-chg.up{color:var(--green);background:var(--green-soft);}
+.stk-chg.down{color:var(--red);background:var(--red-soft);}
+.stk-chg span{font-family:var(--font);color:var(--muted);font-weight:500;}
+.stk-venue{margin-top:9px;font-size:12.5px;color:var(--dim);}
+.chart-wrap{margin-top:6px;padding:0 8px;}
+.chart-wrap svg{width:100%;height:auto;display:block;}
+.chart-path{stroke-dasharray:2400;stroke-dashoffset:2400;animation:draw 1.1s var(--spring) forwards;}
+@keyframes draw{to{stroke-dashoffset:0;}}
+.vol-lab{display:flex;justify-content:space-between;padding:4px 20px 0;font-size:11px;color:var(--dim);}
+
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(148px,1fr));gap:0 24px;margin-top:6px;}
+.stat{display:flex;align-items:baseline;justify-content:space-between;gap:10px;padding:11px 0;
+  border-bottom:1px solid var(--border-soft);}
+.stat-k{font-size:13.5px;color:var(--muted);}
+.stat-v{font-family:var(--mono);font-size:14px;font-weight:600;}
+
+.sig{margin-bottom:12px;}
+.sig-r{display:grid;grid-template-columns:1fr 84px 30px;align-items:center;gap:10px;}
+.sig-n{font-size:13.5px;font-weight:600;}
+.sig-t{height:6px;border-radius:100px;background:var(--surface-2);overflow:hidden;}
+.sig-f{height:100%;border-radius:100px;background:var(--white);width:0;transition:width .8s var(--spring);}
+.sig-v{font-family:var(--mono);font-size:11.5px;color:var(--dim);text-align:right;}
+.sig-h{font-size:11.5px;color:var(--dim);margin-top:4px;line-height:1.45;}
+
+/* ---------- boutons ---------- */
+.big-btn{display:flex;align-items:center;justify-content:center;gap:9px;width:calc(100% - 40px);
+  margin:14px 20px 0;padding:16px;border-radius:100px;font-size:15.5px;font-weight:600;}
+.big-btn.primary{background:var(--white);color:#0a0a0b;}
+.big-btn.soft{background:var(--surface-2);color:var(--white);}
+.big-btn.gold{background:var(--gold);color:#1a1204;}
+.big-btn svg{width:17px;height:17px;}
+.mini-btns{display:flex;gap:8px;margin:12px 20px 0;flex-wrap:wrap;}
+.mini{display:inline-flex;align-items:center;gap:6px;padding:10px 15px;border-radius:100px;
+  background:var(--surface-2);font-size:13px;font-weight:600;color:var(--muted);}
+.mini.on{background:var(--green-soft);color:var(--green);}
+.mini svg{width:13px;height:13px;}
+
+/* ---------- analyse ---------- */
+.an-box{margin-top:14px;}
+.an-track{height:6px;border-radius:100px;background:var(--surface-2);overflow:hidden;}
+.an-fill{height:100%;width:0;background:var(--blue);border-radius:100px;}
+.an-step{display:flex;align-items:center;gap:9px;margin-top:11px;font-size:13.5px;color:var(--muted);}
+.spin{width:14px;height:14px;border-radius:50%;border:2px solid var(--border);border-top-color:var(--blue);
+  animation:sp .8s linear infinite;flex-shrink:0;}
+@keyframes sp{to{transform:rotate(360deg);}}
+
+/* ---------- recherche ---------- */
+.search{margin:14px 20px 0;position:relative;}
+.search svg{position:absolute;left:15px;top:50%;transform:translateY(-50%);width:16px;height:16px;color:var(--dim);}
+.search input{width:100%;padding:14px 42px;border-radius:14px;background:var(--surface-2);border:none;
+  color:var(--white);font-size:15.5px;}
+.search input::placeholder{color:var(--dim);}
+
+/* ---------- barre d'onglets ---------- */
+.tabs{position:fixed;left:0;right:0;bottom:0;z-index:25;padding:6px 12px 22px;
+  background:linear-gradient(180deg,transparent,rgba(10,10,11,.9) 32%);}
+.tabs-in{display:flex;background:rgba(26,28,31,.88);backdrop-filter:blur(22px);border:1px solid var(--border);
+  border-radius:100px;padding:5px;max-width:520px;margin:0 auto;}
+.tab{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;padding:8px 4px;border-radius:100px;
+  color:var(--dim);}
+.tab svg{width:20px;height:20px;}
+.tab span{font-size:10.5px;font-weight:600;}
+.tab.on{color:var(--white);background:var(--surface-3);}
+
+/* ---------- feuilles ---------- */
+.ov{position:fixed;inset:0;z-index:40;background:rgba(4,4,5,.6);backdrop-filter:blur(4px);
+  display:none;align-items:flex-end;justify-content:center;}
+.ov.show{display:flex;animation:fade .22s ease;}
+@keyframes fade{from{opacity:0;}to{opacity:1;}}
+.sheet{width:100%;max-width:560px;background:var(--surface);border-radius:26px 26px 0 0;
+  padding:8px 20px 28px;max-height:90vh;overflow-y:auto;animation:up .44s var(--spring);}
+@keyframes up{from{transform:translateY(40px);opacity:.4;}to{transform:none;opacity:1;}}
+.grab{width:40px;height:5px;border-radius:100px;background:var(--border);margin:0 auto 20px;}
+.sheet h3{font-size:24px;font-weight:800;letter-spacing:-.025em;margin-bottom:10px;}
+.sheet p{font-size:15px;color:var(--muted);line-height:1.6;}
+.sheet p+p{margin-top:12px;}
+.sheet b{color:var(--white);font-weight:600;}
+.demo{margin:18px 0;padding:15px;border-radius:var(--r-md);background:var(--surface-2);}
+.dots{display:flex;gap:6px;justify-content:center;margin:24px 0 18px;}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--border);transition:all .3s var(--spring);}
+.dot.on{background:var(--white);width:22px;border-radius:100px;}
+.sh-act{display:flex;gap:10px;}
+.sh-act .big-btn{margin:0;width:auto;flex:1;}
+.gl-item{padding:15px 0;border-bottom:1px solid var(--border-soft);}
+.gl-item:last-child{border-bottom:none;}
+.gl-item b{display:block;font-size:15px;margin-bottom:3px;}
+.gl-item span{font-size:13.5px;color:var(--muted);line-height:1.55;}
+.f-group{margin-top:18px;}
+.f-lab{font-size:12.5px;font-weight:600;color:var(--dim);margin-bottom:9px;text-transform:uppercase;letter-spacing:.04em;}
+.f-chips{display:flex;flex-wrap:wrap;gap:8px;}
+.f-chip{padding:9px 15px;border-radius:100px;background:var(--surface-2);font-size:13.5px;font-weight:500;color:var(--muted);}
+.f-chip.on{background:var(--white);color:#0a0a0b;}
+.f-input{display:flex;align-items:center;gap:8px;padding:10px 15px;border-radius:100px;background:var(--surface-2);width:150px;}
+.f-input input{width:100%;background:none;border:none;color:var(--white);font-family:var(--mono);font-size:14px;}
+.swap-i{display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;padding:13px 0;
+  border-bottom:1px solid var(--border-soft);}
+.swap-i .n{font-size:14.5px;font-weight:600;}
+.swap-i .s{font-size:12px;color:var(--dim);margin-top:2px;}
+.swap-i .a{font-size:13px;font-weight:600;color:var(--red);}
+.plan{margin-top:14px;padding:16px;border-radius:var(--r-md);background:var(--surface-2);}
+.plan.pro{background:var(--gold-soft);border:1px solid rgba(240,191,82,.3);}
+.plan-n{font-size:15.5px;font-weight:700;display:flex;align-items:baseline;gap:8px;}
+.plan.pro .plan-n{color:var(--gold);}
+.plan-p{margin-left:auto;font-family:var(--mono);font-size:13px;color:var(--muted);}
+.plan ul{list-style:none;margin-top:11px;}
+.plan li{font-size:13.5px;color:var(--muted);padding-left:19px;position:relative;margin-bottom:7px;line-height:1.5;}
+.plan li::before{content:'';position:absolute;left:2px;top:7px;width:7px;height:7px;border-radius:50%;background:var(--border);}
+.plan.pro li::before{background:var(--gold);}
+.plan li.off{color:var(--dim);}
+
+.pf-hero{margin:14px 20px 0;padding:20px;border-radius:var(--r-lg);background:var(--surface);border:1px solid var(--border-soft);}
+.pf-lab{font-size:12.5px;color:var(--muted);}
+.pf-tot{font-family:var(--mono);font-size:38px;font-weight:600;letter-spacing:-.03em;line-height:1.1;margin-top:4px;
+  transition:color .4s;}
+.pf-pnl{display:inline-flex;align-items:center;gap:8px;margin-top:10px;padding:6px 12px;border-radius:100px;
+  font-family:var(--mono);font-size:14px;font-weight:600;}
+.pf-pnl.up{color:var(--green);background:var(--green-soft);} .pf-pnl.down{color:var(--red);background:var(--red-soft);}
+.pf-pnl.flat{color:var(--muted);background:var(--surface-2);}
+.pf-split{display:flex;height:9px;border-radius:100px;overflow:hidden;background:var(--surface-2);margin-top:16px;}
+.pf-split i{display:block;height:100%;transition:width .7s var(--spring);}
+.pf-split i.inv{background:var(--blue);} .pf-split i.csh{background:var(--surface-3);}
+.pf-keys{display:flex;justify-content:space-between;margin-top:8px;font-size:11.5px;color:var(--dim);}
+.pos{display:block;width:100%;padding:14px 16px;border-bottom:1px solid var(--border-soft);text-align:left;}
+.pos:last-child{border-bottom:none;}
+.pos-top{display:flex;align-items:baseline;justify-content:space-between;gap:12px;}
+.pos-n{font-size:15.5px;font-weight:600;}
+.pos-q{font-size:12.5px;color:var(--dim);margin-top:3px;}
+.pos-v{font-family:var(--mono);font-size:15.5px;font-weight:600;text-align:right;}
+.pos-p{font-family:var(--mono);font-size:12.5px;font-weight:600;margin-top:3px;text-align:right;}
+.pos-p.up{color:var(--green);} .pos-p.down{color:var(--red);}
+.live{transition:color .5s;}
+.live.flash-up{color:var(--green);} .live.flash-dn{color:var(--red);}
+.trade{margin:14px 20px 0;padding:16px;border-radius:var(--r-lg);background:var(--surface);border:1px solid var(--border-soft);}
+.trade-row{display:flex;align-items:baseline;justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--border-soft);}
+.trade-row:last-of-type{border-bottom:none;}
+.trade-k{font-size:13.5px;color:var(--muted);} .trade-v{font-family:var(--mono);font-size:14px;font-weight:600;}
+.qbig{text-align:center;margin:22px 0 4px;}
+.qbig .n{font-family:var(--mono);font-size:56px;font-weight:600;letter-spacing:-.04em;line-height:1;
+  display:inline-block;transition:transform .18s var(--spring);}
+.qbig .n.bump{transform:scale(1.08);}
+.qbig .u{font-size:14.5px;color:var(--muted);margin-top:6px;}
+.qbig .eq{font-family:var(--mono);font-size:15px;font-weight:600;margin-top:10px;}
+.slide-wrap{display:flex;align-items:center;gap:14px;margin:20px 0 2px;}
+.nudge{width:40px;height:40px;border-radius:50%;background:var(--surface-2);display:flex;align-items:center;
+  justify-content:center;font-size:22px;color:var(--white);flex-shrink:0;}
+.nudge:disabled{opacity:.28;}
+.slider{-webkit-appearance:none;appearance:none;flex:1;height:34px;background:transparent;cursor:grab;}
+.slider:active{cursor:grabbing;}
+.slider::-webkit-slider-runnable-track{height:12px;border-radius:100px;background:var(--trk);}
+.slider::-webkit-slider-thumb{-webkit-appearance:none;width:32px;height:32px;border-radius:50%;background:#fff;
+  margin-top:-10px;box-shadow:0 3px 10px rgba(0,0,0,.55);transition:transform .16s var(--spring);}
+.slider:active::-webkit-slider-thumb{transform:scale(1.14);}
+.slider::-moz-range-track{height:12px;border-radius:100px;background:var(--trk);}
+.slider::-moz-range-thumb{width:32px;height:32px;border:none;border-radius:50%;background:#fff;
+  box-shadow:0 3px 10px rgba(0,0,0,.55);}
+.slide-ends{display:flex;justify-content:space-between;padding:0 54px;font-family:var(--mono);
+  font-size:11.5px;color:var(--dim);margin-top:-2px;}
+.qty{display:flex;align-items:center;justify-content:center;gap:20px;margin:20px 0 8px;}
+.qty button{width:52px;height:52px;border-radius:50%;background:var(--surface-2);display:flex;align-items:center;
+  justify-content:center;font-size:26px;font-weight:400;color:var(--white);}
+.qty button:disabled{opacity:.3;}
+.qty .n{font-family:var(--mono);font-size:44px;font-weight:600;min-width:100px;text-align:center;letter-spacing:-.03em;}
+.qty-sub{text-align:center;font-size:13px;color:var(--muted);}
+.qbtns{display:flex;gap:8px;justify-content:center;margin-top:14px;}
+.qbtns button{padding:8px 16px;border-radius:100px;background:var(--surface-2);font-size:13px;font-weight:600;color:var(--muted);}
+.warn{margin:14px 20px 0;padding:13px 15px;border-radius:var(--r-md);background:var(--gold-soft);
+  border:1px solid rgba(240,191,82,.26);font-size:12.5px;color:var(--muted);line-height:1.55;}
+.warn b{color:var(--gold);}
+.hcards{display:grid;grid-template-columns:1fr 1fr;gap:11px;margin:14px 20px 0;}
+.hcard{padding:15px;border-radius:var(--r-lg);background:var(--surface);border:1px solid var(--border-soft);
+  min-height:112px;display:flex;flex-direction:column;justify-content:space-between;}
+.hcard .ic{width:34px;height:34px;border-radius:11px;display:flex;align-items:center;justify-content:center;}
+.hcard .ic svg{width:18px;height:18px;}
+.hcard .t{font-size:14.5px;font-weight:700;margin-top:12px;}
+.hcard .s{font-size:12px;color:var(--dim);margin-top:2px;line-height:1.4;}
+.hcard .b{font-family:var(--mono);font-size:11.5px;font-weight:600;margin-top:7px;}
+
+.cal-row{display:grid;grid-template-columns:74px 1fr 40px;align-items:center;gap:10px;padding:9px 0;}
+.cal-k{font-family:var(--mono);font-size:12px;color:var(--muted);}
+.cal-bars{position:relative;height:26px;}
+.cal-b{position:absolute;left:0;height:10px;border-radius:100px;transition:width .9s var(--spring);}
+.cal-b.ann{top:0;background:var(--surface-3);}
+.cal-b.rea{top:14px;}
+.cal-n{font-family:var(--mono);font-size:11px;color:var(--dim);text-align:right;}
+.cal-leg{display:flex;gap:16px;margin-top:10px;font-size:11.5px;color:var(--dim);}
+.cal-leg i{display:inline-block;width:14px;height:8px;border-radius:100px;margin-right:6px;vertical-align:middle;}
+.score{display:flex;gap:10px;margin-top:14px;}
+.score>div{flex:1;padding:13px;border-radius:var(--r-md);background:var(--surface-2);text-align:center;}
+.score .v{font-family:var(--mono);font-size:22px;font-weight:600;}
+.score .k{font-size:11.5px;color:var(--dim);margin-top:4px;line-height:1.35;}
+.verdict{display:grid;grid-template-columns:1fr auto;gap:10px;padding:12px 0;border-bottom:1px solid var(--border-soft);}
+.verdict:last-child{border-bottom:none;}
+.v-n{font-size:14px;font-weight:600;}
+.v-s{font-size:12px;color:var(--dim);margin-top:3px;}
+.v-r{font-family:var(--mono);font-size:12.5px;font-weight:600;white-space:nowrap;align-self:center;}
+.v-r.ok{color:var(--green);} .v-r.ko{color:var(--red);}
+
+.alloc{margin-top:6px;}
+.alloc-r{display:grid;grid-template-columns:110px 1fr 52px;align-items:center;gap:10px;padding:7px 0;}
+.alloc-k{font-size:13px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.alloc-t{height:9px;border-radius:100px;background:var(--surface-2);overflow:hidden;}
+.alloc-f{height:100%;border-radius:100px;transition:width .8s var(--spring);}
+.alloc-v{font-family:var(--mono);font-size:12px;color:var(--muted);text-align:right;}
+.risk-ring{display:flex;align-items:center;gap:16px;}
+.ring{width:84px;height:84px;flex-shrink:0;}
+.ring circle{fill:none;stroke-width:9;}
+.ring .bg{stroke:var(--surface-2);}
+.ring .fg{stroke-linecap:round;transition:stroke-dashoffset 1s var(--spring);}
+.ring-t{font-family:var(--mono);font-size:19px;font-weight:600;}
+.flag{display:flex;gap:10px;padding:11px 0;border-bottom:1px solid var(--border-soft);font-size:13px;
+  color:var(--muted);line-height:1.5;}
+.flag:last-child{border-bottom:none;}
+.flag b{color:var(--white);font-weight:600;}
+.flag i{flex-shrink:0;width:7px;height:7px;border-radius:50%;margin-top:7px;}
+
+.les{display:block;width:100%;padding:15px 16px;border-bottom:1px solid var(--border-soft);text-align:left;}
+.les:last-child{border-bottom:none;}
+.les-top{display:flex;align-items:center;gap:12px;}
+.les-num{width:30px;height:30px;border-radius:50%;background:var(--surface-2);color:var(--muted);
+  display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:13px;font-weight:600;flex-shrink:0;}
+.les-num.ok{background:var(--green);color:#08130d;}
+.les-t{font-size:15px;font-weight:600;}
+.les-s{font-size:12.5px;color:var(--dim);margin-top:2px;}
+.qz{margin-top:18px;}
+.qz-q{font-size:15.5px;font-weight:600;line-height:1.45;margin-bottom:14px;}
+.qz-a{display:block;width:100%;padding:14px 16px;border-radius:14px;background:var(--surface-2);
+  font-size:14px;margin-bottom:9px;line-height:1.45;border:1.5px solid transparent;}
+.qz-a.ok{border-color:var(--green);background:var(--green-soft);color:var(--green);}
+.qz-a.ko{border-color:var(--red);background:var(--red-soft);color:var(--red);}
+.qz-exp{margin-top:12px;padding:14px;border-radius:var(--r-md);background:var(--surface-2);font-size:13.5px;
+  color:var(--muted);line-height:1.6;}
+.qz-exp b{color:var(--white);}
+.prog{height:8px;border-radius:100px;background:var(--surface-2);overflow:hidden;margin-top:12px;}
+.prog i{display:block;height:100%;background:var(--green);border-radius:100px;transition:width .8s var(--spring);}
+.toast{position:fixed;left:50%;bottom:104px;transform:translate(-50%,14px);background:var(--surface-3);
+  border:1px solid var(--border);font-size:13.5px;padding:12px 18px;border-radius:100px;opacity:0;
+  pointer-events:none;transition:all .3s var(--spring);z-index:50;max-width:88vw;text-align:center;}
+.toast.show{opacity:1;transform:translate(-50%,0);}
+.foot{padding:26px 20px 0;font-size:11.5px;color:var(--dim);line-height:1.6;}
+.empty{padding:50px 20px;text-align:center;color:var(--dim);font-size:14.5px;line-height:1.6;}
+
+@media (max-width:400px){
+  .stk-price{font-size:33px;} .scn-val{font-size:23px;}
+  .row-top{grid-template-columns:1fr 48px 88px;gap:8px;}
+}
+</style>
+</head>
+<body>
+
+<!-- ================= ACCUEIL ================= -->
+<section class="screen active" id="s-home">
+  <div class="navbar" id="nav-home">
+    <span style="width:36px"></span>
+    <span class="nav-title">NOVABOURSE</span>
+    <button class="nav-icon" id="helpHome" aria-label="Aide">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="9"/><path d="M9.6 9.4a2.5 2.5 0 114 2.3c-.9.6-1.6 1-1.6 2M12 17.2h.01"/></svg>
+    </button>
+  </div>
+  <div class="big-title" id="homeHello">Bonjour</div>
+  <div class="sub-title" id="homeLead">—</div>
+
+  <div class="seg" id="modeSeg">
+    <button data-mode="simple" class="on">Simple</button>
+    <button data-mode="pro">Détaillé</button>
+  </div>
+  <div class="sub-title" id="modeNote" style="padding-top:8px;font-size:12.5px;color:var(--dim)">—</div>
+
+  <div class="card" id="quotaCard">
+    <div class="card-h"><span class="card-t" id="quotaTitle">Suivi automatique</span>
+      <span class="mono" style="font-size:13px;color:var(--muted)" id="quotaNum">—</span></div>
+    <div style="height:7px;border-radius:100px;background:var(--surface-2);overflow:hidden;margin-top:10px">
+      <div id="quotaFill" style="height:100%;width:0;border-radius:100px;background:var(--green);transition:width .8s var(--spring)"></div>
+    </div>
+    <div class="card-s" style="margin-top:10px" id="quotaFoot">—</div>
+  </div>
+
+  <button class="card" id="learnCard" style="display:block;background:var(--blue-soft);border-color:rgba(91,156,248,.28)">
+    <div class="card-h"><span class="card-t" style="color:var(--blue)">Comment ça marche ?</span>
+      <svg viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="2.4" style="width:15px;height:15px"><path d="M9 5l7 7-7 7"/></svg></div>
+    <div class="card-s">Hausse possible, baisse possible : comprendre en 40 secondes</div>
+  </button>
+
+  <div class="hcards">
+    <button class="hcard" data-gotab="track">
+      <span class="ic" style="background:var(--blue-soft);color:var(--blue)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M4 12h4l2.5-7 3 14L16 12h4"/></svg></span>
+      <span><span class="t">Fiabilité</span><span class="s">Nos estimations passées, notées</span>
+        <span class="b" id="hcTrack" style="color:var(--blue)">—</span></span></button>
+    <button class="hcard" data-gotab="learn">
+      <span class="ic" style="background:var(--green-soft);color:var(--green)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M4 5.5A2.5 2.5 0 016.5 3H19v15H6.5A2.5 2.5 0 004 20.5z"/><path d="M4 20.5A2.5 2.5 0 016.5 18H19v3H6.5"/></svg></span>
+      <span><span class="t">Apprendre</span><span class="s">6 leçons pour ne pas se faire avoir</span>
+        <span class="b" id="hcLearn" style="color:var(--green)">—</span></span></button>
+    <button class="hcard" data-sheet="method">
+      <span class="ic" style="background:var(--surface-2);color:var(--muted)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 12h1v4h1"/></svg></span>
+      <span><span class="t">Méthodologie</span><span class="s">Comment le calcul est fait, et son statut</span></span></button>
+    <button class="hcard" id="accCard">
+      <span class="ic" style="background:var(--gold-soft);color:var(--gold)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="8" r="3.4"/><path d="M5 20c0-3.6 3.1-5.6 7-5.6s7 2 7 5.6"/></svg></span>
+      <span><span class="t" id="accT">Compte</span><span class="s" id="accS">Se connecter avec Google</span>
+        <span class="b" id="accB" style="color:var(--gold)"></span></span></button>
+    <button class="hcard" data-sheet="glossary">
+      <span class="ic" style="background:var(--surface-2);color:var(--muted)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 4h14v16H5z"/><path d="M9 8h6M9 12h6M9 16h3"/></svg></span>
+      <span><span class="t">Lexique</span><span class="s">Chaque mot en français simple</span></span></button>
+  </div>
+
+  <div class="section-t">Thématiques</div>
+  <div class="list-card" id="themeList"></div>
+
+  <div class="section-t">Places boursières</div>
+  <div class="list-card" id="placeList"></div>
+
+  <button class="card" data-sheet="paywall" style="display:block;background:var(--gold-soft);border-color:rgba(240,191,82,.28);margin-top:18px">
+    <div class="card-h"><span class="card-t" style="color:var(--gold)" id="plusTitle">NOVABOURSE+</span>
+      <svg viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="2.4" style="width:15px;height:15px"><path d="M9 5l7 7-7 7"/></svg></div>
+    <div class="card-s" id="plusSub">—</div>
+  </button>
+
+  <div class="foot">Actions d'entreprises cotées uniquement. Les estimations décrivent des situations
+    passées comparables : elles peuvent se tromper, dans les deux sens. Aucun conseil en investissement.
+    Investir peut faire perdre de l'argent. Toutes les données sont de démonstration.</div>
+</section>
+
+<!-- ================= CATALOGUE ================= -->
+<section class="screen" id="s-list">
+  <div class="navbar" id="nav-list">
+    <button class="nav-btn" data-go="home">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M15 5l-7 7 7 7"/></svg>Accueil</button>
+    <span class="nav-title" id="listNavTitle">Actions</span>
+    <button class="nav-icon" data-sheet="filters" aria-label="Filtres">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M4 6h16M7 12h10M10 18h4"/></svg>
+    </button>
+  </div>
+  <div class="big-title" id="listTitle">Actions</div>
+  <div class="sub-title" id="listSub">—</div>
+
+  <div class="search">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+    <input type="search" id="q" placeholder="Airbus, Nvidia, banque, Zurich…" autocomplete="off">
+  </div>
+
+  <div class="seg scroll" id="hzSeg"></div>
+  <div class="sub-title" style="padding-top:9px;font-size:12.5px;color:var(--dim)" id="hzNote">—</div>
+
+  <div class="list-card" id="rows"></div>
+  <button class="big-btn soft" id="moreBtn" hidden>Afficher plus</button>
+  <div class="foot" id="listFoot">Touche une action pour voir son graphique, sa hausse possible et sa baisse possible.</div>
+</section>
+
+<!-- ================= FICHE ================= -->
+<section class="screen" id="s-stock"><div id="stockBody"></div></section>
+
+<section class="screen" id="s-track">
+  <div class="navbar"><span style="width:36px"></span><span class="nav-title">Fiabilité</span><span style="width:36px"></span></div>
+  <div class="big-title">Nos erreurs</div>
+  <div class="sub-title">Chaque estimation passée est figée puis notée à l'échéance. Voici le bilan, sans filtre.</div>
+  <div id="trackBody"></div>
+</section>
+
+<section class="screen" id="s-learn">
+  <div class="navbar"><span style="width:36px"></span><span class="nav-title">Apprendre</span><span style="width:36px"></span></div>
+  <div class="big-title">Apprendre</div>
+  <div class="sub-title">Six leçons courtes. Ce qu'il faut vraiment comprendre avant d'investir un euro.</div>
+  <div id="learnBody"></div>
+</section>
+
+<section class="screen" id="s-port">
+  <div class="navbar"><span style="width:36px"></span><span class="nav-title">Portefeuille</span>
+    <button class="nav-icon" id="pfReset" aria-label="Réinitialiser">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M20 12a8 8 0 10-2.6 5.9"/><path d="M20 6.5V12h-5.5"/></svg></button>
+  </div>
+  <div class="big-title">Portefeuille</div>
+  <div class="sub-title">Argent fictif. Achète, vends, observe — sans risquer un centime.</div>
+  <div id="pfBody"></div>
+</section>
+
+<nav class="tabs">
+  <div class="tabs-in">
+    <button class="tab on" data-tab="home">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 11l8-6 8 6v8a1 1 0 01-1 1h-4v-6h-6v6H5a1 1 0 01-1-1z"/></svg><span>Accueil</span></button>
+    <button class="tab" data-tab="all">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19V9M10 19V5M16 19v-7M22 19H2"/></svg><span>Actions</span></button>
+    <button class="tab" data-tab="port">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 8.5h18v10a1.5 1.5 0 01-1.5 1.5h-15A1.5 1.5 0 013 18.5z"/><path d="M8 8.5V6a2 2 0 012-2h4a2 2 0 012 2v2.5M3 13h18"/></svg><span>Portefeuille</span></button>
+    <button class="tab" data-tab="track">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12h4l2.5-7 3 14L16 12h4"/></svg><span>Fiabilité</span></button>
+    <button class="tab" data-tab="learn">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 5.5A2.5 2.5 0 016.5 3H19v15H6.5A2.5 2.5 0 004 20.5z"/><path d="M4 20.5A2.5 2.5 0 016.5 18H19v3H6.5"/></svg><span>Apprendre</span></button>
+  </div>
+</nav>
+
+<div class="ov" id="onboard"><div class="sheet" role="dialog" aria-modal="true">
+  <div class="grab"></div><div id="obBody"></div><div class="dots" id="obDots"></div>
+  <div class="sh-act"><button class="big-btn soft" id="obSkip" style="flex:0 0 auto;padding:16px 22px">Passer</button>
+    <button class="big-btn primary" id="obNext">Suivant</button></div>
+</div></div>
+
+<div class="ov" id="filters"><div class="sheet" role="dialog" aria-modal="true">
+  <div class="grab"></div>
+  <h3>Filtrer</h3>
+  <p>Affine la liste. L'horizon se règle directement sur l'écran des actions.</p>
+  <div class="f-group"><div class="f-lab">Thématique</div><div class="f-chips" id="fTheme"></div></div>
+  <div class="f-group"><div class="f-lab">Place boursière</div><div class="f-chips" id="fPlace"></div></div>
+  <div class="f-group"><div class="f-lab">Secteur</div><div class="f-chips" id="fSector"></div></div>
+  <div class="f-group"><div class="f-lab">Budget par action</div><div class="f-chips" id="fBudget"></div></div>
+  <div class="f-group"><div class="f-lab">Classer par</div><div class="f-chips" id="fSort"></div></div>
+  <div class="sh-act" style="margin-top:24px">
+    <button class="big-btn soft" id="fReset" style="flex:0 0 auto;padding:16px 22px">Réinitialiser</button>
+    <button class="big-btn primary" data-close>Voir les résultats</button></div>
+</div></div>
+
+<div class="ov" id="paywall"><div class="sheet" role="dialog" aria-modal="true">
+  <div class="grab"></div>
+  <h3>Tout analyser, sans rien lancer</h3>
+  <p id="pwIntro">—</p>
+  <div class="plan"><div class="plan-n">Gratuit <span class="plan-p mono">0 €</span></div><ul>
+    <li>Catalogue complet : cours, graphiques, statistiques</li>
+    <li><b>7 actions suivies</b>, recalculées automatiquement à chaque séance</li>
+    <li>Analyse à la demande sur toutes les autres</li>
+    <li class="off">Résultat valable pour la séance</li>
+    <li class="off">Pas d'alertes ni d'historique de fiabilité</li></ul></div>
+  <div class="plan pro"><div class="plan-n">NOVABOURSE+ <span class="plan-p mono" id="pwPrice">—</span></div><ul>
+    <li>Les <span id="pwTotal">220</span> actions analysées en continu</li>
+    <li>Analyse groupée d'une liste entière</li>
+    <li>Alertes de franchissement de seuil</li>
+    <li>Historique des estimations et de leur justesse</li></ul></div>
+  <p style="margin-top:14px;font-size:12.5px;color:var(--dim)">Maquette : aucun paiement n'est traité.</p>
+  <div class="sh-act" style="margin-top:18px">
+    <button class="big-btn soft" data-close style="flex:0 0 auto;padding:16px 22px">Plus tard</button>
+    <button class="big-btn gold" id="togglePro">Simuler NOVABOURSE+</button></div>
+</div></div>
+
+<div class="ov" id="swap"><div class="sheet" role="dialog" aria-modal="true">
+  <div class="grab"></div><h3>Tes 7 places sont prises</h3><p id="swapIntro">—</p>
+  <div style="margin-top:14px;max-height:46vh;overflow-y:auto" id="swapList"></div>
+  <div class="sh-act" style="margin-top:20px">
+    <button class="big-btn soft" data-close style="flex:0 0 auto;padding:16px 22px">Annuler</button>
+    <button class="big-btn gold" data-sheet="paywall">Tout suivre</button></div>
+</div></div>
+
+<div class="ov" id="glossary"><div class="sheet" role="dialog" aria-modal="true">
+  <div class="grab"></div><h3>Lexique</h3><p>Chaque mot de l'appli, en français simple.</p>
+  <div style="margin-top:14px">
+    <div class="gl-item"><b>Action</b><span>Une petite part d'entreprise. En posséder une, c'est posséder un morceau de l'entreprise.</span></div>
+    <div class="gl-item"><b>Cours</b><span>Le prix d'une seule action, à cet instant.</span></div>
+    <div class="gl-item"><b>Hausse possible</b><span>Si l'action monte sur la durée choisie, le gain typique observé dans les situations passées comparables.</span></div>
+    <div class="gl-item"><b>Baisse possible</b><span>Si elle baisse, la perte typique dans ces mêmes situations. Elle existe toujours, même quand l'IA penche vers la hausse.</span></div>
+    <div class="gl-item"><b>Chances sur 100</b><span>La part des situations passées comparables qui se sont terminées en hausse. 50 sur 100 = pile ou face.</span></div>
+    <div class="gl-item"><b>Horizon</b><span>La durée sur laquelle l'estimation porte : 5 jours, 1 mois, 3 mois ou 6 mois.</span></div>
+    <div class="gl-item"><b>Séance</b><span>Une journée d'ouverture de la Bourse. 5 séances ≈ une semaine.</span></div>
+    <div class="gl-item"><b>Momentum</b><span>La force de la tendance récente. Compte surtout à court terme.</span></div>
+    <div class="gl-item"><b>Valorisation</b><span>Le prix comparé aux bénéfices. Compte surtout à long terme.</span></div>
+    <div class="gl-item"><b>Volatilité</b><span>L'ampleur des secousses du cours. Forte volatilité = gains et pertes plus larges.</span></div>
+    <div class="gl-item"><b>PER</b><span>Le prix rapporté aux bénéfices annuels. Élevé = cher.</span></div>
+    <div class="gl-item"><b>Capitalisation</b><span>La valeur totale de l'entreprise en Bourse.</span></div>
+    <div class="gl-item"><b>Dividende</b><span>Une part des bénéfices reversée chaque année aux actionnaires.</span></div>
+  </div>
+  <div class="sh-act" style="margin-top:20px"><button class="big-btn primary" data-close>Fermer</button></div>
+</div></div>
+
+<div class="ov" id="method"><div class="sheet" role="dialog" aria-modal="true">
+  <div class="grab"></div><h3>Méthodologie</h3>
+  <p>Le modèle cherche, dans l'historique d'une société, les périodes où sa situation ressemblait à
+  celle d'aujourd'hui — tendance récente, valorisation, agitation du cours. Il compte ensuite combien de
+  ces périodes se sont terminées en hausse à l'échéance choisie. <b>C'est une fréquence passée, pas une
+  prévision.</b></p>
+  <p><b>Ce que nous publions.</b> Chaque estimation est horodatée et figée. À l'échéance, elle est notée
+  et versée au registre de fiabilité, consultable par tous — y compris quand elle nous dessert. Aucun
+  concurrent grand public ne le fait, et c'est le seul moyen de juger un modèle.</p>
+  <p><b>Nos limites, clairement.</b> Sur cinq séances, aucun modèle public ne dépasse durablement 55 % de
+  justesse : c'est pourquoi l'appli affiche « ne se prononce pas » entre 45 et 55 %. Les horizons longs
+  sont plus lisibles mais reposent sur moins de périodes indépendantes. Les données de cette maquette
+  sont générées localement.</p>
+  <p><b>Statut.</b> NOVABOURSE ne fournit aucun conseil en investissement personnalisé, ne recommande
+  l'achat ou la vente d'aucun titre, ne collecte aucun ordre et ne détient aucun fonds. Le portefeuille
+  est fictif. En France, la diffusion de recommandations d'investissement est encadrée par l'AMF et le
+  règlement européen sur les abus de marché : un déploiement réel imposerait de statuer précisément sur
+  ce cadre avant toute mise en ligne.</p>
+  <div class="sh-act" style="margin-top:20px"><button class="big-btn primary" data-close>Fermer</button></div>
+</div></div>
+
+<div class="ov" id="trade"><div class="sheet" role="dialog" aria-modal="true">
+  <div class="grab"></div><div id="tradeBody"></div>
+</div></div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function(){
+const RM=window.matchMedia('(prefers-reduced-motion:reduce)').matches;
+const FREE=7, ANALYSIS_MS=2800, PRICE='4,99 € / mois';
+let isPro=false, mode='simple';
+const FX={'€':1,'$':0.92,'£':1.17,'CHF':1.06,'¥':0.0061,'C$':0.68,'HK$':0.118,'A$':0.60,'SEK':0.088,'DKK':0.134};
+const PRE=['$','C$','HK$','A$'];
+
+const HZ=[
+ {id:'5j',label:'5 jours',long:'5 séances',n:5,  w:{m:.16,v:.03,s:.03},dr:0.2,rg:[44,58],sf:1.00},
+ {id:'1m',label:'1 mois', long:'20 séances',n:20,w:{m:.20,v:.08,s:.04},dr:0.6,rg:[42,62],sf:0.72},
+ {id:'3m',label:'3 mois', long:'60 séances',n:60,w:{m:.16,v:.20,s:.05},dr:1.4,rg:[38,68],sf:0.45},
+ {id:'6m',label:'6 mois', long:'125 séances',n:125,w:{m:.10,v:.30,s:.06},dr:2.2,rg:[35,72],sf:0.30}];
+const H=id=>HZ.find(h=>h.id===id);
+const SPANS=[{id:'1j',l:'1J',intra:14,t:'aujourd’hui'},{id:'1s',l:'1S',intra:70,t:'sur la semaine'},
+ {id:'1m',l:'1M',d:22,t:'sur un mois'},{id:'6m',l:'6M',d:130,t:'sur six mois'},
+ {id:'1a',l:'1A',d:260,t:'sur un an'},{id:'5a',l:'5A',d:1300,t:'sur cinq ans'}];
+const SP=id=>SPANS.find(s=>s.id===id)||SPANS[2];
+const MK={PA:{l:'Euronext Paris',s:'Paris',c:'EURONEXT',cur:'€'},NY:{l:'New York',s:'New York',c:'NYSE / NASDAQ',cur:'$'},
+ FR:{l:'Francfort',s:'Francfort',c:'XETRA',cur:'€'},AM:{l:'Amsterdam',s:'Amsterdam',c:'EURONEXT',cur:'€'},
+ LO:{l:'Londres',s:'Londres',c:'LSE',cur:'£'},MI:{l:'Milan',s:'Milan',c:'BIT',cur:'€'},
+ MD:{l:'Madrid',s:'Madrid',c:'BME',cur:'€'},ZU:{l:'Zurich',s:'Zurich',c:'SIX',cur:'CHF'},
+ TK:{l:'Tokyo',s:'Tokyo',c:'TSE',cur:'¥'},TO:{l:'Toronto',s:'Toronto',c:'TSX',cur:'C$'},
+ HK:{l:'Hong Kong',s:'Hong Kong',c:'HKEX',cur:'HK$'},SY:{l:'Sydney',s:'Sydney',c:'ASX',cur:'A$'},
+ ST:{l:'Stockholm',s:'Stockholm',c:'OMX',cur:'SEK'},CO:{l:'Copenhague',s:'Copenhague',c:'OMX',cur:'DKK'}};
+
+const U=[
+['AC','Accor','PA','Tourisme'],['AI','Air Liquide','PA','Industrie'],['AIR','Airbus','PA','Aéronautique'],
+['ALO','Alstom','PA','Industrie'],['MT','ArcelorMittal','PA','Industrie'],['CS','AXA','PA','Assurance'],
+['BNP','BNP Paribas','PA','Banque'],['EN','Bouygues','PA','Construction'],['CAP','Capgemini','PA','Technologie'],
+['CA','Carrefour','PA','Distribution'],['ACA','Crédit Agricole','PA','Banque'],['BN','Danone','PA','Consommation'],
+['DSY','Dassault Systèmes','PA','Technologie'],['EDEN','Edenred','PA','Services'],['ENGI','Engie','PA','Énergie'],
+['EL','EssilorLuxottica','PA','Santé'],['ERF','Eurofins','PA','Santé'],['RMS','Hermès','PA','Luxe'],
+['KER','Kering','PA','Luxe'],['LR','Legrand','PA','Industrie'],['OR',"L'Oréal",'PA','Consommation'],
+['MC','LVMH','PA','Luxe'],['ML','Michelin','PA','Industrie'],['ORA','Orange','PA','Télécoms'],
+['RI','Pernod Ricard','PA','Consommation'],['PUB','Publicis','PA','Médias'],['RNO','Renault','PA','Automobile'],
+['SAF','Safran','PA','Aéronautique'],['SGO','Saint-Gobain','PA','Construction'],['SAN','Sanofi','PA','Santé'],
+['SU','Schneider Electric','PA','Industrie'],['GLE','Société Générale','PA','Banque'],['STLAP','Stellantis','PA','Automobile'],
+['STMPA','STMicroelectronics','PA','Technologie'],['TEP','Teleperformance','PA','Services'],['HO','Thales','PA','Défense'],
+['TTE','TotalEnergies','PA','Énergie'],['URW','Unibail-Rodamco','PA','Immobilier'],['VIE','Veolia','PA','Services publics'],
+['DG','Vinci','PA','Construction'],['VIV','Vivendi','PA','Médias'],['WLN','Worldline','PA','Technologie'],
+['SW','Sodexo','PA','Services'],['GTT','GTT','PA','Industrie'],['FDJ','FDJ United','PA','Loisirs'],
+['ELIS','Elis','PA','Services'],['IPN','Ipsen','PA','Santé'],['NEX','Nexans','PA','Industrie'],
+['SOI','Soitec','PA','Technologie'],['UBI','Ubisoft','PA','Loisirs'],
+['AAPL','Apple','NY','Technologie'],['MSFT','Microsoft','NY','Technologie'],['NVDA','Nvidia','NY','Technologie'],
+['GOOGL','Alphabet','NY','Technologie'],['AMZN','Amazon','NY','Distribution'],['META','Meta Platforms','NY','Technologie'],
+['TSLA','Tesla','NY','Automobile'],['BRK-B','Berkshire Hathaway','NY','Finance'],['JPM','JPMorgan Chase','NY','Banque'],
+['V','Visa','NY','Finance'],['MA','Mastercard','NY','Finance'],['UNH','UnitedHealth','NY','Santé'],
+['JNJ','Johnson & Johnson','NY','Santé'],['XOM','ExxonMobil','NY','Énergie'],['PG','Procter & Gamble','NY','Consommation'],
+['HD','Home Depot','NY','Distribution'],['CVX','Chevron','NY','Énergie'],['ABBV','AbbVie','NY','Santé'],
+['MRK','Merck','NY','Santé'],['PEP','PepsiCo','NY','Consommation'],['KO','Coca-Cola','NY','Consommation'],
+['COST','Costco','NY','Distribution'],['WMT','Walmart','NY','Distribution'],['LLY','Eli Lilly','NY','Santé'],
+['AVGO','Broadcom','NY','Technologie'],['ADBE','Adobe','NY','Technologie'],['CRM','Salesforce','NY','Technologie'],
+['NFLX','Netflix','NY','Médias'],['AMD','AMD','NY','Technologie'],['INTC','Intel','NY','Technologie'],
+['CSCO','Cisco','NY','Technologie'],['ORCL','Oracle','NY','Technologie'],['QCOM','Qualcomm','NY','Technologie'],
+['TXN','Texas Instruments','NY','Technologie'],['IBM','IBM','NY','Technologie'],['GE','GE Aerospace','NY','Aéronautique'],
+['BA','Boeing','NY','Aéronautique'],['CAT','Caterpillar','NY','Industrie'],['MMM','3M','NY','Industrie'],
+['HON','Honeywell','NY','Industrie'],['LMT','Lockheed Martin','NY','Défense'],['RTX','RTX','NY','Défense'],
+['UPS','UPS','NY','Transport'],['DIS','Walt Disney','NY','Médias'],['MCD',"McDonald's",'NY','Restauration'],
+['SBUX','Starbucks','NY','Restauration'],['NKE','Nike','NY','Consommation'],['TGT','Target','NY','Distribution'],
+['LOW',"Lowe's",'NY','Distribution'],['PFE','Pfizer','NY','Santé'],['TMO','Thermo Fisher','NY','Santé'],
+['ABT','Abbott','NY','Santé'],['DHR','Danaher','NY','Santé'],['BMY','Bristol Myers Squibb','NY','Santé'],
+['AMGN','Amgen','NY','Santé'],['GILD','Gilead','NY','Santé'],['CVS','CVS Health','NY','Santé'],
+['WFC','Wells Fargo','NY','Banque'],['BAC','Bank of America','NY','Banque'],['GS','Goldman Sachs','NY','Banque'],
+['MS','Morgan Stanley','NY','Banque'],['C','Citigroup','NY','Banque'],['AXP','American Express','NY','Finance'],
+['BLK','BlackRock','NY','Finance'],['SCHW','Charles Schwab','NY','Finance'],['T','AT&T','NY','Télécoms'],
+['VZ','Verizon','NY','Télécoms'],['TMUS','T-Mobile US','NY','Télécoms'],['CMCSA','Comcast','NY','Médias'],
+['PM','Philip Morris','NY','Consommation'],['MO','Altria','NY','Consommation'],['GM','General Motors','NY','Automobile'],
+['F','Ford','NY','Automobile'],['DE','Deere','NY','Industrie'],['UBER','Uber','NY','Transport'],
+['PYPL','PayPal','NY','Finance'],['NOW','ServiceNow','NY','Technologie'],['INTU','Intuit','NY','Technologie'],
+['ISRG','Intuitive Surgical','NY','Santé'],['MDT','Medtronic','NY','Santé'],['SPGI','S&P Global','NY','Finance'],
+['NEE','NextEra Energy','NY','Services publics'],['DUK','Duke Energy','NY','Services publics'],['SO','Southern Company','NY','Services publics'],
+['COP','ConocoPhillips','NY','Énergie'],['SLB','SLB','NY','Énergie'],['KHC','Kraft Heinz','NY','Consommation'],
+['CL','Colgate-Palmolive','NY','Consommation'],['TJX','TJX Companies','NY','Distribution'],['EBAY','eBay','NY','Distribution'],
+['SAP','SAP','FR','Technologie'],['SIE','Siemens','FR','Industrie'],['ALV','Allianz','FR','Assurance'],
+['DTE','Deutsche Telekom','FR','Télécoms'],['BAS','BASF','FR','Chimie'],['BAYN','Bayer','FR','Santé'],
+['BMW','BMW','FR','Automobile'],['MBG','Mercedes-Benz','FR','Automobile'],['VOW3','Volkswagen','FR','Automobile'],
+['MUV2','Munich Re','FR','Assurance'],['DBK','Deutsche Bank','FR','Banque'],['ADS','Adidas','FR','Consommation'],
+['IFX','Infineon','FR','Technologie'],['RWE','RWE','FR','Énergie'],['DHL','DHL Group','FR','Transport'],
+['HEN3','Henkel','FR','Consommation'],['P911','Porsche AG','FR','Automobile'],['HEI','Heidelberg Materials','FR','Construction'],
+['EOAN','E.ON','FR','Services publics'],['SY1','Symrise','FR','Chimie'],
+['ASML','ASML','AM','Technologie'],['ADYEN','Adyen','AM','Finance'],['INGA','ING Groep','AM','Banque'],
+['HEIA','Heineken','AM','Consommation'],['PHIA','Philips','AM','Santé'],['AD','Ahold Delhaize','AM','Distribution'],
+['PRX','Prosus','AM','Technologie'],['WKL','Wolters Kluwer','AM','Médias'],['AKZA','AkzoNobel','AM','Chimie'],
+['KPN','KPN','AM','Télécoms'],['DSFIR','DSM-Firmenich','AM','Chimie'],['BESI','BE Semiconductor','AM','Technologie'],
+['SHEL','Shell','LO','Énergie'],['AZN','AstraZeneca','LO','Santé'],['HSBA','HSBC','LO','Banque'],
+['ULVR','Unilever','LO','Consommation'],['BP','BP','LO','Énergie'],['GSK','GSK','LO','Santé'],
+['RIO','Rio Tinto','LO','Matières premières'],['DGE','Diageo','LO','Consommation'],['BATS','British American Tobacco','LO','Consommation'],
+['LSEG','London Stock Exchange','LO','Finance'],['VOD','Vodafone','LO','Télécoms'],['BARC','Barclays','LO','Banque'],
+['TSCO','Tesco','LO','Distribution'],['NG','National Grid','LO','Services publics'],['REL','RELX','LO','Médias'],
+['GLEN','Glencore','LO','Matières premières'],['AAL','Anglo American','LO','Matières premières'],['PRU','Prudential','LO','Assurance'],
+['ENI','Eni','MI','Énergie'],['ENEL','Enel','MI','Services publics'],['ISP','Intesa Sanpaolo','MI','Banque'],
+['UCG','UniCredit','MI','Banque'],['RACE','Ferrari','MI','Automobile'],['G','Generali','MI','Assurance'],
+['MONC','Moncler','MI','Luxe'],['TIT','Telecom Italia','MI','Télécoms'],['PST','Poste Italiane','MI','Finance'],
+['LDO','Leonardo','MI','Défense'],
+['SAN','Banco Santander','MD','Banque'],['BBVA','BBVA','MD','Banque'],['ITX','Inditex','MD','Distribution'],
+['IBE','Iberdrola','MD','Services publics'],['TEF','Telefónica','MD','Télécoms'],['REP','Repsol','MD','Énergie'],
+['AENA','Aena','MD','Transport'],['FER','Ferrovial','MD','Construction'],['AMS','Amadeus','MD','Technologie'],
+['CABK','CaixaBank','MD','Banque'],
+['NESN','Nestlé','ZU','Consommation'],['ROG','Roche','ZU','Santé'],['NOVN','Novartis','ZU','Santé'],
+['UBSG','UBS','ZU','Banque'],['ZURN','Zurich Insurance','ZU','Assurance'],['ABBN','ABB','ZU','Industrie'],
+['LONN','Lonza','ZU','Santé'],['CFR','Richemont','ZU','Luxe'],['SIKA','Sika','ZU','Chimie'],
+['GIVN','Givaudan','ZU','Chimie'],['SREN','Swiss Re','ZU','Assurance'],['ALC','Alcon','ZU','Santé'],
+['ACN','Accenture','NY','Services'],['ADI','Analog Devices','NY','Technologie'],['AMAT','Applied Materials','NY','Technologie'],
+['LRCX','Lam Research','NY','Technologie'],['KLAC','KLA','NY','Technologie'],['MU','Micron','NY','Technologie'],
+['SNPS','Synopsys','NY','Technologie'],['CDNS','Cadence','NY','Technologie'],['PANW','Palo Alto Networks','NY','Technologie'],
+['CRWD','CrowdStrike','NY','Technologie'],['FTNT','Fortinet','NY','Technologie'],['DDOG','Datadog','NY','Technologie'],
+['SNOW','Snowflake','NY','Technologie'],['MDB','MongoDB','NY','Technologie'],['TEAM','Atlassian','NY','Technologie'],
+['WDAY','Workday','NY','Technologie'],['ZS','Zscaler','NY','Technologie'],['NET','Cloudflare','NY','Technologie'],
+['ABNB','Airbnb','NY','Tourisme'],['DASH','DoorDash','NY','Services'],['LYFT','Lyft','NY','Transport'],
+['RBLX','Roblox','NY','Loisirs'],['SPOT','Spotify','NY','Médias'],['PINS','Pinterest','NY','Médias'],
+['SNAP','Snap','NY','Médias'],['ZM','Zoom','NY','Technologie'],['DOCU','DocuSign','NY','Technologie'],
+['OKTA','Okta','NY','Technologie'],['TWLO','Twilio','NY','Technologie'],['XYZ','Block','NY','Finance'],
+['COIN','Coinbase','NY','Finance'],['HOOD','Robinhood','NY','Finance'],['PLTR','Palantir','NY','Technologie'],
+['U','Unity','NY','Technologie'],['EA','Electronic Arts','NY','Loisirs'],['TTWO','Take-Two','NY','Loisirs'],
+['MAR','Marriott','NY','Tourisme'],['HLT','Hilton','NY','Tourisme'],['BKNG','Booking Holdings','NY','Tourisme'],
+['EXPE','Expedia','NY','Tourisme'],['DAL','Delta Air Lines','NY','Transport'],['UAL','United Airlines','NY','Transport'],
+['LUV','Southwest Airlines','NY','Transport'],['CCL','Carnival','NY','Tourisme'],['RCL','Royal Caribbean','NY','Tourisme'],
+['YUM','Yum! Brands','NY','Restauration'],['CMG','Chipotle','NY','Restauration'],['DPZ',"Domino's Pizza",'NY','Restauration'],
+['KDP','Keurig Dr Pepper','NY','Consommation'],['STZ','Constellation Brands','NY','Consommation'],['HSY','Hershey','NY','Consommation'],
+['K','Kellanova','NY','Consommation'],['GIS','General Mills','NY','Consommation'],['SYY','Sysco','NY','Distribution'],
+['ADM','ADM','NY','Consommation'],['NUE','Nucor','NY','Industrie'],['FCX','Freeport-McMoRan','NY','Matières premières'],
+['DOW','Dow','NY','Chimie'],['DD','DuPont','NY','Chimie'],['LIN','Linde','NY','Chimie'],
+['SHW','Sherwin-Williams','NY','Chimie'],['ECL','Ecolab','NY','Chimie'],['APD','Air Products','NY','Chimie'],
+['PPG','PPG Industries','NY','Chimie'],['EMR','Emerson Electric','NY','Industrie'],['ETN','Eaton','NY','Industrie'],
+['ITW','Illinois Tool Works','NY','Industrie'],['PH','Parker Hannifin','NY','Industrie'],['ROK','Rockwell Automation','NY','Industrie'],
+['CMI','Cummins','NY','Industrie'],['PCAR','Paccar','NY','Industrie'],['GD','General Dynamics','NY','Défense'],
+['NOC','Northrop Grumman','NY','Défense'],['LHX','L3Harris','NY','Défense'],['TDG','TransDigm','NY','Aéronautique'],
+['WM','Waste Management','NY','Services'],['RSG','Republic Services','NY','Services'],['FDX','FedEx','NY','Transport'],
+['CSX','CSX','NY','Transport'],['UNP','Union Pacific','NY','Transport'],['NSC','Norfolk Southern','NY','Transport'],
+['ODFL','Old Dominion','NY','Transport'],['PSA','Public Storage','NY','Immobilier'],['SPG','Simon Property','NY','Immobilier'],
+['O','Realty Income','NY','Immobilier'],['AMT','American Tower','NY','Immobilier'],['CCI','Crown Castle','NY','Immobilier'],
+['EQIX','Equinix','NY','Immobilier'],['DLR','Digital Realty','NY','Immobilier'],['WELL','Welltower','NY','Immobilier'],
+['AVB','AvalonBay','NY','Immobilier'],['EQR','Equity Residential','NY','Immobilier'],['PLD','Prologis','NY','Immobilier'],
+['VICI','VICI Properties','NY','Immobilier'],['D','Dominion Energy','NY','Services publics'],['AEP','American Electric Power','NY','Services publics'],
+['EXC','Exelon','NY','Services publics'],['XEL','Xcel Energy','NY','Services publics'],['ED','Consolidated Edison','NY','Services publics'],
+['PEG','PSEG','NY','Services publics'],['SRE','Sempra','NY','Services publics'],['WEC','WEC Energy','NY','Services publics'],
+['ES','Eversource','NY','Services publics'],['PCG','PG&E','NY','Services publics'],['VST','Vistra','NY','Services publics'],
+['CEG','Constellation Energy','NY','Services publics'],['OXY','Occidental','NY','Énergie'],['PSX','Phillips 66','NY','Énergie'],
+['VLO','Valero','NY','Énergie'],['MPC','Marathon Petroleum','NY','Énergie'],['HAL','Halliburton','NY','Énergie'],
+['BKR','Baker Hughes','NY','Énergie'],['DVN','Devon Energy','NY','Énergie'],['FANG','Diamondback','NY','Énergie'],
+['HES','Hess','NY','Énergie'],['KMI','Kinder Morgan','NY','Énergie'],['WMB','Williams','NY','Énergie'],
+['OKE','Oneok','NY','Énergie'],['TRGP','Targa Resources','NY','Énergie'],['MCK','McKesson','NY','Santé'],
+['COR','Cencora','NY','Santé'],['CI','Cigna','NY','Santé'],['ELV','Elevance Health','NY','Santé'],
+['HUM','Humana','NY','Santé'],['HCA','HCA Healthcare','NY','Santé'],['CNC','Centene','NY','Santé'],
+['ZTS','Zoetis','NY','Santé'],['IDXX','Idexx','NY','Santé'],['BIIB','Biogen','NY','Santé'],
+['REGN','Regeneron','NY','Santé'],['VRTX','Vertex','NY','Santé'],['MRNA','Moderna','NY','Santé'],
+['ILMN','Illumina','NY','Santé'],['IQV','IQVIA','NY','Santé'],['A','Agilent','NY','Santé'],
+['BSX','Boston Scientific','NY','Santé'],['SYK','Stryker','NY','Santé'],['BDX','Becton Dickinson','NY','Santé'],
+['EW','Edwards Lifesciences','NY','Santé'],['ZBH','Zimmer Biomet','NY','Santé'],['BAX','Baxter','NY','Santé'],
+['RMD','ResMed','NY','Santé'],['ALGN','Align Technology','NY','Santé'],['DXCM','Dexcom','NY','Santé'],
+['PODD','Insulet','NY','Santé'],['WST','West Pharmaceutical','NY','Santé'],['MTD','Mettler-Toledo','NY','Santé'],
+['WAT','Waters','NY','Santé'],['TER','Teradyne','NY','Technologie'],['KEYS','Keysight','NY','Technologie'],
+['GLW','Corning','NY','Technologie'],['APH','Amphenol','NY','Technologie'],['TEL','TE Connectivity','NY','Technologie'],
+['MSI','Motorola Solutions','NY','Technologie'],['GRMN','Garmin','NY','Technologie'],['ANET','Arista Networks','NY','Technologie'],
+['HPQ','HP','NY','Technologie'],['DELL','Dell','NY','Technologie'],['HPE','Hewlett Packard Enterprise','NY','Technologie'],
+['NTAP','NetApp','NY','Technologie'],['STX','Seagate','NY','Technologie'],['WDC','Western Digital','NY','Technologie'],
+['ON','ON Semiconductor','NY','Technologie'],['MCHP','Microchip','NY','Technologie'],['NXPI','NXP Semiconductors','NY','Technologie'],
+['MPWR','Monolithic Power','NY','Technologie'],['SWKS','Skyworks','NY','Technologie'],['QRVO','Qorvo','NY','Technologie'],
+['FSLR','First Solar','NY','Énergie'],['ENPH','Enphase','NY','Énergie'],['PWR','Quanta Services','NY','Construction'],
+['J','Jacobs','NY','Construction'],['URI','United Rentals','NY','Industrie'],['FAST','Fastenal','NY','Distribution'],
+['GWW','W.W. Grainger','NY','Distribution'],['ORLY',"O'Reilly Automotive",'NY','Distribution'],['AZO','AutoZone','NY','Distribution'],
+['ULTA','Ulta Beauty','NY','Distribution'],['LULU','Lululemon','NY','Consommation'],['DECK','Deckers','NY','Consommation'],
+['RL','Ralph Lauren','NY','Luxe'],['TPR','Tapestry','NY','Luxe'],['VFC','VF Corporation','NY','Consommation'],
+['BBY','Best Buy','NY','Distribution'],['DG','Dollar General','NY','Distribution'],['DLTR','Dollar Tree','NY','Distribution'],
+['KR','Kroger','NY','Distribution'],['WBA','Walgreens','NY','Distribution'],['CAG','Conagra','NY','Consommation'],
+['CPB','Campbell','NY','Consommation'],['SJM','J.M. Smucker','NY','Consommation'],['MKC','McCormick','NY','Consommation'],
+['CHD','Church & Dwight','NY','Consommation'],['CLX','Clorox','NY','Consommation'],['KMB','Kimberly-Clark','NY','Consommation'],
+['EL','Estée Lauder','NY','Consommation'],['TSN','Tyson Foods','NY','Consommation'],['HRL','Hormel','NY','Consommation'],
+['MNST','Monster Beverage','NY','Consommation'],['KVUE','Kenvue','NY','Consommation'],['PARA','Paramount','NY','Médias'],
+['WBD','Warner Bros. Discovery','NY','Médias'],['FOXA','Fox','NY','Médias'],['NWSA','News Corp','NY','Médias'],
+['LYV','Live Nation','NY','Loisirs'],['MTCH','Match Group','NY','Médias'],['IPG','Interpublic','NY','Médias'],
+['OMC','Omnicom','NY','Médias'],['TTD','Trade Desk','NY','Médias'],['ROKU','Roku','NY','Médias'],
+['ETSY','Etsy','NY','Distribution'],['W','Wayfair','NY','Distribution'],['CHWY','Chewy','NY','Distribution'],
+['CVNA','Carvana','NY','Distribution'],
+
+['7203','Toyota','TK','Automobile'],['6758','Sony','TK','Technologie'],['6861','Keyence','TK','Industrie'],
+['9984','SoftBank Group','TK','Technologie'],['8306','Mitsubishi UFJ','TK','Banque'],['6098','Recruit Holdings','TK','Services'],
+['9432','NTT','TK','Télécoms'],['4063','Shin-Etsu Chemical','TK','Chimie'],['7974','Nintendo','TK','Loisirs'],
+['6367','Daikin','TK','Industrie'],['8035','Tokyo Electron','TK','Technologie'],['7267','Honda','TK','Automobile'],
+['6902','Denso','TK','Automobile'],['4502','Takeda','TK','Santé'],['8058','Mitsubishi Corp','TK','Services'],
+['8001','Itochu','TK','Services'],['9433','KDDI','TK','Télécoms'],['6501','Hitachi','TK','Industrie'],
+['6702','Fujitsu','TK','Technologie'],['7741','Hoya','TK','Santé'],['4568','Daiichi Sankyo','TK','Santé'],
+['6273','SMC','TK','Industrie'],['8316','Sumitomo Mitsui','TK','Banque'],['8411','Mizuho','TK','Banque'],
+['7751','Canon','TK','Technologie'],
+
+['SHOP','Shopify','TO','Technologie'],['RY','Banque Royale','TO','Banque'],['TD','Banque TD','TO','Banque'],
+['BNS','Banque Scotia','TO','Banque'],['BMO','BMO','TO','Banque'],['CM','CIBC','TO','Banque'],
+['ENB','Enbridge','TO','Énergie'],['TRP','TC Energy','TO','Énergie'],['CNQ','Canadian Natural','TO','Énergie'],
+['SU','Suncor','TO','Énergie'],['CNR','Canadien National','TO','Transport'],['CP','Canadien Pacifique','TO','Transport'],
+['BCE','BCE','TO','Télécoms'],['T','Telus','TO','Télécoms'],['MFC','Manuvie','TO','Assurance'],
+['SLF','Sun Life','TO','Assurance'],['ATD','Couche-Tard','TO','Distribution'],['L','Loblaw','TO','Distribution'],
+['WCN','Waste Connections','TO','Services'],['NTR','Nutrien','TO','Chimie'],['ABX','Barrick','TO','Matières premières'],
+['WPM','Wheaton Precious Metals','TO','Matières premières'],['FNV','Franco-Nevada','TO','Matières premières'],
+['AEM','Agnico Eagle','TO','Matières premières'],
+
+['700','Tencent','HK','Technologie'],['9988','Alibaba','HK','Distribution'],['1810','Xiaomi','HK','Technologie'],
+['3690','Meituan','HK','Services'],['1211','BYD','HK','Automobile'],['939','China Construction Bank','HK','Banque'],
+['1398','ICBC','HK','Banque'],['941','China Mobile','HK','Télécoms'],['883','CNOOC','HK','Énergie'],
+['2318','Ping An','HK','Assurance'],['1299','AIA','HK','Assurance'],['388','HKEX','HK','Finance'],
+['2020','Anta Sports','HK','Consommation'],['9618','JD.com','HK','Distribution'],['9999','NetEase','HK','Loisirs'],
+['175','Geely','HK','Automobile'],['2382','Sunny Optical','HK','Technologie'],['27','Galaxy Entertainment','HK','Loisirs'],
+
+['BHP','BHP Group','SY','Matières premières'],['CBA','Commonwealth Bank','SY','Banque'],['CSL','CSL','SY','Santé'],
+['NAB','National Australia Bank','SY','Banque'],['WBC','Westpac','SY','Banque'],['ANZ','ANZ Group','SY','Banque'],
+['WES','Wesfarmers','SY','Distribution'],['WOW','Woolworths','SY','Distribution'],['MQG','Macquarie','SY','Finance'],
+['TLS','Telstra','SY','Télécoms'],['FMG','Fortescue','SY','Matières premières'],['GMG','Goodman Group','SY','Immobilier'],
+['TCL','Transurban','SY','Transport'],
+
+['VOLV-B','Volvo','ST','Automobile'],['ATCO-A','Atlas Copco','ST','Industrie'],['INVE-B','Investor AB','ST','Finance'],
+['ERIC-B','Ericsson','ST','Technologie'],['HM-B','H&M','ST','Distribution'],['SAND','Sandvik','ST','Industrie'],
+['ASSA-B','Assa Abloy','ST','Industrie'],['EQT','EQT AB','ST','Finance'],['SEB-A','SEB','ST','Banque'],
+['EVO','Evolution','ST','Loisirs'],
+
+['NOVO-B','Novo Nordisk','CO','Santé'],['DSV','DSV','CO','Transport'],['ORSTED','Ørsted','CO','Services publics'],
+['MAERSK-B','Maersk','CO','Transport'],['CARL-B','Carlsberg','CO','Consommation'],['VWS','Vestas','CO','Énergie'],
+['NZYM-B','Novonesis','CO','Chimie'],['GN','GN Store Nord','CO','Santé'],
+];
+
+const hash=s=>{let h=2166136261;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619);}return h>>>0;};
+const mb32=a=>()=>{a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return ((t^t>>>14)>>>0)/4294967296;};
+const cl=(v,a,b)=>Math.max(a,Math.min(b,v));
+
+function build(rec){
+  const [t,n,mk,sec]=rec, r=mb32(hash(t+'|'+mk));
+  const mo=Math.round(15+r()*80), va=Math.round(15+r()*80), st=Math.round(15+r()*80);
+  const eurBase=(1+r()*r()*640)*(r()<.12?6:1);
+  const price=+(eurBase/FX[MK[mk].cur]).toFixed(2);
+  const vol=(100-st)/100;
+  const day=+(((r()-0.46)*4.2)*(0.4+vol)).toFixed(2);
+  const base=Math.round(160+r()*120);
+  const risk=cl(Math.round(96-st*0.62-(100-vol*100)*0.12+r()*10),8,94);
+  const yl=+(['Banque','Énergie','Télécoms','Services publics','Assurance'].includes(sec)?2.5+r()*4:r()*3.4).toFixed(1);
+  const earn=Math.round(1+r()*89);
+  const per=+(8+(100-va)/100*40+r()*6).toFixed(2);
+  const mcap=Math.round((4+r()*r()*2600)*10)/10;
+  const volu=+(0.4+r()*r()*70).toFixed(2), avol=+(volu*(0.7+r()*0.7)).toFixed(2);
+  const h={};
+  HZ.forEach(x=>{
+    let p=50+x.dr+x.w.m*(mo-50)+x.w.v*(va-50)+x.w.s*(st-50)+(r()-0.5)*4;
+    p=cl(Math.round(p),x.rg[0],x.rg[1]);
+    const mag=(2.2+vol*7)*Math.sqrt(x.n/20);            // amplitude typique du mouvement
+    const up=+(mag*(0.78+p/100*0.55)).toFixed(1);
+    const dn=+(mag*(0.78+(100-p)/100*0.55)).toFixed(1);
+    h[x.id]={p,up,dn,esp:+((p/100*up-(100-p)/100*dn)).toFixed(1),
+      s:Math.max(40,Math.round(base*x.sf))};
+  });
+  const th=[];
+  if(va>=64)th.push('bons-plans'); if(mo>=66)th.push('tendances');
+  if(st>=66&&risk<=45)th.push('securise');
+  if(mo>=52&&va<=58&&['Technologie','Santé','Luxe','Aéronautique','Finance','Loisirs'].includes(sec))th.push('croissance');
+  if(yl>=3)th.push('dividendes'); if(earn<=14)th.push('resultats');
+  return {id:t+'|'+mk,t,n,mk,sec,place:MK[mk].s,venue:MK[mk].c,cur:MK[mk].cur,price,
+    eurPrice:+eurBase.toFixed(2),day,h,risk,yl,earn,vol,per,mcap,volu,avol,
+    sg:{mo,va,st},th,q:(t+' '+n+' '+sec+' '+MK[mk].s).toLowerCase()};
+}
+const S=U.map(build), BY={}; S.forEach(x=>BY[x.id]=x);
+
+/* ---------- séries ---------- */
+const SER={},INT={},VOL={};let DATES=null;
+function ser(a){ if(SER[a.id])return SER[a.id];
+  const r=mb32(hash('s|'+a.id)),n=1300,sg=0.006+a.vol*0.016,dr=0.00015+(a.sg.mo-50)/50*0.0004;
+  let v=1;const raw=[];for(let i=0;i<n;i++){v*=1+dr+(r()-0.5)*sg*2;raw.push(v);}
+  const k=a.price/raw[n-1];SER[a.id]=raw.map(x=>+(x*k).toFixed(2));return SER[a.id];}
+function intra(a){ if(INT[a.id])return INT[a.id];
+  const d=ser(a).slice(-6),r=mb32(hash('i|'+a.id)),o=[];
+  for(let i=1;i<6;i++){const f=d[i-1],t=d[i];
+    for(let k=0;k<14;k++){const x=(k+1)/14,b=f+(t-f)*x;o.push(+(b+(r()-0.5)*b*a.vol*0.014).toFixed(2));}}
+  o[o.length-1]=a.price;INT[a.id]=o;return o;}
+function vols(a,n){const k=a.id+n;if(VOL[k])return VOL[k];const r=mb32(hash('v|'+k)),o=[];
+  for(let i=0;i<n;i++)o.push(.25+r()*r()*1.6);VOL[k]=o;return o;}
+function dates(n){ if(!DATES){const o=[],d=new Date();d.setHours(0,0,0,0);
+  while(o.length<1300){const w=d.getDay();if(w!==0&&w!==6)o.unshift(new Date(d));d.setDate(d.getDate()-1);}DATES=o;}
+  return DATES.slice(-n);}
+function samp(a,m){if(a.length<=m)return a;const s=a.length/m,o=[];
+  for(let i=0;i<m;i++)o.push(a[Math.floor(i*s)]);o[o.length-1]=a[a.length-1];return o;}
+
+/* ---------- état ---------- */
+const DEF=['AAPL|NY','NVDA|NY','MSFT|NY','MC|PA','AIR|PA','TTE|PA','ASML|AM'];
+const fol=new Set(DEF.filter(i=>BY[i])), ana=new Map(), run=new Set();
+let hz='1m', budget=null, theme='tout', place='tout', sector='tout', sort='esp', query='', onlyMine=false, shown=25;
+const SECTORS=[...new Set(S.map(a=>a.sec))].sort((a,b)=>a.localeCompare(b,'fr'));
+let cur=null, span='1m', proj=true;
+const isFol=a=>fol.has(a.id), has=a=>isPro||fol.has(a.id)||ana.has(a.id);
+const left=()=>FREE-fol.size, hm=()=>new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
+const D=a=>a.h[hz];
+
+/* ===== portefeuille virtuel (argent fictif) ===== */
+const START=10000;
+let cash=START;
+const pos=new Map();            // id -> {q, pru}  (pru en euros)
+const LP={};                    // cours en direct
+S.forEach(a=>{LP[a.id]=a.price; a.open=+(a.price/(1+a.day/100)).toFixed(4);});
+const cp=a=>LP[a.id];                                   // cours courant, devise locale
+const cpEur=a=>+(cp(a)*FX[a.cur]).toFixed(4);           // converti en euros
+const dayPct=a=>(cp(a)/a.open-1)*100;
+const held=a=>pos.get(a.id);
+const posValue=()=>[...pos].reduce((s,[id,p])=>s+p.q*cpEur(BY[id]),0);
+const total=()=>cash+posValue();
+
+/* Les cours bougent en continu. En production, ce tick serait remplacé par
+   le flux de l'API de marché (websocket ou sondage toutes les 15 s). */
+function tick(){
+  const ids=new Set([...pos.keys()]);
+  if(cur) ids.add(cur.id);
+  document.querySelectorAll('#rows [data-id]').forEach(el=>ids.add(el.dataset.id));
+  ids.forEach(id=>{
+    const a=BY[id]; if(!a) return;
+    const sg=0.0012+a.vol*0.0035;
+    LP[id]=+(LP[id]*(1+(Math.random()-0.5)*sg*2)).toFixed(a.price>=100?2:4);
+  });
+  paintLive();
+}
+function flash(el,up){
+  el.classList.remove('flash-up','flash-dn');
+  void el.offsetWidth;
+  el.classList.add(up?'flash-up':'flash-dn');
+  setTimeout(()=>el.classList.remove('flash-up','flash-dn'),700);
+}
+function paintLive(){
+  document.querySelectorAll('[data-lp]').forEach(el=>{
+    const a=BY[el.dataset.lp]; if(!a) return;
+    const t=price(cp(a),a.cur);
+    if(el.textContent!==t){flash(el,t>el.textContent);el.textContent=t;}
+  });
+  document.querySelectorAll('[data-ld]').forEach(el=>{
+    const a=BY[el.dataset.ld]; if(!a) return;
+    const d=dayPct(a);
+    el.textContent=pct(d);
+    el.classList.toggle('up',d>=0); el.classList.toggle('down',d<0);
+  });
+  if(document.getElementById('s-port').classList.contains('active')) renderPort();
+  const th=document.getElementById('tradeQty');
+  if(th) updateTradeCost();
+}
+
+const IC={
+ up:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 15l6-6 4 3.6L20 6"/><path d="M15.5 6H20v4.5"/></svg>',
+ dn:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 9l6 6 4-3.6L20 18"/><path d="M15.5 18H20v-4.5"/></svg>',
+ star:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8L3.5 9.7l5.9-.9z"/></svg>',
+ starO:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 4l2.4 5 5.6.8-4 3.9.9 5.5-4.9-2.6-4.9 2.6.9-5.5-4-3.9 5.6-.8z"/></svg>',
+ sp:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1"/></svg>',
+ rf:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M20 12a8 8 0 10-2.6 5.9"/><path d="M20 6.5V12h-5.5"/></svg>',
+ ch:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M9 5l7 7-7 7"/></svg>',
+ bk:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M15 5l-7 7 7 7"/></svg>',
+ shield:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 3l7 3v6c0 4.2-2.9 7.7-7 9-4.1-1.3-7-4.8-7-9V6z"/></svg>',
+ bars:'<svg viewBox="0 0 24 24" fill="currentColor"><rect x="4" y="12" width="3.4" height="8" rx="1"/><rect x="10.3" y="6" width="3.4" height="14" rx="1"/><rect x="16.6" y="9" width="3.4" height="11" rx="1"/></svg>',
+ coin:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="8.2"/><path d="M14 9.4c-.5-.8-1.4-1.2-2.4-1.2-1.3 0-2.2.7-2.2 1.7 0 2.4 4.8 1.2 4.8 3.7 0 1.1-1 1.9-2.4 1.9-1.1 0-2.1-.5-2.5-1.3M12 6.6v10.8"/></svg>',
+ cal:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="4" y="5.5" width="16" height="15" rx="2.4"/><path d="M4 10h16M9 3.5v4M15 3.5v4"/></svg>'};
+
+const TH=[
+ {id:'bons-plans',l:'Bons plans',s:'Prix bas par rapport aux bénéfices',i:IC.star,c:'var(--t-bons)'},
+ {id:'tendances',l:'Tendances',s:'Le cours monte fort en ce moment',i:IC.up,c:'var(--t-tendances)'},
+ {id:'securise',l:'Sécurisé',s:'Le cours bouge peu, moins de surprises',i:IC.shield,c:'var(--t-securise)'},
+ {id:'croissance',l:'Croissance',s:'Entreprises qui grandissent vite',i:IC.bars,c:'var(--t-croissance)'},
+ {id:'dividendes',l:'Dividendes',s:'Reversent une part de leurs bénéfices',i:IC.coin,c:'var(--t-dividendes)'},
+ {id:'resultats',l:'Résultats',s:'Publient leurs comptes sous 15 jours',i:IC.cal,c:'var(--t-resultats)'}];
+const SORTS=[{id:'esp',l:'Équilibre le plus favorable'},{id:'up',l:'Plus forte hausse possible'},
+ {id:'dn',l:'Plus faible baisse possible'},{id:'proba',l:'Plus de chances de monter'},
+ {id:'jour',l:'Meilleure séance du jour'},{id:'prix',l:'Prix le plus bas'},{id:'alpha',l:'Ordre alphabétique'}];
+const BUD=[{l:'Sans limite',v:null},{l:'≤ 50 €',v:50},{l:'≤ 100 €',v:100},{l:'≤ 250 €',v:250},{l:'≤ 500 €',v:500}];
+
+const pct=(n,d)=>(n>=0?'+':'−')+Math.abs(n).toFixed(d===undefined?2:d).replace('.',',')+' %';
+const nb=(n,d)=>n.toLocaleString('fr-FR',{minimumFractionDigits:d===undefined?2:d,maximumFractionDigits:d===undefined?2:d});
+const eur=n=>n.toLocaleString('fr-FR',{maximumFractionDigits:0})+' €';
+const price=(p,c)=>PRE.includes(c)?c+nb(p,p>=1000?0:2):nb(p,p>=1000?0:2)+' '+c;
+const cap=m=>m>=1000?nb(m/1000,2)+' T':nb(m,1)+' Md';
+
+/* ---------- explications : toujours les deux sens ---------- */
+function reasons(a){
+  const d=D(a),h=H(hz),up=[],dn=[];
+  if(a.sg.mo>=62) up.push(`<b>Elle grimpe déjà</b> depuis plusieurs semaines. Sur ${h.label}, ces tendances se sont souvent prolongées.`);
+  if(a.sg.va>=60) up.push(`<b>Son prix reste modéré</b> par rapport aux bénéfices de l'entreprise : il y a de la marge si le marché la réévalue.`);
+  if(a.sg.st>=62) up.push(`<b>Son cours est calme</b> : les chutes brutales y sont rares, ce qui protège la trajectoire.`);
+  if(a.yl>=3)     up.push(`<b>Elle verse ${nb(a.yl,1)} % de dividende</b>, ce qui attire les investisseurs cherchant un revenu régulier.`);
+  if(a.earn<=14)  up.push(`<b>Résultats dans ${a.earn} jours</b> : une bonne surprise peut faire décoller le cours d'un coup.`);
+  up.push(`Sur longue période, les marchés actions ont progressé en moyenne — c'est le vent de fond qui souffle derrière toute action.`);
+
+  if(a.sg.mo<=45) dn.push(`<b>Elle recule depuis plusieurs semaines.</b> Ces phases de baisse ont tendance à durer plus longtemps qu'on ne l'imagine.`);
+  if(a.sg.va<=42) dn.push(`<b>Son prix est déjà élevé</b> par rapport aux bénéfices : la moindre déception se paie cher.`);
+  if(a.sg.st<=48||a.risk>=62) dn.push(`<b>Son cours est agité</b> : des écarts de plusieurs pourcents en une seule séance sont fréquents, dans les deux sens.`);
+  if(a.earn<=14)  dn.push(`<b>Résultats dans ${a.earn} jours</b> : ces publications provoquent régulièrement des chutes brutales.`);
+  if(a.sec==='Banque'||a.sec==='Immobilier') dn.push(`Le secteur ${a.sec.toLowerCase()} réagit fortement aux taux d'intérêt, une décision de banque centrale peut tout changer.`);
+  dn.push(`Un choc général — taux, conflit, panique de marché — ferait baisser cette action quelle que soit sa situation propre.`);
+
+  return {up:up.slice(0,3),dn:dn.slice(0,3)};
+}
+function summary(a){
+  const d=D(a),h=H(hz);
+  const lean = d.p>=55?`penche vers la <b>hausse</b>`:(d.p<=45?`penche vers la <b>baisse</b>`:`<b>ne tranche pas</b>`);
+  return `Sur <b>${h.label}</b>, l'estimation ${lean} : <b>${d.p} chances sur 100</b> que le cours monte.
+    Si ça monte, le gain typique serait de <b>${pct(d.up,1)}</b> ; si ça baisse, la perte typique serait de
+    <b>${pct(-d.dn,1)}</b>.`;
+}
+
+/* ---------- graphiques ---------- */
+function spark(a){
+  const p=samp(ser(a).slice(-66),30),mn=Math.min(...p),mx=Math.max(...p),r=(mx-mn)||1;
+  const up=p[p.length-1]>=p[0];
+  const d=p.map((v,i)=>`${i?'L':'M'}${(i/(p.length-1)*100).toFixed(1)},${(36-((v-mn)/r)*36).toFixed(1)}`).join(' ');
+  return `<svg viewBox="0 0 100 36" preserveAspectRatio="none"><path d="${d}" fill="none"
+    stroke="${up?'var(--green)':'var(--red)'}" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+}
+function spanData(a,id){
+  const s=SP(id);
+  if(s.intra){const all=intra(a),p=all.slice(-s.intra),lb=[];
+    if(id==='1j')['10:00','12:00','14:00','16:00'].forEach((t,i)=>lb.push({i:Math.round((i+1)*14/5),t}));
+    else dates(5).forEach((d,i)=>lb.push({i:i*14+7,t:d.toLocaleDateString('fr-FR',{weekday:'short'}).replace('.','')}));
+    return {p,lb};}
+  const all=ser(a),raw=all.slice(-Math.min(s.d,all.length)),dt=dates(raw.length);
+  const p=samp(raw,170),ds=samp(dt,170),n=p.length;
+  const lb=[0,.33,.66,1].map(f=>{const i=Math.round(f*(n-1));
+    return {i,t:s.d<=70?String(ds[i].getDate()):ds[i].toLocaleDateString('fr-FR',{month:'short'}).replace('.','')};});
+  return {p,lb};
+}
+function chart(a,id,withProj){
+  const {p,lb}=spanData(a,id),f=p[0],l=p[p.length-1],up=l>=f,col=up?'var(--green)':'var(--red)';
+  const show=withProj&&has(a)&&!SP(id).intra, d=D(a), h=H(hz);
+  const mid=l*(1+(d.p/100*d.up-(100-d.p)/100*d.dn)/100);
+  const hi=l*(1+d.up/100), lo=l*(1-d.dn/100);
+  const W=700,Ht=300,pt=16,pb=28,pl=4,pr=54;
+  const hw=(show?W-pr-140:W-pr)-pl;
+  let mn=Math.min(...p),mx=Math.max(...p);
+  if(show){mn=Math.min(mn,lo);mx=Math.max(mx,hi);}
+  const m=(mx-mn)*.12||1;mn-=m;mx+=m;
+  const Y=v=>pt+(Ht-pt-pb)*(1-(v-mn)/(mx-mn)), X=i=>pl+(i/(p.length-1))*hw;
+  const xe=pl+hw, xp=W-pr;
+  const line=p.map((v,i)=>`${i?'L':'M'}${X(i).toFixed(1)},${Y(v).toFixed(1)}`).join(' ');
+  const area=`${line} L${xe.toFixed(1)},${Ht-pb} L${pl},${Ht-pb} Z`;
+  const g='g'+hash(a.id+id+(show?'p':''));
+  const lv=[];for(let i=0;i<4;i++)lv.push(mn+m+(mx-mn-2*m)*(i/3));
+  const grid=lv.map(v=>`<line x1="${pl}" y1="${Y(v).toFixed(1)}" x2="${(show?xp:xe).toFixed(1)}" y2="${Y(v).toFixed(1)}"
+    stroke="var(--border-soft)" stroke-width="1"/><text x="${W-pr+8}" y="${(Y(v)+4).toFixed(1)}" fill="var(--muted)"
+    font-size="13" font-family="IBM Plex Mono,monospace">${v>=1000?Math.round(v):v.toFixed(v<10?2:0)}</text>`).join('');
+  const xl=lb.map(o=>`<text x="${X(o.i).toFixed(1)}" y="${Ht-6}" fill="var(--dim)" font-size="13"
+    font-family="Inter,sans-serif" text-anchor="middle">${o.t}</text>`).join('');
+  const pj=show?`<path d="M${xe.toFixed(1)},${Y(l).toFixed(1)} L${xp.toFixed(1)},${Y(hi).toFixed(1)}
+      L${xp.toFixed(1)},${Y(lo).toFixed(1)} Z" fill="url(#c${g})" opacity=".9"/>
+    <line x1="${xe.toFixed(1)}" y1="${Y(l).toFixed(1)}" x2="${xp.toFixed(1)}" y2="${Y(mid).toFixed(1)}"
+      stroke="var(--muted)" stroke-width="2" stroke-dasharray="5 5"/>
+    <line x1="${xe.toFixed(1)}" y1="${pt}" x2="${xe.toFixed(1)}" y2="${Ht-pb}" stroke="var(--border)" stroke-width="1"/>
+    <text x="${(xe+7).toFixed(1)}" y="${Y(hi)-6}" fill="var(--green)" font-size="12" font-family="Inter,sans-serif">${pct(d.up,1)}</text>
+    <text x="${(xe+7).toFixed(1)}" y="${Y(lo)+14}" fill="var(--red)" font-size="12" font-family="Inter,sans-serif">${pct(-d.dn,1)}</text>`:'';
+  return `<svg viewBox="0 0 ${W} ${Ht}" role="img" aria-label="Cours ${SP(id).t}">
+    <defs><linearGradient id="${g}" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0%" stop-color="${col}" stop-opacity=".3"/><stop offset="100%" stop-color="${col}" stop-opacity="0"/></linearGradient>
+      <linearGradient id="c${g}" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0%" stop-color="var(--green)" stop-opacity=".22"/><stop offset="100%" stop-color="var(--red)" stop-opacity=".22"/></linearGradient></defs>
+    ${grid}<path d="${area}" fill="url(#${g})"/>
+    <path class="${RM?'':'chart-path'}" d="${line}" fill="none" stroke="${col}" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"/>
+    ${pj}${xl}</svg>`;
+}
+function volChart(a,id){
+  const {p}=spanData(a,id),n=p.length,v=vols(a,n),W=700,Ht=42,mx=Math.max(...v),bw=Math.max(1.6,(W-60)/n*.55);
+  return `<svg viewBox="0 0 ${W} ${Ht}" aria-hidden="true">${v.map((x,i)=>{
+    const h=Math.max(1.6,(x/mx)*(Ht-4)),px=4+(i/(n-1))*(W-60);
+    return `<rect x="${(px-bw/2).toFixed(1)}" y="${(Ht-h).toFixed(1)}" width="${bw.toFixed(1)}" height="${h.toFixed(1)}"
+      rx="${(bw/2).toFixed(1)}" fill="var(--dim)" opacity=".6"/>`;}).join('')}</svg>`;
+}
+
+/* ---------- composant scénario ---------- */
+function scenario(a,big){
+  const d=D(a),h=H(hz);
+  return `<div class="scn">
+    <div class="scn-nums">
+      <div class="scn-side"><div class="scn-lab">${IC.dn} Baisse possible</div>
+        <div class="scn-val down">${pct(-d.dn,1)}</div></div>
+      <div class="scn-side right"><div class="scn-lab">Hausse possible ${IC.up}</div>
+        <div class="scn-val up">${pct(d.up,1)}</div></div>
+    </div>
+    <div class="scn-bar" data-bar>
+      <div class="scn-seg down" style="width:50%"><span>${100-d.p} sur 100</span></div>
+      <div class="scn-seg up" style="width:50%"><span>${d.p} sur 100</span></div>
+      <div class="scn-mid"></div>
+    </div>
+    <div class="scn-legend"><span>si elle baisse d'ici ${h.label}</span><span>si elle monte</span></div>
+    ${big?`<div class="scn-sum">${summary(a)}</div>`:''}
+  </div>`;
+}
+function animBars(root){
+  root.querySelectorAll('[data-bar]').forEach(b=>{
+    const a=BY[b.closest('[data-id]').dataset.id]; if(!a)return;
+    const d=D(a);
+    requestAnimationFrame(()=>{
+      b.querySelector('.down').style.width=(100-d.p)+'%';
+      b.querySelector('.up').style.width=d.p+'%';
+      b.classList.add('shown');
+      const m=b.querySelector('.scn-mid'); if(m)m.style.left=(100-d.p)+'%';
+    });
+  });
+}
+
+/* ================= ACCUEIL ================= */
+function renderHome(){
+  const hr=new Date().getHours();
+  document.getElementById('homeHello').textContent=hr<18?'Bonjour':'Bonsoir';
+  document.getElementById('homeLead').textContent=isPro
+    ? `${S.length} actions, toutes analysées en continu sur 4 horizons.`
+    : `${S.length} sociétés cotées sur ${Object.keys(MK).length} places. Pour chacune, une hausse possible et une baisse possible, expliquées.`;
+  document.getElementById('modeNote').textContent = mode==='simple'
+    ? "Mode simple : l'essentiel, en français courant."
+    : "Mode détaillé : signaux, échantillons, PER, capitalisation.";
+
+  const tl=document.getElementById('themeList');tl.innerHTML='';
+  TH.forEach((t,i)=>{
+    const all=S.filter(a=>a.th.includes(t.id)),kn=all.filter(has);
+    const av=kn.length?Math.round(kn.reduce((s,a)=>s+D(a).p,0)/kn.length):null;
+    const b=document.createElement('button');
+    b.className='row stagger';b.dataset.theme=t.id;
+    b.innerHTML=`<div style="display:grid;grid-template-columns:40px 1fr auto;align-items:center;gap:13px">
+      <span style="width:40px;height:40px;border-radius:12px;background:${t.c};color:#0a0a0b;display:flex;align-items:center;justify-content:center">
+        <span style="width:20px;height:20px;display:block">${t.i}</span></span>
+      <span><span style="font-size:15.5px;font-weight:600;display:block">${t.l}</span>
+        <span style="font-size:12.5px;color:var(--dim);display:block;margin-top:2px">${t.s}</span></span>
+      <span style="text-align:right"><span class="mono" style="font-size:12px;color:var(--dim);display:block">${kn.length}/${all.length}</span>
+        <span class="mono" style="font-size:12px;color:${av===null?'var(--dim)':(av>=55?'var(--green)':av<=45?'var(--red)':'var(--neutral)')};display:block;margin-top:3px">
+        ${av===null?'à analyser':av+' sur 100'}</span></span></div>`;
+    tl.appendChild(b);setTimeout(()=>b.classList.add('in'),60+i*45);
+  });
+
+  const pl=document.getElementById('placeList');pl.innerHTML='';
+  Object.keys(MK).forEach((k,i)=>{
+    const all=S.filter(a=>a.mk===k),kn=all.filter(has);
+    const b=document.createElement('button');
+    b.className='row stagger';b.dataset.place=k;
+    b.innerHTML=`<div style="display:grid;grid-template-columns:40px 1fr auto;align-items:center;gap:13px">
+      <span class="mono" style="width:40px;height:40px;border-radius:12px;background:var(--surface-2);color:var(--muted);
+        display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600">${k}</span>
+      <span><span style="font-size:15.5px;font-weight:600;display:block">${MK[k].l}</span>
+        <span style="font-size:12.5px;color:var(--dim);display:block;margin-top:2px">Cotées en ${MK[k].cur}</span></span>
+      <span class="mono" style="font-size:12px;color:var(--dim)">${kn.length}/${all.length}</span></div>`;
+    pl.appendChild(b);setTimeout(()=>b.classList.add('in'),60+i*35);
+  });
+  paintQuota();
+}
+document.getElementById('themeList').addEventListener('click',e=>{
+  const b=e.target.closest('[data-theme]'); if(b){theme=b.dataset.theme;place='tout';onlyMine=false;openList();}});
+document.getElementById('placeList').addEventListener('click',e=>{
+  const b=e.target.closest('[data-place]'); if(b){place=b.dataset.place;theme='tout';onlyMine=false;openList();}});
+document.getElementById('modeSeg').addEventListener('click',e=>{
+  const b=e.target.closest('[data-mode]'); if(!b)return;
+  mode=b.dataset.mode;
+  document.querySelectorAll('#modeSeg button').forEach(x=>x.classList.toggle('on',x.dataset.mode===mode));
+  renderHome(); if(cur) renderStock(); paintList();
+  toast(mode==='simple'?'Mode simple activé':'Mode détaillé activé');
+});
+
+function paintQuota(){
+  document.getElementById('pwPrice').textContent=PRICE;
+  document.getElementById('pwTotal').textContent=S.length;
+  document.getElementById('pwIntro').innerHTML=isPro
+    ?`Mode <b>NOVABOURSE+ simulé</b> : les ${S.length} actions sont analysées en permanence.`
+    :`Toutes les actions sont analysables, une par une. NOVABOURSE+ te dispense de lancer quoi que ce soit.`;
+  document.getElementById('plusTitle').textContent=isPro?'NOVABOURSE+ actif':'NOVABOURSE+';
+  document.getElementById('plusSub').textContent=isPro?'Revenir à l’offre gratuite'
+    :`Les ${S.length} actions analysées en continu · ${PRICE}`;
+  const q=document.getElementById('quotaCard');
+  if(isPro){
+    document.getElementById('quotaTitle').textContent='Analyse en continu';
+    document.getElementById('quotaNum').innerHTML=`<b style="color:var(--white)">${S.length}</b> / ${S.length}`;
+    document.getElementById('quotaFill').style.width='100%';
+    document.getElementById('quotaFill').style.background='var(--gold)';
+    document.getElementById('quotaFoot').textContent='Toutes les actions sont recalculées à chaque séance.';
+  }else{
+    document.getElementById('quotaTitle').textContent='Suivi automatique';
+    document.getElementById('quotaNum').innerHTML=`<b style="color:var(--white)">${fol.size}</b> / ${FREE}`;
+    document.getElementById('quotaFill').style.width=(fol.size/FREE*100)+'%';
+    document.getElementById('quotaFill').style.background=left()?'var(--green)':'var(--gold)';
+    document.getElementById('quotaFoot').innerHTML=(left()
+      ?`Il te reste <b style="color:var(--white)">${left()} place${left()>1?'s':''}</b>. `
+      :`Tes ${FREE} places sont prises. `)+`Toutes les autres restent accessibles : une analyse détaillée suffit`+
+      (ana.size?` — <b style="color:var(--white)">${ana.size}</b> aujourd'hui.`:'.');
+  }
+}
+
+/* ================= CATALOGUE ================= */
+const rowsEl=document.getElementById('rows'), moreBtn=document.getElementById('moreBtn');
+document.getElementById('hzSeg').innerHTML=HZ.map(h=>
+  `<button data-hz="${h.id}" class="${h.id===hz?'on':''}">${h.label}</button>`).join('');
+document.getElementById('hzSeg').addEventListener('click',e=>{
+  const b=e.target.closest('[data-hz]');if(!b)return;
+  hz=b.dataset.hz;
+  document.querySelectorAll('#hzSeg button').forEach(x=>x.classList.toggle('on',x.dataset.hz===hz));
+  paintList();renderHome();if(cur)renderStock();
+});
+
+function filtered(){
+  let l=S;
+  if(theme!=='tout')l=l.filter(a=>a.th.includes(theme));
+  if(place!=='tout')l=l.filter(a=>a.mk===place);
+  if(sector!=='tout')l=l.filter(a=>a.sec===sector);
+  if(budget)l=l.filter(a=>a.eurPrice<=budget);
+  if(query)l=l.filter(a=>a.q.includes(query));
+  if(onlyMine)l=l.filter(isFol);
+  const kn=l.filter(has), id=l.filter(a=>!has(a));
+  const f={esp:(a,b)=>D(b).esp-D(a).esp, up:(a,b)=>D(b).up-D(a).up, dn:(a,b)=>D(a).dn-D(b).dn,
+    proba:(a,b)=>D(b).p-D(a).p, jour:(a,b)=>b.day-a.day, prix:(a,b)=>a.eurPrice-b.eurPrice,
+    alpha:(a,b)=>a.n.localeCompare(b.n,'fr')}[sort];
+  kn.sort(f); id.sort(sort==='prix'?f:(a,b)=>a.n.localeCompare(b.n,'fr'));
+  return {kn,id};
+}
+function rowHTML(a){
+  const up=dayPct(a)>=0,d=has(a)?D(a):null;
+  const mark=isPro?'':(isFol(a)?'<i class="dotmark mine"></i>':(ana.has(a.id)?'<i class="dotmark done"></i>':''));
+  const body = run.has(a.id)
+    ? `<div class="an-box"><div class="an-track"><div class="an-fill"></div></div>
+       <div class="an-step"><span class="spin"></span><span class="stx">Recherche de situations comparables…</span></div></div>`
+    : d ? `<div class="r-scn">
+        <span class="r-mini"><i class="d" style="width:${100-d.p}%"></i><i class="u" style="width:${d.p}%"></i></span>
+        <span class="r-pair"><span class="d">${pct(-d.dn,1)}</span><span class="s"> · </span><span class="u">${pct(d.up,1)}</span></span></div>`
+      : `<div class="r-cta">${IC.sp} Lancer l’analyse détaillée</div>`;
+  return `<button class="row stagger" data-id="${a.id}">
+    <div class="row-top">
+      <div><div class="r-tick">${mark}${a.t}</div><div class="r-name">${a.n} · ${a.place}</div></div>
+      <div class="r-spark">${spark(a)}</div>
+      <div class="r-right"><div class="r-price mono live" data-lp="${a.id}">${price(cp(a),a.cur)}</div>
+        <div class="r-day mono ${up?'up':'down'}" data-ld="${a.id}">${pct(dayPct(a))}</div>
+        ${budget?`<div class="r-day mono" style="color:var(--t-dividendes)">≈ ${Math.floor(budget/a.eurPrice)} pour ${eur(budget)}</div>`:''}
+      </div></div>${body}</button>`;
+}
+function paintList(){
+  const {kn,id}=filtered();
+  const t=TH.find(x=>x.id===theme), p=place!=='tout'?MK[place]:null;
+  document.getElementById('listTitle').textContent=onlyMine?'Mes actions':(t?t.l:(p?p.l:'Actions'));
+  document.getElementById('listNavTitle').textContent=onlyMine?'Mes actions':(t?t.l:(p?p.l:'Actions'));
+  document.getElementById('listSub').textContent=onlyMine
+    ?`${fol.size} actions recalculées à chaque séance.`
+    :(t?t.s:(p?`Actions cotées à ${p.s}`:`${S.length} sociétés cotées sur ${Object.keys(MK).length} places boursières.`));
+  document.getElementById('hzNote').innerHTML=
+    `Estimations à <b style="color:var(--muted)">${H(hz).label}</b> — sur ${H(hz).long}. ` +
+    `<b style="color:var(--muted)">${kn.length}</b> analysées, ${id.length} à analyser.`;
+  const list=kn.concat(id).slice(0,shown);
+  rowsEl.innerHTML=list.map(rowHTML).join('');
+  [...rowsEl.children].forEach((el,i)=>setTimeout(()=>el.classList.add('in'),i*26));
+  animBars(rowsEl);
+  const rem=kn.length+id.length-list.length;
+  moreBtn.hidden=rem<=0; moreBtn.textContent=`Afficher 25 de plus · ${rem} restantes`;
+}
+moreBtn.addEventListener('click',()=>{shown+=25;paintList();});
+rowsEl.addEventListener('click',e=>{
+  const b=e.target.closest('[data-id]'); if(!b)return;
+  const a=BY[b.dataset.id];
+  if(!has(a)&&!run.has(a.id)) analyse(a.id); else openStock(a.id);
+});
+document.getElementById('q').addEventListener('input',function(){
+  clearTimeout(this._t);this._t=setTimeout(()=>{query=this.value.trim().toLowerCase();shown=25;paintList();},130);
+});
+
+/* ---------- analyse ---------- */
+function analyse(id){
+  if(run.has(id))return;
+  run.add(id);
+  const a=BY[id];
+  const row=rowsEl.querySelector(`[data-id="${CSS.escape(id)}"]`);
+  if(row){row.outerHTML=rowHTML(a);}
+  const el=rowsEl.querySelector(`[data-id="${CSS.escape(id)}"]`);
+  if(el){el.classList.add('in');
+    const f=el.querySelector('.an-fill'),tx=el.querySelector('.stx');
+    requestAnimationFrame(()=>{f.style.transition=`width ${ANALYSIS_MS}ms linear`;f.style.width='100%';});
+    const steps=['Recherche de situations comparables…',`Comparaison de ${D(a).s} cas passés…`,'Calcul des deux scénarios…'];
+    let i=0;var iv=setInterval(()=>{i++;if(i<steps.length&&tx)tx.textContent=steps[i];},ANALYSIS_MS/3);
+  }
+  if(cur&&cur.id===id) renderStock();
+  setTimeout(()=>{
+    clearInterval(iv);run.delete(id);ana.set(id,hm());
+    paintList();renderHome();if(cur&&cur.id===id)renderStock();
+    toast(`${a.n} : ${pct(D(a).up,1)} possible, ${pct(-D(a).dn,1)} possible`);
+  },ANALYSIS_MS);
+}
+function follow(id){
+  if(left()<=0){openSwap(id);return;}
+  fol.add(id);ana.delete(id);
+  toast(`${BY[id].n} suivie — ${left()} place${left()>1?'s':''} restante${left()>1?'s':''}`);
+  paintList();renderHome();if(cur)renderStock();
+}
+function unfollow(id){
+  fol.delete(id);ana.set(id,hm());
+  toast(`${BY[id].n} n'est plus suivie automatiquement`);
+  paintList();renderHome();if(cur)renderStock();
+}
+
+/* ================= FICHE ================= */
+function openStock(id){cur=BY[id];span='1m';renderStock();go('s-stock','in-right');}
+function renderStock(){
+  const a=cur;if(!a)return;
+  const {p}=spanData(a,span),sp=SP(span),chg=(cp(a)/p[0]-1)*100;
+  const showProj=proj&&has(a)&&!sp.intra;
+  const r=has(a)?reasons(a):null;
+  const y=ser(a).slice(-260);
+  const pro=mode==='pro';
+
+  document.getElementById('stockBody').innerHTML=`
+  <div class="navbar solid">
+    <button class="nav-btn" data-go="list">${IC.bk}Actions</button>
+    <span class="nav-title">${a.t}</span>
+    <button class="nav-icon ${isFol(a)?'on':''}" data-fav="${a.id}" aria-label="Suivre">
+      ${isFol(a)?IC.star:IC.starO}</button>
+  </div>
+  <div class="stk-head">
+    <div class="stk-name">${a.n} · ${a.sec}</div>
+    <div class="stk-tick">${a.t}</div>
+    <div class="stk-price mono live" data-lp2="${a.id}">${nb(cp(a),cp(a)>=1000?0:2)} <span style="font-size:20px;color:var(--muted)">${a.cur}</span></div>
+    <div class="stk-chg ${chg>=0?'up':'down'}">${pct(chg)} <span>${sp.t}</span></div>
+    <div class="stk-venue">${a.venue} · ${a.place}</div>
+  </div>
+
+  <div class="seg scroll" id="spanSeg">
+    ${SPANS.map(s=>`<button data-span="${s.id}" class="${s.id===span?'on':''}">${s.l}</button>`).join('')}
+  </div>
+
+  ${(()=>{const h=held(a);if(!h)return'';
+    const val=h.q*cpEur(a), inv=h.q*h.pru, pl=val-inv, plp=inv?pl/inv*100:0;
+    return `<div class="trade">
+      <div class="card-h"><span class="card-t">Ma position</span>
+        <span class="mono" style="font-size:13px;color:${pl>=0?'var(--green)':'var(--red)'}">${pl>=0?'+':'−'}${nb(Math.abs(pl))} € (${pct(plp,1)})</span></div>
+      <div class="trade-row"><span class="trade-k">Quantité</span><span class="trade-v">${h.q} action${h.q>1?'s':''}</span></div>
+      <div class="trade-row"><span class="trade-k">Prix d'achat moyen</span><span class="trade-v">${nb(h.pru)} €</span></div>
+      <div class="trade-row"><span class="trade-k">Valeur actuelle</span><span class="trade-v">${nb(val)} €</span></div>
+    </div>`;})()}
+  <div class="mini-btns">
+    <button class="mini" data-buy="${a.id}" style="background:var(--green-soft);color:var(--green)">Acheter (fictif)</button>
+    ${held(a)?`<button class="mini" data-sell="${a.id}" style="background:var(--red-soft);color:var(--red)">Vendre</button>`:''}
+  </div>
+  <div class="chart-wrap">${chart(a,span,showProj)}</div>
+  ${pro?`<div class="chart-wrap" style="margin-top:0">${volChart(a,span)}</div>
+    <div class="vol-lab"><span>Volume échangé</span><span>${sp.t}</span></div>`:''}
+  ${has(a)&&!sp.intra?`<div class="mini-btns"><button class="mini ${proj?'on':''}" id="projBtn">
+    ${proj?'Estimation affichée':'Afficher l’estimation'}</button></div>`:''}
+
+  ${has(a)?`
+    <div class="card" data-id="${a.id}">
+      <div class="card-h"><span class="card-t">Sur ${H(hz).label}, que peut-il se passer ?</span></div>
+      <div class="seg" style="margin:12px 0 0;padding:2px">
+        ${HZ.map(h=>`<button data-sethz="${h.id}" class="${h.id===hz?'on':''}" style="font-size:12.5px;padding:8px 4px">${h.label}</button>`).join('')}
+      </div>
+      ${scenario(a,true)}
+    </div>
+    <div class="why up"><div class="why-h">${IC.up} Pourquoi ça pourrait monter</div>
+      <ul>${r.up.map(x=>`<li>${x}</li>`).join('')}</ul></div>
+    <div class="why down"><div class="why-h">${IC.dn} Pourquoi ça pourrait baisser</div>
+      <ul>${r.dn.map(x=>`<li>${x}</li>`).join('')}</ul></div>
+    ${pro?`<div class="card"><div class="card-t" style="margin-bottom:12px">Ce que le modèle regarde</div>
+      ${[['Momentum','mo',"L'action monte-t-elle déjà depuis plusieurs semaines ?"],
+         ['Valorisation','va','Le prix est-il bon marché par rapport aux bénéfices ?'],
+         ['Stabilité','st','Le cours bouge-t-il calmement ?']].map(([n,k,h])=>
+        `<div class="sig"><div class="sig-r"><span class="sig-n">${n}</span>
+          <span class="sig-t"><span class="sig-f" data-w="${a.sg[k]}"></span></span>
+          <span class="sig-v mono">${a.sg[k]}</span></div><div class="sig-h">${h}</div></div>`).join('')}
+      <div class="card-s" style="margin-top:6px">Échantillon : ${D(a).s} situations comparables ·
+        estimation ${D(a).s>=190?'solide':D(a).s>=110?'moyenne':'fragile'} · risque ${a.risk}/100.</div></div>
+      <div class="card"><div class="card-t" style="margin-bottom:6px">Selon l'horizon</div>
+      ${HZ.map(h=>{const d=a.h[h.id];return `<div class="stat"><span class="stat-k">${h.label}</span>
+        <span class="stat-v"><span style="color:var(--red)">${pct(-d.dn,1)}</span>
+        <span style="color:var(--dim)"> · </span><span style="color:var(--green)">${pct(d.up,1)}</span>
+        <span style="color:var(--muted);font-size:12px"> (${d.p}/100)</span></span></div>`;}).join('')}
+      </div>`:''}
+  `:`
+    <div class="card">
+      <div class="card-h"><span class="card-t">Hausse et baisse possibles</span></div>
+      <div class="card-s">Le graphique et les chiffres de l'entreprise sont libres d'accès. Les deux
+        scénarios demandent une <b>analyse détaillée</b> : quelques secondes de calcul, et les quatre
+        horizons se débloquent pour cette action.</div>
+      ${run.has(a.id)?`<div class="an-box"><div class="an-track"><div class="an-fill" id="pfill"></div></div>
+        <div class="an-step"><span class="spin"></span><span>Analyse en cours…</span></div></div>`:''}
+    </div>
+    ${run.has(a.id)?'':`<button class="big-btn primary" data-an="${a.id}">${IC.sp} Lancer l’analyse détaillée</button>`}
+    ${isPro||isFol(a)?'':`<button class="big-btn soft" data-fav="${a.id}">${IC.starO} Suivre automatiquement</button>`}
+  `}
+
+  <div class="card"><div class="card-t" style="margin-bottom:6px">L'entreprise</div>
+    <div class="stats">
+      <div class="stat"><span class="stat-k">Ouverture</span><span class="stat-v">${nb(p[0])}</span></div>
+      <div class="stat"><span class="stat-k">Plus haut</span><span class="stat-v">${nb(Math.max(...p))}</span></div>
+      <div class="stat"><span class="stat-k">Plus bas</span><span class="stat-v">${nb(Math.min(...p))}</span></div>
+      <div class="stat"><span class="stat-k">Prix en euros</span><span class="stat-v">${eur(a.eurPrice)}</span></div>
+      <div class="stat"><span class="stat-k">Dividende</span><span class="stat-v">${nb(a.yl,1)} %</span></div>
+      <div class="stat"><span class="stat-k">Résultats</span><span class="stat-v">dans ${a.earn} j</span></div>
+      ${pro?`<div class="stat"><span class="stat-k">Volume</span><span class="stat-v">${nb(a.volu)} M</span></div>
+      <div class="stat"><span class="stat-k">Vol. moyen</span><span class="stat-v">${nb(a.avol)} M</span></div>
+      <div class="stat"><span class="stat-k">PER</span><span class="stat-v">${nb(a.per)}</span></div>
+      <div class="stat"><span class="stat-k">Capitalisation</span><span class="stat-v">${cap(a.mcap)}</span></div>
+      <div class="stat"><span class="stat-k">H 52 sem.</span><span class="stat-v">${nb(Math.max(...y))}</span></div>
+      <div class="stat"><span class="stat-k">B 52 sem.</span><span class="stat-v">${nb(Math.min(...y))}</span></div>`:''}
+    </div></div>
+
+  ${isPro?'':(isFol(a)?`<button class="big-btn soft" data-unfav="${a.id}">Ne plus suivre automatiquement</button>`:'')}
+
+  <div class="foot">Les deux scénarios viennent de situations passées comparables : ce ne sont ni des
+    promesses ni des objectifs. Le cours peut sortir de cette fourchette dans les deux sens. Aucun
+    conseil en investissement. Données de démonstration.</div>`;
+
+  const body=document.getElementById('stockBody');
+  animBars(body);
+  body.querySelectorAll('.sig-f').forEach(f=>requestAnimationFrame(()=>f.style.width=f.dataset.w+'%'));
+  const pf=document.getElementById('pfill');
+  if(pf) requestAnimationFrame(()=>{pf.style.transition=`width ${ANALYSIS_MS}ms linear`;pf.style.width='100%';});
+}
+document.getElementById('stockBody').addEventListener('click',e=>{
+  const sp=e.target.closest('[data-span]'); if(sp){span=sp.dataset.span;renderStock();return;}
+  const sh=e.target.closest('[data-sethz]'); if(sh){hz=sh.dataset.sethz;
+    document.querySelectorAll('#hzSeg button').forEach(x=>x.classList.toggle('on',x.dataset.hz===hz));
+    renderStock();paintList();renderHome();return;}
+  const pj=e.target.closest('#projBtn'); if(pj){proj=!proj;renderStock();return;}
+  const an=e.target.closest('[data-an]'); if(an){analyse(an.dataset.an);return;}
+  const fv=e.target.closest('[data-fav]'); if(fv){follow(fv.dataset.fav);return;}
+  const uf=e.target.closest('[data-unfav]'); if(uf){unfollow(uf.dataset.unfav);return;}
+  const bb=e.target.closest('[data-buy]'); if(bb){openTrade(bb.dataset.buy,'buy');return;}
+  const sb=e.target.closest('[data-sell]'); if(sb){openTrade(sb.dataset.sell,'sell');return;}
+  const go_=e.target.closest('[data-go]'); if(go_){goTab(go_.dataset.go==='list'?'all':'home');return;}
+});
+
+/* ================= NAVIGATION ================= */
+function go(id,anim){
+  document.querySelectorAll('.screen').forEach(s=>{s.classList.remove('active','in-right','in-left','fade');});
+  const el=document.getElementById(id);
+  el.classList.add('active');
+  if(!RM&&anim)el.classList.add(anim);
+  window.scrollTo({top:0,behavior:'auto'});
+}
+function openList(){shown=25;paintList();go('s-list','in-right');setTab('all');}
+function goTab(k){
+  if(k==='home'){go('s-home','in-left');setTab('home');renderHome();}
+  else if(k==='mine'){onlyMine=true;theme='tout';place='tout';openList();setTab('mine');}
+  else if(k==='all'){onlyMine=false;openList();setTab('all');}
+  else if(k==='port'){go('s-port','in-right');setTab('port');renderPort();}
+  else if(k==='track'){go('s-track','in-right');setTab('track');renderTrack();}
+  else if(k==='learn'){go('s-learn','in-right');setTab('learn');renderLearn();}
+}
+function setTab(k){document.querySelectorAll('.tab[data-tab]').forEach(t=>t.classList.toggle('on',t.dataset.tab===k));}
+document.querySelectorAll('.tab[data-tab]').forEach(t=>t.addEventListener('click',()=>goTab(t.dataset.tab)));
+document.querySelectorAll('[data-go]').forEach(b=>b.addEventListener('click',()=>goTab(b.dataset.go==='home'?'home':'all')));
+document.querySelector('.hcards').addEventListener('click',e=>{
+  const g=e.target.closest('[data-gotab]'); if(g) goTab(g.dataset.gotab);});
+addEventListener('scroll',()=>{
+  const s=scrollY>20;
+  document.querySelectorAll('.navbar').forEach(n=>n.classList.toggle('solid',s||n.closest('#s-stock')));
+});
+
+/* ================= FEUILLES ================= */
+function open(el){el.classList.add('show');document.body.classList.add('locked');}
+function closeAll(){document.querySelectorAll('.ov.show').forEach(o=>o.classList.remove('show'));document.body.classList.remove('locked');}
+document.addEventListener('click',e=>{
+  const s=e.target.closest('[data-sheet]');
+  if(s){closeAll();open(document.getElementById(s.dataset.sheet));if(s.dataset.sheet==='filters')paintFilters();return;}
+  if(e.target.closest('[data-close]')){closeAll();paintList();return;}
+});
+document.querySelectorAll('.ov').forEach(o=>o.addEventListener('click',e=>{if(e.target===o){closeAll();paintList();}}));
+addEventListener('keydown',e=>{if(e.key==='Escape'){closeAll();paintList();}});
+
+function paintFilters(){
+  document.getElementById('fTheme').innerHTML=
+    `<button class="f-chip ${theme==='tout'?'on':''}" data-ft="tout">Toutes</button>`+
+    TH.map(t=>`<button class="f-chip ${theme===t.id?'on':''}" data-ft="${t.id}">${t.l}</button>`).join('');
+  document.getElementById('fPlace').innerHTML=
+    `<button class="f-chip ${place==='tout'?'on':''}" data-fp="tout">Toutes</button>`+
+    Object.keys(MK).map(k=>`<button class="f-chip ${place===k?'on':''}" data-fp="${k}">${MK[k].s}</button>`).join('');
+  document.getElementById('fSector').innerHTML=
+    `<button class="f-chip ${sector==='tout'?'on':''}" data-fx="tout">Tous</button>`+
+    SECTORS.map(s=>`<button class="f-chip ${sector===s?'on':''}" data-fx="${s}">${s}</button>`).join('');
+  document.getElementById('fBudget').innerHTML=
+    BUD.map(b=>`<button class="f-chip ${budget===b.v?'on':''}" data-fb="${b.v===null?'':b.v}">${b.l}</button>`).join('')+
+    `<span class="f-input"><input type="number" id="fbIn" placeholder="autre" inputmode="numeric"><span style="color:var(--dim)">€</span></span>`;
+  document.getElementById('fSort').innerHTML=
+    SORTS.map(s=>`<button class="f-chip ${sort===s.id?'on':''}" data-fs="${s.id}">${s.l}</button>`).join('');
+}
+document.getElementById('filters').addEventListener('click',e=>{
+  const t=e.target.closest('[data-ft]'), p=e.target.closest('[data-fp]'),
+        b=e.target.closest('[data-fb]'), s=e.target.closest('[data-fs]'), x=e.target.closest('[data-fx]');
+  if(t){theme=t.dataset.ft;onlyMine=false;}
+  if(p){place=p.dataset.fp;}
+  if(b){budget=b.dataset.fb===''?null:+b.dataset.fb;const i=document.getElementById('fbIn');if(i)i.value='';}
+  if(s){sort=s.dataset.fs;}
+  if(x){sector=x.dataset.fx;}
+  if(t||p||b||s||x){shown=25;paintFilters();}
+});
+document.getElementById('filters').addEventListener('input',e=>{
+  if(e.target.id==='fbIn'){const v=parseFloat(e.target.value);budget=isNaN(v)||v<=0?null:v;
+    document.querySelectorAll('[data-fb]').forEach(x=>x.classList.remove('on'));}
+});
+document.getElementById('fReset').addEventListener('click',()=>{
+  theme='tout';place='tout';sector='tout';budget=null;sort='esp';onlyMine=false;shown=25;paintFilters();
+});
+
+let pending=null;
+function openSwap(id){
+  pending=id;
+  document.getElementById('swapIntro').innerHTML=
+    `Retire une action pour suivre <b>${BY[id].n}</b> automatiquement, ou passe à NOVABOURSE+.`;
+  document.getElementById('swapList').innerHTML=[...fol].map(x=>BY[x])
+    .sort((a,b)=>a.n.localeCompare(b.n,'fr')).map(a=>
+    `<button class="swap-i" data-sw="${a.id}"><span><span class="n">${a.n}</span>
+      <span class="s">${a.t} · ${a.place}</span></span><span class="a">Remplacer</span></button>`).join('');
+  open(document.getElementById('swap'));
+}
+document.getElementById('swapList').addEventListener('click',e=>{
+  const b=e.target.closest('[data-sw]');if(!b)return;
+  fol.delete(b.dataset.sw);ana.set(b.dataset.sw,hm());fol.add(pending);ana.delete(pending);
+  closeAll();toast(`${BY[b.dataset.sw].n} remplacée par ${BY[pending].n}`);
+  paintList();renderHome();if(cur)renderStock();
+});
+document.getElementById('togglePro').addEventListener('click',function(){
+  isPro=!isPro;this.textContent=isPro?'Revenir à l’offre gratuite':'Simuler NOVABOURSE+';
+  closeAll();renderHome();paintList();if(cur)renderStock();
+  toast(isPro?'NOVABOURSE+ simulé : tout est analysé':'Retour à l’offre gratuite');
+});
+
+/* ================= TUTORIEL ================= */
+const SL=[
+ {t:"Bonjour 👋",h:`<p>NOVABOURSE couvre <b>${S.length} sociétés cotées</b> à Paris, New York, Francfort,
+   Londres, Amsterdam, Milan, Madrid, Zurich, Tokyo, Toronto, Hong Kong, Sydney, Stockholm et Copenhague.</p>
+   <p>Une action, c'est une petite part d'entreprise. Le <b>cours</b> est le prix d'une seule action.</p>`},
+ {t:"Deux scénarios, toujours",h:`<p>Pour chaque action, l'appli montre <b>ce qu'elle pourrait gagner</b>
+   et <b>ce qu'elle pourrait perdre</b> sur la durée choisie. Jamais l'un sans l'autre.</p>
+   <div class="demo">
+     <div style="display:flex;justify-content:space-between;margin-bottom:9px">
+       <span style="font-family:var(--mono);font-size:22px;font-weight:600;color:var(--red)">−3,6 %</span>
+       <span style="font-family:var(--mono);font-size:22px;font-weight:600;color:var(--green)">+4,2 %</span></div>
+     <div class="scn-bar shown"><div class="scn-seg down" style="width:42%"><span>42 sur 100</span></div>
+       <div class="scn-seg up" style="width:58%"><span>58 sur 100</span></div>
+       <div class="scn-mid" style="left:42%"></div></div>
+     <div class="scn-legend"><span>si elle baisse</span><span>si elle monte</span></div>
+   </div>
+   <p>La barre montre les <b>chances de chaque côté</b> : ici 58 sur 100 de monter, 42 de baisser.</p>`},
+ {t:"Et surtout : pourquoi",h:`<p>Sous les chiffres, deux encadrés expliquent en français courant
+   <b>ce qui pourrait faire monter</b> l'action et <b>ce qui pourrait la faire chuter</b>.</p>
+   <p>Les deux sont toujours présents, même quand l'estimation penche franchement d'un côté. Une action
+   qui a 65 chances sur 100 de monter en a encore 35 de baisser.</p>`},
+ {t:"7 suivies, toutes analysables",h:`<p>Tu choisis <b>7 sociétés</b> parmi les ${S.length} : elles sont
+   recalculées automatiquement à chaque séance, tu n'as rien à faire.</p>
+   <p>Toutes les autres restent ouvertes : touche-les et lance une <b>analyse détaillée</b>. Quelques
+   secondes de calcul et les deux scénarios apparaissent, sur les quatre horizons.</p>`},
+ {t:"Simple ou détaillé",h:`<p>Sur l'accueil, choisis <b>Simple</b> pour l'essentiel en français courant,
+   ou <b>Détaillé</b> pour ajouter les signaux du modèle, la taille des échantillons, le PER, la
+   capitalisation et les volumes.</p>
+   <p>Tu peux basculer à tout moment : c'est la même appli, plus ou moins bavarde.</p>`},
+ {t:"Nous publions nos erreurs",h:`<p>Chaque estimation est figée puis <b>notée à l'échéance</b>, et le
+   bilan complet est consultable dans l'onglet <b>Fiabilité</b> — y compris quand il nous dessert.</p>
+   <p>Aucune application grand public ne fait ça. C'est pourtant le seul moyen de juger un modèle :
+   un signal qu'on ne peut pas noter ne vaut rien.</p>`},
+ {t:"Un portefeuille pour s'entraîner",h:`<p>Tu démarres avec <b>10 000 € fictifs</b>. Sur chaque action,
+   « Acheter (fictif) » te laisse en prendre une ou plusieurs, et l'onglet <b>Portefeuille</b> suit la
+   valeur en direct : gains, pertes, argent restant.</p>
+   <p>Aucun ordre réel n'est passé. Attention toutefois : un portefeuille de démonstration ne reproduit ni
+   les frais, ni la fiscalité, ni la peur de perdre pour de vrai.</p>`},
+ {t:"Ce que l'appli ne fait pas",h:`<p>NOVABOURSE ne dit jamais quoi acheter ou vendre et ne promet
+   aucun gain.</p><p>Une estimation n'est pas une prévision : le cours peut sortir de la fourchette dans
+   les deux sens. Investir en Bourse peut faire perdre de l'argent. Toutes les données de cette maquette
+   sont fictives.</p>`}];
+let sl=0;
+function paintSlide(){
+  document.getElementById('obBody').innerHTML=`<h3>${SL[sl].t}</h3>${SL[sl].h}`;
+  document.getElementById('obDots').innerHTML=SL.map((_,i)=>`<span class="dot${i===sl?' on':''}"></span>`).join('');
+  document.getElementById('obNext').textContent=sl===SL.length-1?"C'est parti":'Suivant';
+}
+document.getElementById('obNext').addEventListener('click',()=>{
+  if(sl<SL.length-1){sl++;paintSlide();}else closeAll();});
+document.getElementById('obSkip').addEventListener('click',closeAll);
+document.getElementById('helpHome').addEventListener('click',()=>{sl=0;paintSlide();open(document.getElementById('onboard'));});
+document.getElementById('learnCard').addEventListener('click',()=>{sl=0;paintSlide();open(document.getElementById('onboard'));});
+
+/* =========================================================
+   REGISTRE DE FIABILITÉ
+   Historique d'estimations figées puis notées à l'échéance.
+   Le tirage introduit volontairement un excès de confiance
+   (pente 0,62) : un modèle réel est presque toujours trop
+   affirmatif, et l'appli doit le montrer plutôt que le cacher.
+   ========================================================= */
+const HIST=(()=>{
+  const r=mb32(20260829), out=[], now=Date.now();
+  for(let i=0;i<2600;i++){
+    const a=S[Math.floor(r()*S.length)], h=HZ[Math.floor(r()*HZ.length)];
+    const p=cl(Math.round(a.h[h.id].p+(r()-0.5)*11),32,74);
+    const truth=0.5+(p/100-0.5)*0.75;
+    const up=r()<truth;
+    const age=Math.round(h.n*1.45+r()*520);
+    out.push({t:a.t,n:a.n,hz:h.id,p,up,d:new Date(now-age*86400000)});
+  }
+  return out.sort((x,y)=>y.d-x.d);
+})();
+function trackStats(list){
+  const n=list.length;
+  const brier=list.reduce((s,e)=>s+Math.pow(e.p/100-(e.up?1:0),2),0)/n;
+  const signal=list.filter(e=>e.p>=55||e.p<=45);
+  const good=signal.filter(e=>(e.p>=55&&e.up)||(e.p<=45&&!e.up)).length;
+  const buckets=[];
+  for(let lo=30;lo<75;lo+=5){
+    const b=list.filter(e=>e.p>=lo&&e.p<lo+5);
+    if(b.length<12) continue;
+    buckets.push({lo,hi:lo+5,n:b.length,
+      ann:b.reduce((s,e)=>s+e.p,0)/b.length,
+      rea:b.filter(e=>e.up).length/b.length*100});
+  }
+  /* pente de régression des résultats sur les probabilités annoncées :
+     1 = parfaitement calibré, < 1 = trop affirmatif */
+  const mp=list.reduce((s,e)=>s+e.p,0)/n, my=list.filter(e=>e.up).length/n*100;
+  let num=0,den=0;
+  list.forEach(e=>{num+=(e.p-mp)*((e.up?100:0)-my);den+=(e.p-mp)*(e.p-mp);});
+  const slope=den?num/den:1;
+  return {n,brier,acc:signal.length?good/signal.length*100:0,signalN:signal.length,buckets,slope};
+}
+let trackHz='tout';
+function renderTrack(){
+  const list=trackHz==='tout'?HIST:HIST.filter(e=>e.hz===trackHz);
+  const st=trackStats(list);
+  const over=Math.round((1-st.slope)*100);
+  document.getElementById('trackBody').innerHTML=`
+    <div class="seg scroll" id="trkSeg">
+      <button data-thz="tout" class="${trackHz==='tout'?'on':''}">Tous horizons</button>
+      ${HZ.map(h=>`<button data-thz="${h.id}" class="${trackHz===h.id?'on':''}">${h.label}</button>`).join('')}
+    </div>
+    <div class="card">
+      <div class="card-t">En un chiffre</div>
+      <div class="card-s" style="margin-top:6px">Le score de Brier mesure l'écart entre ce qu'on annonce et
+        ce qui arrive. <b style="color:var(--white)">Plus bas = mieux.</b> Annoncer 50 % partout donnerait 0,250.</div>
+      <div class="score">
+        <div><div class="v" style="color:${st.brier<0.25?'var(--green)':'var(--red)'}">${st.brier.toFixed(3).replace('.',',')}</div>
+          <div class="k">notre score de Brier</div></div>
+        <div><div class="v" style="color:var(--muted)">0,250</div><div class="k">pile ou face</div></div>
+        <div><div class="v">${Math.round(st.acc)} %</div><div class="k">bon sens deviné<br>(hors zone neutre)</div></div>
+      </div>
+      <div class="card-s" style="margin-top:14px">Sur <b style="color:var(--white)">${st.n} estimations</b>
+        arrivées à échéance, dont ${st.signalN} où le modèle s'est prononcé.</div>
+    </div>
+
+    <div class="card">
+      <div class="card-t">Annoncé contre réalisé</div>
+      <div class="card-s" style="margin-top:6px">Pour chaque tranche de probabilité annoncée, ce qui s'est
+        vraiment passé. Un modèle parfaitement calibré aurait deux barres de même longueur partout.</div>
+      <div style="margin-top:14px">
+        ${st.buckets.map(b=>`<div class="cal-row">
+          <span class="cal-k">${b.lo}–${b.hi} %</span>
+          <span class="cal-bars">
+            <i class="cal-b ann" style="width:${b.ann/80*100}%"></i>
+            <i class="cal-b rea" style="width:${b.rea/80*100}%;background:${b.rea>=b.ann?'var(--green)':'var(--red)'}"></i>
+          </span>
+          <span class="cal-n">${b.n}</span></div>`).join('')}
+      </div>
+      <div class="cal-leg"><span><i style="background:var(--surface-3)"></i>annoncé</span>
+        <span><i style="background:var(--green)"></i>réalisé</span></div>
+      <div class="card-s" style="margin-top:14px">Lecture : ${over>4
+        ? `nos estimations sont <b style="color:var(--white)">environ ${over} % trop marquées</b>. Quand nous annonçons 65 %, il faut lire « un peu au-dessus de la moyenne », pas « quasi certain ».`
+        : `nos estimations sont proches de ce qui se produit réellement.`}</div>
+    </div>
+
+    <div class="card">
+      <div class="card-t">Par horizon</div>
+      <div style="margin-top:8px">
+        ${HZ.map(h=>{const l=HIST.filter(e=>e.hz===h.id),x=trackStats(l);
+          return `<div class="trade-row"><span class="trade-k">${h.label} · ${l.length} cas</span>
+            <span class="trade-v" style="color:${x.brier<0.245?'var(--green)':x.brier<0.252?'var(--muted)':'var(--red)'}">
+            ${x.brier.toFixed(3).replace('.',',')}</span></div>`;}).join('')}
+      </div>
+      <div class="card-s" style="margin-top:12px">Sans surprise, l'horizon court est le plus mauvais :
+        personne ne prévoit cinq séances de Bourse. Les horizons longs se lisent mieux, mais reposent sur
+        moins de périodes indépendantes.</div>
+    </div>
+
+    <div class="section-t">Dernières estimations arrivées à échéance</div>
+    <div class="list-card">${list.slice(0,25).map(e=>`
+      <div class="verdict" style="padding-left:16px;padding-right:16px">
+        <div><div class="v-n">${e.n}</div>
+          <div class="v-s">${e.d.toLocaleDateString('fr-FR',{day:'numeric',month:'short',year:'2-digit'})} ·
+            ${e.p} % de hausse annoncés à ${H(e.hz).label}</div></div>
+        <div class="v-r ${((e.p>=50)===e.up)?'ok':'ko'}">${e.up?'monté':'baissé'} ${((e.p>=50)===e.up)?'✓':'✗'}</div>
+      </div>`).join('')}</div>
+
+    <div class="warn"><b>Pourquoi publier ça ?</b> Parce qu'un modèle qu'on ne peut pas noter ne vaut rien.
+      Les applications qui affichent des signaux sans jamais montrer leur historique vous demandent une
+      confiance qu'elles n'ont pas gagnée. Ici, le bilan est en accès libre, y compris quand il nous
+      dessert.</div>
+    <div class="foot">Registre de démonstration, généré localement. En production, chaque estimation serait
+      horodatée au moment de son affichage, figée, puis notée automatiquement à l'échéance — sans
+      possibilité de la retirer après coup.</div>`;
+  document.getElementById('trkSeg').addEventListener('click',ev=>{
+    const b=ev.target.closest('[data-thz]'); if(!b)return; trackHz=b.dataset.thz; renderTrack();
+  });
+  const bs=trackStats(HIST);
+  const hc=document.getElementById('hcTrack');
+  if(hc) hc.textContent=`Brier ${bs.brier.toFixed(3).replace('.',',')} · ${bs.n} cas`;
+}
+
+/* =========================================================
+   PARCOURS D'APPRENTISSAGE
+   ========================================================= */
+const LES=[
+ {t:"Ce qu'est vraiment une action",s:"2 min",
+  txt:`<p>Une action est une part de propriété d'une entreprise. En détenir une, ce n'est pas parier sur
+  une courbe : c'est posséder une fraction des bénéfices futurs d'une société qui vend des avions, des
+  sacs ou des logiciels.</p><p>Son prix monte quand les acheteurs sont plus pressés que les vendeurs, et
+  descend dans le cas inverse. Ce prix reflète des <b>anticipations</b> sur l'avenir, pas la valeur
+  actuelle de l'entreprise.</p>`,
+  q:"Le cours d'une action reflète surtout…",
+  a:["La valeur des biens que l'entreprise possède aujourd'hui",
+     "Ce que les investisseurs anticipent pour son avenir",
+     "Le montant des dividendes de l'an dernier"],ok:1,
+  exp:`Le prix intègre les <b>attentes</b>. C'est pour cela qu'une entreprise très rentable peut chuter en
+  publiant d'excellents résultats : le marché en espérait davantage.`},
+ {t:"Pourquoi le cours bouge tous les jours",s:"2 min",
+  txt:`<p>Chaque jour, des millions d'ordres se croisent. Résultats trimestriels, taux d'intérêt, guerre,
+  rumeur, panique : tout se répercute en quelques secondes.</p><p>Conséquence essentielle : l'information
+  publique est <b>déjà dans le prix</b>. Quand vous lisez une bonne nouvelle dans le journal, des milliers
+  de professionnels l'ont traitée avant vous.</p>`,
+  q:"Vous lisez que l'entreprise X a signé un énorme contrat. Que faire ?",
+  a:["Acheter vite avant que le cours ne monte",
+     "Considérer que le cours a déjà intégré la nouvelle",
+     "Vendre, car le contrat coûtera cher"],ok:1,
+  exp:`Le cours a bougé <b>avant</b> la publication de l'article, souvent en quelques secondes. Courir
+  après une nouvelle publique est le réflexe le plus coûteux du débutant.`},
+ {t:"Ce qu'une probabilité veut dire",s:"3 min",
+  txt:`<p>« 60 % de chances de hausse » ne signifie pas « ça va monter ». Cela veut dire que dans des
+  situations passées comparables, la hausse est survenue 6 fois sur 10 — et la baisse 4 fois sur 10.</p>
+  <p>Sur dix estimations à 60 %, un modèle honnête <b>doit</b> se tromper environ quatre fois. Un modèle
+  qui n'a jamais tort est un modèle qui ment sur son historique.</p>`,
+  q:"Une estimation annonce 70 %. Elle se réalise 7 fois sur 10. Le modèle est…",
+  a:["Mauvais : il se trompe 3 fois sur 10","Bien calibré","Trop prudent"],ok:1,
+  exp:`C'est exactement ce qu'on attend d'un bon modèle. La qualité ne se juge pas sur une estimation
+  isolée mais sur la <b>correspondance</b> entre annonces et réalisations, sur des centaines de cas.`},
+ {t:"La baisse fait partie du jeu",s:"3 min",
+  txt:`<p>Une action peut perdre 30 % en un mois sans qu'aucune erreur n'ait été commise. Les marchés
+  actions offrent un rendement supérieur <b>en échange</b> de cette instabilité : c'est le prix, pas un
+  accident.</p><p>La question utile n'est pas « combien puis-je gagner » mais « quelle perte puis-je
+  supporter sans tout vendre au pire moment ». La plupart des pertes définitives viennent d'une vente
+  paniquée en bas de cycle.</p>`,
+  q:"Votre portefeuille perd 25 % en trois semaines. Le réflexe le plus destructeur est…",
+  a:["Ne rien faire et attendre","Tout vendre pour arrêter l'hémorragie",
+     "Vérifier si votre raison d'investir a changé"],ok:1,
+  exp:`Vendre après la chute transforme une perte passagère en perte <b>définitive</b>. C'est l'erreur la
+  plus fréquente et la plus chère des investisseurs particuliers.`},
+ {t:"Diversifier, le seul repas gratuit",s:"3 min",
+  txt:`<p>Mettre tout son argent sur une seule action, c'est faire dépendre son épargne d'une seule
+  équipe dirigeante, d'un seul produit, d'un seul procès.</p><p>Répartir sur plusieurs sociétés, secteurs
+  et pays réduit le risque <b>sans réduire le rendement attendu</b>. C'est la seule chose gratuite en
+  finance. Attention toutefois : dix actions technologiques américaines, ce n'est pas de la
+  diversification, c'est le même pari répété dix fois.</p>`,
+  q:"Un portefeuille composé de Apple, Microsoft, Nvidia, Google et Meta est…",
+  a:["Bien diversifié : cinq entreprises différentes",
+     "Peu diversifié : un seul secteur, un seul pays",
+     "Sans risque, ce sont de grandes entreprises"],ok:1,
+  exp:`Ces cinq titres montent et descendent largement ensemble. La diversification se juge sur les
+  <b>facteurs de risque</b> — secteur, pays, devise, taille — pas sur le nombre de lignes.`},
+ {t:"Les frais et le temps",s:"2 min",
+  txt:`<p>Un courtier qui prend 1 % par an ne vous coûte pas 1 % : sur trente ans, il absorbe environ un
+  quart du capital final. Les frais sont la seule variable dont vous avez le contrôle total.</p>
+  <p>À l'inverse, le temps travaille pour vous. Multiplier les allers-retours multiplie les frais, les
+  impôts et les occasions de se tromper. L'ennui est une stratégie sous-estimée.</p>`,
+  q:"Sur le long terme, qu'est-ce qui est le plus prévisible ?",
+  a:["Le rendement de votre portefeuille","Le montant des frais que vous paierez",
+     "La date du prochain krach"],ok:1,
+  exp:`Les frais sont connus d'avance et certains. Le rendement ne l'est pas, et la date du prochain krach
+  ne l'est pour personne. Optimiser ce qui est <b>certain</b> est le meilleur rapport effort/résultat.`}];
+const lesDone=new Set(); let lesOpen=null, lesAns=null;
+function renderLearn(){
+  const b=document.getElementById('learnBody');
+  if(lesOpen===null){
+    b.innerHTML=`
+      <div class="card">
+        <div class="card-h"><span class="card-t">Progression</span>
+          <span class="mono" style="font-size:13px;color:var(--muted)">${lesDone.size} / ${LES.length}</span></div>
+        <div class="prog"><i style="width:${lesDone.size/LES.length*100}%"></i></div>
+        <div class="card-s" style="margin-top:11px">${lesDone.size===LES.length
+          ? "Parcours terminé. Tu en sais désormais plus sur le risque que la majorité des gens qui investissent."
+          : "Chaque leçon se termine par une question. On ne débloque rien : on vérifie juste que c'est compris."}</div>
+      </div>
+      <div class="list-card">${LES.map((l,i)=>`
+        <button class="les" data-les="${i}">
+          <div class="les-top">
+            <span class="les-num ${lesDone.has(i)?'ok':''}">${lesDone.has(i)?'✓':i+1}</span>
+            <span><span class="les-t">${l.t}</span><span class="les-s">${l.s}${lesDone.has(i)?' · terminée':''}</span></span>
+          </div></button>`).join('')}</div>
+      <div class="foot">Ce parcours ne remplace pas un conseil personnalisé et ne prétend pas faire de toi
+        un investisseur. Il vise l'inverse : t'apprendre à repérer ce qui est incertain.</div>`;
+  }else{
+    const l=LES[lesOpen];
+    b.innerHTML=`
+      <div class="mini-btns"><button class="mini" data-lback>← Toutes les leçons</button></div>
+      <div class="card"><div class="card-t" style="font-size:19px">${l.t}</div>
+        <div class="card-s" style="margin-top:10px;font-size:14px;line-height:1.65">${l.txt}</div></div>
+      <div class="card"><div class="qz">
+        <div class="qz-q">${l.q}</div>
+        ${l.a.map((x,i)=>`<button class="qz-a ${lesAns===null?'':(i===l.ok?'ok':(i===lesAns?'ko':''))}"
+          data-ans="${i}" ${lesAns===null?'':'disabled'}>${x}</button>`).join('')}
+        ${lesAns===null?'':`<div class="qz-exp">${lesAns===l.ok?'<b>Exact.</b> ':'<b>Pas tout à fait.</b> '}${l.exp}</div>`}
+      </div></div>
+      ${lesAns===null?'':`<button class="big-btn primary" data-lnext>${lesOpen<LES.length-1?'Leçon suivante':'Terminer le parcours'}</button>`}`;
+  }
+  const hc=document.getElementById('hcLearn');
+  if(hc) hc.textContent=`${lesDone.size} / ${LES.length} terminées`;
+}
+document.getElementById('learnBody').addEventListener('click',e=>{
+  const o=e.target.closest('[data-les]'); if(o){lesOpen=+o.dataset.les;lesAns=null;renderLearn();return;}
+  if(e.target.closest('[data-lback]')){lesOpen=null;lesAns=null;renderLearn();return;}
+  const a=e.target.closest('[data-ans]');
+  if(a&&lesAns===null){lesAns=+a.dataset.ans;lesDone.add(lesOpen);renderLearn();
+    toast(lesAns===LES[lesOpen].ok?'Bonne réponse':'Réponse notée — lis l’explication');return;}
+  if(e.target.closest('[data-lnext]')){
+    if(lesOpen<LES.length-1){lesOpen++;lesAns=null;}else{lesOpen=null;lesAns=null;
+      if(lesDone.size===LES.length) toast('Parcours terminé — bravo');}
+    renderLearn();renderHome();return;}
+});
+
+/* ===== portefeuille : rendu ===== */
+/* =========================================================
+   ANALYSE DE RISQUE
+   On ne prédit pas le rendement : on mesure l'exposition.
+   C'est la seule partie de la finance qui se calcule vraiment.
+   ========================================================= */
+function riskBlock(){
+  const inv=posValue(); if(!inv) return '';
+  const w=[...pos].map(([id,p])=>({a:BY[id],v:p.q*cpEur(BY[id])/inv}));
+  const group=k=>{const m={};w.forEach(x=>{m[x.a[k]]=(m[x.a[k]]||0)+x.v;});
+    return Object.entries(m).sort((a,b)=>b[1]-a[1]);};
+  const sec=group('sec'), pl=group('place'), cu=group('cur');
+  const hhi=w.reduce((s,x)=>s+x.v*x.v,0);
+  const hhiSec=sec.reduce((s,[,v])=>s+v*v,0);
+  const div=Math.round(cl(100*(1-(hhi*0.45+hhiSec*0.55)),0,100));
+  const volA=Math.round(w.reduce((s,x)=>s+x.v*(11+x.a.vol*40),0));
+  const beta=w.reduce((s,x)=>s+x.v*(0.55+x.a.vol*1.15),0);
+  const crash=inv*0.20*beta;
+  const partInv=total()?inv/total()*100:0;
+  const flags=[];
+  if(sec[0][1]>0.45) flags.push([`var(--red)`,`<b>${Math.round(sec[0][1]*100)} % de ton argent est sur un seul secteur</b> (${sec[0][0]}). Ces titres montent et descendent ensemble : ce n'est pas de la diversification, c'est le même pari répété.`]);
+  if(pl[0][1]>0.6) flags.push([`var(--gold)`,`<b>${Math.round(pl[0][1]*100)} % sur une seule place</b> (${pl[0][0]}). Une crise locale ou une décision de banque centrale te toucherait de plein fouet.`]);
+  const nonEur=cu.filter(([c])=>c!=='€').reduce((s,[,v])=>s+v,0);
+  if(nonEur>0.5) flags.push([`var(--blue)`,`<b>${Math.round(nonEur*100)} % en devises étrangères.</b> Même si les cours montent, une baisse du dollar ou du yen réduirait tes gains une fois convertis en euros.`]);
+  if(w.length<4&&w.length>0) flags.push([`var(--gold)`,`<b>${w.length} ligne${w.length>1?'s':''} seulement.</b> En dessous d'une dizaine de sociétés bien réparties, un seul accident industriel ou un seul procès peut faire très mal.`]);
+  if(partInv<25) flags.push([`var(--muted)`,`<b>${Math.round(partInv)} % investi.</b> Le reste dort en liquidités : ni risque, ni rendement.`]);
+  if(!flags.length) flags.push([`var(--green)`,`<b>Répartition correcte.</b> Aucun déséquilibre majeur détecté sur le secteur, la zone géographique ni la devise.`]);
+  const R=38, C=2*Math.PI*R;
+  const bar=(rows,color)=>rows.slice(0,5).map(([k,v])=>`<div class="alloc-r">
+      <span class="alloc-k">${k}</span>
+      <span class="alloc-t"><i class="alloc-f" style="width:${v*100}%;background:${color}"></i></span>
+      <span class="alloc-v">${Math.round(v*100)} %</span></div>`).join('');
+  return `
+    <div class="section-t">Analyse de risque</div>
+    <div class="card">
+      <div class="risk-ring">
+        <svg class="ring" viewBox="0 0 100 100">
+          <circle class="bg" cx="50" cy="50" r="${R}"/>
+          <circle class="fg" cx="50" cy="50" r="${R}" transform="rotate(-90 50 50)"
+            stroke="${div>=66?'var(--green)':div>=40?'var(--gold)':'var(--red)'}"
+            stroke-dasharray="${C.toFixed(1)}" stroke-dashoffset="${(C*(1-div/100)).toFixed(1)}"/>
+          <text x="50" y="56" text-anchor="middle" class="ring-t" fill="var(--white)"
+            font-family="IBM Plex Mono,monospace">${div}</text>
+        </svg>
+        <div><div class="card-t">Diversification</div>
+          <div class="card-s" style="margin-top:5px">${div>=66?"Ton risque est réparti sur des sociétés qui ne réagissent pas toutes de la même façon."
+            :div>=40?"Tes positions se ressemblent trop pour bien amortir un coup dur."
+            :"Presque tout ton argent dépend des mêmes causes. Un seul événement peut tout emporter."}</div></div>
+      </div>
+      <div style="margin-top:16px">${flags.map(([c,t])=>`<div class="flag"><i style="background:${c}"></i><span>${t}</span></div>`).join('')}</div>
+    </div>
+
+    <div class="card">
+      <div class="card-t">Si les marchés chutaient</div>
+      <div class="card-s" style="margin-top:6px">Une baisse générale de 20 %, comme en mars 2020 ou en 2008,
+        coûterait à ton portefeuille, compte tenu de sa sensibilité :</div>
+      <div class="pf-tot" style="color:var(--red);font-size:30px;margin-top:12px">− ${nb(crash)} €</div>
+      <div class="card-s" style="margin-top:8px">Soit ${Math.round(crash/total()*100)} % de ton capital total.
+        Sensibilité au marché estimée à ${nb(beta,2)} — au-dessus de 1, tu amplifies les mouvements ;
+        en dessous, tu les amortis. Volatilité annuelle estimée : ${volA} %.</div>
+      <div class="card-s" style="margin-top:10px;color:var(--muted)">La bonne question n'est pas « est-ce
+        que ça va arriver » — ça arrive tous les huit à douze ans — mais <b style="color:var(--white)">« est-ce
+        que je tiendrais sans vendre »</b>.</div>
+    </div>
+
+    <div class="card">
+      <div class="card-t">Où est ton argent</div>
+      <div class="alloc" style="margin-top:10px">
+        <div class="card-s" style="margin-bottom:6px">Par secteur</div>${bar(sec,'var(--blue)')}
+        <div class="card-s" style="margin:12px 0 6px">Par place boursière</div>${bar(pl,'var(--t-croissance)')}
+        <div class="card-s" style="margin:12px 0 6px">Par devise</div>${bar(cu,'var(--t-dividendes)')}
+      </div>
+    </div>`;
+}
+
+function renderPort(){
+  const t=total(), pl=t-START, plp=pl/START*100;
+  const inv=posValue();
+  const todayPl=[...pos].reduce((s,[id,p])=>{const a=BY[id];return s+p.q*(cpEur(a)-a.open*FX[a.cur]);},0);
+  const list=[...pos].map(([id,p])=>({a:BY[id],p})).sort((x,y)=>y.p.q*cpEur(y.a)-x.p.q*cpEur(x.a));
+  document.getElementById('pfBody').innerHTML=`
+    <div class="pf-hero">
+      <div class="pf-lab">Valeur totale</div>
+      <div class="pf-tot">${nb(t)} €</div>
+      <div class="pf-pnl ${pl>0?'up':pl<0?'down':'flat'}">
+        ${pl>=0?'+':'−'}${nb(Math.abs(pl))} € · ${pct(plp,2)}
+        <span style="font-family:var(--font);color:var(--muted);font-weight:500">depuis le départ</span></div>
+      <div class="pf-split">
+        <i class="inv" style="width:${t?inv/t*100:0}%"></i><i class="csh" style="width:${t?cash/t*100:100}%"></i></div>
+      <div class="pf-keys"><span>Investi ${nb(inv)} €</span><span>Disponible ${nb(cash)} €</span></div>
+      ${pos.size?`<div class="pf-keys" style="margin-top:10px;color:${todayPl>=0?'var(--green)':'var(--red)'}">
+        <span>Aujourd'hui</span><span class="mono">${todayPl>=0?'+':'−'}${nb(Math.abs(todayPl))} €</span></div>`:''}
+    </div>
+    ${pos.size?riskBlock():''}
+    ${pos.size?`<div class="section-t">Mes positions · ${pos.size}</div>
+      <div class="list-card">${list.map(({a,p})=>{
+        const val=p.q*cpEur(a), pnl=val-p.q*p.pru, pnp=p.pru?pnl/(p.q*p.pru)*100:0;
+        return `<button class="pos" data-open="${a.id}">
+          <div class="pos-top">
+            <div><div class="pos-n">${a.n}</div>
+              <div class="pos-q">${p.q} × ${nb(p.pru)} € · ${a.t} · ${a.place}</div></div>
+            <div><div class="pos-v">${nb(val)} €</div>
+              <div class="pos-p ${pnl>=0?'up':'down'}">${pnl>=0?'+':'−'}${nb(Math.abs(pnl))} € (${pct(pnp,1)})</div></div>
+          </div></button>`;}).join('')}</div>`
+      :`<div class="empty">Aucune action en portefeuille.<br>Ouvre une action et touche « Acheter (fictif) ».</div>
+        <button class="big-btn primary" data-gotab="all">Parcourir les actions</button>`}
+    <div class="warn"><b>Argent fictif.</b> Aucun ordre n'est passé, aucun compte n'est ouvert. Un
+      portefeuille de démonstration ne reproduit ni les frais de courtage, ni la fiscalité, ni le délai
+      d'exécution — et surtout pas la sensation de perdre de l'argent réel. Réussir ici ne prédit pas
+      qu'on réussirait ailleurs.</div>
+    <div class="foot">Capital de départ : ${nb(START)} € fictifs. Les cours évoluent en continu dans cette
+      maquette ; ils seront remplacés par le flux réel de l'API une fois branchée. Conversion en euros au
+      taux de démonstration.</div>`;
+}
+document.getElementById('pfBody').addEventListener('click',e=>{
+  const o=e.target.closest('[data-open]'); if(o){openStock(o.dataset.open);return;}
+  const g=e.target.closest('[data-gotab]'); if(g){goTab(g.dataset.gotab);}
+});
+document.getElementById('pfReset').addEventListener('click',()=>{
+  if(!pos.size&&cash===START){toast('Le portefeuille est déjà au départ');return;}
+  cash=START;pos.clear();renderPort();paintList();toast('Portefeuille remis à '+nb(START)+' € fictifs');
+});
+
+/* ===== acheter / vendre ===== */
+let tSide='buy', tStock=null, tQty=1;
+function openTrade(id,side){
+  tStock=BY[id]; tSide=side; tQty=1;
+  const a=tStock, h=held(a);
+  const max=side==='buy'?Math.floor(cash/cpEur(a)):(h?h.q:0);
+  if(side==='buy'&&max<1){toast('Pas assez d’argent fictif pour une action');return;}
+  document.getElementById('tradeBody').innerHTML=`
+    <h3>${side==='buy'?'Acheter':'Vendre'} ${a.n}</h3>
+    <p>${a.t} · ${a.place} · cours actuel <b>${price(cp(a),a.cur)}</b> (≈ ${nb(cpEur(a))} €)</p>
+    <div class="qbig">
+      <span class="n" id="tradeQty">1</span>
+      <div class="u" id="tradeUnit">action</div>
+      <div class="eq" id="tradeEq" style="color:${side==='buy'?'var(--green)':'var(--red)'}">—</div>
+    </div>
+    <div class="slide-wrap">
+      <button class="nudge" data-q="-1" aria-label="Moins">−</button>
+      <input type="range" class="slider" id="tradeRange" min="1" max="${max}" value="1" step="1"
+        aria-label="Nombre d'actions">
+      <button class="nudge" data-q="1" aria-label="Plus">+</button>
+    </div>
+    <div class="slide-ends"><span>1</span><span>${max}</span></div>
+    <div class="qbtns">${(max>=4?[['25 %',Math.max(1,Math.round(max*.25))],['50 %',Math.max(1,Math.round(max*.5))],
+      ['75 %',Math.max(1,Math.round(max*.75))]]:[]).map(([l,v])=>`<button data-set="${v}">${l}</button>`).join('')}
+      ${max>1?`<button data-set="${max}">Tout (${max})</button>`:''}</div>
+    <div class="trade" style="margin:20px 0 0">
+      <div class="trade-row"><span class="trade-k">${side==='buy'?'Coût total':'Montant reçu'}</span>
+        <span class="trade-v" id="tradeCost">—</span></div>
+      <div class="trade-row"><span class="trade-k">${side==='buy'?'Argent restant':'Argent après vente'}</span>
+        <span class="trade-v" id="tradeRest">—</span></div>
+      ${side==='sell'&&h?`<div class="trade-row"><span class="trade-k">Gain ou perte réalisé</span>
+        <span class="trade-v" id="tradePl">—</span></div>`:''}
+    </div>
+    <div class="sh-act" style="margin-top:20px">
+      <button class="big-btn soft" data-close style="flex:0 0 auto;padding:16px 22px">Annuler</button>
+      <button class="big-btn ${side==='buy'?'primary':'soft'}" id="tradeGo"
+        style="${side==='sell'?'background:var(--red);color:#fff':''}">${side==='buy'?'Acheter':'Vendre'}</button></div>
+    <p style="margin-top:14px;font-size:12px;color:var(--dim)">Argent fictif : aucun ordre réel n'est transmis.</p>`;
+  tMax=max; updateTradeCost(false);
+  open(document.getElementById('trade'));
+}
+let tMax=0;
+function updateTradeCost(bump){
+  const a=tStock; if(!a) return;
+  const c=tQty*cpEur(a);
+  const q=document.getElementById('tradeQty');
+  if(q&&q.textContent!==String(tQty)){
+    q.textContent=tQty;
+    if(bump){q.classList.remove('bump');void q.offsetWidth;q.classList.add('bump');
+      setTimeout(()=>q.classList.remove('bump'),200);}
+  }
+  const u=document.getElementById('tradeUnit'); if(u) u.textContent=tQty>1?'actions':'action';
+  const eq=document.getElementById('tradeEq'); if(eq) eq.textContent=(tSide==='buy'?'−':'+')+nb(c)+' €';
+  const rg=document.getElementById('tradeRange');
+  if(rg){
+    if(+rg.value!==tQty) rg.value=tQty;
+    const pctv=tMax>1?((tQty-1)/(tMax-1))*100:100;
+    rg.style.setProperty('--trk',
+      `linear-gradient(90deg, ${tSide==='buy'?'var(--green)':'var(--red)'} ${pctv}%, var(--surface-2) ${pctv}%)`);
+  }
+  const nm=document.querySelector('[data-q="-1"]'), np=document.querySelector('[data-q="1"]');
+  if(nm) nm.disabled=tQty<=1; if(np) np.disabled=tQty>=tMax;
+  const co=document.getElementById('tradeCost'); if(co) co.textContent=nb(c)+' €';
+  const re=document.getElementById('tradeRest');
+  if(re) re.textContent=nb(tSide==='buy'?cash-c:cash+c)+' €';
+  const pl=document.getElementById('tradePl'), h=held(a);
+  if(pl&&h){const g=tQty*(cpEur(a)-h.pru);
+    pl.textContent=(g>=0?'+':'−')+nb(Math.abs(g))+' €';
+    pl.style.color=g>=0?'var(--green)':'var(--red)';}
+}
+document.getElementById('trade').addEventListener('input',e=>{
+  if(e.target.id==='tradeRange'){tQty=+e.target.value;updateTradeCost();}
+});
+document.getElementById('trade').addEventListener('click',e=>{
+  const q=e.target.closest('[data-q]'), st=e.target.closest('[data-set]'), go=e.target.closest('#tradeGo');
+  if(q){tQty=Math.min(tMax,Math.max(1,tQty+ +q.dataset.q));updateTradeCost(true);}
+  if(st){tQty=+st.dataset.set;updateTradeCost(true);}
+  if(go){
+    const a=tStock,c=tQty*cpEur(a);
+    if(tSide==='buy'){
+      const h=held(a)||{q:0,pru:0};
+      const nq=h.q+tQty;
+      pos.set(a.id,{q:nq,pru:+(((h.q*h.pru)+c)/nq).toFixed(4)});
+      cash=+(cash-c).toFixed(2);
+      toast(`${tQty} × ${a.t} acheté${tQty>1?'s':''} pour ${nb(c)} €`);
+    }else{
+      const h=held(a); const nq=h.q-tQty;
+      if(nq>0) pos.set(a.id,{q:nq,pru:h.pru}); else pos.delete(a.id);
+      cash=+(cash+c).toFixed(2);
+      const g=tQty*(cpEur(a)-h.pru);
+      toast(`${tQty} × ${a.t} vendu${tQty>1?'s':''} · ${g>=0?'gain':'perte'} de ${nb(Math.abs(g))} €`);
+    }
+    closeAll();renderPort();if(cur)renderStock();paintList();
+  }
+});
+
+const toastEl=document.getElementById('toast');let tt;
+function toast(m){toastEl.textContent=m;toastEl.classList.add('show');
+  clearTimeout(tt);tt=setTimeout(()=>toastEl.classList.remove('show'),2600);}
+
+/* Pont avec le module d'authentification (voir en bas du fichier).
+   Le plan vient TOUJOURS du serveur : jamais d'une variable du navigateur. */
+window.NB={
+  setPlan(plan){ isPro = plan==='pro'; renderHome(); paintList(); if(cur) renderStock(); },
+  setUser(u){
+    const t=document.getElementById('accT'), sub=document.getElementById('accS'), b=document.getElementById('accB');
+    if(!t) return;
+    if(u){ t.textContent=u.name||'Mon compte'; sub.textContent=u.email||'';
+           b.textContent = isPro?'NOVABOURSE+ actif':'Offre gratuite · passer à +'; }
+    else { t.textContent='Compte'; sub.textContent='Se connecter avec Google'; b.textContent=''; }
+  },
+  toast
+};
+renderHome();paintList();renderPort();renderTrack();renderLearn();paintSlide();open(document.getElementById('onboard'));
+if(!RM) setInterval(tick,4000);
+})();
+</script>
+<script type="module">
+/* =========================================================
+   Connexion Google (Supabase) + statut d'abonnement (Stripe)
+   Seules des clés PUBLIQUES transitent ici : l'URL du projet
+   et la clé anon, protégée par les politiques RLS.
+   ========================================================= */
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+
+const card = document.getElementById('accCard');
+let sb = null, session = null, plan = 'free';
+
+async function boot(){
+  let cfg;
+  try { cfg = await fetch('/api/config').then(r => r.json()); }
+  catch { return; }                       // hors ligne : l'appli marche sans compte
+  if (!cfg.supabaseUrl || !cfg.supabaseAnonKey) return;
+
+  sb = createClient(cfg.supabaseUrl, cfg.supabaseAnonKey);
+
+  sb.auth.onAuthStateChange(async (_e, s) => {
+    session = s;
+    if (!s) { plan = 'free'; window.NB.setPlan('free'); window.NB.setUser(null); return; }
+    const me = await fetch('/api/me', {
+      headers: { Authorization: `Bearer ${s.access_token}` }
+    }).then(r => r.json()).catch(() => ({ plan: 'free' }));
+    plan = me.plan || 'free';
+    window.NB.setPlan(plan);
+    window.NB.setUser({
+      name: s.user.user_metadata?.full_name || s.user.email,
+      email: s.user.email
+    });
+  });
+
+  const { data } = await sb.auth.getSession();
+  if (data.session) sb.auth.setSession(data.session);
+}
+
+card?.addEventListener('click', async () => {
+  if (!sb) { window.NB.toast('Connexion indisponible : configuration manquante'); return; }
+
+  if (!session) {                          // 1. pas connecté → Google
+    await sb.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: window.location.origin }
+    });
+    return;
+  }
+  if (plan !== 'pro') {                     // 2. connecté, offre gratuite → paiement
+    const r = await fetch('/api/checkout', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${session.access_token}` }
+    }).then(r => r.json());
+    if (r.url) window.location.href = r.url;
+    else window.NB.toast(r.error || 'Paiement indisponible');
+    return;
+  }
+  // 3. déjà abonné → portail Stripe (résiliation, factures, moyen de paiement)
+  const r = await fetch('/api/portal', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${session.access_token}` }
+  }).then(r => r.json());
+  if (r.url) window.location.href = r.url;
+});
+
+boot();
+</script>
+</body>
+</html>
