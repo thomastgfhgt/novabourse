@@ -6,6 +6,8 @@
 <title>NovaBourse — Trois IA analysent les marchés. Vous décidez.</title>
 <meta name="description" content="NovaBourse analyse les entreprises cotées avec trois intelligences artificielles et un score de qualité et de risque expliqué en clair.">
 <meta name="theme-color" content="#ffffff">
+<meta name="color-scheme" content="light dark">
+<meta name="supported-color-schemes" content="light dark">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" media="print" onload="this.media='all'"
@@ -19,6 +21,10 @@
    de hausse, une couleur de baisse. Rien d'autre.
    ============================================================ */
 :root{
+  /* Sans cette déclaration, les navigateurs intégrés (webviews d'applications)
+     appliquent leur propre inversion sombre par-dessus la page : on obtient des
+     titres foncés sur fond foncé. Elle doit suivre notre thème, pas l'inverse. */
+  color-scheme:light;
   --ink:#08090b;
   --ink-2:#3d434a;
   --ink-3:#6c757e;
@@ -52,11 +58,15 @@
   /* Grille d'espacement standardisée, système 8 px. Les variables --sp-*
      historiques y sont alignées pour ne pas casser l'existant. */
   --space-xs:8px; --space-sm:16px; --space-md:24px; --space-lg:32px;
+  /* Mesures communes aux cartes « icône + texte » : même case, même écart,
+     même marge interne — donc tous les titres démarrent au même X. */
+  --icon-box:46px; --icon-gap:16px; --card-pad:20px;
   --mono:ui-monospace,'SF Mono',Menlo,monospace;
   --spring:cubic-bezier(.32,.72,0,1);
   --tap:44px;
 }
 [data-theme="dark"]{
+  color-scheme:dark;
   --ink:#f5f7f9; --ink-2:#c2c8cf; --ink-3:#8e969f; --ink-4:#666e77;
   --line:#23262b; --line-2:#1a1d21;
   --bg:#0c0e10; --bg-2:#141719; --bg-3:#1c1f23;
@@ -68,8 +78,11 @@
 
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html{-webkit-text-size-adjust:100%}
+html{background:var(--bg)}
 body{
-  background:var(--bg);color:var(--ink);font-family:var(--font);font-size:16px;line-height:1.5;
+  background:var(--bg);color:var(--ink);max-width:100vw;
+  /* forcé : empêche une inversion automatique de casser les contrastes */
+  forced-color-adjust:none;font-family:var(--font);font-size:16px;line-height:1.5;
   -webkit-font-smoothing:antialiased;overflow-x:hidden;letter-spacing:-.011em;
   transition:background .3s var(--spring),color .3s var(--spring);
 }
@@ -85,6 +98,31 @@ button:active{transform:scale(.97)}
   *,*::before,*::after{animation-duration:.001ms!important;transition-duration:.001ms!important}
 }
 
+/* ---------- CENTRAGE DES ICÔNES ----------
+   On n'utilise PAS le raccourci place-items : certains navigateurs mobiles
+   l'ignorent sur les conteneurs grille, et l'icône se colle alors en haut à
+   gauche de sa case. On déclare donc flex + align-items + justify-content,
+   universellement gérés, et on ajoute margin:auto sur l'enfant en filet. */
+.cap-i,.trio-i,.onb-i,.gate-i,.quick-ic,.empty-i,.ai-d,.flow-n,.onb-n,
+.logo-m,.icon-btn,.star,.info,.x,.av,.sq-ic{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  line-height:0;
+  flex-shrink:0;
+  overflow:hidden;
+  padding:0;
+  text-align:center
+}
+.cap-i>svg,.trio-i>svg,.onb-i>svg,.gate-i>svg,.quick-ic>svg,.empty-i>svg,
+.logo-m>svg,.icon-btn>svg,.star>svg,.x>svg,.sq-ic>svg,.ai-d>svg{
+  display:block;
+  margin:auto;
+  flex:0 0 auto
+}
+/* Les cases qui contiennent du texte (initiales, numéros) le recentrent aussi. */
+.flow-n,.onb-n,.av,.ai-d,.info{line-height:1}
+
 /* ---------- en-tête ---------- */
 .top{
   position:sticky;top:0;z-index:50;background:rgba(255,255,255,.82);
@@ -93,16 +131,19 @@ button:active{transform:scale(.97)}
   padding-top:env(safe-area-inset-top);
 }
 [data-theme="dark"] .top{background:rgba(12,14,16,.8)}
-.top-in{max-width:1120px;margin:0 auto;padding:12px 22px;display:flex;align-items:center;gap:var(--sp-2)}
-.logo{display:flex;align-items:center;gap:9px;font-weight:700;font-size:17px;letter-spacing:-.03em;flex:0 0 auto}
-.logo-m{width:28px;height:28px;border-radius:8px;background:var(--ink);display:grid;place-items:center;color:var(--bg)}
+.top-in{max-width:1120px;margin:0 auto;padding:12px 18px;display:flex;align-items:center;
+  gap:12px;min-width:0}
+.logo{display:flex;align-items:center;gap:9px;font-weight:700;font-size:17px;
+  letter-spacing:-.03em;flex:0 0 auto;white-space:nowrap}
+.logo-m{width:28px;height:28px;border-radius:8px;background:var(--ink);display:flex;align-items:center;justify-content:center;color:var(--bg)}
 .logo-m svg{width:16px;height:16px}
 .top-nav{display:flex;gap:2px;margin-left:var(--sp-3)}
 .top-nav a{padding:8px 14px;border-radius:100px;font-size:14.5px;font-weight:500;color:var(--ink-3)}
 .top-nav a:hover{color:var(--ink);background:var(--bg-2)}
 .top-nav a[aria-current]{color:var(--ink);font-weight:600;background:var(--bg-2)}
-.top-act{margin-left:auto;display:flex;align-items:center;gap:var(--sp-1)}
-.icon-btn{width:38px;height:38px;border-radius:50%;display:grid;place-items:center;color:var(--ink-3)}
+.top-act{margin-left:auto;display:flex;align-items:center;gap:8px;min-width:0}
+#srcBadge{display:flex;align-items:center;gap:6px;min-width:0;overflow:hidden}
+.icon-btn{width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:var(--ink-3)}
 .icon-btn:hover{background:var(--bg-2);color:var(--ink)}
 .icon-btn svg{width:19px;height:19px}
 
@@ -195,7 +236,7 @@ button:active{transform:scale(.97)}
 .trio{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:var(--sp-2);
   margin-top:var(--sp-5)}
 .trio-c{padding:var(--sp-3);border-radius:var(--r-m);background:var(--bg-2);text-align:center}
-.trio-i{width:42px;height:42px;border-radius:13px;display:grid;place-items:center;margin:0 auto var(--sp-1);
+.trio-i{width:42px;height:42px;border-radius:13px;display:flex;align-items:center;justify-content:center;margin:0 auto var(--sp-1);
   background:var(--bg);box-shadow:var(--shadow-1);color:var(--accent)}
 .trio-i svg{width:21px;height:21px}
 .trio-c b{display:block;font-size:15px;font-weight:650;letter-spacing:-.02em}
@@ -224,12 +265,17 @@ button:active{transform:scale(.97)}
 .row:last-child{border-bottom:none}
 .row:hover{background:var(--bg-2);border-radius:var(--r-s);padding-left:10px;padding-right:10px;
   margin-left:-10px;margin-right:-10px;border-color:transparent}
-.av{width:40px;height:40px;border-radius:12px;display:grid;place-items:center;flex:0 0 auto;
+.av{width:40px;height:40px;border-radius:12px;display:flex;align-items:center;justify-content:center;flex:0 0 auto;
   font-size:13px;font-weight:700;letter-spacing:-.03em;color:#fff}
 .row-main{flex:1;min-width:0}
 .row-t{font-size:15px;font-weight:600;letter-spacing:-.02em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .row-s{font-size:12.5px;color:var(--ink-4);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.row-end{flex:0 0 auto;text-align:right}
+.row-end{flex:0 0 auto;text-align:right;display:flex;align-items:center;gap:10px;min-width:0}
+.row-spark{flex:0 0 auto;width:78px;height:26px;overflow:hidden;display:block}
+.row-spark svg{display:block;width:100%;height:100%}
+/* Le graphique miniature disparaît quand la place manque, plutôt que de
+   chevaucher le nom de l'entreprise. */
+@media (max-width:560px){ .row-spark{display:none} }
 
 /* ---------- score ---------- */
 .score-hero{display:flex;align-items:center;gap:var(--sp-4);flex-wrap:wrap}
@@ -238,7 +284,7 @@ button:active{transform:scale(.97)}
 .ring circle{fill:none;stroke-width:12;stroke-linecap:round}
 .ring .bg{stroke:var(--bg-3)}
 .ring .fg{transition:stroke-dashoffset 1.4s var(--spring)}
-.ring-c{position:absolute;inset:0;display:grid;place-items:center;text-align:center}
+.ring-c{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center}
 .ring-v{font-size:42px;font-weight:800;letter-spacing:-.05em;line-height:1;font-variant-numeric:tabular-nums}
 .ring-l{font-size:11.5px;color:var(--ink-4);margin-top:3px}
 .bars{margin-top:var(--sp-3)}
@@ -255,7 +301,7 @@ button:active{transform:scale(.97)}
 /* ---------- points forts / faibles ---------- */
 .pts{list-style:none}
 .pts li{display:flex;gap:10px;padding:8px 0;font-size:14.5px;color:var(--ink-2);line-height:1.5}
-.pts li i{flex:0 0 auto;width:20px;height:20px;border-radius:50%;display:grid;place-items:center;
+.pts li i{flex:0 0 auto;width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;
   font-style:normal;font-size:13px;font-weight:700;margin-top:1px}
 .pts.good li i{background:var(--up-soft);color:var(--up)}
 .pts.bad li i{background:var(--down-soft);color:var(--down)}
@@ -285,11 +331,6 @@ button:active{transform:scale(.97)}
   font-size:13.5px;color:var(--ink-2);line-height:1.55}
 .notice b{color:var(--warn)}
 
-/* ---------- démo ---------- */
-.demo{display:flex;align-items:center;justify-content:center;gap:8px;padding:9px 18px;
-  background:var(--warn-soft);color:var(--warn);font-size:12.5px;font-weight:550;text-align:center;
-  line-height:1.4}
-.demo b{font-weight:700}
 
 /* ---------- feuille modale ---------- */
 .sheet-bg{position:fixed;inset:0;z-index:90;background:rgba(10,12,15,.4);backdrop-filter:blur(4px);
@@ -302,7 +343,7 @@ button:active{transform:scale(.97)}
 .sheet-h{display:flex;align-items:flex-start;justify-content:space-between;gap:var(--sp-2);margin-bottom:var(--sp-2)}
 .sheet h3{font-size:22px;font-weight:700;letter-spacing:-.035em}
 .sheet p{font-size:15px;color:var(--ink-3);line-height:1.55;margin-top:10px}
-.x{width:34px;height:34px;border-radius:50%;background:var(--bg-2);display:grid;place-items:center;
+.x{width:34px;height:34px;border-radius:50%;background:var(--bg-2);display:flex;align-items:center;justify-content:center;
   color:var(--ink-3);flex:0 0 auto}
 .x:hover{background:var(--bg-3);color:var(--ink)}
 .x svg{width:15px;height:15px}
@@ -334,7 +375,7 @@ button:active{transform:scale(.97)}
 
 /* ---------- état vide ---------- */
 .empty{text-align:center;padding:var(--sp-4) var(--sp-2)}
-.empty-i{width:56px;height:56px;border-radius:18px;background:var(--bg-2);display:grid;place-items:center;
+.empty-i{width:56px;height:56px;border-radius:18px;background:var(--bg-2);display:flex;align-items:center;justify-content:center;
   margin:0 auto var(--sp-2);color:var(--ink-4)}
 .empty-i svg{width:26px;height:26px}
 .empty h3{font-size:18px;font-weight:650;letter-spacing:-.025em}
@@ -360,14 +401,110 @@ button:active{transform:scale(.97)}
 @keyframes draw{to{stroke-dashoffset:0}}
 
 
+
+
+/* Repère de version, visible en permanence : il dit quelle version du fichier
+   est réellement affichée par le navigateur. */
+.build{display:inline-flex;align-items:center;padding:4px 8px;border-radius:100px;flex:0 0 auto;
+  background:var(--bg-3);color:var(--ink-4);font-size:10.5px;font-weight:700;letter-spacing:.02em}
+
+/* ---------- pastille de source ---------- */
+.src{display:inline-flex;align-items:center;gap:6px;padding:5px 11px;border-radius:100px;
+  font-size:11.5px;font-weight:600;white-space:nowrap;letter-spacing:-.01em;flex:0 1 auto;
+  overflow:hidden;text-overflow:ellipsis}
+.src i{width:6px;height:6px;border-radius:50%;background:currentColor;flex:0 0 auto}
+.src-live{background:var(--up-soft);color:var(--up)}
+.src-live i{animation:srcPulse 2.2s ease-in-out infinite}
+@keyframes srcPulse{0%,100%{opacity:1}50%{opacity:.3}}
+.src-demo{background:var(--bg-3);color:var(--ink-3)}
+.src-err{background:var(--warn-soft);color:var(--warn)}
+/* Sous 760 px, la pastille de source se réduit à son point coloré : elle ne
+   doit jamais pousser le logo ni les boutons hors de l'écran. */
+@media (max-width:760px){
+  .src{padding:6px;gap:0}
+  .src-txt{display:none}
+  .build{display:none}
+  .top-in{padding:10px 14px;gap:8px}
+  .logo span:last-child{font-size:16px}
+}
+@media (max-width:400px){ .top-act .btn{padding:9px 13px;font-size:13px} }
+
+/* ---------- courbe de fond du hero ---------- */
+/* Elle occupe tout le bloc d'accueil et passe DERRIÈRE le texte : c'est une
+   toile de fond, jamais un obstacle à la lecture. */
+.hero{position:relative;isolation:isolate}
+.hero > *:not(.hero-chart){position:relative;z-index:1}
+.hero-chart{
+  position:absolute;top:-24px;bottom:-24px;
+  left:50%;width:100vw;margin-left:-50vw;
+  z-index:0;pointer-events:none;overflow:hidden;
+  -webkit-mask-image:linear-gradient(to right,transparent,#000 6%,#000 94%,transparent);
+  mask-image:linear-gradient(to right,transparent,#000 6%,#000 94%,transparent);
+}
+.hero-chart svg{width:100%;height:100%;display:block}
+
+.hc-grid line{stroke:var(--line);stroke-width:1;opacity:.6}
+[data-theme="dark"] .hc-grid line{opacity:.42}
+
+/* Le tracé se dessine, se maintient, puis repart : la courbe respire en
+   permanence, sans jamais laisser l'écran vide. */
+.hc-line{stroke-dasharray:3200;stroke-dashoffset:3200;
+  animation:hcDraw 14s linear infinite}
+@keyframes hcDraw{
+  0%  {stroke-dashoffset:3200}
+  92% {stroke-dashoffset:0;opacity:1}
+  97% {stroke-dashoffset:0;opacity:0}
+  98% {stroke-dashoffset:3200;opacity:0}
+  100%{stroke-dashoffset:3200;opacity:1}
+}
+.hc-area{opacity:0;animation:hcArea 14s linear infinite}
+@keyframes hcArea{
+  0%,6%   {opacity:0}
+  55%,92% {opacity:1}
+  97%,100%{opacity:0}
+}
+/* La flèche apparaît quand le tracé l'atteint, et reste le temps de la pause.
+   Elle marque la fin de la courbe : elle ne la parcourt pas. */
+.hc-tip{opacity:0;transform-box:fill-box;transform-origin:center;
+  animation:hcTip 14s linear infinite}
+@keyframes hcTip{
+  0%,78% {opacity:0}
+  88%    {opacity:1}
+  94%    {opacity:1}
+  97%,100%{opacity:0}
+}
+.hc-arrow{stroke-dasharray:100;stroke-dashoffset:100;
+  animation:hcArrow 14s linear infinite}
+@keyframes hcArrow{
+  0%,80%  {stroke-dashoffset:100}
+  90%,94% {stroke-dashoffset:0}
+  97%,100%{stroke-dashoffset:100}
+}
+.hc-halo{animation:hcHalo 2.4s ease-in-out infinite}
+@keyframes hcHalo{
+  0%,100%{r:17;opacity:.16}
+  50%    {r:27;opacity:.05}
+}
+@media (prefers-reduced-motion:reduce){
+  .hc-line,.hc-area,.hc-tip,.hc-arrow,.hc-halo{animation:none;opacity:1;stroke-dashoffset:0}
+}
+.no-anim .hc-line,.no-anim .hc-area,.no-anim .hc-tip,.no-anim .hc-arrow,.no-anim .hc-halo{
+  animation:none;opacity:1;stroke-dashoffset:0}
+
 /* ---------- capacités ---------- */
 .cap-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(268px,1fr));gap:var(--sp-2)}
-.cap{display:flex;gap:15px;padding:var(--sp-3);border-radius:var(--r-l);background:var(--bg-2);
+/* Icône et bloc texte forment deux colonnes centrées verticalement l'une par
+   rapport à l'autre, quelle que soit la hauteur de la carte. La largeur de la
+   case et l'écart sont partagés avec les cartes numérotées, pour que tous les
+   titres du site démarrent au même X. */
+.cap{display:flex;align-items:center;gap:var(--icon-gap);padding:var(--card-pad);
+  border-radius:var(--r-l);background:var(--bg-2);
   transition:transform .35s var(--spring),background .35s var(--spring)}
 .cap:hover{transform:translateY(-3px);background:var(--bg-3)}
-.cap-i{width:44px;height:44px;border-radius:14px;background:var(--bg);display:grid;place-items:center;
-  flex:0 0 auto;color:var(--accent);box-shadow:var(--shadow-1)}
+.cap-i{width:var(--icon-box);height:var(--icon-box);flex:0 0 var(--icon-box);
+  border-radius:14px;background:var(--bg);color:var(--accent);box-shadow:var(--shadow-1)}
 .cap-i svg{width:22px;height:22px}
+.cap-txt{flex:1 1 auto;min-width:0;text-align:left}
 .cap b{display:block;font-size:15.5px;font-weight:650;letter-spacing:-.02em}
 .cap span{display:block;font-size:13.5px;color:var(--ink-3);margin-top:5px;line-height:1.5}
 
@@ -424,7 +561,7 @@ button:active{transform:scale(.97)}
 /* ---------- écran de connexion et premiers pas ---------- */
 body.gated .top,body.gated .dock{display:none}
 body.gated .wrap{padding:0;max-width:100%}
-.gate{min-height:calc(100vh - 40px);display:grid;place-items:center;padding:var(--space-md) 20px;
+.gate{min-height:calc(100vh - 40px);display:flex;align-items:center;justify-content:center;padding:var(--space-md) 20px;
   background:radial-gradient(120% 90% at 50% 0%,var(--accent-soft),transparent 58%)}
 .gate-card{width:100%;max-width:520px;text-align:center;animation:gateIn .7s var(--spring)}
 @keyframes gateIn{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:none}}
@@ -439,7 +576,7 @@ body.gated .wrap{padding:0;max-width:100%}
 .gate-pts{margin-top:var(--space-lg);text-align:left;display:grid;gap:var(--space-xs)}
 .gate-pt{display:flex;gap:12px;padding:14px 16px;border-radius:var(--r-m);background:var(--bg-2)}
 .gate-i{width:26px;height:26px;border-radius:50%;background:var(--accent-soft);color:var(--accent);
-  display:grid;place-items:center;flex:0 0 auto}
+  display:flex;align-items:center;justify-content:center;flex:0 0 auto}
 .gate-i svg{width:14px;height:14px}
 .gate-pt b{display:block;font-size:14.5px;font-weight:650;letter-spacing:-.02em}
 .gate-pt span span{display:block;font-size:13px;color:var(--ink-3);margin-top:3px;line-height:1.45}
@@ -455,13 +592,13 @@ body.gated .wrap{padding:0;max-width:100%}
 .onb-c b{display:block;font-size:15.5px;font-weight:650;letter-spacing:-.02em}
 .onb-c span:not(.onb-a){display:block;font-size:13px;color:var(--ink-3);margin-top:3px}
 .onb-c>b,.onb-c>span:first-of-type{flex:1;min-width:0}
-.onb-a{color:var(--ink-4);flex:0 0 auto;display:grid;place-items:center;width:20px;height:20px}
+.onb-a{color:var(--ink-4);flex:0 0 auto;display:flex;align-items:center;justify-content:center;width:20px;height:20px}
 .onb-a svg{width:16px;height:16px}
 .onb-steps{display:grid;gap:var(--space-xs);margin-top:var(--space-md)}
 .onb-step{display:flex;align-items:center;gap:12px;padding:16px;border-radius:var(--r-m);background:var(--bg-2)}
-.onb-n{width:24px;height:24px;border-radius:50%;background:var(--ink);color:var(--bg);display:grid;
-  place-items:center;font-size:12.5px;font-weight:700;flex:0 0 auto}
-.onb-i{width:34px;height:34px;border-radius:11px;background:var(--bg);display:grid;place-items:center;
+.onb-n{width:26px;height:26px;border-radius:50%;background:var(--ink);color:var(--bg);
+  font-size:13px;font-weight:700}
+.onb-i{width:34px;height:34px;border-radius:11px;background:var(--bg);display:flex;align-items:center;justify-content:center;
   color:var(--accent);flex:0 0 auto;box-shadow:var(--shadow-1)}
 .onb-i svg{width:17px;height:17px}
 .onb-step b{display:block;font-size:14.5px;font-weight:650;letter-spacing:-.02em}
@@ -493,12 +630,34 @@ body.gated .wrap{padding:0;max-width:100%}
 .ai-dot-1{background:var(--accent)} .ai-dot-2{background:var(--violet)} .ai-dot-3{background:var(--info)}
 .ai-points{list-style:none;margin-top:12px}
 .ai-points li{display:flex;gap:8px;padding:5px 0;font-size:12.8px;color:var(--ink-3);line-height:1.45}
-.ai-points li i{flex:0 0 auto;width:17px;height:17px;border-radius:50%;display:grid;place-items:center;
+.ai-points li i{flex:0 0 auto;width:17px;height:17px;border-radius:50%;display:flex;align-items:center;justify-content:center;
   font-style:normal;font-size:11px;font-weight:700;margin-top:1px}
 .ai-points li i.p{background:var(--up-soft);color:var(--up)}
 .ai-points li i.n{background:var(--down-soft);color:var(--down)}
 @media (max-width:430px){ .cons-gauge{min-width:0;width:100%} }
 
+
+
+/* ---------- réglages ---------- */
+.set-row{display:flex;align-items:center;justify-content:space-between;gap:var(--space-md);
+  padding:16px 0;border-bottom:1px solid var(--line-2);flex-wrap:wrap}
+.set-row:last-child{border-bottom:none}
+.set-txt{flex:1;min-width:160px}
+.set-txt b{display:block;font-size:15px;font-weight:600;letter-spacing:-.02em}
+.set-txt span{display:block;font-size:12.5px;color:var(--ink-3);margin-top:3px;line-height:1.45}
+.set-ctl{flex:0 0 auto}
+.sw{width:48px;height:29px;border-radius:100px;background:var(--bg-3);position:relative;flex:0 0 auto;
+  transition:background .28s var(--spring)}
+.sw i{position:absolute;top:3px;left:3px;width:23px;height:23px;border-radius:50%;background:var(--bg);
+  box-shadow:var(--shadow-1);transition:transform .28s var(--spring)}
+.sw[aria-checked="true"]{background:var(--accent)}
+.sw[aria-checked="true"] i{transform:translateX(19px)}
+.export{margin-top:16px;padding:14px;border-radius:var(--r-m);background:var(--bg-2);font-size:11.5px;
+  font-family:var(--mono);white-space:pre-wrap;word-break:break-word;max-height:44vh;overflow:auto;
+  color:var(--ink-2)}
+.no-anim *{animation:none!important;transition:none!important}
+body.no-spark .row-spark{display:none}
+@media (max-width:520px){ .set-row{align-items:flex-start} .set-ctl{width:100%} .seg{width:100%} }
 
 /* ---------- axes prioritaires et nuances ---------- */
 .ai-focus{background:var(--bg);border-radius:var(--r-s);padding:9px 11px;margin-top:11px}
@@ -551,9 +710,9 @@ body.gated .wrap{padding:0;max-width:100%}
 .kv dt{font-size:14.5px;color:var(--ink-3);display:flex;align-items:center;gap:6px;min-width:0}
 .kv dd{font-family:var(--mono);font-size:15px;font-weight:600;flex:0 0 auto}
 .info{width:19px;height:19px;border-radius:50%;background:var(--bg-3);color:var(--ink-4);
-  display:inline-grid;place-items:center;font-size:11px;font-weight:700;flex:0 0 auto}
+  display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex:0 0 auto}
 .info:hover{background:var(--accent);color:#fff}
-.star{width:38px;height:38px;border-radius:50%;display:grid;place-items:center;color:var(--ink-4);flex:0 0 auto}
+.star{width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:var(--ink-4);flex:0 0 auto}
 .star:hover{background:var(--bg-2)}
 .star[aria-pressed="true"]{color:var(--warn)}
 .star svg{width:20px;height:20px}
@@ -564,11 +723,13 @@ body.gated .wrap{padding:0;max-width:100%}
 .chart{width:100%;height:auto;display:block}
 .divider{height:1px;background:var(--line-2);margin:var(--sp-3) 0}
 .flow{display:grid;gap:6px;margin-top:var(--sp-2)}
-.flow-s{padding:14px 18px;border-radius:var(--r-m);background:var(--bg-2);display:flex;
-  align-items:center;gap:12px}
-.flow-n{width:26px;height:26px;border-radius:50%;background:var(--bg);display:grid;place-items:center;
-  font-size:12.5px;font-weight:700;flex:0 0 auto;box-shadow:var(--shadow-1)}
-.flow-s b{font-size:14.5px;font-weight:600;letter-spacing:-.02em}
+.flow-s{display:flex;align-items:center;gap:var(--icon-gap);padding:var(--card-pad);
+  border-radius:var(--r-m);background:var(--bg-2)}
+.flow-n{width:var(--icon-box);height:var(--icon-box);flex:0 0 var(--icon-box);
+  border-radius:50%;background:var(--bg);font-size:15px;font-weight:700;
+  box-shadow:var(--shadow-1);font-variant-numeric:tabular-nums;color:var(--ink-2)}
+.flow-txt{flex:1 1 auto;min-width:0;text-align:left}
+.flow-s b{display:block;font-size:14.5px;font-weight:600;letter-spacing:-.02em}
 .flow-s span{display:block;font-size:12.5px;color:var(--ink-4);margin-top:2px}
 table.t{width:100%;border-collapse:collapse}
 table.t th{text-align:left;font-size:12px;font-weight:600;color:var(--ink-4);padding:10px 10px 10px 0;
@@ -582,6 +743,10 @@ table.t td:last-child,table.t th:last-child{text-align:right;padding-right:0}
   .hero{padding:var(--sp-4) 0 var(--sp-3)}
 }
 @media (max-width:430px){
+  /* Mobile : on réduit légèrement les mesures, mais la disposition reste
+     icône à gauche, texte à droite, l'ensemble centré verticalement. */
+  :root{--icon-box:42px; --icon-gap:14px; --card-pad:16px}
+  .cap,.flow-s{align-items:center;flex-direction:row}
   body{font-size:15.5px}
   .card{padding:18px;border-radius:var(--r-m)}
   .ring{width:126px;height:126px}
@@ -591,10 +756,6 @@ table.t td:last-child,table.t th:last-child{text-align:right;padding-right:0}
 </style>
 </head>
 <body>
-
-<div class="demo" role="note">
-  <b>DÉMONSTRATION</b><span>·</span><span>Données fictives, aucune cotation réelle.</span>
-</div>
 
 <header class="top">
   <div class="top-in">
@@ -606,6 +767,7 @@ table.t td:last-child,table.t th:last-child{text-align:right;padding-right:0}
     </button>
     <nav class="top-nav" id="topNav" aria-label="Navigation"></nav>
     <div class="top-act">
+      <span id="srcBadge"></span>
       <button class="icon-btn" data-search aria-label="Rechercher"></button>
       <button class="icon-btn" data-theme-toggle aria-label="Changer de thème"></button>
       <button class="btn btn-a btn-sm" data-go="pricing">Voir les offres</button>
@@ -623,6 +785,11 @@ table.t td:last-child,table.t th:last-child{text-align:right;padding-right:0}
 
 <script>
 "use strict";
+/* Repère de version : permet de savoir en une seconde si la page affichée est
+   bien la dernière. Visible dans Réglages et dans la console du navigateur. */
+const BUILD = 'v20';
+console.log('%cNovaBourse ' + BUILD, 'color:#00a651;font-weight:700');
+
 /* ============================================================
    1. OUTILS DE BASE
    ============================================================ */
@@ -639,8 +806,11 @@ function escapeHTML(v){
 const esc = escapeHTML;
 
 const fmt = {
-  num:(v,d=2)=>Number(v).toLocaleString('fr-FR',{minimumFractionDigits:d,maximumFractionDigits:d}),
-  int:(v)=>Number(v).toLocaleString('fr-FR',{maximumFractionDigits:0}),
+  /* Un nombre non fini n'est jamais affiché : on montre un tiret plutôt qu'un
+     « NaN », qui trahirait un calcul cassé. */
+  num:(v,d=2)=>Number.isFinite(Number(v))
+    ? Number(v).toLocaleString('fr-FR',{minimumFractionDigits:d,maximumFractionDigits:d}) : '—',
+  int:(v)=>Number.isFinite(Number(v))?Number(v).toLocaleString('fr-FR',{maximumFractionDigits:0}):'—',
   pct:(v,d=2)=>(v>=0?'+':'−')+Number(Math.abs(v)).toLocaleString('fr-FR',{minimumFractionDigits:d,maximumFractionDigits:d})+' %',
   eur:(v)=>Number(v).toLocaleString('fr-FR',{maximumFractionDigits:0})+' €',
   cur:(v,c)=>fmt.num(v)+' '+(CUR_SYMBOL[c]||c),
@@ -932,7 +1102,11 @@ function loadState(){
 }
 const state = loadState();
 if (!state.wallet) state.wallet = { cash:15480, invested:110000, positions:null };
-if (!state.wallet.positions) state.wallet.positions = DEFAULT_POSITIONS.map(p => ({ ...p }));
+if (!state.wallet.positions){
+  // Positions de démonstration uniquement tant que l'utilisateur n'a pas
+  // choisi son propre capital de départ.
+  state.wallet.positions = DEFAULT_POSITIONS.map(p => ({ ...p }));
+}
 if (!state.auth) state.auth = { signedIn:false, name:null, email:null, since:null };
 if (!state.onboarding) state.onboarding = { done:false, step:0, level:null, goal:null };
 let saveTimer = null;
@@ -1153,20 +1327,39 @@ function localTime(tz){
 /* Market Pulse : agrégat des données de démonstration présentes dans la page.
    Chaque facteur est calculé, aucun n'est posé à la main. */
 function marketPulse(){
-  const advancing = stocks.filter(s => s.change > 0).length;
-  const breadth   = Math.round(advancing / stocks.length * 100);
-  const avgVol    = Math.round(stocks.reduce((a,s)=>a+s.volatility,0) / stocks.length);
-  const momentum  = Math.round(50 + stocks.reduce((a,s)=>a+s.momentum,0) / stocks.length * 1.4);
-  const strength  = Math.round(scored.reduce((a,s)=>a+s.score,0) / scored.length);
-  const volumes   = Math.round(Math.min(100, stocks.reduce((a,s)=>a+s.volume,0) / stocks.length * 3.4));
+  /* Chaque facteur ne porte que sur les sociétés qui disposent réellement de
+     la mesure concernée. Le champ « volume » n'existe plus dans les données :
+     il produisait un NaN qui se propageait jusqu'au score affiché. */
+  const avg = (list, get) => {
+    const vals = list.map(get).filter(v => typeof v === 'number' && Number.isFinite(v));
+    return vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
+  };
+  const clamp = v => v === null ? null : Math.max(0, Math.min(100, Math.round(v)));
+
+  const advancing = stocks.filter(s => typeof s.change === 'number' && s.change > 0).length;
+  const rated     = stocks.filter(s => typeof s.change === 'number').length;
+  const breadth   = rated ? clamp(advancing / rated * 100) : null;
+
+  const avgVol  = avg(stocks, s => s.volatility);
+  const avgMom  = avg(stocks, s => s.momentum);
+  const avgScore= avg(scored, s => s.score);
+  const avgCov  = avg(stocks, s => s.coverage);
+
   const factors = [
-    { k:'Largeur du marché', v:Math.max(0,Math.min(100,breadth)),  d:`${advancing} sociétés en hausse sur ${stocks.length}.` },
-    { k:'Momentum',          v:Math.max(0,Math.min(100,momentum)), d:'Moyenne des tendances à six mois.' },
-    { k:'Force du marché',   v:strength,                            d:'Nova Score moyen des sociétés notées.' },
-    { k:'Volumes',           v:volumes,                             d:'Volumes moyens rapportés à un niveau de référence.' },
-    { k:'Volatilité',        v:Math.max(0,Math.min(100,100-avgVol*1.6)), d:`Volatilité moyenne de ${avgVol} %. Une note élevée signifie un marché calme.` },
-  ];
-  const score = Math.round(factors.reduce((a,f)=>a+f.v,0) / factors.length);
+    { k:'Largeur du marché', v:breadth,
+      d:`${advancing} sociétés en hausse sur ${rated}.` },
+    { k:'Momentum', v:avgMom === null ? null : clamp(50 + avgMom * 1.4),
+      d:'Moyenne des tendances à six mois.' },
+    { k:'Force du marché', v:clamp(avgScore),
+      d:'Nova Score moyen des sociétés notées.' },
+    { k:'Couverture des données', v:clamp(avgCov),
+      d:'Part des composantes réellement calculables.' },
+    { k:'Volatilité', v:avgVol === null ? null : clamp(100 - avgVol * 1.6),
+      d:avgVol === null ? 'Volatilité indisponible.'
+        : `Volatilité moyenne de ${Math.round(avgVol)} %. Une note élevée signifie un marché calme.` },
+  ].filter(f => f.v !== null);   // un facteur non calculable ne compte pas
+
+  const score = factors.length ? Math.round(factors.reduce((a, f) => a + f.v, 0) / factors.length) : null;
   return { score, factors };
 }
 
@@ -1471,8 +1664,39 @@ const ICON = {
   trash:'<path d="M4 7h16M9 7V5h6v2M6 7l1 13h10l1-13"/>',
   spark:'<path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/>',
 };
-const svg = (d, w = 1.8) =>
-  `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
+/* Certaines icônes ne sont pas dessinées au centre de leur repère 0-24 : leur
+   boîte englobante réelle est décalée. Aucun centrage CSS ne peut corriger cela,
+   puisque le SVG occupe bien toute sa case — c'est le dessin qui est excentré.
+   On le recentre donc lui-même, sur son CENTRE DE MASSE et non sur sa boîte
+   englobante : l'œil perçoit la matière du trait, pas le rectangle qui
+   l'entoure. Une balance dont toute l'encre est en haut paraît décalée même
+   quand sa boîte est parfaitement centrée. Valeurs obtenues en échantillonnant
+   chaque tracé tous les 0,25 unité. */
+const ICON_SHIFT = {
+  home:[0.03,-1.95],
+  list:[1.65,-3.56],
+  wallet:[0,-0.41],
+  star:[0,-0.46],
+  check:[-0.04,-0.83],
+  moon:[1.82,-1.87],
+  bell:[-0.04,-1.52],
+  shield:[0,0.38],
+  scale:[0.02,0.89],
+  chart:[-0.24,-4.31],
+  arrow:[-0.46,0],
+  book:[0.86,0.81],
+  trash:[0.04,0.45],
+  spark:[0,2.04],
+};
+const ICON_NAME = new Map(Object.entries(ICON).map(([k, v]) => [v, k]));
+
+const svg = (d, w = 1.8) => {
+  const shift = ICON_SHIFT[ICON_NAME.get(d)];
+  const body = shift ? `<g transform="translate(${shift[0]},${shift[1]})">${d}</g>` : d;
+  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${w}"
+    stroke-linecap="round" stroke-linejoin="round" preserveAspectRatio="xMidYMid meet"
+    aria-hidden="true" focusable="false">${body}</svg>`;
+};
 
 const SECTOR_HUE = { 'Technologie':'#0071e3','Finance':'#5b4ae0','Santé':'#e0407a','Industrie':'#c47f0a',
   'Énergie':'#d2691e','Consommation':'#00a651','Automobile':'#0891b2','Luxe':'#a855c7',
@@ -1542,9 +1766,11 @@ function areaChart(vals, { h = 200, color = 'var(--accent)', id = 'c', labels = 
       stroke-linejoin="round" stroke-linecap="round"/>${xl}</svg>`;
 }
 function spark(vals, color){
-  const w=110,h=32,min=Math.min(...vals),max=Math.max(...vals),sp=(max-min)||1;
-  const d = vals.map((v,i)=>`${i?'L':'M'}${(i/(vals.length-1)*w).toFixed(1)},${(h-(v-min)/sp*h).toFixed(1)}`).join(' ');
-  return `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" style="width:78px;height:26px" aria-hidden="true">
+  const w=110,h=32,pad=3,min=Math.min(...vals),max=Math.max(...vals),sp=(max-min)||1;
+  // On garde une marge verticale : sans elle, le trait touche les bords et
+  // déborde visuellement de sa case.
+  const d = vals.map((v,i)=>`${i?'L':'M'}${(i/(vals.length-1)*w).toFixed(1)},${(pad+(1-(v-min)/sp)*(h-pad*2)).toFixed(1)}`).join(' ');
+  return `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" aria-hidden="true">
     <path d="${d}" fill="none" stroke="${color}" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 }
 function ring(score, size = 150){
@@ -1585,10 +1811,13 @@ function stockRow(s, opts = {}){
       </span>
     </button>
     <span class="row-end" style="display:flex;align-items:center;gap:12px">
-      ${opts.spark !== false ? spark(stockSeries(s,'1M').values, s.change>=0?'var(--up)':'var(--down)') : ''}
+      ${opts.spark !== false ? `<span class="row-spark">${spark(stockSeries(s,'1M').values,
+        s.change>=0?'var(--up)':'var(--down)')}</span>` : ''}
       ${opts.score !== false && sc !== null
-        ? `<span class="tag ${sc>=70?'tag-up':sc>=50?'tag-warn':'tag-down'}" style="min-width:44px;justify-content:center">${sc}</span>`
-        : `<span class="tabular-nums ${s.change>=0?'up-t':'down-t'}" style="font-weight:600;font-size:14.5px">${trendTxt(s.change)}</span>`}
+        ? `<span class="tag tabular-nums ${sc>=70?'tag-up':sc>=50?'tag-warn':'tag-down'}"
+            style="min-width:46px;justify-content:center">${sc}</span>`
+        : `<span class="tabular-nums ${s.change>=0?'up-t':'down-t'}"
+            style="font-weight:600;font-size:14.5px;min-width:82px;display:inline-block;text-align:right">${trendTxt(s.change)}</span>`}
       ${opts.star !== false ? starBtn(s.id) : ''}
     </span>
   </div>`;
@@ -1600,6 +1829,87 @@ function stockRow(s, opts = {}){
    ============================================================ */
 const PAGES = {};
 
+/* Graphique d'ouverture : une courbe qui monte, se trace en boucle, et se
+   termine par une flèche. Purement décoratif — aucune donnée n'y est lue, et
+   il est marqué comme tel pour les lecteurs d'écran. Animation en CSS seul :
+   aucune boucle JavaScript, donc aucun coût en continu. */
+function heroChart(){
+  /* Courbe de fond du hero : elle traverse tout le bloc en diagonale, passe
+     DERRIÈRE le texte, et une flèche la parcourt en continu. La trajectoire
+     monte globalement mais recule régulièrement, comme un cours suivi en
+     direct — jamais une droite ascendante, qui ne ressemblerait à rien. */
+  const W = 1000, H = 700;
+  const r = rng(777);
+  const n = 54;
+  const pts = [];
+  let v = 0;
+  for (let i = 0; i < n; i++){
+    const t = i / (n - 1);
+    // Tendance de fond, plus des reculs marqués à intervalles irréguliers.
+    let step = 2.6 + (r() - 0.34) * 3.2;
+    const nearEnd = i > n - 6;
+    // Reculs réguliers, sauf sur les dernières séances : la courbe doit finir
+    // en montée pour que la flèche pointe vers le haut.
+    if (!nearEnd && i && i % 7 === 0) step -= 5.4 + r() * 4.2;   // repli net
+    if (!nearEnd && i && i % 13 === 0) step -= 7.5 + r() * 3;     // décrochage franc
+    if (nearEnd) step = 4.6 + r() * 2.4;                          // accélération finale
+    v = Math.max(0, v + step);
+    pts.push({ x: 30 + t * (W - 190), y: v });
+  }
+  const min = Math.min(...pts.map(p => p.y)), max = Math.max(...pts.map(p => p.y));
+  const span = (max - min) || 1;
+  // On projette du bas-gauche vers le haut-droit, en occupant toute la hauteur.
+  pts.forEach(p => { p.y = H - 70 - ((p.y - min) / span) * (H - 190); });
+
+  let d = `M${pts[0].x.toFixed(1)},${pts[0].y.toFixed(1)}`;
+  for (let i = 1; i < n; i++){
+    const a = pts[i - 1], b = pts[i], cx = (a.x + b.x) / 2;
+    d += ` C${cx.toFixed(1)},${a.y.toFixed(1)} ${cx.toFixed(1)},${b.y.toFixed(1)} ${b.x.toFixed(1)},${b.y.toFixed(1)}`;
+  }
+
+  const cols = 14, rows = 9;
+  const grid = [
+    ...Array.from({ length: cols + 1 }, (_, i) =>
+      `<line x1="${((i / cols) * W).toFixed(1)}" y1="0" x2="${((i / cols) * W).toFixed(1)}" y2="${H}"/>`),
+    ...Array.from({ length: rows + 1 }, (_, i) =>
+      `<line x1="0" y1="${((i / rows) * H).toFixed(1)}" x2="${W}" y2="${((i / rows) * H).toFixed(1)}"/>`),
+  ].join('');
+
+  const area = `${d} L${pts[n - 1].x.toFixed(1)},${H} L${pts[0].x.toFixed(1)},${H} Z`;
+
+  // Extrémité de la courbe et pente des derniers points : la flèche se pose
+  // là où le tracé s'arrête, dans son prolongement exact.
+  const last = pts[n - 1], before = pts[n - 4];
+  const angle = Math.atan2(last.y - before.y, last.x - before.x) * 180 / Math.PI;
+
+  return `<div class="hero-chart" aria-hidden="true">
+    <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid slice">
+      <defs>
+        <linearGradient id="hcFill" x1="0" x2="0" y1="0" y2="1">
+          <stop offset="0%" stop-color="var(--accent)" stop-opacity=".16"/>
+          <stop offset="100%" stop-color="var(--accent)" stop-opacity="0"/>
+        </linearGradient>
+        <linearGradient id="hcStroke" x1="0" x2="1" y1="1" y2="0">
+          <stop offset="0%" stop-color="var(--accent)" stop-opacity=".3"/>
+          <stop offset="100%" stop-color="var(--accent)"/>
+        </linearGradient>
+      </defs>
+      <g class="hc-grid">${grid}</g>
+      <path class="hc-area" d="${area}" fill="url(#hcFill)"/>
+      <path class="hc-line" d="${d}" fill="none" stroke="url(#hcStroke)" stroke-width="4"
+        stroke-linecap="round" stroke-linejoin="round"/>
+      <g class="hc-tip" transform="translate(${last.x.toFixed(1)},${last.y.toFixed(1)})">
+        <circle class="hc-halo" r="17" fill="var(--accent)" opacity=".16"/>
+        <circle r="7" fill="var(--accent)" stroke="var(--bg)" stroke-width="3"/>
+        <g transform="rotate(${angle.toFixed(1)})">
+          <path class="hc-arrow" d="M14 0 L52 0 M39 -12 L52 0 L39 12" fill="none"
+            stroke="var(--accent)" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </g>
+      </g>
+    </svg>
+  </div>`;
+}
+
 /* ---------- ACCUEIL : on doit comprendre en trois secondes ---------- */
 PAGES.home = () => {
   const top = [...scored].sort((a,b)=>b.score-a.score).slice(0,5);
@@ -1609,6 +1919,7 @@ PAGES.home = () => {
 
   return `
   <section class="hero">
+    ${heroChart()}
     <p class="eyebrow rise">Analyse multi-modèles</p>
     <h1 class="display rise" style="animation-delay:.05s">
       Plusieurs IA analysent.<br>Une seule réponse claire.</h1>
@@ -1621,7 +1932,7 @@ PAGES.home = () => {
       <button class="btn btn-g btn-lg" data-go="pricing">Voir les offres</button>
     </div>
     <p class="hero-note rise" style="animation-delay:.2s">
-      Gratuit pour commencer · ${stocks.length} entreprises · Données de démonstration</p>
+      Gratuit pour commencer · ${stocks.length} entreprises${isDemo()?' · Données d\'exemple':''}</p>
 
     <button class="search-btn rise" style="animation-delay:.24s" data-search>
       ${svg(ICON.search)}<span>Rechercher une entreprise, un secteur…</span><kbd>/</kbd>
@@ -1642,7 +1953,7 @@ PAGES.home = () => {
         .map(([ic,t2,d],i)=>`
         <div class="cap rise" style="animation-delay:${.05+i*.06}s">
           <span class="cap-i">${svg(ic)}</span>
-          <div><b>${t2}</b><span>${d}</span></div>
+          <div class="cap-txt"><b>${t2}</b><span>${d}</span></div>
         </div>`).join('')}
     </div>
   </section>
@@ -1651,13 +1962,15 @@ PAGES.home = () => {
     <div class="section-h">
       <div><h2 class="h2">Le marché aujourd'hui</h2>
         <p class="small">Cinq facteurs, tous calculés à partir des données affichées.</p></div>
-      <button class="btn btn-g btn-sm" data-pulse>Pourquoi ${pulse.score} ?</button>
+      ${pulse.score === null ? '' :
+        `<button class="btn btn-g btn-sm" data-pulse>Pourquoi ${pulse.score} ?</button>`}
     </div>
     <div class="card rise">
       <div class="score-hero">
         ${ring(pulse.score, 130)}
         <div style="flex:1;min-width:220px">
-          <p class="h3">Marché ${pulse.score>=60?'plutôt porteur':pulse.score>=45?'hésitant':'sous pression'}</p>
+          <p class="h3">${pulse.score === null ? 'État du marché indisponible'
+            : 'Marché ' + (pulse.score>=60?'plutôt porteur':pulse.score>=45?'hésitant':'sous pression')}</p>
           <div class="bars" style="margin-top:14px">
             ${pulse.factors.slice(0,3).map(f=>`
               <div class="bar" style="padding:9px 0">
@@ -2030,9 +2343,12 @@ PAGES.stock = (id) => {
       <p class="small" style="margin-top:4px">${esc(s.ticker)} · ${esc(s.market)} · ${esc(s.sector)}</p>
     </div>
     <div style="text-align:right">
-      <div class="price">${fmt.num(s.price)}<small>${esc(s.curSymbol)}</small></div>
-      <div class="price-chg ${s.change>=0?'up-t':'down-t'}">
-        ${arrow(s.change)} ${absChange(s)} (${fmt.pct(s.change)})</div>
+      ${s.priceUnavailable
+        ? `<div class="price" style="color:var(--ink-4)">—</div>
+           <div class="tiny" style="margin-top:6px">Cours indisponible pour cette place</div>`
+        : `<div class="price">${fmt.num(s.price)}<small>${esc(s.curSymbol)}</small></div>
+           <div class="price-chg ${s.change>=0?'up-t':'down-t'}">
+             ${arrow(s.change)} ${absChange(s)} (${fmt.pct(s.change)})</div>`}
     </div>
     ${starBtn(s.id)}
   </div>
@@ -2388,7 +2704,8 @@ PAGES.portfolio = () => {
   return `<div class="page-in">
     <p class="eyebrow">Simulation</p>
     <h1 class="title">Mon portefeuille</h1>
-    <p class="lead" style="margin-top:10px">Portefeuille fictif. Aucun ordre, aucun fonds.</p>
+    <p class="lead" style="margin-top:10px">Portefeuille virtuel : aucun ordre n'est transmis,
+      aucun fonds n'est détenu.</p>
 
     <div class="card" style="margin-top:22px">
       <p class="small">Valeur totale</p>
@@ -2480,7 +2797,7 @@ PAGES.account = () => {
     <section class="section">
       <h2 class="h2">En savoir plus</h2>
       <div class="card" style="margin-top:14px"><div class="rows">
-        ${[['method','Comment fonctionne le Nova Score'],['trust','Notre engagement de transparence'],
+        ${[['settings','Réglages complets'],['method','Comment fonctionne le Nova Score'],['trust','Notre engagement de transparence'],
            ['pricing','Offres et tarifs'],['watchlist','Ma liste de suivi']].map(([g,l])=>`
           <button class="row" data-go="${g}"><span class="row-main"><span class="row-t">${esc(l)}</span></span>
             <span style="color:var(--ink-4)">${svg(ICON.arrow,2.4)}</span></button>`).join('')}
@@ -2496,6 +2813,133 @@ PAGES.account = () => {
     <p class="tiny" style="margin-top:24px">NovaBourse ne fournit aucun conseil en investissement
       personnalisé, ne collecte aucun ordre et ne détient aucun fonds. Investir comporte un risque
       de perte en capital.</p></div>`;
+};
+
+/* ---------- RÉGLAGES ---------- */
+const LANGS = [
+  { id:'fr', label:'Français', flag:'FR', ready:true },
+  { id:'en', label:'English',  flag:'EN', ready:false },
+  { id:'de', label:'Deutsch',  flag:'DE', ready:false },
+  { id:'es', label:'Español',  flag:'ES', ready:false },
+];
+const CURRENCIES = [
+  { id:'EUR', label:'Euro', sym:'€' },
+  { id:'USD', label:'Dollar américain', sym:'$' },
+  { id:'GBP', label:'Livre sterling', sym:'£' },
+  { id:'CHF', label:'Franc suisse', sym:'CHF' },
+];
+const THEMES = [
+  { id:'light', label:'Clair',   icon:ICON.sun },
+  { id:'dark',  label:'Sombre',  icon:ICON.moon },
+  { id:'auto',  label:'Système', icon:ICON.spark },
+];
+
+function settingRow(label, help, control){
+  return `<div class="set-row">
+    <div class="set-txt"><b>${esc(label)}</b>${help?`<span>${esc(help)}</span>`:''}</div>
+    <div class="set-ctl">${control}</div>
+  </div>`;
+}
+function segControl(name, options, current){
+  return `<div class="seg">${options.map(o=>`
+    <button data-set="${name}" data-val="${esc(String(o.id))}"
+      aria-pressed="${String(current)===String(o.id)}"
+      ${o.ready===false?'data-soon="1"':''}>${esc(o.label)}</button>`).join('')}</div>`;
+}
+function switchControl(name, on){
+  return `<button class="sw" data-toggle-set="${name}" role="switch" aria-checked="${on}"
+    aria-label="${esc(name)}"><i></i></button>`;
+}
+
+PAGES.settings = () => {
+  const st = state.settings;
+  return `<div class="page-in">
+    <p class="eyebrow">Réglages</p>
+    <h1 class="title">Tout personnaliser</h1>
+    <p class="lead measure-l" style="margin-top:10px">Chaque réglage s'applique immédiatement
+      et reste dans votre navigateur.</p>
+
+    <section class="section">
+      <h2 class="h2">Apparence</h2>
+      <div class="card" style="margin-top:14px">
+        ${settingRow('Thème', 'Suivre le système ajuste selon l\'heure de votre appareil.',
+          segControl('theme', THEMES, st.theme))}
+        ${settingRow('Niveau de détail', 'Simple masque les ratios avancés.',
+          segControl('mode', [{id:'debutant',label:'Simple'},{id:'expert',label:'Détaillé'}], st.mode))}
+        ${settingRow('Animations', 'Réduit les mouvements si vous préférez.',
+          switchControl('animations', st.animations !== false))}
+        ${settingRow('Taille du texte', null,
+          segControl('fontSize', [{id:'normal',label:'Normal'},{id:'large',label:'Grand'}], st.fontSize||'normal'))}
+      </div>
+    </section>
+
+    <section class="section">
+      <h2 class="h2">Langue et région</h2>
+      <div class="card" style="margin-top:14px">
+        ${settingRow('Langue', 'Les autres langues arrivent : le socle est en place.',
+          segControl('lang', LANGS, st.lang))}
+        ${settingRow('Devise d\'affichage',
+          'Les positions restent dans leur devise d\'origine, converties pour le total.',
+          segControl('currency', CURRENCIES.map(c=>({id:c.id,label:c.id})), st.currency))}
+        ${settingRow('Format des nombres', null,
+          segControl('numFormat', [{id:'fr',label:'1 234,56'},{id:'en',label:'1,234.56'}], st.numFormat||'fr'))}
+      </div>
+    </section>
+
+    <section class="section">
+      <h2 class="h2">Affichage des données</h2>
+      <div class="card" style="margin-top:14px">
+        ${settingRow('Graphiques miniatures', 'Dans les listes d\'entreprises.',
+          switchControl('sparklines', st.sparklines !== false))}
+        ${settingRow('Afficher la couverture', 'Le pourcentage de données disponibles.',
+          switchControl('showCoverage', st.showCoverage !== false))}
+        ${settingRow('Période par défaut', null,
+          segControl('period', PERIODS.map(p=>({id:p.id,label:p.id})), state.ui.period))}
+      </div>
+    </section>
+
+    <section class="section">
+      <h2 class="h2">Notifications</h2>
+      <div class="card" style="margin-top:14px">
+        ${settingRow('Variation du Nova Score', 'Quand une note bouge de plus de 5 points.',
+          switchControl('notifScore', st.notifScore === true))}
+        ${settingRow('Seuils de prix', 'Sur les entreprises que vous suivez.',
+          switchControl('notifPrice', st.notifPrice === true))}
+        ${settingRow('Résumé hebdomadaire', null, switchControl('notifWeekly', st.notifWeekly === true))}
+        <p class="tiny" style="margin-top:12px">Prototype : aucune notification n'est réellement
+          envoyée. Ces réglages sont conservés pour la version connectée.</p>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2 class="h2">Compte et données</h2>
+      <div class="card" style="margin-top:14px">
+        <div class="rows">
+          <div class="row"><span class="row-main"><span class="row-t">Session</span>
+            <span class="row-s">${esc(state.auth.email || 'non connecté')}</span></span>
+            <button class="btn btn-s btn-sm" data-signout>Déconnexion</button></div>
+          <div class="row"><span class="row-main"><span class="row-t">Offre</span>
+            <span class="row-s">${esc(st.plan)}</span></span>
+            <button class="btn btn-s btn-sm" data-go="pricing">Changer</button></div>
+          <button class="row" data-guide><span class="row-main">
+            <span class="row-t">Revoir les premiers pas</span>
+            <span class="row-s">Les gestes essentiels</span></span>
+            <span style="color:var(--ink-4)">${svg(ICON.arrow,2.4)}</span></button>
+          <button class="row" data-export><span class="row-main">
+            <span class="row-t">Exporter mes données</span>
+            <span class="row-s">Liste de suivi, portefeuille, réglages</span></span>
+            <span style="color:var(--ink-4)">${svg(ICON.arrow,2.4)}</span></button>
+          <button class="row" data-reset><span class="row-main">
+            <span class="row-t" style="color:var(--down)">Réinitialiser la démonstration</span>
+            <span class="row-s">Efface tout de ce navigateur</span></span></button>
+        </div>
+      </div>
+    </section>
+
+    <p class="tiny" style="margin-top:22px">NovaBourse ne fournit aucun conseil en investissement
+      personnalisé, ne collecte aucun ordre et ne détient aucun fonds.</p>
+    <p class="tiny" style="margin-top:8px">Version du fichier : <b>${esc(BUILD)}</b> · alignement des cartes corrigé</p>
+  </div>`;
 };
 
 /* ---------- MÉTHODE ---------- */
@@ -2515,7 +2959,7 @@ PAGES.method = () => `<div class="page-in">
          ['Trois IA','avis qualitatifs, aucun chiffre produit'],
          ['Consensus','niveau d\'accord, jamais une probabilité']]
         .map(([t2,d],i)=>`<div class="flow-s"><span class="flow-n">${i+1}</span>
-          <span><b>${t2}</b><span>${d}</span></span></div>`).join('')}
+          <span class="flow-txt"><b>${t2}</b><span>${d}</span></span></div>`).join('')}
     </div>
   </section>
 
@@ -2695,6 +3139,88 @@ PAGES.compare = () => {
    ============================================================ */
 const DEMO_ACCOUNT = { name:'Compte de démonstration', email:'demo@novabourse.site' };
 
+/* ============================================================
+   SOURCE DES DONNÉES
+   Au démarrage, la page demande à /api/quotes si de vrais cours
+   sont disponibles. Trois issues, jamais confondues :
+     live   le backend répond → cours réels, la mention d'exemple
+            disparaît d'elle-même.
+     error  le backend est là mais sa source ne répond pas.
+     demo   aucun backend → valeurs d'exemple, annoncées comme telles.
+   Aucune valeur inventée ne prend jamais la place d'une vraie.
+   ============================================================ */
+const DATA = { mode:'demo', at:null, covered:0, provider:null, reason:null };
+const isDemo = () => DATA.mode === 'demo';
+
+/* Symbole attendu par les fournisseurs, selon la place de cotation. */
+const API_SUFFIX = { NASDAQ:'', NYSE:'', 'Euronext Paris':'.PA', 'Euronext Amsterdam':'.AS',
+  Xetra:'.DE', SIX:'.SW', LSE:'.L' };
+stocks.forEach(s2 => { s2.apiSymbol = s2.ticker + (API_SUFFIX[s2.market] ?? ''); });
+
+async function loadRealQuotes(){
+  const symbols = stocks.map(s2 => s2.apiSymbol).slice(0, 60).join(',');
+  let r;
+  try {
+    const res = await fetch('/api/quotes?symbols=' + encodeURIComponent(symbols),
+      { headers:{ accept:'application/json' } });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    r = await res.json();
+  } catch {
+    DATA.mode = 'demo';               // pas de backend : on reste explicite
+    return paintSource();
+  }
+  if (r.degraded || !r.quotes || !r.quotes.length){
+    DATA.mode = r.reason === 'cle_absente' ? 'demo' : 'error';
+    DATA.reason = r.reason || null;
+    return paintSource();
+  }
+  const bySymbol = Object.fromEntries(stocks.map(s2 => [s2.apiSymbol, s2]));
+  let n = 0;
+  for (const q of r.quotes){
+    const s2 = bySymbol[q.symbol];
+    if (!s2 || typeof q.price !== 'number') continue;
+    s2.price = q.price;
+    if (typeof q.changePct === 'number') s2.change = +q.changePct.toFixed(2);
+    s2.live = true; n++;
+  }
+  // Les sociétés non couvertes ne gardent PAS un cours d'exemple qui
+  // passerait pour réel : elles sont marquées indisponibles.
+  stocks.forEach(s2 => { if (!s2.live) s2.priceUnavailable = true; });
+  DATA.mode = 'live'; DATA.covered = n; DATA.provider = r.provider || null;
+  DATA.at = Date.now();
+  paintSource(); render();
+}
+
+function sourceBadge(){
+  if (DATA.mode === 'live'){
+    const t = new Date(DATA.at).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
+    return `<span class="src src-live" title="Cours réels · ${DATA.covered} sociétés · ${t}">
+      <i></i><span class="src-txt">Cours réels · ${t}</span></span>`;
+  }
+  if (DATA.mode === 'error'){
+    return `<span class="src src-err" title="Source de données indisponible">
+      <i></i><span class="src-txt">Source indisponible</span></span>`;
+  }
+  return `<span class="src src-demo" title="Données d'exemple, aucune cotation réelle">
+    <i></i><span class="src-txt">Données d'exemple</span></span>`;
+}
+function paintSource(){
+  const el = document.getElementById('srcBadge');
+  if (el) el.innerHTML = sourceBadge() +
+    `<span class="build" title="Version du fichier affiché">${esc(BUILD)}</span>`;
+}
+
+/* Le portefeuille démarre avec le montant choisi par l'utilisateur, et rien
+   d'autre : aucune position pré-remplie qu'il n'aurait pas décidée. */
+function setCapital(amount){
+  const v = Math.max(100, Math.min(10000000, Math.round(amount)));
+  state.wallet = { cash:v, invested:v, positions:[] };
+  state.onboarding.capital = v;
+  state.onboarding.step = 4;
+  saveState(); renderGate();
+  toast(`Portefeuille ouvert avec ${fmt.eur(v)} fictifs`);
+}
+
 function signIn(){
   state.auth = { signedIn:true, ...DEMO_ACCOUNT, since:new Date().toISOString() };
   saveState();
@@ -2750,6 +3276,19 @@ const ONB_LEVELS = [
   { id:'intermediaire', t:'Je connais un peu', d:'Un bon équilibre entre clarté et détail.' },
   { id:'expert', t:'Je suis à l\'aise', d:'Tous les ratios, tout le détail des calculs.' },
 ];
+const ONB_AMOUNTS = [
+  { id:1000,  label:'1 000 €',  d:'Pour découvrir sans pression.' },
+  { id:5000,  label:'5 000 €',  d:'Un portefeuille réaliste de départ.' },
+  { id:25000, label:'25 000 €', d:'Pour diversifier largement.' },
+  { id:100000,label:'100 000 €',d:'Pour tester à grande échelle.' },
+];
+const ONB_INTERESTS = [
+  { id:'Technologie', label:'Technologie' }, { id:'Santé', label:'Santé' },
+  { id:'Finance', label:'Finance' },         { id:'Énergie', label:'Énergie' },
+  { id:'Luxe', label:'Luxe' },               { id:'Industrie', label:'Industrie' },
+  { id:'Consommation', label:'Consommation' },{ id:'Automobile', label:'Automobile' },
+  { id:'Télécommunications', label:'Télécoms' },
+];
 const ONB_GOALS = [
   { id:'comprendre', t:'Comprendre la Bourse', d:'Apprendre à lire une entreprise.' },
   { id:'trouver', t:'Trouver des entreprises', d:'Filtrer selon mes critères.' },
@@ -2759,8 +3298,8 @@ const ONB_GOALS = [
 
 function onboardingScreen(){
   const st = state.onboarding.step;
-  const dots = `<div class="onb-dots">${[1,2,3].map(i=>
-    `<span class="${i===st?'on':''}"></span>`).join('')}</div>`;
+  const dots = `<div class="onb-dots">${[1,2,3,4,5].map(i=>
+    `<span class="${i<=st?'on':''}"></span>`).join('')}</div>`;
 
   if (st === 1) return `<div class="gate"><div class="gate-card onb">
     ${dots}
@@ -2785,6 +3324,57 @@ function onboardingScreen(){
     <button class="btn btn-g" style="margin-top:18px;width:100%" data-onb-back>Retour</button>
   </div></div>`;
 
+  if (st === 3) return `<div class="gate"><div class="gate-card onb">
+    ${dots}
+    <h1 class="title">Combien voulez-vous investir ?</h1>
+    <p class="lead" style="margin-top:10px">De l'argent <b>fictif</b>, pour tester vos idées sans
+      aucun risque. Vous pourrez en changer à tout moment.</p>
+    <div class="onb-list">
+      ${ONB_AMOUNTS.map(a=>`<button class="onb-c" data-capital="${a.id}">
+        <span style="flex:1;min-width:0"><b>${a.label}</b><span>${a.d}</span></span>
+        <span class="onb-a">${svg(ICON.arrow,2.4)}</span></button>`).join('')}
+    </div>
+    <div class="field" style="margin-top:14px">
+      <input class="field" id="capFree" type="number" min="100" step="100"
+        placeholder="Ou saisissez un montant" aria-label="Montant personnalisé">
+    </div>
+    <button class="btn btn-g" style="margin-top:12px;width:100%" data-onb-step="2">Retour</button>
+  </div></div>`;
+
+  if (st === 4){
+    const sel = state.onboarding.interests || [];
+    return `<div class="gate"><div class="gate-card onb">
+      ${dots}
+      <h1 class="title">Qu'est-ce qui vous intéresse ?</h1>
+      <p class="lead" style="margin-top:10px">Choisissez un à trois secteurs. Nous vous proposerons
+        des entreprises correspondantes, jamais des recommandations d'achat.</p>
+      <div class="chips" style="margin-top:22px">
+        ${ONB_INTERESTS.map(i=>`<button class="chip" data-interest="${esc(i.id)}"
+          aria-pressed="${sel.includes(i.id)}">${esc(i.label)}</button>`).join('')}
+      </div>
+      <button class="btn btn-a btn-lg" style="margin-top:24px;width:100%"
+        data-onb-step="5" ${sel.length?'':'disabled style="margin-top:24px;width:100%;opacity:.45"'}>
+        ${sel.length?`Continuer avec ${sel.length} secteur${sel.length>1?'s':''}`:'Choisissez au moins un secteur'}</button>
+      <button class="btn btn-g" style="margin-top:10px;width:100%" data-onb-step="3">Retour</button>
+    </div></div>`;
+  }
+
+  if (st === 5){
+    const picks = suggestedStocks();
+    return `<div class="gate"><div class="gate-card onb">
+      ${dots}
+      <h1 class="title">Des entreprises à explorer</h1>
+      <p class="lead" style="margin-top:10px">Les mieux notées dans les secteurs que vous avez
+        choisis. Touchez l'étoile pour les suivre — ce n'est pas un conseil d'achat.</p>
+      <div class="card" style="margin-top:20px;padding:6px 16px">
+        <div class="rows">${picks.map(x=>stockRow(x,{spark:false})).join('')}</div>
+      </div>
+      <button class="btn btn-a btn-lg" style="margin-top:20px;width:100%" data-onb-step="6">
+        Continuer</button>
+      <button class="btn btn-g" style="margin-top:10px;width:100%" data-onb-step="4">Retour</button>
+    </div></div>`;
+  }
+
   return `<div class="gate"><div class="gate-card onb">
     ${dots}
     <h1 class="title">Trois gestes pour commencer</h1>
@@ -2798,6 +3388,11 @@ function onboardingScreen(){
           <span><b>${t2}</b><span>${d}</span></span>
         </div>`).join('')}
     </div>
+    ${state.onboarding.capital?`<div class="onb-step" style="margin-top:12px">
+      <span class="onb-i">${svg(ICON.wallet)}</span>
+      <span><b>Votre portefeuille est prêt</b>
+        <span>${fmt.eur(state.onboarding.capital)} fictifs vous attendent, sans aucune position imposée.</span></span>
+    </div>`:''}
     <div class="notice" style="margin-top:20px">
       <b>Une règle que nous ne franchirons pas.</b> Quand une donnée manque, nous l'écrivons.
       Nous ne remplaçons jamais un chiffre absent par une estimation.
@@ -2805,6 +3400,15 @@ function onboardingScreen(){
     <button class="btn btn-a btn-lg" style="margin-top:22px;width:100%" data-onb-done>
       Entrer dans NovaBourse</button>
   </div></div>`;
+}
+
+/* Entreprises proposées : les mieux notées dans les secteurs retenus. Aucun
+   classement caché, aucune mise en avant payée. */
+function suggestedStocks(){
+  const want = state.onboarding.interests || [];
+  let list = scored.filter(s => want.includes(s.sector));
+  if (list.length < 4) list = list.concat(scored.filter(s => !want.includes(s.sector)));
+  return [...new Set(list)].sort((a,b) => b.score - a.score).slice(0, 5);
 }
 
 function renderGate(){
@@ -2829,10 +3433,14 @@ const NAV = [
   { id:'portfolio', label:'Portefeuille', icon:ICON.wallet },
   { id:'account',   label:'Compte',       icon:ICON.user },
 ];
+const NAV_MORE = [
+  { id:'settings',  label:'Réglages',     icon:ICON.spark },
+];
 let route = { page:'home', arg:null };
 let history_ = [];
 
 function paintNav(){
+  paintSource();
   document.getElementById('topNav').innerHTML = NAV.map(n=>`
     <a href="#" data-go="${n.id}" ${route.page===n.id?'aria-current="page"':''}>${n.label}</a>`).join('');
   document.getElementById('dock').innerHTML = NAV.map(n=>`
@@ -2884,10 +3492,23 @@ function go(page, arg){
 function back(){ const prev = history_.pop(); route = prev || { page:'home', arg:null }; render(); }
 
 /* ---------- thème ---------- */
+/* Applique tous les réglages d'un coup : thème, taille, animations, format. */
+function applySettings(){
+  applyTheme();
+  const r = document.documentElement;
+  r.style.fontSize = state.settings.fontSize === 'large' ? '17.5px' : '';
+  r.classList.toggle('no-anim', state.settings.animations === false);
+  document.body.classList.toggle('no-spark', state.settings.sparklines === false);
+}
+
 function applyTheme(){
-  document.documentElement.setAttribute('data-theme', state.settings.theme === 'dark' ? 'dark' : 'light');
+  // « auto » suit la préférence du système, les deux autres l'imposent.
+  const wanted = state.settings.theme === 'auto'
+    ? (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+    : (state.settings.theme === 'dark' ? 'dark' : 'light');
+  document.documentElement.setAttribute('data-theme', wanted);
   document.querySelector('meta[name="theme-color"]')
-    ?.setAttribute('content', state.settings.theme === 'dark' ? '#0c0e10' : '#ffffff');
+    ?.setAttribute('content', wanted === 'dark' ? '#0c0e10' : '#ffffff');
 }
 
 /* ---------- recherche ---------- */
@@ -2971,6 +3592,32 @@ document.addEventListener('click', e => {
   const gl = q('[data-goal]');
   if (gl){ state.onboarding.goal = gl.dataset.goal; state.onboarding.step = 3; saveState(); renderGate(); return; }
   if (q('[data-onb-back]')){ state.onboarding.step = 1; saveState(); renderGate(); return; }
+
+  const cap = q('[data-capital]');
+  if (cap){ setCapital(+cap.dataset.capital); return; }
+  const stepBtn = q('[data-onb-step]');
+  if (stepBtn){
+    const target = +stepBtn.dataset.onbStep;
+    // Sortie de l'écran capital : on tient compte d'un montant saisi à la main.
+    if (state.onboarding.step === 3 && target === 4){
+      const free = parseFloat(document.getElementById('capFree')?.value);
+      if (free > 0) return setCapital(free);
+    }
+    if (target === 5 && !(state.onboarding.interests||[]).length){
+      toast('Choisissez au moins un secteur'); return;
+    }
+    state.onboarding.step = target; saveState(); renderGate(); return;
+  }
+  const inter = q('[data-interest]');
+  if (inter){
+    const id = inter.dataset.interest;
+    const list = state.onboarding.interests || (state.onboarding.interests = []);
+    const i = list.indexOf(id);
+    if (i >= 0) list.splice(i, 1);
+    else if (list.length >= 3) return toast('Trois secteurs au maximum');
+    else list.push(id);
+    saveState(); renderGate(); return;
+  }
   if (q('[data-onb-done]')){
     state.onboarding.done = true; saveState();
     const dest = { comprendre:'method', trouver:'radar', suivre:'watchlist', portefeuille:'portfolio' };
@@ -2980,7 +3627,7 @@ document.addEventListener('click', e => {
     toast('Tout est prêt. Bonne exploration.');
     return;
   }
-  if (q('[data-guide]')){ state.onboarding.step = 3; saveState(); renderGate(); return; }
+  if (q('[data-guide]')){ state.onboarding.step = 6; saveState(); renderGate(); return; }
 
   const nav = q('[data-go]'); if (nav){ e.preventDefault(); go(nav.dataset.go); return; }
   if (q('[data-back]')){ back(); return; }
@@ -3003,11 +3650,42 @@ document.addEventListener('click', e => {
 
   // Attention : l'attribut data-theme est porté par <html>. Les boutons
   // utilisent donc data-set-theme, sinon closest() intercepterait tous les clics.
+  const setBtn = q('[data-set]');
+  if (setBtn){
+    const key = setBtn.dataset.set, val = setBtn.dataset.val;
+    if (setBtn.dataset.soon){ toast('Cette langue arrive bientôt'); return; }
+    if (key === 'period'){ state.ui.period = val; }
+    else state.settings[key] = val;
+    saveState(); applySettings(); render(); return;
+  }
+  const swBtn = q('[data-toggle-set]');
+  if (swBtn){
+    const key = swBtn.dataset.toggleSet;
+    const cur = state.settings[key] !== false && state.settings[key] !== undefined
+      ? state.settings[key] : (['animations','sparklines','showCoverage'].includes(key));
+    state.settings[key] = !cur;
+    saveState(); applySettings();
+    swBtn.setAttribute('aria-checked', String(state.settings[key]));
+    swBtn.classList.toggle('on', state.settings[key]);
+    return;
+  }
+  if (q('[data-export]')){
+    const data = JSON.stringify({ watchlist:state.watchlist, wallet:state.wallet,
+      settings:state.settings }, null, 2);
+    openSheet(`<h3 id="sheetTitle">Vos données</h3>
+      <p>Tout ce que NovaBourse conserve dans ce navigateur. Rien n'est envoyé ailleurs.</p>
+      <pre class="export">${esc(data)}</pre>`);
+    return;
+  }
+
   const th = q('[data-set-theme]');
   if (th){ state.settings.theme = th.dataset.setTheme; saveState(); applyTheme(); render(); return; }
   if (q('[data-theme-toggle]')){
-    state.settings.theme = state.settings.theme === 'dark' ? 'light' : 'dark';
-    saveState(); applyTheme(); paintNav(); toast(state.settings.theme==='dark'?'Thème sombre':'Thème clair'); return;
+    const order = ['light','dark','auto'];
+    state.settings.theme = order[(order.indexOf(state.settings.theme) + 1) % 3];
+    saveState(); applySettings(); paintNav();
+    toast({ light:'Thème clair', dark:'Thème sombre', auto:'Thème système' }[state.settings.theme]);
+    return;
   }
 
   const md = q('[data-mode]');
@@ -3176,7 +3854,7 @@ document.addEventListener('click', e => {
         <button class="btn btn-a" data-reset-ok style="flex:1">Réinitialiser</button></div>`);
     return;
   }
-  if (q('[data-reset-ok]')){ closeSheet(); resetDemo(); applyTheme(); return; }
+  if (q('[data-reset-ok]')){ closeSheet(); resetDemo(); applySettings(); return; }
 });
 
 document.getElementById('sheetBg').addEventListener('click', e => {
@@ -3194,7 +3872,13 @@ function boot(){
   if (!state.settings.theme) state.settings.theme = 'light';
   if (!state.filters.radarRisk) Object.assign(state.filters,
     { radarRisk:'tous', radarMin:0, radarCountry:'tous', radarSector:'tous', exploreSector:'tous' });
-  applyTheme();
+  applySettings();
+  if (window.matchMedia){
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', () => {
+      if (state.settings.theme === 'auto') applyTheme();
+    });
+  }
+  loadRealQuotes();          // décide du mode, sans bloquer l'affichage
   if (!state.auth.signedIn){ renderGate(); return; }
   if (!state.onboarding.done){ state.onboarding.step = state.onboarding.step || 1; renderGate(); return; }
   renderApp();
