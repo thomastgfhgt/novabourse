@@ -787,7 +787,7 @@ table.t td:last-child,table.t th:last-child{text-align:right;padding-right:0}
 "use strict";
 /* Repère de version : permet de savoir en une seconde si la page affichée est
    bien la dernière. Visible dans Réglages et dans la console du navigateur. */
-const BUILD = 'v20';
+const BUILD = 'live-1';
 console.log('%cNovaBourse ' + BUILD, 'color:#00a651;font-weight:700');
 
 /* ============================================================
@@ -1042,7 +1042,7 @@ const portfolio = {
   get positions(){ return state.wallet.positions; },
 };
 
-/* --- alertes de démonstration --- */
+/* --- alertes : exemples locaux, remplacés dès la première alerte créée --- */
 let alerts = [
   { id:1, type:'Nova Score', stock:'AAPL-NAS', detail:'+8 points sur 30 jours', when:'il y a 2 h', active:true },
   { id:2, type:'Prix',       stock:'NVDA-NAS', detail:'Seuil de 130 $ atteint', when:'hier', active:true },
@@ -1103,9 +1103,9 @@ function loadState(){
 const state = loadState();
 if (!state.wallet) state.wallet = { cash:15480, invested:110000, positions:null };
 if (!state.wallet.positions){
-  // Positions de démonstration uniquement tant que l'utilisateur n'a pas
-  // choisi son propre capital de départ.
-  state.wallet.positions = DEFAULT_POSITIONS.map(p => ({ ...p }));
+  // Aucune position n'est imposée : le portefeuille démarre avec le capital
+  // choisi par l'utilisateur au premier lancement.
+  state.wallet.positions = [];
 }
 if (!state.auth) state.auth = { signedIn:false, name:null, email:null, since:null };
 if (!state.onboarding) state.onboarding = { done:false, step:0, level:null, goal:null };
@@ -1125,7 +1125,7 @@ function resetDemo(){
   try { localStorage.removeItem(STORAGE_KEY); } catch {}
   Object.assign(state, deepClone(DEFAULT_STATE));
   alerts = [];
-  toast('Démonstration réinitialisée');
+  toast('Données locales effacées');
   go('home');
 }
 
@@ -1324,7 +1324,7 @@ function localTime(tz){
   catch { return '—'; }
 }
 
-/* Market Pulse : agrégat des données de démonstration présentes dans la page.
+/* Market Pulse : agrégat des données affichées.
    Chaque facteur est calculé, aucun n'est posé à la main. */
 function marketPulse(){
   /* Chaque facteur ne porte que sur les sociétés qui disposent réellement de
@@ -1932,7 +1932,7 @@ PAGES.home = () => {
       <button class="btn btn-g btn-lg" data-go="pricing">Voir les offres</button>
     </div>
     <p class="hero-note rise" style="animation-delay:.2s">
-      Gratuit pour commencer · ${stocks.length} entreprises${isDemo()?' · Données d\'exemple':''}</p>
+      Gratuit pour commencer · ${stocks.length} entreprises suivies</p>
 
     <button class="search-btn rise" style="animation-delay:.24s" data-search>
       ${svg(ICON.search)}<span>Rechercher une entreprise, un secteur…</span><kbd>/</kbd>
@@ -2056,10 +2056,10 @@ function pricingBlock(compact = false){
       <p class="lead measure-l" style="margin:12px auto 0">
         L'essentiel ne coûte rien. Les offres payantes lèvent les limites et ouvrent l'analyse
         multi-modèles en profondeur.</p>
-      <div class="seg" style="margin-top:24px" role="group" aria-label="Périodicité">
+      ${CONFIG.annualBilling ? `<div class="seg" style="margin-top:24px" role="group" aria-label="Périodicité">
         <button data-cycle="mensuel" aria-pressed="${!yearly}">Mensuel</button>
         <button data-cycle="annuel" aria-pressed="${yearly}">Annuel <span class="save">−34 %</span></button>
-      </div>
+      </div>` : ''}
     </div>
     <div class="plans">
       ${P.map((p,i)=>`
@@ -2079,7 +2079,7 @@ function pricingBlock(compact = false){
         </div>`).join('')}
     </div>
     <p class="tiny center" style="margin-top:20px">
-      Sans engagement · Résiliable en un clic · Paiement de démonstration, aucun prélèvement.</p>
+      Sans engagement · Résiliable en un clic · Paiement sécurisé par Stripe</p>
   </section>`;
 }
 PAGES.pricing = () => `
@@ -2209,8 +2209,7 @@ function matchReasons(s){
 PAGES.explore = () => `<div class="page-in">
   <p class="eyebrow">Explorer</p>
   <h1 class="title">Toutes les entreprises</h1>
-  <p class="lead measure-l" style="margin-top:10px">${stocks.length} sociétés de démonstration,
-    ${new Set(stocks.map(s=>s.market)).size} places boursières.</p>
+  <p class="lead measure-l" style="margin-top:10px">${stocks.length} sociétés suivies sur ${new Set(stocks.map(s=>s.market)).size} places boursières.</p>
   <button class="search-btn" style="margin:22px 0 0;max-width:100%" data-search>
     ${svg(ICON.search)}<span>Rechercher…</span></button>
   <div class="chips" style="margin-top:16px">
@@ -2704,8 +2703,7 @@ PAGES.portfolio = () => {
   return `<div class="page-in">
     <p class="eyebrow">Simulation</p>
     <h1 class="title">Mon portefeuille</h1>
-    <p class="lead" style="margin-top:10px">Portefeuille virtuel : aucun ordre n'est transmis,
-      aucun fonds n'est détenu.</p>
+    <p class="lead" style="margin-top:10px">Portefeuille virtuel : suivez vos positions sans engager d'argent réel.</p>
 
     <div class="card" style="margin-top:22px">
       <p class="small">Valeur totale</p>
@@ -2773,11 +2771,13 @@ PAGES.account = () => {
         </div>
         <div class="btns">
           <button class="btn btn-s btn-sm" data-signout>Se déconnecter</button>
+          ${state.settings.plan !== 'free'
+            ? `<button class="btn btn-s btn-sm" data-portal>Gérer mon abonnement</button>`
+            : ''}
           <button class="btn btn-a btn-sm" data-go="pricing">Changer d'offre</button>
         </div>
       </div>
-      <p class="tiny" style="margin-top:12px">Connexion simulée dans ce prototype :
-        aucune donnée n'est envoyée à Google.</p>
+      
     </div>
 
     <section class="section">
@@ -2805,7 +2805,7 @@ PAGES.account = () => {
           <span class="row-t">Revoir les premiers pas</span>
           <span class="row-s">Les trois gestes essentiels</span></span></button>
         <button class="row" data-reset><span class="row-main">
-          <span class="row-t">Réinitialiser la démonstration</span>
+          <span class="row-t">Effacer mes données locales</span>
           <span class="row-s">Liste de suivi et préférences</span></span></button>
       </div></div>
     </section>
@@ -2906,8 +2906,8 @@ PAGES.settings = () => {
         ${settingRow('Seuils de prix', 'Sur les entreprises que vous suivez.',
           switchControl('notifPrice', st.notifPrice === true))}
         ${settingRow('Résumé hebdomadaire', null, switchControl('notifWeekly', st.notifWeekly === true))}
-        <p class="tiny" style="margin-top:12px">Prototype : aucune notification n'est réellement
-          envoyée. Ces réglages sont conservés pour la version connectée.</p>
+        <p class="tiny" style="margin-top:12px">Les notifications arrivent bientôt. Vos préférences
+          sont enregistrées dès maintenant.</p>
       </div>
     </section>
 
@@ -2930,7 +2930,7 @@ PAGES.settings = () => {
             <span class="row-s">Liste de suivi, portefeuille, réglages</span></span>
             <span style="color:var(--ink-4)">${svg(ICON.arrow,2.4)}</span></button>
           <button class="row" data-reset><span class="row-main">
-            <span class="row-t" style="color:var(--down)">Réinitialiser la démonstration</span>
+            <span class="row-t" style="color:var(--down)">Effacer mes données locales</span>
             <span class="row-s">Efface tout de ce navigateur</span></span></button>
         </div>
       </div>
@@ -3133,45 +3133,47 @@ PAGES.compare = () => {
 
 /* ============================================================
    CONNEXION ET PREMIERS PAS
-   Dans ce prototype, la connexion Google est SIMULÉE : aucun
-   échange n'a lieu avec Google, aucune donnée n'est transmise.
-   Le vrai flux passera par le serveur, jamais par cette page.
+   Connexion Google réelle, gérée par Supabase Auth. La session est rétablie
+   au rechargement et le plan est toujours relu côté serveur.
    ============================================================ */
-const DEMO_ACCOUNT = { name:'Compte de démonstration', email:'demo@novabourse.site' };
-
 /* ============================================================
-   SOURCE DES DONNÉES
-   Au démarrage, la page demande à /api/quotes si de vrais cours
-   sont disponibles. Trois issues, jamais confondues :
-     live   le backend répond → cours réels, la mention d'exemple
-            disparaît d'elle-même.
-     error  le backend est là mais sa source ne répond pas.
-     demo   aucun backend → valeurs d'exemple, annoncées comme telles.
-   Aucune valeur inventée ne prend jamais la place d'une vraie.
+   SOURCE DES DONNÉES DE MARCHÉ
+   Trois états, jamais confondus :
+     live        cours réels reçus du serveur
+     error       source connectée mais qui ne répond pas
+     unavailable aucune source configurée
+   Dans les deux derniers cas, aucun cours n'est affiché : une valeur
+   inventée serait pire qu'une absence.
    ============================================================ */
-const DATA = { mode:'demo', at:null, covered:0, provider:null, reason:null };
-const isDemo = () => DATA.mode === 'demo';
+/* Aucun mode démonstration ne subsiste : conservé pour compatibilité. */
+const isDemo = () => false;
+const DATA = { mode:'unavailable', at:null, covered:0, provider:null, reason:null };
 
-/* Symbole attendu par les fournisseurs, selon la place de cotation. */
 const API_SUFFIX = { NASDAQ:'', NYSE:'', 'Euronext Paris':'.PA', 'Euronext Amsterdam':'.AS',
   Xetra:'.DE', SIX:'.SW', LSE:'.L' };
 stocks.forEach(s2 => { s2.apiSymbol = s2.ticker + (API_SUFFIX[s2.market] ?? ''); });
 
 async function loadRealQuotes(){
+  if (!CONFIG.marketConnected){
+    DATA.mode = 'unavailable'; DATA.reason = 'source_non_connectee';
+    stocks.forEach(x => { x.priceUnavailable = true; });
+    return paintSource();
+  }
   const symbols = stocks.map(s2 => s2.apiSymbol).slice(0, 60).join(',');
   let r;
   try {
-    const res = await fetch('/api/quotes?symbols=' + encodeURIComponent(symbols),
-      { headers:{ accept:'application/json' } });
+    const res = await fetch('/api/market/quotes?symbols=' + encodeURIComponent(symbols));
     if (!res.ok) throw new Error('HTTP ' + res.status);
     r = await res.json();
   } catch {
-    DATA.mode = 'demo';               // pas de backend : on reste explicite
+    DATA.mode = 'unavailable'; DATA.reason = 'serveur_injoignable';
+    stocks.forEach(x => { x.priceUnavailable = true; });
     return paintSource();
   }
-  if (r.degraded || !r.quotes || !r.quotes.length){
-    DATA.mode = r.reason === 'cle_absente' ? 'demo' : 'error';
+  if (!r.connected || r.degraded || !r.quotes || !r.quotes.length){
+    DATA.mode = r.connected ? 'error' : 'unavailable';
     DATA.reason = r.reason || null;
+    stocks.forEach(x => { x.priceUnavailable = true; });
     return paintSource();
   }
   const bySymbol = Object.fromEntries(stocks.map(s2 => [s2.apiSymbol, s2]));
@@ -3181,54 +3183,144 @@ async function loadRealQuotes(){
     if (!s2 || typeof q.price !== 'number') continue;
     s2.price = q.price;
     if (typeof q.changePct === 'number') s2.change = +q.changePct.toFixed(2);
-    s2.live = true; n++;
+    s2.live = true; s2.priceUnavailable = false; n++;
   }
-  // Les sociétés non couvertes ne gardent PAS un cours d'exemple qui
-  // passerait pour réel : elles sont marquées indisponibles.
   stocks.forEach(s2 => { if (!s2.live) s2.priceUnavailable = true; });
-  DATA.mode = 'live'; DATA.covered = n; DATA.provider = r.provider || null;
-  DATA.at = Date.now();
+  DATA.mode = 'live'; DATA.covered = n; DATA.provider = r.provider || null; DATA.at = Date.now();
   paintSource(); render();
 }
 
 function sourceBadge(){
   if (DATA.mode === 'live'){
     const t = new Date(DATA.at).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
-    return `<span class="src src-live" title="Cours réels · ${DATA.covered} sociétés · ${t}">
+    return `<span class="src src-live" title="${DATA.covered} sociétés couvertes">
       <i></i><span class="src-txt">Cours réels · ${t}</span></span>`;
   }
   if (DATA.mode === 'error'){
-    return `<span class="src src-err" title="Source de données indisponible">
+    return `<span class="src src-err" title="La source de marché ne répond pas">
       <i></i><span class="src-txt">Source indisponible</span></span>`;
   }
-  return `<span class="src src-demo" title="Données d'exemple, aucune cotation réelle">
-    <i></i><span class="src-txt">Données d'exemple</span></span>`;
+  return `<span class="src src-err" title="Aucune source de marché connectée">
+    <i></i><span class="src-txt">Marché non connecté</span></span>`;
 }
 function paintSource(){
   const el = document.getElementById('srcBadge');
   if (el) el.innerHTML = sourceBadge() +
-    `<span class="build" title="Version du fichier affiché">${esc(BUILD)}</span>`;
+    `<span class="build" title="Version">${esc(BUILD)}</span>`;
 }
 
-/* Le portefeuille démarre avec le montant choisi par l'utilisateur, et rien
-   d'autre : aucune position pré-remplie qu'il n'aurait pas décidée. */
-function setCapital(amount){
-  const v = Math.max(100, Math.min(10000000, Math.round(amount)));
-  state.wallet = { cash:v, invested:v, positions:[] };
-  state.onboarding.capital = v;
-  state.onboarding.step = 4;
-  saveState(); renderGate();
-  toast(`Portefeuille ouvert avec ${fmt.eur(v)} fictifs`);
+/* ============================================================
+   AUTHENTIFICATION — Supabase Auth avec le fournisseur Google.
+   La clé anon est publique par conception : elle ne donne accès qu'à ce que
+   les politiques RLS autorisent. Aucun secret ne se trouve dans cette page.
+   ============================================================ */
+let sbClient = null;
+let CONFIG = { supabaseUrl:null, supabaseAnonKey:null, marketConnected:false,
+  aiConnected:false, annualBilling:false };
+
+async function loadConfig(){
+  try { CONFIG = { ...CONFIG, ...(await fetch('/api/config').then(r => r.json())) }; }
+  catch { /* le serveur n'est pas joignable : on reste sur les valeurs par défaut */ }
+  return CONFIG;
 }
 
-function signIn(){
-  state.auth = { signedIn:true, ...DEMO_ACCOUNT, since:new Date().toISOString() };
+async function initAuth(){
+  if (!CONFIG.supabaseUrl || !CONFIG.supabaseAnonKey) return null;
+  const { createClient } = await import('https://esm.sh/@supabase/supabase-js@2');
+  sbClient = createClient(CONFIG.supabaseUrl, CONFIG.supabaseAnonKey, {
+    auth: { persistSession:true, autoRefreshToken:true, detectSessionInUrl:true },
+  });
+  sbClient.auth.onAuthStateChange((_e, session) => { applySession(session); });
+  const { data } = await sbClient.auth.getSession();
+  await applySession(data.session);
+  return sbClient;
+}
+
+/* Le jeton de session accompagne chaque appel au serveur. */
+async function authFetch(url, options = {}){
+  const { data } = sbClient ? await sbClient.auth.getSession() : { data:{} };
+  const token = data?.session?.access_token;
+  return fetch(url, { ...options, headers: {
+    'Content-Type':'application/json',
+    ...(token ? { Authorization:'Bearer ' + token } : {}),
+    ...(options.headers || {}),
+  }});
+}
+
+async function applySession(session){
+  if (!session){
+    state.auth = { signedIn:false, name:null, email:null, since:null };
+    state.settings.plan = 'free';
+    saveState(); renderGate(); return;
+  }
+  state.auth = {
+    signedIn: true,
+    name: session.user.user_metadata?.full_name || session.user.email,
+    email: session.user.email,
+    avatar: session.user.user_metadata?.avatar_url || null,
+    since: session.user.created_at || null,
+  };
   saveState();
-  if (!state.onboarding.done){ state.onboarding.step = 1; saveState(); renderGate(); }
-  else { renderApp(); toast('Bon retour parmi nous'); }
+  await refreshAccount();          // le plan vient du serveur, jamais d'ici
+  if (!state.onboarding.done){ state.onboarding.step = state.onboarding.step || 1; renderGate(); }
+  else renderApp();
 }
-function signOut(){
+
+/* Le plan est lu en base. Le navigateur ne peut pas se l'attribuer. */
+async function refreshAccount(){
+  try {
+    const r = await authFetch('/api/me');
+    if (!r.ok) return;
+    const me = await r.json();
+    state.settings.plan = me.plan || 'free';
+    state.account = me;
+    saveState();
+  } catch {}
+}
+
+async function signIn(){
+  if (!sbClient){
+    toast("Connexion indisponible : configuration du serveur incomplète.");
+    return;
+  }
+  const { error } = await sbClient.auth.signInWithOAuth({
+    provider: 'google',
+    options: { redirectTo: window.location.origin },
+  });
+  if (error) toast('Connexion impossible : ' + error.message);
+}
+
+/* Paiement : le navigateur envoie seulement « pro » ou « elite ». */
+async function startCheckout(plan){
+  if (plan === 'free'){ toast("L'offre Découverte est déjà active."); return; }
+  if (!state.auth.signedIn){ toast('Connectez-vous pour souscrire.'); return; }
+  toast('Ouverture du paiement sécurisé…');
+  try {
+    const r = await authFetch('/api/stripe/create-checkout-session', {
+      method:'POST', body: JSON.stringify({ plan }),
+    });
+    const d = await r.json();
+    if (d.url){ window.location.href = d.url; return; }
+    toast(d.error === 'prix_absent' ? "Cette offre n'est pas encore configurée."
+      : d.error === 'stripe_non_configure' ? 'Paiement indisponible pour le moment.'
+      : 'Paiement impossible.');
+  } catch { toast('Paiement indisponible pour le moment.'); }
+}
+
+async function openPortal(){
+  try {
+    const r = await authFetch('/api/stripe/create-portal-session', { method:'POST' });
+    const d = await r.json();
+    if (d.url){ window.location.href = d.url; return; }
+    toast(d.error === 'aucun_abonnement' ? "Aucun abonnement rattaché à ce compte."
+      : 'Espace de gestion indisponible.');
+  } catch { toast('Espace de gestion indisponible.'); }
+}
+
+async function signOut(){
+  if (sbClient) await sbClient.auth.signOut();
   state.auth = { signedIn:false, name:null, email:null, since:null };
+  state.settings.plan = 'free';
   saveState(); renderGate();
 }
 
@@ -3252,8 +3344,7 @@ function gateScreen(){
 
       <button class="btn btn-google" data-signin>${GOOGLE_G} Continuer avec Google</button>
       <p class="tiny" style="margin-top:14px">
-        Prototype : cette connexion est <b>simulée</b>. Aucune donnée n'est envoyée à Google,
-        aucun compte n'est créé.</p>
+        Connexion sécurisée par Google. Nous ne recevons ni votre mot de passe, ni vos contacts.</p>
 
       <div class="gate-pts">
         ${[['Analyse multi-modèles','Plusieurs IA, un verdict et son niveau de confiance.'],
@@ -3564,7 +3655,7 @@ function paintSearch(q){
 function pick(h){
   pushRecent(h.title); closeSheet();
   if (h.type === 'action') go('stock', h.id);
-  else toast(`${h.title} : page indice non disponible dans ce prototype.`);
+  else toast(`${h.title} : page indice bientôt disponible.`);
 }
 
 function previewBuy(st){
@@ -3838,8 +3929,8 @@ document.addEventListener('click', e => {
   const cyc = q('[data-cycle]');
   if (cyc){ state.settings.cycle = cyc.dataset.cycle; saveState(); render(); return; }
   const pl = q('[data-plan]');
-  if (pl){ state.settings.plan = pl.dataset.plan; saveState(); render();
-    toast('Offre de démonstration modifiée. Aucun paiement réel.'); return; }
+  if (pl){ startCheckout(pl.dataset.plan); return; }
+  if (q('[data-portal]')){ openPortal(); return; }
 
   const hit = q('[data-hit]'); if (hit){ pick(hits[+hit.dataset.hit]); return; }
   const rec = q('[data-recent]');
@@ -3847,7 +3938,7 @@ document.addEventListener('click', e => {
   if (q('[data-clear-recent]')){ state.recent = []; saveState(); paintSearch(''); return; }
 
   if (q('[data-reset]')){
-    openSheet(`<h3 id="sheetTitle">Réinitialiser ?</h3>
+    openSheet(`<h3 id="sheetTitle">Effacer les données locales ?</h3>
       <p>Votre liste de suivi et vos préférences seront effacées de ce navigateur.</p>
       <div class="btns" style="margin-top:22px">
         <button class="btn btn-s" data-close style="flex:1">Annuler</button>
@@ -3878,10 +3969,11 @@ function boot(){
       if (state.settings.theme === 'auto') applyTheme();
     });
   }
-  loadRealQuotes();          // décide du mode, sans bloquer l'affichage
-  if (!state.auth.signedIn){ renderGate(); return; }
-  if (!state.onboarding.done){ state.onboarding.step = state.onboarding.step || 1; renderGate(); return; }
-  renderApp();
+  renderGate();                       // écran de connexion pendant le chargement
+  loadConfig().then(async () => {
+    await initAuth();                 // rétablit la session si elle existe
+    loadRealQuotes();                 // cours réels si la source est connectée
+  });
 }
 boot();
 
