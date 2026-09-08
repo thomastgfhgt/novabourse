@@ -787,7 +787,7 @@ table.t td:last-child,table.t th:last-child{text-align:right;padding-right:0}
 "use strict";
 /* Repère de version : permet de savoir en une seconde si la page affichée est
    bien la dernière. Visible dans Réglages et dans la console du navigateur. */
-const BUILD = 'live-1';
+const BUILD = 'live-2';
 console.log('%cNovaBourse ' + BUILD, 'color:#00a651;font-weight:700');
 
 /* ============================================================
@@ -3225,11 +3225,35 @@ async function loadConfig(){
 }
 
 async function initAuth(){
-  if (!CONFIG.supabaseUrl || !CONFIG.supabaseAnonKey) return null;
+  if (!CONFIG.supabaseUrl || !CONFIG.supabaseAnonKey){
+    renderGate(); return null;
+  }
   const { createClient } = await import('https://esm.sh/@supabase/supabase-js@2');
   sbClient = createClient(CONFIG.supabaseUrl, CONFIG.supabaseAnonKey, {
-    auth: { persistSession:true, autoRefreshToken:true, detectSessionInUrl:true },
+    auth: { persistSession:true, autoRefreshToken:true, detectSessionInUrl:true,
+            flowType:'pkce', storage:window.localStorage,
+            storageKey:'novabourse-auth' },
   });
+
+  /* Retour de Google. Deux formes possibles selon le flux :
+       ?code=...            flux PKCE  → il faut échanger le code
+       #access_token=...    flux implicite → getSession() suffit
+     Sans cet échange explicite, la session n'est jamais créée et l'écran de
+     connexion réapparaît alors que Google a bien répondu. */
+  try {
+    const url = new URL(window.location.href);
+    if (url.searchParams.get('code')){
+      const { error } = await sbClient.auth.exchangeCodeForSession(window.location.href);
+      if (error) console.warn('[auth] échange du code :', error.message);
+      url.searchParams.delete('code');
+      url.searchParams.delete('state');
+      window.history.replaceState({}, '', url.pathname + url.search + url.hash);
+    } else if (window.location.hash.includes('access_token')){
+      await new Promise(r => setTimeout(r, 60));       // laisse le SDK traiter le fragment
+      window.history.replaceState({}, '', url.pathname + url.search);
+    }
+  } catch (e){ console.warn('[auth]', e); }
+
   sbClient.auth.onAuthStateChange((_e, session) => { applySession(session); });
   const { data } = await sbClient.auth.getSession();
   await applySession(data.session);
@@ -3285,7 +3309,8 @@ async function signIn(){
   }
   const { error } = await sbClient.auth.signInWithOAuth({
     provider: 'google',
-    options: { redirectTo: window.location.origin },
+    options: { redirectTo: window.location.origin + '/',
+               queryParams: { prompt:'select_account' } },
   });
   if (error) toast('Connexion impossible : ' + error.message);
 }
@@ -3969,11 +3994,16 @@ function boot(){
       if (state.settings.theme === 'auto') applyTheme();
     });
   }
-  renderGate();                       // écran de connexion pendant le chargement
+  /* On ne montre l'écran de connexion qu'APRÈS avoir vérifié la session :
+     l'afficher d'abord faisait clignoter le login au retour de Google. */
+  document.getElementById('view').innerHTML =
+    '<div class="gate"><div class="gate-card"><p class="lead">Chargement…</p></div></div>';
+  document.body.classList.add('gated');
   loadConfig().then(async () => {
-    await initAuth();                 // rétablit la session si elle existe
-    loadRealQuotes();                 // cours réels si la source est connectée
-  });
+    // Une panne de l'authentification ne doit pas empêcher les cours de charger.
+    try { await initAuth(); } catch (e){ console.warn('[auth]', e); renderGate(); }
+    loadRealQuotes();
+  }).catch(() => renderGate());
 }
 boot();
 
