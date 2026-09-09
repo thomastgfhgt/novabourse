@@ -879,7 +879,7 @@ table.t td:last-child,table.t th:last-child{text-align:right;padding-right:0}
 "use strict";
 /* Repère de version : permet de savoir en une seconde si la page affichée est
    bien la dernière. Visible dans Réglages et dans la console du navigateur. */
-const BUILD = 'live-11';
+const BUILD = 'live-12';
 console.log('%cNovaBourse ' + BUILD, 'color:#00a651;font-weight:700');
 
 /* ============================================================
@@ -3625,8 +3625,13 @@ function render(){
     html = route.page === 'stock' ? PAGES.stock(route.arg) : (PAGES[route.page] || PAGES.home)();
   } catch (err){
     console.error('[NovaBourse]', err);
+    // La cause technique est affichée : sans elle, un écran d'erreur ne dit
+    // rien et le diagnostic prend des heures.
     html = `<div class="card">${emptyState('Cette section n’a pas pu s’afficher',
-      'Le reste de l’application reste utilisable.', { go:'home', label:'Revenir à l’accueil' })}</div>`;
+      'Le reste de l’application reste utilisable.', { go:'home', label:'Revenir à l’accueil' })}
+      <p class="tiny" style="margin-top:18px;text-align:center;word-break:break-word">
+        ${esc(route.page)} · ${esc(err && err.message ? err.message : String(err))} · ${esc(BUILD)}</p>
+    </div>`;
   }
   view.innerHTML = html;
   document.documentElement.scrollTop = 0; document.body.scrollTop = 0;
