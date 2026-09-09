@@ -184,7 +184,7 @@ button:active{transform:scale(.97)}
 .lead{font-size:clamp(16.5px,2.1vw,20px);color:var(--ink-3);line-height:1.5;letter-spacing:-.015em}
 .small{font-size:13.5px;color:var(--ink-3);line-height:1.5}
 .tiny{font-size:12px;color:var(--ink-4);line-height:1.45}
-.eyebrow{font-size:12px;font-weight:650;letter-spacing:.02em;color:var(--accent);text-transform:none}
+.eyebrow{font-size:12px;font-weight:650;letter-spacing:.02em;color:var(--ink-3);text-transform:none}
 .center{text-align:center}
 .measure{max-width:34ch}
 .measure-l{max-width:58ch}
@@ -194,8 +194,8 @@ button:active{transform:scale(.97)}
   padding:12px 22px;border-radius:100px;font-size:15px;font-weight:600;letter-spacing:-.015em;white-space:nowrap}
 .btn-p{background:var(--ink);color:var(--bg)}
 .btn-p:hover{opacity:.85;transform:translateY(-1px)}
-.btn-a{background:var(--accent);color:#fff}
-.btn-a:hover{background:var(--accent-2);transform:translateY(-1px);box-shadow:0 8px 20px rgba(0,166,81,.28)}
+.btn-a{background:var(--ink);color:var(--bg)}
+.btn-a:hover{opacity:.88;transform:translateY(-1px)}
 .btn-s{background:var(--bg-2);color:var(--ink)}
 .btn-s:hover{background:var(--bg-3)}
 .btn-g{border:1.5px solid var(--line);color:var(--ink-2)}
@@ -430,18 +430,74 @@ button:active{transform:scale(.97)}
 @media (max-width:400px){ .top-act .btn{padding:9px 13px;font-size:13px} }
 
 
+
+
+/* ---------- marque ---------- */
+/* Le logo est posé directement sur le fond : aucun carré, aucune pastille.
+   Il prend simplement la couleur du texte, donc noir sur clair et blanc sur
+   sombre. */
+.logo-m{width:30px;height:30px;background:none;color:var(--ink);box-shadow:none;border-radius:0}
+.logo-m svg{width:26px;height:26px}
+
+.brand-orbit{position:relative;display:flex;align-items:center;justify-content:center;
+  width:140px;height:140px;margin:0 auto}
+.brand-ring{position:absolute;inset:0;width:100%;height:100%;color:var(--ink-4);opacity:.4;
+  animation:ringSpin 9s linear infinite}
+.brand-ring circle:last-child{animation:ringSpin 6s linear infinite reverse;transform-origin:60px 60px}
+@keyframes ringSpin{to{transform:rotate(360deg)}}
+
+.brand-mark{display:flex;align-items:center;justify-content:center;width:86px;height:86px;
+  background:none;color:var(--ink);box-shadow:none;border-radius:0;
+  animation:brandCycle 6s cubic-bezier(.65,0,.35,1) infinite}
+.brand-mark svg{width:100%;height:100%}
+
+/* Un tour, une pause, un tour en sens inverse, une pause. */
+@keyframes brandCycle{
+  0%   {transform:rotate(0deg)}
+  30%  {transform:rotate(360deg)}
+  50%  {transform:rotate(360deg)}
+  80%  {transform:rotate(0deg)}
+  100% {transform:rotate(0deg)}
+}
+
+/* Chargement d'une analyse : le même mouvement, plus rapide. */
+.brand-spin{display:inline-flex;width:44px;height:44px;color:var(--ink);
+  animation:brandCycle 2.6s cubic-bezier(.65,0,.35,1) infinite}
+.brand-spin svg{width:100%;height:100%}
+.spin-wrap{display:flex;flex-direction:column;align-items:center;gap:16px;padding:36px 0}
+.spin-txt{font-size:14px;color:var(--ink-3)}
+
+@media (prefers-reduced-motion:reduce){
+  .brand-mark,.brand-spin{animation:none}
+  .brand-ring{animation-duration:24s}
+}
+
+/* ---------- accueil minimaliste ---------- */
+.hm{padding:var(--space-lg) 0 var(--space-md);text-align:center}
+.hm-lab{font-size:13.5px;color:var(--ink-3);font-weight:550}
+.hm-big{font-size:clamp(46px,13vw,72px);font-weight:700;letter-spacing:-.055em;line-height:1;
+  margin-top:10px;font-variant-numeric:tabular-nums}
+.hm-var{font-size:15px;font-weight:600;margin-top:12px;font-variant-numeric:tabular-nums}
+.hm-cta{margin-top:var(--space-lg);min-width:min(320px,100%)}
+.hm-pulse{display:flex;align-items:center;justify-content:space-between;gap:16px;width:100%;
+  padding:18px 20px;border-radius:var(--r-l);background:var(--bg-2);text-align:left}
+.hm-pulse:hover{background:var(--bg-3)}
+.hm-pulse b{display:block;font-size:15px;font-weight:650;letter-spacing:-.02em}
+.hm-pulse span span{display:block;font-size:13px;color:var(--ink-3);margin-top:3px}
+.hm-score{font-size:28px;font-weight:700;letter-spacing:-.04em;flex:0 0 auto}
+
 /* ---------- parcours d'achat : un écran, un objectif ---------- */
 .buy{text-align:center;padding:6px 0}
 .buy-co{font-size:14px;color:var(--ink-3);font-weight:550}
 .buy-title{font-size:24px;font-weight:700;letter-spacing:-.035em;margin-top:4px}
 .buy-big{font-size:clamp(56px,17vw,84px);font-weight:700;letter-spacing:-.055em;line-height:1;
-  margin-top:22px;font-variant-numeric:tabular-nums;color:var(--accent)}
+  margin-top:22px;font-variant-numeric:tabular-nums;color:var(--ink)}
 .buy-big small{font-size:.42em;font-weight:600;margin-left:4px;opacity:.75}
 .buy-sub{font-size:14.5px;color:var(--ink-3);margin-top:10px;font-variant-numeric:tabular-nums}
 .buy-range{-webkit-appearance:none;appearance:none;width:100%;height:6px;border-radius:100px;
   background:var(--bg-3);margin:30px 0 22px;outline:none}
 .buy-range::-webkit-slider-thumb{-webkit-appearance:none;width:30px;height:30px;border-radius:50%;
-  background:var(--accent);border:4px solid var(--bg);box-shadow:var(--shadow-2);cursor:pointer}
+  background:var(--ink);border:4px solid var(--bg);box-shadow:var(--shadow-2);cursor:pointer}
 .buy-range::-moz-range-thumb{width:30px;height:30px;border-radius:50%;background:var(--accent);
   border:4px solid var(--bg);box-shadow:var(--shadow-2);cursor:pointer;border-radius:50%}
 .buy-chips{display:flex;gap:8px;justify-content:center;flex-wrap:wrap}
@@ -539,7 +595,7 @@ button:active{transform:scale(.97)}
   transition:transform .35s var(--spring),background .35s var(--spring)}
 .cap:hover{transform:translateY(-3px);background:var(--bg-3)}
 .cap-i{width:var(--icon-box);height:var(--icon-box);flex:0 0 var(--icon-box);
-  border-radius:14px;background:var(--bg);color:var(--accent);box-shadow:var(--shadow-1)}
+  border-radius:14px;background:var(--bg);color:var(--ink-2);box-shadow:var(--shadow-1)}
 .cap-i svg{width:22px;height:22px}
 .cap-txt{flex:1 1 auto;min-width:0;text-align:left}
 .cap b{display:block;font-size:15.5px;font-weight:650;letter-spacing:-.02em}
@@ -612,7 +668,7 @@ body.gated .wrap{padding:0;max-width:100%}
 .btn-google:hover{border-color:var(--ink-4);box-shadow:var(--shadow-2);transform:translateY(-2px)}
 .gate-pts{margin-top:var(--space-lg);text-align:left;display:grid;gap:var(--space-xs)}
 .gate-pt{display:flex;gap:12px;padding:14px 16px;border-radius:var(--r-m);background:var(--bg-2)}
-.gate-i{width:26px;height:26px;border-radius:50%;background:var(--accent-soft);color:var(--accent);
+.gate-i{width:26px;height:26px;border-radius:50%;background:var(--bg-3);color:var(--ink-2);
   display:flex;align-items:center;justify-content:center;flex:0 0 auto}
 .gate-i svg{width:14px;height:14px}
 .gate-pt b{display:block;font-size:14.5px;font-weight:650;letter-spacing:-.02em}
@@ -798,8 +854,7 @@ table.t td:last-child,table.t th:last-child{text-align:right;padding-right:0}
   <div class="top-in">
     <button class="logo" data-go="home" aria-label="NovaBourse, accueil">
       <span class="logo-m" aria-hidden="true">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8"
-          stroke-linecap="round" stroke-linejoin="round"><path d="M4 17l5-6 4 3.5L20 6"/></svg>
+        <svg viewBox="0 0 1536 1024" aria-hidden="true"><path fill="currentColor" stroke="none" d="M 770,180 L 781,283 L 781,293 L 783,303 L 784,324 L 802,500 L 803,521 L 808,559 L 808,569 L 810,583 L 815,594 L 828,607 L 1028,718 L 1125,770 L 949,475 Z"/><path fill="currentColor" stroke="none" d="M 758,181 L 616,414 L 402,770 L 410,766 L 510,699 L 615,626 L 741,535 L 754,520 L 758,508 Z"/><path fill="currentColor" stroke="none" d="M 410,774 L 1120,774 L 861,663 L 849,659 L 747,615 L 727,608 L 712,608 L 697,614 L 572,686 Z"/></svg>
       </span>NovaBourse
     </button>
     <nav class="top-nav" id="topNav" aria-label="Navigation"></nav>
@@ -824,7 +879,7 @@ table.t td:last-child,table.t th:last-child{text-align:right;padding-right:0}
 "use strict";
 /* Repère de version : permet de savoir en une seconde si la page affichée est
    bien la dernière. Visible dans Réglages et dans la console du navigateur. */
-const BUILD = 'live-4';
+const BUILD = 'live-11';
 console.log('%cNovaBourse ' + BUILD, 'color:#00a651;font-weight:700');
 
 /* ============================================================
@@ -1679,6 +1734,9 @@ const positionOf = (id) => state.wallet.positions.find(p => p.id === id) || null
    3. COMPOSANTS D'INTERFACE
    ============================================================ */
 const ICON = {
+  /* Marque NovaBourse : triangle plein, fendu par un Y creusé au centre.
+     Une seule forme, remplissage evenodd — donc lisible à 16 px comme à 200. */
+  brand:'<path fill="currentColor" stroke="none" d="M 770,180 L 781,283 L 781,293 L 783,303 L 784,324 L 802,500 L 803,521 L 808,559 L 808,569 L 810,583 L 815,594 L 828,607 L 1028,718 L 1125,770 L 949,475 Z"/><path fill="currentColor" stroke="none" d="M 758,181 L 616,414 L 402,770 L 410,766 L 510,699 L 615,626 L 741,535 L 754,520 L 758,508 Z"/><path fill="currentColor" stroke="none" d="M 410,774 L 1120,774 L 861,663 L 849,659 L 747,615 L 727,608 L 712,608 L 697,614 L 572,686 Z"/>',
   home:'<path d="M4 11l8-6 8 6v8a1 1 0 0 1-1 1h-4v-6H9v6H5a1 1 0 0 1-1-1z"/>',
   radar:'<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.6"/><path d="M12 3v2.6M12 18.4V21M3 12h2.6M18.4 12H21"/>',
   list:'<path d="M4 19V9M10 19V5M16 19v-7M22 19H2"/>',
@@ -1730,9 +1788,9 @@ const ICON_NAME = new Map(Object.entries(ICON).map(([k, v]) => [v, k]));
 const svg = (d, w = 1.8) => {
   const shift = ICON_SHIFT[ICON_NAME.get(d)];
   const body = shift ? `<g transform="translate(${shift[0]},${shift[1]})">${d}</g>` : d;
-  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${w}"
-    stroke-linecap="round" stroke-linejoin="round" preserveAspectRatio="xMidYMid meet"
-    aria-hidden="true" focusable="false">${body}</svg>`;
+  return `<svg viewBox="${d === ICON.brand ? '0 0 1536 1024' : '0 0 24 24'}" fill="none" stroke="currentColor"
+    stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round"
+    preserveAspectRatio="xMidYMid meet" aria-hidden="true" focusable="false">${body}</svg>`;
 };
 
 const SECTOR_HUE = { 'Technologie':'#0071e3','Finance':'#5b4ae0','Santé':'#e0407a','Industrie':'#c47f0a',
@@ -1949,39 +2007,51 @@ function heroChart(){
 
 /* ---------- ACCUEIL : on doit comprendre en trois secondes ---------- */
 PAGES.home = () => {
-  const top = [...scored].sort((a,b)=>b.score-a.score).slice(0,5);
-  const movers = [...stocks].sort((a,b)=>b.change-a.change);
+  const top = [...scored].sort((a,b) => b.score - a.score).slice(0, 5);
+  const watched = state.watchlist.map(id => byId[id]).filter(Boolean);
+  const pf = portfolioValue();
   const pulse = marketPulse();
-  const watched = state.watchlist.map(id=>byId[id]).filter(Boolean);
 
+  /* Un seul chiffre dominant, une seule action évidente, beaucoup de vide.
+     Tout le reste s'atteint par la navigation, pas en empilant des cartes. */
   return `
-  <section class="hero">
-    <h1 class="display rise">Analysez une entreprise<br>en quelques secondes.</h1>
-    <p class="lead rise" style="animation-delay:.06s">
-      Plusieurs modèles étudient les mêmes chiffres, puis confrontent leurs conclusions.</p>
-
-    <button class="search-hero rise" style="animation-delay:.12s" data-search>
-      ${svg(ICON.search)}<span>Rechercher une entreprise</span>
-    </button>
+  <section class="hm">
+    <p class="hm-lab">Portefeuille</p>
+    <p class="hm-big">${fmt.eur(pf.total)}</p>
+    <p class="hm-var ${pf.gain >= 0 ? 'up-t' : 'down-t'}">
+      ${arrow(pf.gainPct)} ${fmt.eur(Math.abs(pf.gain))} (${fmt.pct(pf.gainPct)})</p>
+    <button class="btn btn-a btn-lg hm-cta" data-go="radar">Analyser une entreprise</button>
   </section>
 
   <section class="section">
-    <div class="section-h"><h2 class="h2">Les mieux notées</h2>
-      <button class="btn btn-g btn-sm" data-go="radar">Tout voir</button></div>
-    <div class="card rise"><div class="rows">${top.map(x=>stockRow(x)).join('')}</div></div>
+    <div class="section-h">
+      <h2 class="h2">Les mieux notées</h2>
+      <button class="btn btn-g btn-sm" data-go="radar">Tout voir</button>
+    </div>
+    <div class="card"><div class="rows">${top.map(x => stockRow(x)).join('')}</div></div>
   </section>
 
   <section class="section">
-    <div class="section-h"><h2 class="h2">Ma liste de suivi</h2>
-      ${watched.length?`<button class="btn btn-g btn-sm" data-go="watchlist">Tout voir</button>`:''}</div>
-    <div class="card rise">
+    <div class="section-h">
+      <h2 class="h2">Ma liste</h2>
+      ${watched.length ? `<button class="btn btn-g btn-sm" data-go="watchlist">Tout voir</button>` : ''}
+    </div>
+    <div class="card">
       ${watched.length
-        ? `<div class="rows">${watched.slice(0,4).map(x=>stockRow(x)).join('')}</div>`
-        : emptyState('Rien de suivi pour le moment',
-            'Touchez l’étoile sur une entreprise pour la garder à portée de main. La liste reste dans votre navigateur.',
-            { go:'radar', label:'Parcourir le Radar' })}
+        ? `<div class="rows">${watched.slice(0, 4).map(x => stockRow(x)).join('')}</div>`
+        : emptyState('Rien de suivi', 'Touchez l’étoile pour suivre une valeur.',
+            { go:'radar', label:'Parcourir' })}
     </div>
   </section>
+
+  ${pulse.score === null ? '' : `
+  <section class="section">
+    <button class="hm-pulse" data-pulse>
+      <span><b>Marché ${pulse.score >= 60 ? 'porteur' : pulse.score >= 45 ? 'hésitant' : 'sous pression'}</b>
+        <span>${pulse.factors.length} facteurs mesurés</span></span>
+      <span class="hm-score tabular-nums" style="color:${scoreColor(pulse.score)}">${pulse.score}</span>
+    </button>
+  </section>`}
 
   ${pricingBlock(true)}`;
 };
@@ -2008,8 +2078,7 @@ function pricingBlock(compact = false){
       <p class="eyebrow">Offres</p>
       <h2 class="title" style="margin-top:6px">Commencez gratuitement.</h2>
       <p class="lead measure-l" style="margin:12px auto 0">
-        L'essentiel ne coûte rien. Les offres payantes lèvent les limites et ouvrent l'analyse
-        multi-modèles en profondeur.</p>
+        L'essentiel est gratuit.</p>
       ${CONFIG.annualBilling ? `<div class="seg" style="margin-top:24px" role="group" aria-label="Périodicité">
         <button data-cycle="mensuel" aria-pressed="${!yearly}">Mensuel</button>
         <button data-cycle="annuel" aria-pressed="${yearly}">Annuel <span class="save">−34 %</span></button>
@@ -2033,7 +2102,7 @@ function pricingBlock(compact = false){
         </div>`).join('')}
     </div>
     <p class="tiny center" style="margin-top:20px">
-      Sans engagement · Résiliable en un clic · Paiement sécurisé par Stripe</p>
+      Sans engagement · Paiement sécurisé</p>
   </section>`;
 }
 PAGES.pricing = () => `
@@ -2064,8 +2133,7 @@ PAGES.radar = () => {
   <div class="section-h" style="margin-bottom:20px">
     <div><p class="eyebrow">Radar</p>
       <h1 class="title">Trouver une entreprise</h1>
-      <p class="lead measure-l" style="margin-top:10px">Filtrez selon ce qui compte pour vous.
-        Chaque résultat explique pourquoi il apparaît.</p></div>
+      <p class="lead measure-l" style="margin-top:10px">Chaque résultat explique pourquoi il apparaît.</p></div>
   </div>
 
   <div class="card" style="margin-bottom:18px">
@@ -2623,7 +2691,7 @@ PAGES.watchlist = () => {
     <div class="card" style="margin-top:22px">
       ${list.length ? `<div class="rows">${list.map(x=>stockRow(x)).join('')}</div>`
         : emptyState('Votre liste est vide',
-            'Touchez l’étoile sur une entreprise pour la suivre. Sa note et son évolution vous attendront ici.',
+            'Touchez l’étoile pour suivre une valeur. Sa note et son évolution vous attendront ici.',
             { go:'radar', label:'Parcourir le Radar' })}
     </div></div>`;
 };
@@ -3262,6 +3330,17 @@ async function refreshAccount(){
   } catch {}
 }
 
+/* Le portefeuille démarre avec le montant choisi, et aucune position imposée. */
+function setCapital(amount){
+  const v = Math.max(100, Math.min(10000000, Math.round(amount)));
+  state.wallet = { cash:v, invested:v, positions:[] };
+  state.onboarding.capital = v;
+  state.onboarding.step = 4;
+  saveState();
+  renderGate();
+  toast(`Portefeuille ouvert avec ${fmt.eur(v)}`);
+}
+
 async function signIn(){
   if (!sbClient){
     toast("Connexion indisponible : configuration du serveur incomplète.");
@@ -3319,7 +3398,15 @@ const GOOGLE_G = `<svg viewBox="0 0 24 24" width="19" height="19" aria-hidden="t
 function gateScreen(){
   return `<div class="gate">
     <div class="gate-card">
-      <span class="gate-orb" aria-hidden="true"><i></i><i></i><i></i></span>
+      <span class="brand-orbit" aria-hidden="true">
+        <svg class="brand-ring" viewBox="0 0 120 120">
+          <circle cx="60" cy="60" r="54" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-dasharray="42 297"/>
+          <circle cx="60" cy="60" r="54" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-dasharray="14 325" stroke-dashoffset="-170"/>
+        </svg>
+        <span class="brand-mark">${svg(ICON.brand)}</span>
+      </span>
       <h1 class="display" style="font-size:clamp(30px,5.4vw,44px);margin-top:22px">
         Plusieurs IA analysent.<br>Une seule réponse claire.</h1>
       <p class="lead" style="margin-top:16px">
@@ -3333,7 +3420,7 @@ function gateScreen(){
         Supabase → Authentication → URL Configuration → <b>Redirect URLs</b>.</div>` : ''}
       <button class="btn btn-google" data-signin>${GOOGLE_G} Continuer avec Google</button>
       <p class="tiny" style="margin-top:14px">
-        Connexion sécurisée par Google. Nous ne recevons ni votre mot de passe, ni vos contacts.</p>
+        Connexion sécurisée par Google.</p>
 
       <div class="gate-pts">
         ${[['Analyse multi-modèles','Plusieurs IA, un verdict et son niveau de confiance.'],
@@ -3344,8 +3431,7 @@ function gateScreen(){
             <span><b>${t2}</b><span>${d}</span></span></div>`).join('')}
       </div>
 
-      <p class="tiny" style="margin-top:26px">En continuant, vous acceptez nos conditions.
-        NovaBourse ne fournit aucun conseil en investissement personnalisé et ne détient aucun fonds.</p>
+      <p class="tiny" style="margin-top:26px">En continuant, vous acceptez nos conditions. NovaBourse ne donne aucun conseil personnalisé.</p>
     </div>
   </div>`;
 }
@@ -3700,7 +3786,7 @@ function openBuyReview(st, amount){
       <div><dt>Commission</dt><dd>Aucune</dd></div>
       <div class="buy-total"><dt>Total</dt><dd>${fmt.eur(amount)}</dd></div>
     </dl>
-    <p class="buy-note">Portefeuille virtuel : aucun ordre n'est transmis à un marché.</p>
+    <p class="buy-note">Portefeuille virtuel.</p>
     <button class="btn btn-a btn-lg buy-cta" data-buy-ok="${esc(st.id)}" data-value="${amount}">
       Confirmer l'achat</button>
     <button class="btn btn-g" style="width:100%;margin-top:10px"
@@ -3900,6 +3986,10 @@ document.addEventListener('click', e => {
   }
   const ask = q('[data-ask]');
   if (ask){
+    const out = document.getElementById('novaOut');
+    if (out) out.innerHTML = `<div class="spin-wrap">
+      <span class="brand-spin">${svg(ICON.brand)}</span>
+      <span class="spin-txt">Analyse en cours…</span></div>`;
     const s2 = byId[ask.dataset.askId], qq = NOVA_QUESTIONS[+ask.dataset.ask];
     document.querySelectorAll('[data-ask]').forEach(b=>b.setAttribute('aria-pressed', String(b===ask)));
     document.getElementById('novaOut').innerHTML =
