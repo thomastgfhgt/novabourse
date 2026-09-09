@@ -879,7 +879,7 @@ table.t td:last-child,table.t th:last-child{text-align:right;padding-right:0}
 "use strict";
 /* Repère de version : permet de savoir en une seconde si la page affichée est
    bien la dernière. Visible dans Réglages et dans la console du navigateur. */
-const BUILD = 'live-12';
+const BUILD = 'live-13';
 console.log('%cNovaBourse ' + BUILD, 'color:#00a651;font-weight:700');
 
 /* ============================================================
@@ -2072,6 +2072,8 @@ function pricingBlock(compact = false){
       f:['Tout Pro','Analyses illimitées','Comparateur jusqu’à 5 entreprises',
          'Alertes sur variation du Nova Score','Support prioritaire'] },
   ];
+  /* Économie réalisée en payant à l'année, calculée et non annoncée. */
+  const save = p => p.price ? Math.round((1 - p.yr / (p.price * 12)) * 100) : 0;
   return `
   <section class="section" id="tarifs">
     <div class="center">
