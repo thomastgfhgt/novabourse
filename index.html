@@ -429,6 +429,43 @@ button:active{transform:scale(.97)}
 }
 @media (max-width:400px){ .top-act .btn{padding:9px 13px;font-size:13px} }
 
+
+/* ---------- parcours d'achat : un écran, un objectif ---------- */
+.buy{text-align:center;padding:6px 0}
+.buy-co{font-size:14px;color:var(--ink-3);font-weight:550}
+.buy-title{font-size:24px;font-weight:700;letter-spacing:-.035em;margin-top:4px}
+.buy-big{font-size:clamp(56px,17vw,84px);font-weight:700;letter-spacing:-.055em;line-height:1;
+  margin-top:22px;font-variant-numeric:tabular-nums;color:var(--accent)}
+.buy-big small{font-size:.42em;font-weight:600;margin-left:4px;opacity:.75}
+.buy-sub{font-size:14.5px;color:var(--ink-3);margin-top:10px;font-variant-numeric:tabular-nums}
+.buy-range{-webkit-appearance:none;appearance:none;width:100%;height:6px;border-radius:100px;
+  background:var(--bg-3);margin:30px 0 22px;outline:none}
+.buy-range::-webkit-slider-thumb{-webkit-appearance:none;width:30px;height:30px;border-radius:50%;
+  background:var(--accent);border:4px solid var(--bg);box-shadow:var(--shadow-2);cursor:pointer}
+.buy-range::-moz-range-thumb{width:30px;height:30px;border-radius:50%;background:var(--accent);
+  border:4px solid var(--bg);box-shadow:var(--shadow-2);cursor:pointer;border-radius:50%}
+.buy-chips{display:flex;gap:8px;justify-content:center;flex-wrap:wrap}
+.buy-cash{font-size:13px;color:var(--ink-4);margin-top:18px}
+.buy-cta{width:100%;margin-top:24px}
+.buy-rows{margin-top:26px;text-align:left}
+.buy-rows>div{display:flex;justify-content:space-between;align-items:baseline;gap:16px;
+  padding:15px 0;border-bottom:1px solid var(--line-2)}
+.buy-rows dt{font-size:14px;color:var(--ink-3)}
+.buy-rows dd{font-size:15px;font-weight:600;font-variant-numeric:tabular-nums}
+.buy-total{border-bottom:none!important;padding-top:18px!important}
+.buy-total dt{font-size:15px;color:var(--ink)!important;font-weight:600}
+.buy-total dd{font-size:24px;font-weight:700;letter-spacing:-.03em}
+.buy-note{font-size:12.5px;color:var(--ink-4);margin-top:16px;line-height:1.5}
+
+/* ---------- fiche : une action dominante ---------- */
+.stk-cta{display:flex;gap:10px;margin-top:24px}
+.stk-more{display:flex;align-items:center;gap:8px;margin-top:14px;flex-wrap:wrap}
+.stk-more button:not(.star){display:inline-flex;align-items:center;gap:7px;padding:9px 15px;
+  border-radius:100px;background:var(--bg-2);font-size:13.5px;font-weight:550;color:var(--ink-2);
+  min-height:40px}
+.stk-more button:not(.star):hover{background:var(--bg-3)}
+.stk-more svg{width:15px;height:15px}
+
 /* ---------- courbe de fond du hero ---------- */
 /* Elle occupe tout le bloc d'accueil et passe DERRIÈRE le texte : c'est une
    toile de fond, jamais un obstacle à la lecture. */
@@ -787,7 +824,7 @@ table.t td:last-child,table.t th:last-child{text-align:right;padding-right:0}
 "use strict";
 /* Repère de version : permet de savoir en une seconde si la page affichée est
    bien la dernière. Visible dans Réglages et dans la console du navigateur. */
-const BUILD = 'live-2';
+const BUILD = 'live-4';
 console.log('%cNovaBourse ' + BUILD, 'color:#00a651;font-weight:700');
 
 /* ============================================================
@@ -1919,90 +1956,19 @@ PAGES.home = () => {
 
   return `
   <section class="hero">
-    ${heroChart()}
-    <p class="eyebrow rise">Analyse multi-modèles</p>
-    <h1 class="display rise" style="animation-delay:.05s">
-      Plusieurs IA analysent.<br>Une seule réponse claire.</h1>
-    <p class="lead rise" style="animation-delay:.1s">
-      Nos modèles étudient séparément les mêmes chiffres, puis confrontent leurs conclusions.
-      Vous recevez une expertise unique, avec son niveau de confiance et ses points de désaccord.</p>
+    <h1 class="display rise">Analysez une entreprise<br>en quelques secondes.</h1>
+    <p class="lead rise" style="animation-delay:.06s">
+      Plusieurs modèles étudient les mêmes chiffres, puis confrontent leurs conclusions.</p>
 
-    <div class="hero-btns rise" style="animation-delay:.16s">
-      <button class="btn btn-a btn-lg" data-go="radar">Analyser une entreprise</button>
-      <button class="btn btn-g btn-lg" data-go="pricing">Voir les offres</button>
-    </div>
-    <p class="hero-note rise" style="animation-delay:.2s">
-      Gratuit pour commencer · ${stocks.length} entreprises suivies</p>
-
-    <button class="search-btn rise" style="animation-delay:.24s" data-search>
-      ${svg(ICON.search)}<span>Rechercher une entreprise, un secteur…</span><kbd>/</kbd>
+    <button class="search-hero rise" style="animation-delay:.12s" data-search>
+      ${svg(ICON.search)}<span>Rechercher une entreprise</span>
     </button>
-  </section>
-
-  <!-- CE QUE FAIT NOVABOURSE -->
-  <section class="section">
-    <div class="cap-grid">
-      ${[[ICON.brain,'Plusieurs modèles, un seul avis',
-          'Chaque entreprise est analysée en parallèle par des modèles indépendants. Nous publions leur niveau d’accord — et leurs désaccords.'],
-         [ICON.scale,'Un score décomposé',
-          'Huit critères mesurables, chacun avec son poids, sa source et son explication en français courant.'],
-         [ICON.chart,'Moyennes par jour, semaine, mois',
-          'Chaque période affiche sa variation moyenne, calculée depuis la série, jamais estimée à la louche.'],
-         [ICON.wallet,'Portefeuille virtuel',
-          'Investissez de l’argent fictif en un geste, suivez vos positions, testez vos idées sans risque.']]
-        .map(([ic,t2,d],i)=>`
-        <div class="cap rise" style="animation-delay:${.05+i*.06}s">
-          <span class="cap-i">${svg(ic)}</span>
-          <div class="cap-txt"><b>${t2}</b><span>${d}</span></div>
-        </div>`).join('')}
-    </div>
-  </section>
-
-  <section class="section">
-    <div class="section-h">
-      <div><h2 class="h2">Le marché aujourd'hui</h2>
-        <p class="small">Cinq facteurs, tous calculés à partir des données affichées.</p></div>
-      ${pulse.score === null ? '' :
-        `<button class="btn btn-g btn-sm" data-pulse>Pourquoi ${pulse.score} ?</button>`}
-    </div>
-    <div class="card rise">
-      <div class="score-hero">
-        ${ring(pulse.score, 130)}
-        <div style="flex:1;min-width:220px">
-          <p class="h3">${pulse.score === null ? 'État du marché indisponible'
-            : 'Marché ' + (pulse.score>=60?'plutôt porteur':pulse.score>=45?'hésitant':'sous pression')}</p>
-          <div class="bars" style="margin-top:14px">
-            ${pulse.factors.slice(0,3).map(f=>`
-              <div class="bar" style="padding:9px 0">
-                <div class="bar-t"><span class="bar-n">${esc(f.k)}</span>
-                  <span class="bar-v" style="color:${scoreColor(f.v)}">${f.v}</span></div>
-                <span class="bar-track"><i class="bar-fill" data-w="${f.v}"
-                  style="background:${scoreColor(f.v)}"></i></span>
-              </div>`).join('')}
-          </div>
-        </div>
-      </div>
-    </div>
   </section>
 
   <section class="section">
     <div class="section-h"><h2 class="h2">Les mieux notées</h2>
       <button class="btn btn-g btn-sm" data-go="radar">Tout voir</button></div>
     <div class="card rise"><div class="rows">${top.map(x=>stockRow(x)).join('')}</div></div>
-  </section>
-
-  <section class="section">
-    <div class="grid g-2">
-      <div class="card rise">
-        <h3 class="h3" style="margin-bottom:6px">Plus fortes hausses</h3>
-        <div class="rows">${movers.slice(0,3).map(x=>stockRow(x,{score:false,spark:false})).join('')}</div>
-      </div>
-      <div class="card rise" style="animation-delay:.06s">
-        <h3 class="h3" style="margin-bottom:6px">Plus fortes baisses</h3>
-        <div class="rows">${movers.slice(-3).reverse().map(x=>stockRow(x,{score:false,spark:false})).join('')}</div>
-      </div>
-    </div>
-    <p class="tiny" style="margin-top:12px">Variations de marché, et non des recommandations.</p>
   </section>
 
   <section class="section">
@@ -2017,37 +1983,25 @@ PAGES.home = () => {
     </div>
   </section>
 
-  ${pricingBlock(true)}
-
-  <section class="section center">
-    <h2 class="title measure" style="margin:0 auto">Comprendre avant d'investir.</h2>
-    <p class="lead measure-l" style="margin:16px auto 0">
-      Chaque terme est expliqué, chaque note est décomposée, chaque limite est écrite noir sur blanc.</p>
-    <div class="hero-btns"><button class="btn btn-p" data-go="method">Lire la méthode</button>
-      <button class="btn btn-g" data-go="trust">Notre engagement</button></div>
-  </section>`;
+  ${pricingBlock(true)}`;
 };
 
-/* ---------- bloc tarifs, réutilisé sur l'accueil et la page dédiée ---------- */
 function pricingBlock(compact = false){
   const yearly = state.settings.cycle === 'annuel';
   const P = [
     { id:'free', n:'Découverte', price:0, yr:0,
       d:"Comprendre les marchés et suivre quelques entreprises.",
-      f:['Nova Score complet et décomposé','10 entreprises suivies','Portefeuille virtuel',
-         '3 analyses multi-modèles par mois','Moyennes par jour, semaine, mois'] },
+      f:['Nova Score complet','10 entreprises suivies','Portefeuille virtuel',
+         '5 analyses multi-modèles par mois'] },
     { id:'pro', n:'Pro', price:9.99, yr:79, hot:true,
-      d:"Analyser sérieusement, sans aucune limite de suivi.",
-      f:['Tout Découverte','Suivi et alertes illimités','200 analyses multi-modèles par mois',
-         'Comparateur jusqu’à 3 entreprises','Historique complet des scores',
-         'Détail des désaccords entre modèles','Export de vos listes'] },
+      d:"Analyser sérieusement, sans limite de suivi.",
+      f:['Tout Découverte','Suivi et alertes illimités','200 analyses par mois',
+         'Comparateur','Historique complet des scores'] },
     { id:'elite', n:'Elite', price:19.99, yr:159,
-      d:"L’analyse la plus poussée, sans plafond.",
+      d:"L'analyse la plus poussée, sans plafond.",
       f:['Tout Pro','Analyses illimitées','Comparateur jusqu’à 5 entreprises',
-         'Profondeur d’analyse maximale','Alertes sur variation du Nova Score',
-         'Accès anticipé aux nouvelles composantes','Support prioritaire'] },
+         'Alertes sur variation du Nova Score','Support prioritaire'] },
   ];
-  const save = p => p.price ? Math.round((1 - p.yr / (p.price * 12)) * 100) : 0;
   return `
   <section class="section" id="tarifs">
     <div class="center">
@@ -2352,9 +2306,14 @@ PAGES.stock = (id) => {
     ${starBtn(s.id)}
   </div>
 
-  <div class="btns" style="margin-top:18px">
-    <button class="btn btn-a btn-sm" data-nova="${esc(s.id)}">${svg(ICON.spark,2.2)} Demander à Nova</button>
-    <button class="btn btn-s btn-sm" data-cmp="${esc(s.id)}">Comparer</button>
+  <div class="stk-cta">
+    <button class="btn btn-a btn-lg" data-buy="${esc(s.id)}" style="flex:1">Acheter</button>
+    ${pos ? `<button class="btn btn-s btn-lg" data-sell="${esc(s.id)}">Vendre</button>` : ''}
+  </div>
+  <div class="stk-more">
+    <button data-nova="${esc(s.id)}">${svg(ICON.spark,2)} Analyse</button>
+    <button data-cmp="${esc(s.id)}">Comparer</button>
+    ${starBtn(s.id)}
   </div>
 
   <!-- L'ESSENTIEL D'ABORD -->
@@ -2392,26 +2351,6 @@ PAGES.stock = (id) => {
         { id:'px', color: s.change>=0?'var(--up)':'var(--down)' })}</div>
       <div id="avgs">${averagesBlock(s, state.ui.period)}</div>
       <p class="tiny" style="margin-top:12px">Série fictive. Aucune cotation réelle.</p>
-    </div>
-  </section>
-
-  <!-- INVESTIR -->
-  <section class="section">
-    <div class="card buy-card">
-      <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap">
-        <div style="min-width:0">
-          <p class="eyebrow">Portefeuille virtuel</p>
-          <h2 class="h2">${pos ? 'Renforcer ou alléger' : 'Investir sans risque'}</h2>
-          <p class="small" style="margin-top:6px">
-            ${pos ? `Vous détenez ${fmt.num(pos.qty,2)} titre(s), prix moyen ${fmt.cur(pos.avg,s.cur)}.`
-                  : `Argent fictif. ${fmt.eur(state.wallet.cash)} disponibles.`}</p>
-        </div>
-        <div class="btns">
-          ${pos?`<button class="btn btn-s" data-sell="${esc(s.id)}">Vendre</button>`:''}
-          <button class="btn btn-a btn-buy" data-buy="${esc(s.id)}">
-            ${svg(ICON.plus,2.4)} Acheter</button>
-        </div>
-      </div>
     </div>
   </section>
 
@@ -3215,6 +3154,7 @@ function paintSource(){
    les politiques RLS autorisent. Aucun secret ne se trouve dans cette page.
    ============================================================ */
 let sbClient = null;
+let AUTH_ERROR = null;   // message affiché sur l'écran de connexion en cas d'échec
 let CONFIG = { supabaseUrl:null, supabaseAnonKey:null, marketConnected:false,
   aiConnected:false, annualBilling:false };
 
@@ -3242,6 +3182,15 @@ async function initAuth(){
      connexion réapparaît alors que Google a bien répondu. */
   try {
     const url = new URL(window.location.href);
+    // Google ou Supabase peuvent renvoyer une erreur explicite : on l'affiche
+    // plutôt que de retomber silencieusement sur l'écran de connexion.
+    const err = url.searchParams.get('error_description') || url.searchParams.get('error')
+      || new URLSearchParams(window.location.hash.slice(1)).get('error_description');
+    if (err){
+      AUTH_ERROR = decodeURIComponent(err).replace(/\+/g, ' ');
+      url.searchParams.delete('error'); url.searchParams.delete('error_description');
+      window.history.replaceState({}, '', url.pathname);
+    }
     if (url.searchParams.get('code')){
       const { error } = await sbClient.auth.exchangeCodeForSession(window.location.href);
       if (error) console.warn('[auth] échange du code :', error.message);
@@ -3252,9 +3201,20 @@ async function initAuth(){
       await new Promise(r => setTimeout(r, 60));       // laisse le SDK traiter le fragment
       window.history.replaceState({}, '', url.pathname + url.search);
     }
-  } catch (e){ console.warn('[auth]', e); }
+  } catch (e){
+    console.warn('[auth]', e);
+    AUTH_ERROR = "L'échange du code de connexion a échoué : " + (e.message || e);
+  }
 
   sbClient.auth.onAuthStateChange((_e, session) => { applySession(session); });
+  // Les navigateurs intégrés suspendent la page pendant la redirection : au
+  // retour au premier plan, on relit la session.
+  document.addEventListener('visibilitychange', async () => {
+    if (document.visibilityState === 'visible' && sbClient && !state.auth.signedIn){
+      const { data } = await sbClient.auth.getSession();
+      if (data.session) applySession(data.session);
+    }
+  });
   const { data } = await sbClient.auth.getSession();
   await applySession(data.session);
   return sbClient;
@@ -3367,6 +3327,10 @@ function gateScreen(){
         Créez votre compte pour retrouver vos analyses, votre liste de suivi et votre portefeuille
         sur tous vos appareils.</p>
 
+      ${AUTH_ERROR ? `<div class="nd-box" style="margin-top:20px;text-align:left">
+        <b>La connexion n'a pas abouti.</b><br>${esc(AUTH_ERROR)}<br><br>
+        Vérifiez que <span class="mono">${esc(location.origin)}/</span> figure dans
+        Supabase → Authentication → URL Configuration → <b>Redirect URLs</b>.</div>` : ''}
       <button class="btn btn-google" data-signin>${GOOGLE_G} Continuer avec Google</button>
       <p class="tiny" style="margin-top:14px">
         Connexion sécurisée par Google. Nous ne recevons ni votre mot de passe, ni vos contacts.</p>
@@ -3683,6 +3647,67 @@ function pick(h){
   else toast(`${h.title} : page indice bientôt disponible.`);
 }
 
+/* Écran 1 : un seul objectif, choisir un montant. Un chiffre dominant, un
+   curseur, rien d'autre. */
+function openBuyAmount(st, initial){
+  const max = Math.floor(state.wallet.cash);
+  const v = Math.min(initial || Math.min(100, max), max);
+  openSheet(`<div class="buy">
+    <p class="buy-co">${esc(st.name)} · ${fmt.cur(st.price, st.cur)}</p>
+    <h3 id="sheetTitle" class="sr">Acheter ${esc(st.name)}</h3>
+    <div class="buy-big"><span id="buyBig">${fmt.int(v)}</span><small>€</small></div>
+    <p class="buy-sub" id="buyShares">—</p>
+    <input class="buy-range" id="buyAmt" type="range" min="10" max="${Math.max(10,max)}"
+      step="10" value="${v}" aria-label="Montant à investir">
+    <div class="buy-chips">
+      ${[50,100,250,500].filter(a=>a<=max).map(a=>
+        `<button class="chip" data-amount="${a}" data-stock="${esc(st.id)}">${a} €</button>`).join('')}
+      <button class="chip" data-amount="${max}" data-stock="${esc(st.id)}">Max</button>
+    </div>
+    <p class="buy-cash">${fmt.eur(state.wallet.cash)} disponibles</p>
+    <button class="btn btn-a btn-lg buy-cta" data-buy-next="${esc(st.id)}">Continuer</button>
+  </div>`);
+  const input = document.getElementById('buyAmt');
+  const sync = () => setBuyAmount(st, +input.value, false);
+  input.addEventListener('input', sync);
+  sync();
+}
+function setBuyAmount(st, value, moveSlider = true){
+  const input = document.getElementById('buyAmt');
+  if (!input) return;
+  const v = Math.max(0, Math.min(+input.max, value));
+  if (moveSlider) input.value = v;
+  document.getElementById('buyBig').textContent = fmt.int(v);
+  const qty = v / toEUR(st.price, st.cur);
+  document.getElementById('buyShares').textContent = `≈ ${fmt.num(qty, 4)} action(s)`;
+  document.querySelectorAll('[data-amount]').forEach(b =>
+    b.setAttribute('aria-pressed', String(+b.dataset.amount === v)));
+}
+
+/* Écran 2 : vérifier l'ordre. Une ligne par information, rien de plus. */
+function openBuyReview(st, amount){
+  const priceEUR = toEUR(st.price, st.cur);
+  const qty = amount / priceEUR;
+  const fx = st.cur === 'EUR' ? null : FX[st.cur];
+  openSheet(`<div class="buy">
+    <p class="buy-co">${esc(st.name)}</p>
+    <h3 id="sheetTitle" class="buy-title">Vérifiez votre ordre</h3>
+    <dl class="buy-rows">
+      <div><dt>Type d'ordre</dt><dd>Achat au marché</dd></div>
+      <div><dt>Nombre d'actions</dt><dd>≈ ${fmt.num(qty, 4)}</dd></div>
+      <div><dt>Cours</dt><dd>${fmt.cur(st.price, st.cur)}</dd></div>
+      ${fx ? `<div><dt>Taux de change</dt><dd>1 ${esc(st.cur)} = ${fx} €</dd></div>` : ''}
+      <div><dt>Commission</dt><dd>Aucune</dd></div>
+      <div class="buy-total"><dt>Total</dt><dd>${fmt.eur(amount)}</dd></div>
+    </dl>
+    <p class="buy-note">Portefeuille virtuel : aucun ordre n'est transmis à un marché.</p>
+    <button class="btn btn-a btn-lg buy-cta" data-buy-ok="${esc(st.id)}" data-value="${amount}">
+      Confirmer l'achat</button>
+    <button class="btn btn-g" style="width:100%;margin-top:10px"
+      data-buy-back="${esc(st.id)}" data-value="${amount}">Modifier le montant</button>
+  </div>`);
+}
+
 function previewBuy(st){
   const el = document.getElementById('buyPrev'); if (!el) return;
   const a = parseFloat(document.getElementById('buyAmt').value);
@@ -3884,52 +3909,42 @@ document.addEventListener('click', e => {
   }
 
   const buy = q('[data-buy]');
-  if (buy){
-    const st = byId[buy.dataset.buy];
-    const cash = state.wallet.cash;
-    openSheet(`<h3 id="sheetTitle">Acheter ${esc(st.name)}</h3>
-      <p>Argent fictif. ${fmt.eur(cash)} disponibles · cours ${fmt.cur(st.price, st.cur)}</p>
-      <div class="amounts">
-        ${[250,500,1000,2500].filter(a=>a<=cash).map(a=>`
-          <button class="chip" data-amount="${a}">${fmt.eur(a)}</button>`).join('')}
-        <button class="chip" data-amount="${Math.floor(cash)}">Tout</button>
-      </div>
-      <input class="field" id="buyAmt" type="number" inputmode="decimal" min="1" step="10"
-        placeholder="Montant en euros" value="500" style="margin-top:14px" aria-label="Montant">
-      <p class="small" id="buyPrev" style="margin-top:10px"></p>
-      <div class="btns" style="margin-top:22px">
-        <button class="btn btn-s" data-close style="flex:1">Annuler</button>
-        <button class="btn btn-a" data-buy-ok="${esc(st.id)}" style="flex:2">Confirmer l'achat</button>
-      </div>`);
-    previewBuy(st);
-    document.getElementById('buyAmt').addEventListener('input', () => previewBuy(st));
-    return;
-  }
+  if (buy){ openBuyAmount(byId[buy.dataset.buy]); return; }
+
   const amt = q('[data-amount]');
   if (amt){
-    const inp = document.getElementById('buyAmt');
-    inp.value = amt.dataset.amount;
-    document.querySelectorAll('[data-amount]').forEach(b=>b.setAttribute('aria-pressed', String(b===amt)));
-    const id = document.querySelector('[data-buy-ok]')?.dataset.buyOk;
-    if (id) previewBuy(byId[id]);
+    const st = byId[amt.dataset.stock];
+    setBuyAmount(st, +amt.dataset.amount);
+    return;
+  }
+  if (q('[data-buy-next]')){
+    const st = byId[q('[data-buy-next]').dataset.buyNext];
+    const v = parseFloat(document.getElementById('buyAmt').value);
+    if (!(v > 0)) return toast('Saisissez un montant.');
+    if (v > state.wallet.cash) return toast('Montant supérieur à vos liquidités.');
+    openBuyReview(st, v);
+    return;
+  }
+  if (q('[data-buy-back]')){
+    const b = q('[data-buy-back]');
+    openBuyAmount(byId[b.dataset.buyBack], +b.dataset.value);
     return;
   }
   const buyOk = q('[data-buy-ok]');
   if (buyOk){
-    const amount = parseFloat(document.getElementById('buyAmt').value);
-    const r = buyStock(buyOk.dataset.buyOk, amount);
+    const r = buyStock(buyOk.dataset.buyOk, +buyOk.dataset.value);
     toast(r.msg);
     if (r.ok){ closeSheet(); render(); }
     return;
   }
   const sell = q('[data-sell]');
   if (sell){
-    const st = byId[sell.dataset.sell], p = positionOf(st.id);
-    const val = toEUR(st.price * p.qty, st.cur);
+    const st = byId[sell.dataset.sell], pos = positionOf(st.id);
+    const val = toEUR(st.price * pos.qty, st.cur);
     openSheet(`<h3 id="sheetTitle">Vendre ${esc(st.name)}</h3>
-      <p>${fmt.num(p.qty,2)} titre(s) · valeur actuelle ${fmt.eur(val)}</p>
-      <div class="btns" style="margin-top:22px">
-        <button class="btn btn-s" data-sell-ok="${esc(st.id)}" data-part="0.5" style="flex:1">Vendre la moitié</button>
+      <p>${fmt.num(pos.qty,4)} action(s) · ${fmt.eur(val)}</p>
+      <div class="btns" style="margin-top:24px">
+        <button class="btn btn-s" data-sell-ok="${esc(st.id)}" data-part="0.5" style="flex:1">Moitié</button>
         <button class="btn btn-a" data-sell-ok="${esc(st.id)}" data-part="1" style="flex:1">Tout vendre</button>
       </div>`);
     return;
