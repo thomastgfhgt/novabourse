@@ -932,7 +932,7 @@ table.t td:last-child,table.t th:last-child{text-align:right;padding-right:0}
 "use strict";
 /* Repère de version : permet de savoir en une seconde si la page affichée est
    bien la dernière. Visible dans Réglages et dans la console du navigateur. */
-const BUILD = 'live-21';
+const BUILD = 'live-22';
 console.log('%cNovaBourse ' + BUILD, 'color:#00a651;font-weight:700');
 
 /* ============================================================
@@ -1183,6 +1183,8 @@ const portfolio = {
   currency:'EUR',
   get cash(){ return state.wallet.cash; },
   set cash(v){ state.wallet.cash = v; },
+  /* Conservé pour compatibilité, mais plus utilisé comme référence de
+     performance : voir portfolioValue(). */
   get invested(){ return state.wallet.invested; },
   get positions(){ return state.wallet.positions; },
 };
@@ -1562,8 +1564,14 @@ function portfolioValue(){
       fx: FX[st.cur] };
   }).filter(Boolean);
   const total = value + portfolio.cash;
-  return { lines, value, cost, total, cash:portfolio.cash,
-    gain: total - portfolio.invested, gainPct: (total/portfolio.invested-1)*100 };
+  /* Capital engagé = liquidités restantes + prix d'achat des positions. La
+     somme reste égale au capital de départ : acheter déplace de l'argent, cela
+     n'en crée ni n'en détruit. Un portefeuille sans position affiche donc 0 %,
+     et non une perte héritée d'une valeur de référence figée. */
+  const invested = cost + portfolio.cash;
+  const gain = total - invested;
+  return { lines, value, cost, total, cash:portfolio.cash, invested,
+    gain, gainPct: invested > 0 ? (gain / invested) * 100 : 0 };
 }
 
 
@@ -4145,6 +4153,17 @@ function boot(){
     try { await initAuth(); } catch (e){ console.warn('[auth]', e); renderGate(); }
     loadRealQuotes();
   }).catch(() => renderGate());
+
+  /* Dernier filet : si dix secondes après le démarrage une session existe et
+     que le parcours est fait, la navigation doit être visible. Aucun chemin
+     d'exécution ne doit pouvoir laisser l'écran amputé. */
+  setTimeout(() => {
+    if (state.auth.signedIn && state.onboarding.done
+        && document.body.classList.contains('gated')){
+      console.warn('[NovaBourse] navigation restaurée');
+      renderApp();
+    }
+  }, 10000);
 }
 boot();
 
