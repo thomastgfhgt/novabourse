@@ -490,6 +490,14 @@ button:active{transform:scale(.97)}
   .brand-ring{animation-duration:24s}
 }
 
+
+.quota{margin-top:18px;padding:16px;border-radius:12px;background:var(--bg-2)}
+.quota b{display:block;font-size:13px;font-weight:650;letter-spacing:.04em;text-transform:uppercase}
+.quota span{display:block;font-size:14px;color:var(--ink-3);margin-top:6px}
+.quota-bar{display:block;height:4px;border-radius:100px;background:var(--bg-3);margin-top:12px;overflow:hidden}
+.quota-bar em{display:block;height:100%;background:var(--ink);border-radius:100px;
+  transition:width .5s var(--spring)}
+
 /* ---------- accueil minimaliste ---------- */
 .hm{padding:var(--space-lg) 0 var(--space-md);text-align:center}
 .hm-lab{font-size:13.5px;color:var(--ink-3);font-weight:550}
@@ -897,7 +905,7 @@ table.t td:last-child,table.t th:last-child{text-align:right;padding-right:0}
 "use strict";
 /* Repère de version : permet de savoir en une seconde si la page affichée est
    bien la dernière. Visible dans Réglages et dans la console du navigateur. */
-const BUILD = 'live-14';
+const BUILD = 'live-18';
 console.log('%cNovaBourse ' + BUILD, 'color:#00a651;font-weight:700');
 
 /* ============================================================
@@ -2416,7 +2424,7 @@ PAGES.stock = (id) => {
         <div class="score-hero">
           ${ring(s.score)}
           <div style="flex:1;min-width:230px">
-            <p class="eyebrow">Nova Score</p>
+            <p class="eyebrow">Nova Score — moteur en construction</p>
             <h2 class="title" style="font-size:26px;margin-top:4px">${esc(p.label)}</h2>
             <p class="small" style="margin-top:10px">Couverture des données : ${s.coverage} %
               ${infoBtn('Couverture')}${s.partial?' · <span class="tag tag-warn">score partiel</span>':''}</p>
@@ -2507,83 +2515,15 @@ PAGES.stock = (id) => {
     </div>
   </section>
 
-  <!-- ANALYSE NOVA -->
+  <!-- ANALYSE IA : lancée à la demande, calculée côté serveur -->
   <section class="section">
-    <div class="card nova-card">
-      <div class="nova-head">
-        <span class="nova-orb" aria-hidden="true"><i></i><i></i><i></i></span>
-        <div style="flex:1;min-width:0">
-          <p class="eyebrow">Analyse multi-modèles</p>
-          <p class="sr">Croisement qualitatif de trois analyses indépendantes</p>
-          <h2 class="h2">${nv.published
-            ? `Verdict ${VERDICT_LABEL[nv.verdict||'neutre'].toLowerCase()}`
-            : 'Analyse indisponible'}</h2>
-        </div>
-      </div>
-
-      ${nv.published ? `
-        <div class="cons-head">
-          <div class="cons-agree">
-            <span class="tiny">Niveau d'alignement</span>
-            <span class="tag ${nv.confidence>=3?'tag-up':nv.confidence>=2?'tag-neutral':'tag-warn'}"
-              style="margin-top:5px">${esc(nv.label)} · ${nv.agreeCount}/${nv.models}</span>
-          </div>
-          <div class="cons-gauge">
-            <span class="tiny">Convergence des analyses</span>
-            <div class="gauge" role="img"
-              aria-label="Convergence ${esc(nv.confLabel)}, ${nv.confidence} sur 3">
-              <i style="width:${(nv.confidence/3*100).toFixed(0)}%"></i>
-            </div>
-            <span class="gauge-v">${esc(nv.confLabel)}</span>
-          </div>
-        </div>
-
-        <div class="cons-body">
-          <h3 class="h3">Synthèse</h3>
-          <p class="small" style="margin-top:8px">${esc(nv.synthesis)}</p>
-        </div>
-
-        <div class="ai-grid">
-          ${nv.list.map((a,i)=>`
-            <article class="ai-card">
-              <div class="ai-card-h">
-                <span class="ai-dot ai-dot-${i+1}" aria-hidden="true"></span>
-                <span class="ai-alias">${esc(a.alias)}</span>
-                <span class="bias bias-${a.verdict}" style="margin-left:auto">${BIAS_LABEL[a.verdict]}</span>
-              </div>
-              ${a.focus.length?`<div class="ai-focus">
-                <span class="focus-l">Axes prioritaires</span>
-                <span class="focus-v">${a.focus.map(esc).join(' &amp; ')}</span>
-              </div>`:''}
-              <ul class="ai-points">
-                ${[...a.positive.slice(0,2).map(t=>['+',t]), ...a.negative.slice(0,1).map(t=>['−',t])]
-                  .map(([sg,t])=>`<li><i class="${sg==='+'?'p':'n'}">${sg}</i>
-                    <span>${esc(t)}</span></li>`).join('')}
-              </ul>
-              <p class="tiny" style="margin-top:10px">Incertitude déclarée : ${esc(a.uncertainty)}</p>
-            </article>`).join('')}
-        </div>
-
-        ${nv.shared.length ? `
-          <p class="nova-t">Ce sur quoi les modèles s'accordent</p>
-          <ul class="pts ${nv.shared[0].sign==='pos'?'good':'bad'}">
-            ${nv.shared.slice(0,3).map(x=>`<li><i>${x.sign==='pos'?'+':'−'}</i>
-              <span>${esc(x.txt)}</span></li>`).join('')}
-          </ul>` : ''}
-        ${nv.partial.length ? `
-          <p class="nova-t">Points débattus</p>
-          <ul class="pts ${nv.partial[0].sign==='pos'?'good':'bad'}">
-            ${nv.partial.slice(0,2).map(x=>`<li><i>${x.sign==='pos'?'+':'−'}</i>
-              <span>${esc(x.txt)} <b style="color:var(--ink-4);font-weight:500">— ${x.n} modèle${x.n>1?'s':''} sur ${nv.models}</b></span></li>`).join('')}
-          </ul>` : ''}
-
-        <div class="notice" style="margin-top:20px">
-          <b>Ce que vous ne verrez jamais ici.</b> Aucun objectif de cours, aucun signal d'achat ou
-          de vente, aucune probabilité de gain. Les modèles commentent des chiffres mesurés ; ils
-          n'en produisent aucun. Et un accord entre modèles nourris de données voisines n'est pas
-          une preuve : ils peuvent se tromper ensemble.
-        </div>`
-      : `<p class="small" style="margin-top:14px">${esc(nv.message || 'Données insuffisantes pour analyser cette entreprise.')}</p>`}
+    <div class="card">
+      <p class="eyebrow">Analyse IA</p>
+      <h2 class="h2" style="margin-top:6px">Faire analyser ${esc(s.name)}</h2>
+      <p class="small" style="margin-top:8px">Le modèle reçoit les chiffres de cette fiche.
+        Il ne produit aucun nombre.${DATA.mode === 'live' ? ''
+          : ' Les données de marché ne sont pas connectées : l\'analyse sert à valider la chaîne technique.'}</p>
+      <button class="btn btn-a" style="margin-top:18px" data-nova="${esc(s.id)}">Lancer l'analyse</button>
     </div>
   </section>
 
@@ -3339,6 +3279,21 @@ async function applySession(session){
 }
 
 /* Le plan est lu en base. Le navigateur ne peut pas se l'attribuer. */
+/* Compteur d'analyses. Elite n'affiche aucun plafond : l'offre annonce des
+   analyses incluses, le garde-fou anti-abus reste invisible. */
+function quotaLigne(){
+  const a = state.account;
+  if (!a || typeof a.used !== 'number') return '';
+  const nom = esc(a.planLabel || a.plan || '');
+  if (a.unlimited) return `<div class="quota"><b>${nom}</b><span>Analyses incluses</span></div>`;
+  const pct = a.limit ? Math.min(100, Math.round(a.used / a.limit * 100)) : 0;
+  return `<div class="quota">
+    <b>${nom}</b>
+    <span class="tabular-nums">${a.used} / ${a.limit} analyses utilisées ce mois-ci</span>
+    <i class="quota-bar"><em style="width:${pct}%"></em></i>
+  </div>`;
+}
+
 async function refreshAccount(){
   try {
     const r = await authFetch('/api/me');
@@ -3375,6 +3330,76 @@ async function signIn(){
 }
 
 /* Paiement : le navigateur envoie seulement « pro » ou « elite ». */
+/* ANALYSE RÉELLE
+   Le ticker et le nom viennent de la fiche ouverte, jamais d'une valeur par
+   défaut : sans entreprise identifiée, aucun appel ne part. Le contexte envoyé
+   ne contient que des chiffres mesurés ; le modèle n'a rien à inventer. */
+async function runAnalysis(stockId){
+  const st = byId[stockId];
+  if (!st || !st.ticker){ toast("Entreprise non identifiée."); return; }
+  if (!state.auth.signedIn){ toast('Connectez-vous pour lancer une analyse.'); return; }
+
+  openSheet(`<h3 id="sheetTitle">${esc(st.name)}</h3>
+    <div id="aiOut"><div class="spin-wrap">
+      <span class="brand-spin">${svg(ICON.brand)}</span>
+      <span class="spin-txt">Analyse IA par Grok en cours…</span></div></div>`);
+
+  /* Le navigateur n'envoie que l'identité. Les chiffres sont récupérés par le
+     serveur auprès des fournisseurs : leur origine est ainsi garantie. */
+  let d;
+  try {
+    const r = await authFetch('/api/analyze', { method:'POST',
+      body: JSON.stringify({ ticker: st.ticker, exchange: st.market || null }) });
+    d = await r.json();
+    if (!r.ok) throw Object.assign(new Error(d.error || 'erreur'), { data:d });
+  } catch (e){
+    const err = e.data || {};
+    const msg = { non_connecte:'Votre session a expiré. Reconnectez-vous.',
+      quota_exceeded: err.message || 'Quota mensuel atteint.',
+      aucun_modele_configure:"Aucun modèle n'est configuré sur le serveur.",
+      entreprise_non_identifiee:"Entreprise non identifiée.",
+      delai_depasse:"Le modèle n'a pas répondu à temps.",
+      fournisseur_en_erreur:`Le fournisseur a répondu ${err.status || ''}.`,
+      donnees_indisponibles:"Les données financières de cette société n'ont pas pu être récupérées.",
+    }[err.error] || "L'analyse n'a pas abouti.";
+    const out = document.getElementById('aiOut');
+    if (out) out.innerHTML = `<div class="notice" style="margin-top:8px"><b>${esc(msg)}</b>
+      ${err.detail ? `<br><span class="tiny">${esc(String(err.detail).slice(0,180))}</span>` : ''}</div>`;
+    return;
+  }
+
+  if (d.quota && state.account) Object.assign(state.account, d.quota);
+  const a = d.analysis || {};
+  const out = document.getElementById('aiOut');
+  if (!out) return;
+  out.innerHTML = `
+    ${d.marketConnected === false ? `<div class="notice" style="margin-bottom:18px">
+      <b>Validation technique.</b> Aucun fournisseur de données de marché n'est encore
+      connecté : les chiffres transmis au modèle ne sont pas des cotations réelles.
+      Cette réponse sert à vérifier la chaîne, elle ne constitue pas une analyse financière.
+    </div>` : ''}
+    <div class="ai-head">
+      <span class="bias bias-${esc(a.verdict || 'neutre')}">${esc(BIAS_LABEL[a.verdict] || 'Analyse')}</span>
+      <span class="tiny">Incertitude : ${esc(a.uncertainty || '—')}</span>
+    </div>
+    <p class="small" style="margin-top:14px">${esc(a.summary || '')}</p>
+    ${(a.positive || []).length ? `<p class="nova-t">Forces</p><ul class="pts good">
+      ${a.positive.slice(0,4).map(x => `<li><i>+</i><span>${esc(x)}</span></li>`).join('')}</ul>` : ''}
+    ${(a.negative || []).length ? `<p class="nova-t">Risques</p><ul class="pts bad">
+      ${a.negative.slice(0,4).map(x => `<li><i>−</i><span>${esc(x)}</span></li>`).join('')}</ul>` : ''}
+    ${d.sources ? `<p class="tiny" style="margin-top:16px">Données :
+      cotation ${esc(d.sources.quote || '—')} ·
+      fondamentaux ${esc(d.sources.fundamentals || '—')} ·
+      historique ${esc(d.sources.history || '—')}
+      ${d.missing && d.missing.length ? `<br>Indisponible : ${esc(d.missing.join(', '))}` : ''}</p>` : ''}
+    <p class="tiny" style="margin-top:8px">Modèle ${esc(d.model || '')} ·
+      ${d.quota && !d.quota.unlimited ? `${d.quota.used}/${d.quota.limit} analyses ce mois` : ''}
+      ${d.numericStripped && d.numericStripped.length
+        ? ` · ${d.numericStripped.length} champ(s) chiffré(s) retiré(s)` : ''}</p>
+    <div class="notice" style="margin-top:16px">Aucun objectif de cours, aucune probabilité.
+      Les chiffres proviennent de nos données, jamais du modèle.</div>`;
+}
+
 async function startCheckout(plan){
   if (plan === 'free'){ toast("L'offre Découverte est déjà active."); return; }
   if (!state.auth.signedIn){ toast('Connectez-vous pour souscrire.'); return; }
@@ -4000,75 +4025,7 @@ document.addEventListener('click', e => {
   }
 
   const nova = q('[data-nova]');
-  if (nova){
-    const s2 = byId[nova.dataset.nova];
-    openSheet(`<h3 id="sheetTitle">Demander à Nova</h3>
-      <p>Réponses construites à partir des chiffres de cette fiche, sans rien inventer.</p>
-      <div class="chips" style="margin-top:18px">${NOVA_QUESTIONS.map((x,i)=>
-        `<button class="chip" data-ask="${i}" data-ask-id="${esc(s2.id)}">${esc(x)}</button>`).join('')}</div>
-      <div id="novaOut"></div>`);
-    return;
-  }
-  const ask = q('[data-ask]');
-  if (ask){
-    const out = document.getElementById('novaOut');
-    if (out) out.innerHTML = `<div class="spin-wrap">
-      <span class="brand-spin">${svg(ICON.brand)}</span>
-      <span class="spin-txt">Analyse en cours…</span></div>`;
-    const s2 = byId[ask.dataset.askId], qq = NOVA_QUESTIONS[+ask.dataset.ask];
-    document.querySelectorAll('[data-ask]').forEach(b=>b.setAttribute('aria-pressed', String(b===ask)));
-    document.getElementById('novaOut').innerHTML =
-      `<div class="notice" style="margin-top:18px;background:var(--bg-2);color:var(--ink-2);white-space:pre-line">
-        <b style="color:var(--ink)">${esc(qq)}</b>\n\n${esc(askNova(qq, s2))}</div>`;
-    return;
-  }
-
-  const buy = q('[data-buy]');
-  if (buy){ openBuyAmount(byId[buy.dataset.buy]); return; }
-
-  const amt = q('[data-amount]');
-  if (amt){
-    const st = byId[amt.dataset.stock];
-    setBuyAmount(st, +amt.dataset.amount);
-    return;
-  }
-  if (q('[data-buy-next]')){
-    const st = byId[q('[data-buy-next]').dataset.buyNext];
-    const v = parseFloat(document.getElementById('buyAmt').value);
-    if (!(v > 0)) return toast('Saisissez un montant.');
-    if (v > state.wallet.cash) return toast('Montant supérieur à vos liquidités.');
-    openBuyReview(st, v);
-    return;
-  }
-  if (q('[data-buy-back]')){
-    const b = q('[data-buy-back]');
-    openBuyAmount(byId[b.dataset.buyBack], +b.dataset.value);
-    return;
-  }
-  const buyOk = q('[data-buy-ok]');
-  if (buyOk){
-    const r = buyStock(buyOk.dataset.buyOk, +buyOk.dataset.value);
-    toast(r.msg);
-    if (r.ok){ closeSheet(); render(); }
-    return;
-  }
-  const sell = q('[data-sell]');
-  if (sell){
-    const st = byId[sell.dataset.sell], pos = positionOf(st.id);
-    const val = toEUR(st.price * pos.qty, st.cur);
-    openSheet(`<h3 id="sheetTitle">Vendre ${esc(st.name)}</h3>
-      <p>${fmt.num(pos.qty,4)} action(s) · ${fmt.eur(val)}</p>
-      <div class="btns" style="margin-top:24px">
-        <button class="btn btn-s" data-sell-ok="${esc(st.id)}" data-part="0.5" style="flex:1">Moitié</button>
-        <button class="btn btn-a" data-sell-ok="${esc(st.id)}" data-part="1" style="flex:1">Tout vendre</button>
-      </div>`);
-    return;
-  }
-  const sellOk = q('[data-sell-ok]');
-  if (sellOk){
-    const r = sellStock(sellOk.dataset.sellOk, parseFloat(sellOk.dataset.part));
-    toast(r.msg); closeSheet(); render(); return;
-  }
+  if (nova){ runAnalysis(nova.dataset.nova); return; }
 
   const cmp = q('[data-cmp]');
   if (cmp){
