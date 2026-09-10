@@ -123,8 +123,9 @@ html{background:var(--bg)}
     radial-gradient(50% 35% at 90% 12%, rgba(0,200,140,.05), transparent 70%),
     radial-gradient(70% 50% at 8% 60%, rgba(140,120,255,.035), transparent 70%);
 }
-[data-theme="dark"] .top,[data-theme="dark"] .wrap,
-[data-theme="dark"] .dock{position:relative;z-index:1}
+/* La barre du bas et l'en-tête restent fixes dans les DEUX thèmes.
+   Une ancienne règle les repassait en position relative en sombre : la
+   navigation partait alors tout en bas de la page. */
 body{
   background:var(--bg);color:var(--ink);max-width:100vw;
   /* forcé : empêche une inversion automatique de casser les contrastes */
@@ -1026,7 +1027,7 @@ table.t td:last-child,table.t th:last-child{text-align:right;padding-right:0}
 "use strict";
 /* Repère de version : permet de savoir en une seconde si la page affichée est
    bien la dernière. Visible dans Réglages et dans la console du navigateur. */
-const BUILD = 'v2-1';
+const BUILD = 'v2-2';
 console.log('%cNovaBourse ' + BUILD, 'color:#00a651;font-weight:700');
 
 /* ============================================================
@@ -1647,7 +1648,9 @@ function portfolioValue(){
   const lines = portfolio.positions.map(pos => {
     const st = byId[pos.id];
     if (!st) return null;
-    const localValue = st.price * pos.qty;
+    const cours = prixDe(st);
+    if (cours === null) return null;          // valeur non cotée : exclue, jamais estimée
+    const localValue = cours * pos.qty;
     const localCost  = pos.avg  * pos.qty;
     const eurValue = toEUR(localValue, st.cur);
     const eurCost  = toEUR(localCost,  st.cur);
@@ -1850,22 +1853,32 @@ const trendTxt = (v,d=2) => `${arrow(v)} ${fmt.pct(v,d)}`;
 /* ============================================================
    ACHAT ET VENTE — argent virtuel, conservé dans le navigateur
    ============================================================ */
+/* Cours réellement reçu du serveur pour cette valeur, ou null.
+   Aucun achat ne peut se faire sur un prix qui n'existe pas. */
+function prixDe(st){
+  const q = st && QUOTES.get(st.id);
+  return q && typeof q.price === 'number' && q.price > 0 ? q.price : null;
+}
+
 function buyStock(id, amountEUR){
   const st = byId[id];
   if (!st) return { ok:false, msg:'Entreprise inconnue' };
   if (!(amountEUR > 0)) return { ok:false, msg:'Montant invalide' };
   if (amountEUR > state.wallet.cash) return { ok:false, msg:'Liquidités insuffisantes' };
 
-  const priceEUR = toEUR(st.price, st.cur);
+  // Le cours vient des cotations réelles. Sans cours, pas d'achat.
+  const prix = prixDe(st);
+  if (prix === null) return { ok:false, msg:'Cours indisponible pour cette valeur' };
+  const priceEUR = toEUR(prix, st.cur);
   const qty = amountEUR / priceEUR;                     // fractions autorisées
   const pos = state.wallet.positions.find(p => p.id === id);
   if (pos){
     const totalQty = pos.qty + qty;
     // Nouveau prix moyen, dans la devise du titre.
-    pos.avg = ((pos.avg * pos.qty) + (st.price * qty)) / totalQty;
+    pos.avg = ((pos.avg * pos.qty) + (prix * qty)) / totalQty;
     pos.qty = totalQty;
   } else {
-    state.wallet.positions.push({ id, qty, avg: st.price });
+    state.wallet.positions.push({ id, qty, avg: prix });
   }
   state.wallet.cash -= amountEUR;
   saveState();
@@ -2566,18 +2579,23 @@ PAGES.stock = (id) => {
       <p class="small" style="margin-top:4px">${esc(s.ticker)} · ${esc(s.market)} · ${esc(s.sector)}</p>
     </div>
     <div style="text-align:right">
-      ${s.priceUnavailable
-        ? `<div class="price" style="color:var(--ink-4)">—</div>
-           <div class="tiny" style="margin-top:6px">Cours indisponible pour cette place</div>`
-        : `<div class="price">${fmt.num(s.price)}<small>${esc(s.curSymbol)}</small></div>
-           <div class="price-chg ${s.change>=0?'up-t':'down-t'}">
-             ${arrow(s.change)} ${absChange(s)} (${fmt.pct(s.change)})</div>`}
+      ${(() => {
+        const q = QUOTES.get(s.id);
+        if (!q || typeof q.price !== 'number')
+          return `<div class="price" style="color:var(--ink-4)">—</div>
+            <div class="tiny" style="margin-top:6px">Cours indisponible pour cette place</div>`;
+        const v = typeof q.changePercent === 'number' ? q.changePercent : null;
+        return `<div class="price">${fmt.num(q.price)}<small>${esc(s.curSymbol)}</small></div>
+          ${v === null ? '' : `<div class="price-chg ${v >= 0 ? 'up-t' : 'down-t'}">
+            ${arrow(v)} ${fmt.pct(v)}</div>`}`;
+      })()}
     </div>
     ${starBtn(s.id)}
   </div>
 
   <div class="stk-cta">
-    <button class="btn btn-a btn-lg" data-buy="${esc(s.id)}" style="flex:1">Acheter</button>
+    <button class="btn btn-a btn-lg" data-buy="${esc(s.id)}" style="flex:1"
+      ${QUOTES.has(s.id) ? '' : 'aria-disabled="true"'}>Acheter</button>
     ${pos ? `<button class="btn btn-s btn-lg" data-sell="${esc(s.id)}">Vendre</button>` : ''}
   </div>
   <div class="stk-more">
@@ -4181,6 +4199,15 @@ document.addEventListener('click', e => {
         Ce n'est pas une prévision de marché.</div>`);
     return;
   }
+
+  const buy = q('[data-buy]');
+  if (buy){ const st = byId[buy.dataset.buy];
+    if (!st) { toast('Entreprise introuvable.'); return; }
+    if (!prixDe(st)){ toast('Cours indisponible : achat impossible.'); return; }
+    openBuyAmount(st); return; }
+
+  const sell = q('[data-sell]');
+  if (sell){ sellStock(sell.dataset.sell); return; }
 
   const nova = q('[data-nova]');
   if (nova){ runAnalysis(nova.dataset.nova); return; }
