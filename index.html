@@ -932,7 +932,7 @@ table.t td:last-child,table.t th:last-child{text-align:right;padding-right:0}
 "use strict";
 /* Repère de version : permet de savoir en une seconde si la page affichée est
    bien la dernière. Visible dans Réglages et dans la console du navigateur. */
-const BUILD = 'live-20';
+const BUILD = 'live-21';
 console.log('%cNovaBourse ' + BUILD, 'color:#00a651;font-weight:700');
 
 /* ============================================================
@@ -2896,6 +2896,10 @@ PAGES.settings = () => {
           <div class="row"><span class="row-main"><span class="row-t">Offre</span>
             <span class="row-s">${esc(st.plan)}</span></span>
             <button class="btn btn-s btn-sm" data-go="pricing">Changer</button></div>
+          <button class="row" data-refaire-parcours><span class="row-main">
+            <span class="row-t">Refaire le questionnaire</span>
+            <span class="row-s">Niveau, objectif, centres d'intérêt</span></span>
+            <span style="color:var(--ink-4)">${svg(ICON.arrow,2.4)}</span></button>
           <button class="row" data-guide><span class="row-main">
             <span class="row-t">Revoir les premiers pas</span>
             <span class="row-s">Les gestes essentiels</span></span>
@@ -3251,9 +3255,19 @@ async function applySession(session){
     since: session.user.created_at || null,
   };
   saveState();
-  await refreshAccount();          // le plan vient du serveur, jamais d'ici
-  if (!state.onboarding.done){ state.onboarding.step = state.onboarding.step || 1; renderGate(); }
-  else renderApp();
+  await refreshAccount();          // plan ET parcours viennent du serveur
+
+  /* Le parcours ne s'affiche qu'une fois, à la première connexion. Le serveur
+     fait foi : un nouvel appareil ou un cache vidé ne le relance pas. */
+  if (state.account && state.account.onboarded === false && !state.onboarding.done){
+    state.onboarding.step = state.onboarding.step || 1;
+    saveState(); renderGate(); return;
+  }
+  if (state.account && state.account.onboarded){
+    state.onboarding.done = true;  // aligné sur le compte
+    saveState();
+  }
+  renderApp();
 }
 
 /* Le plan est lu en base. Le navigateur ne peut pas se l'attribuer. */
@@ -3279,6 +3293,13 @@ async function refreshAccount(){
     const me = await r.json();
     state.settings.plan = me.plan || 'free';
     state.account = me;
+    // Les réponses du parcours déjà enregistrées côté compte font autorité.
+    if (me.profileSetup){
+      const p = me.profileSetup;
+      if (p.level) state.onboarding.level = p.level;
+      if (p.goal) state.onboarding.goal = p.goal;
+      if (p.interests) state.onboarding.interests = p.interests;
+    }
     saveState();
   } catch {}
 }
@@ -3678,6 +3699,10 @@ function paintNav(){
 
 /* Rendu : toute erreur est confinée à la page, le reste continue de fonctionner. */
 function render(){
+  /* Filet : dès qu'une session existe et que le parcours est terminé, la
+     navigation doit réapparaître. Un rendu déclenché par l'arrivée des
+     cotations laissait sinon l'écran sans en-tête ni barre du bas. */
+  if (state.auth.signedIn && state.onboarding.done) document.body.classList.remove('gated');
   const view = document.getElementById('view');
   let html;
   try {
@@ -3915,6 +3940,13 @@ document.addEventListener('click', e => {
   }
   if (q('[data-onb-done]')){
     state.onboarding.done = true; saveState();
+    // Enregistré une fois pour toutes, côté compte.
+    authFetch('/api/me', { method:'POST', body: JSON.stringify({
+      completed: true,
+      level: state.onboarding.level, goal: state.onboarding.goal,
+      interests: state.onboarding.interests || [],
+      startCapital: state.onboarding.capital ?? null,
+    })}).catch(() => {});
     const dest = { comprendre:'method', trouver:'radar', suivre:'watchlist', portefeuille:'portfolio' };
     renderApp();
     const target = dest[state.onboarding.goal];
@@ -3923,6 +3955,10 @@ document.addEventListener('click', e => {
     return;
   }
   if (q('[data-guide]')){ state.onboarding.step = 6; saveState(); renderGate(); return; }
+  if (q('[data-refaire-parcours]')){
+    state.onboarding = { done:false, step:1, level:null, goal:null, interests:[] };
+    saveState(); renderGate(); return;
+  }
 
   const nav = q('[data-go]'); if (nav){ e.preventDefault(); go(nav.dataset.go); return; }
   if (q('[data-back]')){ back(); return; }
