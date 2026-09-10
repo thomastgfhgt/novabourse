@@ -498,6 +498,18 @@ button:active{transform:scale(.97)}
 .quota-bar em{display:block;height:100%;background:var(--ink);border-radius:100px;
   transition:width .5s var(--spring)}
 
+
+/* ---------- ligne de marché ---------- */
+.row-t{font-size:15px;font-weight:600;letter-spacing:-.01em}
+.row-s{font-size:13px;color:var(--ink-3);margin-top:2px;overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap}
+.row-end{display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex:0 0 auto;min-width:92px}
+.row-px{font-size:15.5px;font-weight:600;letter-spacing:-.02em}
+.row-var{font-size:13px;font-weight:550}
+.row-var.na{color:var(--ink-4)}
+.row-spark{flex:0 0 auto;width:72px;height:26px;overflow:hidden;margin-right:14px}
+@media (max-width:430px){ .row-spark{display:none} .row-end{min-width:80px} }
+
 /* ---------- accueil minimaliste ---------- */
 .hm{padding:var(--space-lg) 0 var(--space-md);text-align:center}
 .hm-lab{font-size:13.5px;color:var(--ink-3);font-weight:550}
@@ -905,7 +917,7 @@ table.t td:last-child,table.t th:last-child{text-align:right;padding-right:0}
 "use strict";
 /* Repère de version : permet de savoir en une seconde si la page affichée est
    bien la dernière. Visible dans Réglages et dans la console du navigateur. */
-const BUILD = 'live-18';
+const BUILD = 'live-19';
 console.log('%cNovaBourse ' + BUILD, 'color:#00a651;font-weight:700');
 
 /* ============================================================
@@ -1162,7 +1174,7 @@ const portfolio = {
 
 /* --- alertes : exemples locaux, remplacés dès la première alerte créée --- */
 let alerts = [
-  { id:1, type:'Nova Score', stock:'AAPL-NAS', detail:'+8 points sur 30 jours', when:'il y a 2 h', active:true },
+  { id:1, type:'Seuil de prix', stock:'AAPL-NAS', detail:'sous 180 $', when:'il y a 2 h', active:true },
   { id:2, type:'Prix',       stock:'NVDA-NAS', detail:'Seuil de 130 $ atteint', when:'hier', active:true },
   { id:3, type:'Résultats',  stock:'MSFT-NAS', detail:'Résultats trimestriels publiés', when:'il y a 3 j', active:false },
   { id:4, type:'Couverture', stock:'ORA-EUR',  detail:'Fondamentaux toujours indisponibles', when:'il y a 5 j', active:true },
@@ -1177,7 +1189,7 @@ const subscriptions = {
                 '3 alertes','Analyse IA : 1 modèle','Historique : 30 jours'] },
     { id:'pro',   name:'Pro',   monthly:14.90, yearly:149, maxAlerts:INF, aiModels:1, radarLimit:INF,
       features:['Radar complet et filtres avancés','Alertes illimitées','Analyse IA : 1 modèle',
-                'Historique complet du Nova Score','Comparateur','Export des listes'],
+                'Historique complet','Comparateur','Export des listes'],
       off:['Consensus multi-modèles'] },
     { id:'elite', name:'Elite', monthly:39.90, yearly:399, maxAlerts:INF, aiModels:3, radarLimit:INF,
       features:['Tout le plan Pro','Consensus multi-modèles (3 modèles)','Comparaison des modèles',
@@ -1460,7 +1472,7 @@ function marketPulse(){
 
   const avgVol  = avg(stocks, s => s.volatility);
   const avgMom  = avg(stocks, s => s.momentum);
-  const avgScore= avg(scored, s => s.score);
+
   const avgCov  = avg(stocks, s => s.coverage);
 
   const factors = [
@@ -1468,8 +1480,7 @@ function marketPulse(){
       d:`${advancing} sociétés en hausse sur ${rated}.` },
     { k:'Momentum', v:avgMom === null ? null : clamp(50 + avgMom * 1.4),
       d:'Moyenne des tendances à six mois.' },
-    { k:'Force du marché', v:clamp(avgScore),
-      d:'Nova Score moyen des sociétés notées.' },
+
     { k:'Couverture des données', v:clamp(avgCov),
       d:'Part des composantes réellement calculables.' },
     { k:'Volatilité', v:avgVol === null ? null : clamp(100 - avgVol * 1.6),
@@ -1488,7 +1499,8 @@ function searchAll(q){
   const hits = [];
   for (const s of stocks){
     const hay = (s.name+' '+s.ticker+' '+s.sector+' '+s.market).toLowerCase();
-    if (hay.includes(t)) hits.push({ type:'action', id:s.id, title:s.name, sub:`${s.ticker} · ${s.sector} · ${s.market}`, score:s.score });
+    if (hay.includes(t)) hits.push({ type:'action', id:s.id, title:s.name,
+      sub:`${s.ticker} · ${s.sector} · ${s.market}` });
   }
   for (const ix of INDICES){
     if ((ix.name+' '+ix.place).toLowerCase().includes(t))
@@ -1919,31 +1931,82 @@ function donut(parts, size = 150){
     }).join('')}</svg>`;
 }
 
-/* --- ligne d'entreprise, réutilisée partout --- */
+/* --- ligne d'entreprise, réutilisée partout ---
+   Aucune note, aucun score. Uniquement ce que les fournisseurs ont renvoyé :
+   cours, variation, et un graphique seulement si l'historique existe. */
 function stockRow(s, opts = {}){
-  const sc = s.score;
+  const q = QUOTES.get(s.id) || null;
+  const prix = q && typeof q.price === 'number' ? q.price : null;
+  const varPct = q && typeof q.changePercent === 'number' ? q.changePercent : null;
+  const hist = opts.spark === true ? HIST.get(s.id) : null;
+
   return `<div class="row">
     <button style="display:flex;align-items:center;gap:14px;flex:1;min-width:0;text-align:left"
       data-stock="${esc(s.id)}">
-      ${avatar(s)}
       <span class="row-main">
-        <span class="row-t">${esc(s.name)}</span>
-        <span class="row-s">${esc(s.ticker)} · ${esc(s.sector)}</span>
+        <span class="row-t">${esc(s.ticker)}</span>
+        <span class="row-s">${esc(s.name)}</span>
       </span>
     </button>
-    <span class="row-end" style="display:flex;align-items:center;gap:12px">
-      ${opts.spark !== false ? `<span class="row-spark">${spark(stockSeries(s,'1M').values,
-        s.change>=0?'var(--up)':'var(--down)')}</span>` : ''}
-      ${opts.score !== false && sc !== null
-        ? `<span class="tag tabular-nums ${sc>=70?'tag-up':sc>=50?'tag-warn':'tag-down'}"
-            style="min-width:46px;justify-content:center">${sc}</span>`
-        : `<span class="tabular-nums ${s.change>=0?'up-t':'down-t'}"
-            style="font-weight:600;font-size:14.5px;min-width:82px;display:inline-block;text-align:right">${trendTxt(s.change)}</span>`}
-      ${opts.star !== false ? starBtn(s.id) : ''}
+    ${hist && hist.length >= 2
+      ? `<span class="row-spark">${spark(hist, varPct !== null && varPct < 0 ? 'var(--down)' : 'var(--up)')}</span>`
+      : ''}
+    <span class="row-end">
+      <span class="row-px tabular-nums">${prix === null ? '—' : fmt.num(prix)}</span>
+      <span class="row-var tabular-nums ${varPct === null ? 'na' : varPct >= 0 ? 'up-t' : 'down-t'}">
+        ${varPct === null ? '—' : fmt.pct(varPct)}</span>
     </span>
   </div>`;
 }
 
+/* Cotations et historiques réellement reçus du serveur. Vides au départ :
+   les lignes affichent « — » jusqu'à la réponse. Rien n'est pré-rempli. */
+const QUOTES = new Map();
+const HIST = new Map();
+
+/* Identifiant transmis au serveur : ticker + place. La conversion vers le
+   format de chaque fournisseur appartient au backend, pas à cette page. */
+const symboleDe = s => `${s.ticker}@${MARKET_CODE[s.market] || ''}`;
+const MARKET_CODE = { NASDAQ:'NASDAQ', NYSE:'NYSE', 'Euronext Paris':'PA',
+  'Euronext Amsterdam':'AS', Xetra:'DE', SIX:'SW', LSE:'L' };
+
+async function chargerCotations(liste){
+  const cibles = liste.filter(s => s && s.ticker);
+  if (!cibles.length) return;
+  try {
+    const r = await fetch('/api/market/quotes?symbols='
+      + encodeURIComponent(cibles.map(symboleDe).join(',')));
+    const d = await r.json();
+    if (!d.connected){ DATA.mode = 'unavailable'; DATA.reason = d.reason || null; return paintSource(); }
+    const parId = new Map(cibles.map(s => [symboleDe(s), s]));
+    for (const q of d.quotes || []){
+      const s = parId.get(q.symbol);
+      if (s) QUOTES.set(s.id, q);
+    }
+    DATA.mode = QUOTES.size ? 'live' : 'error';
+    DATA.covered = QUOTES.size;
+    DATA.provider = d.source || null;
+    DATA.at = Date.now();
+    paintSource();
+    render();
+  } catch {
+    DATA.mode = 'unavailable'; DATA.reason = 'serveur_injoignable';
+    paintSource();
+  }
+}
+
+/* Historique : uniquement pour un petit nombre de valeurs (fiche, suivies).
+   Jamais pour Explorer, qui déclencherait autant d'appels que de lignes. */
+async function chargerHistorique(stock){
+  if (!stock || HIST.has(stock.id)) return;
+  try {
+    const r = await fetch(`/api/market/company?ticker=${encodeURIComponent(stock.ticker)}`
+      + `&exchange=${encodeURIComponent(MARKET_CODE[stock.market] || '')}`);
+    const d = await r.json();
+    const closes = (d.history?.ohlcv || []).map(x => x.close).filter(x => typeof x === 'number');
+    if (closes.length >= 2){ HIST.set(stock.id, closes.slice(-60)); render(); }
+  } catch {}
+}
 
 /* ============================================================
    4. PAGES
@@ -2051,7 +2114,7 @@ PAGES.home = () => {
 
   <section class="section">
     <div class="section-h">
-      <h2 class="h2">Les mieux notées</h2>
+      <h2 class="h2">Marché</h2>
       <button class="btn btn-g btn-sm" data-go="radar">Tout voir</button>
     </div>
     <div class="card"><div class="rows">${top.map(x => stockRow(x)).join('')}</div></div>
@@ -2064,7 +2127,7 @@ PAGES.home = () => {
     </div>
     <div class="card">
       ${watched.length
-        ? `<div class="rows">${watched.slice(0, 4).map(x => stockRow(x)).join('')}</div>`
+        ? `<div class="rows">${watched.slice(0, 4).map(x => stockRow(x, { spark:true })).join('')}</div>`
         : emptyState('Rien de suivi', 'Touchez l’étoile pour suivre une valeur.',
             { go:'radar', label:'Parcourir' })}
     </div>
@@ -2087,7 +2150,7 @@ function pricingBlock(compact = false){
   const P = [
     { id:'free', n:'Découverte', price:0, yr:0,
       d:"Comprendre les marchés et suivre quelques entreprises.",
-      f:['Nova Score complet','10 entreprises suivies','Portefeuille virtuel',
+      f:['Cours et fondamentaux réels','10 entreprises suivies','Portefeuille virtuel',
          '5 analyses multi-modèles par mois'] },
     { id:'pro', n:'Pro', price:9.99, yr:79, hot:true,
       d:"Analyser sérieusement, sans limite de suivi.",
@@ -2096,7 +2159,7 @@ function pricingBlock(compact = false){
     { id:'elite', n:'Elite', price:19.99, yr:159,
       d:"L'analyse la plus poussée, sans plafond.",
       f:['Tout Pro','Analyses illimitées','Comparateur jusqu’à 5 entreprises',
-         'Alertes sur variation du Nova Score','Support prioritaire'] },
+         'Alertes de prix personnalisées','Support prioritaire'] },
   ];
   /* Économie réalisée en payant à l'année, calculée et non annoncée. */
   const save = p => p.price ? Math.round((1 - p.yr / (p.price * 12)) * 100) : 0;
@@ -2173,7 +2236,6 @@ PAGES.radar = () => {
     </div>
     <div class="divider"></div>
     ${filterRow('Risque', 'radarRisk', [['tous','Tous'],['Faible','Faible'],['Modéré','Modéré'],['Élevé','Élevé']])}
-    ${filterRow('Nova Score', 'radarMin', [[0,'Tous'],[50,'50 et +'],[60,'60 et +'],[70,'70 et +'],[80,'80 et +']])}
     ${filterRow('Pays', 'radarCountry', [['tous','Tous'],...[...new Set(stocks.map(x=>x.country))].map(c=>[c,c])])}
     ${filterRow('Secteur', 'radarSector', [['tous','Tous'],...SECTORS.map(x=>[x,x])])}
   </div>
@@ -2206,43 +2268,35 @@ function parseNaturalQuery(q){
 }
 function radarResults(){
   const f = state.filters;
-  let list = stocks.filter(s => s.score !== null);
-  if (f.radarRisk !== 'tous')    list = list.filter(s => s.volRisk === f.radarRisk);
-  if (+f.radarMin > 0)           list = list.filter(s => s.score >= +f.radarMin);
+  let list = [...stocks];
   if (f.radarCountry !== 'tous') list = list.filter(s => s.country === f.radarCountry);
   if (f.radarSector !== 'tous')  list = list.filter(s => s.sector === f.radarSector);
-  if (f.radarBig)                list = list.filter(s => s.marketCapEUR >= 200);
   if (f.radarQ){ const q = f.radarQ.toLowerCase();
-    list = list.filter(s => (s.name+' '+s.ticker+' '+s.sector).toLowerCase().includes(q)); }
-  list.sort((a,b) => b.score - a.score);
+    list = list.filter(s => (s.name + ' ' + s.ticker + ' ' + s.sector).toLowerCase().includes(q)); }
 
-  const excluded = stocks.length - stocks.filter(s => s.score !== null).length;
+  // Tri par variation du jour, uniquement sur les cotations réellement reçues.
+  const varDe = s => { const q = QUOTES.get(s.id);
+    return q && typeof q.changePercent === 'number' ? q.changePercent : null; };
+  list.sort((a, b) => {
+    const va = varDe(a), vb = varDe(b);
+    if (va === null && vb === null) return a.name.localeCompare(b.name, 'fr');
+    if (va === null) return 1;
+    if (vb === null) return -1;
+    return vb - va;
+  });
+
   if (!list.length) return `<div class="card">${emptyState('Aucune entreprise ne correspond',
-    'Essayez d’élargir un critère : le Radar n’ajoute jamais de résultat approchant pour remplir la liste.')}</div>`;
+    'Élargissez un critère : le Radar n’ajoute jamais de résultat approchant.')}</div>`;
 
+  const cotees = list.filter(s => varDe(s) !== null).length;
   return `
-    <p class="small" style="margin-bottom:12px">${list.length} entreprise${list.length>1?'s':''} correspondent.
-      ${excluded} sans score ne peuvent pas être classées.</p>
-    <div class="grid g-2">
-      ${list.slice(0,24).map(s=>`
-        <div class="card card-lift rise">
-          <div style="display:flex;align-items:center;gap:13px">
-            <button style="display:flex;align-items:center;gap:13px;flex:1;min-width:0;text-align:left"
-              data-stock="${esc(s.id)}">
-              ${avatar(s)}
-              <span class="row-main"><span class="row-t">${esc(s.name)}</span>
-                <span class="row-s">${esc(s.ticker)} · ${esc(s.market)}</span></span>
-            </button>
-            <span class="tag ${s.score>=70?'tag-up':s.score>=50?'tag-warn':'tag-down'}"
-              style="font-size:15px;padding:7px 13px">${s.score}</span>
-            ${starBtn(s.id)}
-          </div>
-          <ul class="pts good" style="margin-top:12px">
-            ${matchReasons(s).map(r=>`<li><i>✓</i><span>${r}</span></li>`).join('')}
-          </ul>
-        </div>`).join('')}
-    </div>`;
+    <p class="small" style="margin-bottom:12px">${list.length} entreprise${list.length>1?'s':''} ·
+      ${cotees} cotation${cotees>1?'s':''} disponible${cotees>1?'s':''}</p>
+    <div class="card"><div class="rows">
+      ${list.slice(0, 40).map(s => stockRow(s)).join('')}
+    </div></div>`;
 }
+
 /* Pourquoi cette entreprise ressort : uniquement des faits de sa fiche. */
 function matchReasons(s){
   const out = [];
@@ -2275,6 +2329,7 @@ function exploreRows(){
   if (state.filters.exploreQ){ const q = state.filters.exploreQ.toLowerCase();
     list = list.filter(s => (s.name+' '+s.ticker).toLowerCase().includes(q)); }
   list.sort((a,b)=>a.name.localeCompare(b.name,'fr'));
+  // Aucun historique ici : 32 appels à chaque ouverture seraient injustifiables.
   return list.length ? list.map(s=>stockRow(s)).join('')
     : emptyState('Aucun résultat','Aucune entreprise ne correspond à ce filtre.');
 }
@@ -2412,31 +2467,6 @@ PAGES.stock = (id) => {
     ${starBtn(s.id)}
   </div>
 
-  <!-- L'ESSENTIEL D'ABORD -->
-  <section class="section" style="margin-top:30px">
-    <div class="card">
-      ${s.score === null ? `
-        <h2 class="h2">Score indisponible</h2>
-        <p class="small measure-l" style="margin-top:10px">Seules ${s.coverage} % des données
-          nécessaires sont disponibles, sous notre seuil de 40 %. Nous préférons ne rien afficher
-          plutôt qu'un score qui donnerait une fausse impression de précision.</p>`
-      : `
-        <div class="score-hero">
-          ${ring(s.score)}
-          <div style="flex:1;min-width:230px">
-            <p class="eyebrow">Nova Score — moteur en construction</p>
-            <h2 class="title" style="font-size:26px;margin-top:4px">${esc(p.label)}</h2>
-            <p class="small" style="margin-top:10px">Couverture des données : ${s.coverage} %
-              ${infoBtn('Couverture')}${s.partial?' · <span class="tag tag-warn">score partiel</span>':''}</p>
-            ${strong.length?`<ul class="pts good" style="margin-top:14px">
-              ${strong.slice(0,2).map(x=>`<li><i>+</i><span>${x}</span></li>`).join('')}</ul>`:''}
-            ${weak.length?`<ul class="pts bad">
-              ${weak.slice(0,2).map(x=>`<li><i>−</i><span>${x}</span></li>`).join('')}</ul>`:''}
-          </div>
-        </div>`}
-    </div>
-  </section>
-
   <!-- COURS ET MOYENNES -->
   <section class="section">
     <div class="section-h"><h2 class="h2">Cours</h2>
@@ -2448,43 +2478,6 @@ PAGES.stock = (id) => {
       <div id="avgs">${averagesBlock(s, state.ui.period)}</div>
       <p class="tiny" style="margin-top:12px">Série fictive. Aucune cotation réelle.</p>
     </div>
-  </section>
-
-  <!-- PROFIL EN CINQ PILIERS -->
-  <section class="section">
-    <div class="section-h"><h2 class="h2">Profil d'analyse</h2>
-      <span class="tag tag-neutral">5 piliers</span></div>
-    <div class="card">
-      <div class="radar-wrap">
-        <div class="radar-box">${radarSVG(s)}</div>
-        <div style="flex:1;min-width:200px">
-          ${pillarsOf(s).map(p=>`
-            <div class="kv"><dt>${esc(p.label)}</dt>
-              <dd class="tabular-nums" style="color:${p.value===null?'var(--ink-4)':scoreColor(p.value)}">
-                ${p.value===null?'indisponible':p.value+' / 100'}</dd></div>`).join('')}
-          <p class="tiny" style="margin-top:12px">Un pilier sans donnée est laissé vide, jamais
-            ramené à zéro. Le dividende est affiché ici mais n'entre pas dans le Nova Score.</p>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- DÉTAIL DU SCORE -->
-  <section class="section">
-    <div class="section-h"><h2 class="h2">Pourquoi ce score ?</h2>
-      <button class="btn btn-g btn-sm" data-go="method">La méthode</button></div>
-    <div class="card"><div class="bars">
-      ${COMPONENTS.map(c=>{ const v = s.scores[c.key];
-        return `<div class="bar ${v===null?'off':''}">
-          <div class="bar-t"><span class="bar-n">${esc(c.label)}</span>
-            <span class="bar-v tabular-nums" style="color:${scoreColor(v)}">${v===null?'indisponible':v}</span></div>
-          ${v===null?'':`<span class="bar-track"><i class="bar-fill" data-w="${v}"
-            style="background:${scoreColor(v)}"></i></span>`}
-          <p class="bar-h">${v===null
-            ? `Donnée absente : cette composante est retirée du calcul, jamais remplacée par une valeur.`
-            : `${esc(measureText(s,c.key))} · poids ${c.weight} %`}</p>
-        </div>`; }).join('')}
-    </div></div>
   </section>
 
   <!-- CHIFFRES -->
@@ -2649,7 +2642,7 @@ PAGES.watchlist = () => {
     <h1 class="title">Ma liste</h1>
     <p class="lead" style="margin-top:10px">${list.length} entreprise${list.length>1?'s':''} suivie${list.length>1?'s':''}.</p>
     <div class="card" style="margin-top:22px">
-      ${list.length ? `<div class="rows">${list.map(x=>stockRow(x)).join('')}</div>`
+      ${list.length ? `<div class="rows">${list.map(x=>stockRow(x, { spark:true })).join('')}</div>`
         : emptyState('Votre liste est vide',
             'Touchez l’étoile pour suivre une valeur. Sa note et son évolution vous attendront ici.',
             { go:'radar', label:'Parcourir le Radar' })}
@@ -3116,45 +3109,15 @@ PAGES.compare = () => {
 const isDemo = () => false;
 const DATA = { mode:'unavailable', at:null, covered:0, provider:null, reason:null };
 
-const API_SUFFIX = { NASDAQ:'', NYSE:'', 'Euronext Paris':'.PA', 'Euronext Amsterdam':'.AS',
-  Xetra:'.DE', SIX:'.SW', LSE:'.L' };
-stocks.forEach(s2 => { s2.apiSymbol = s2.ticker + (API_SUFFIX[s2.market] ?? ''); });
+/* Aucun format de fournisseur ici : le serveur reçoit « ticker@place » et
+   fait lui-même la conversion. Voir MARKET_CODE et _providers.js. */
 
 async function loadRealQuotes(){
   if (!CONFIG.marketConnected){
     DATA.mode = 'unavailable'; DATA.reason = 'source_non_connectee';
-    stocks.forEach(x => { x.priceUnavailable = true; });
     return paintSource();
   }
-  const symbols = stocks.map(s2 => s2.apiSymbol).slice(0, 60).join(',');
-  let r;
-  try {
-    const res = await fetch('/api/market/quotes?symbols=' + encodeURIComponent(symbols));
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    r = await res.json();
-  } catch {
-    DATA.mode = 'unavailable'; DATA.reason = 'serveur_injoignable';
-    stocks.forEach(x => { x.priceUnavailable = true; });
-    return paintSource();
-  }
-  if (!r.connected || r.degraded || !r.quotes || !r.quotes.length){
-    DATA.mode = r.connected ? 'error' : 'unavailable';
-    DATA.reason = r.reason || null;
-    stocks.forEach(x => { x.priceUnavailable = true; });
-    return paintSource();
-  }
-  const bySymbol = Object.fromEntries(stocks.map(s2 => [s2.apiSymbol, s2]));
-  let n = 0;
-  for (const q of r.quotes){
-    const s2 = bySymbol[q.symbol];
-    if (!s2 || typeof q.price !== 'number') continue;
-    s2.price = q.price;
-    if (typeof q.changePct === 'number') s2.change = +q.changePct.toFixed(2);
-    s2.live = true; s2.priceUnavailable = false; n++;
-  }
-  stocks.forEach(s2 => { if (!s2.live) s2.priceUnavailable = true; });
-  DATA.mode = 'live'; DATA.covered = n; DATA.provider = r.provider || null; DATA.at = Date.now();
-  paintSource(); render();
+  await chargerCotations(stocks);
 }
 
 function sourceBadge(){
@@ -3681,6 +3644,11 @@ function render(){
   view.innerHTML = html;
   document.documentElement.scrollTop = 0; document.body.scrollTop = 0;
   paintNav();
+  if (route.page === 'watchlist' || route.page === 'home'){
+    // Peu de lignes : un historique par valeur suivie reste raisonnable.
+    state.watchlist.slice(0, 6).map(id => byId[id]).filter(Boolean).forEach(chargerHistorique);
+  }
+  if (route.page === 'stock' && byId[route.arg]) chargerHistorique(byId[route.arg]);
   if (route.page === 'radar')   document.getElementById('radarOut').innerHTML = radarResults();
   if (route.page === 'explore') document.getElementById('exploreOut').innerHTML = exploreRows();
   animate();
@@ -3773,8 +3741,7 @@ function paintSearch(q){
       ${st ? avatar(st) : `<span class="av" style="background:var(--ink-4)">IX</span>`}
       <span class="row-main"><span class="row-t">${esc(h.title)}</span>
         <span class="row-s">${esc(h.sub)}</span></span>
-      ${h.score!==undefined&&h.score!==null
-        ? `<span class="tag ${h.score>=70?'tag-up':h.score>=50?'tag-warn':'tag-down'}">${h.score}</span>`:''}
+
     </button>`; }).join('')}</div>`;
 }
 function pick(h){
