@@ -510,6 +510,21 @@ button:active{transform:scale(.97)}
 .row-spark{flex:0 0 auto;width:72px;height:26px;overflow:hidden;margin-right:14px}
 @media (max-width:430px){ .row-spark{display:none} .row-end{min-width:80px} }
 
+
+/* ---------- NovaScore, dans le résultat d'analyse ---------- */
+.nsc{padding:18px;border-radius:14px;background:var(--bg-2);margin-bottom:20px}
+.nsc-head{display:flex;align-items:center;gap:16px}
+.nsc-val{font-size:44px;font-weight:700;letter-spacing:-.05em;line-height:1}
+.nsc-val small{font-size:.4em;font-weight:600;color:var(--ink-4);margin-left:2px}
+.nsc-meta b{display:block;font-size:13px;font-weight:650;letter-spacing:.04em;text-transform:uppercase}
+.nsc-meta span{display:block;font-size:12.5px;color:var(--ink-3);margin-top:4px}
+.nsc-fam{margin-top:18px;display:grid;gap:9px}
+.nsc-line{display:grid;grid-template-columns:1fr 90px 32px;align-items:center;gap:12px;font-size:13.5px}
+.nsc-line i{display:block;height:4px;border-radius:100px;background:var(--bg-3);overflow:hidden}
+.nsc-line em{display:block;height:100%;background:var(--ink);border-radius:100px}
+.nsc-line b{text-align:right;font-weight:650}
+@media (max-width:430px){ .nsc-line{grid-template-columns:1fr 56px 30px} }
+
 /* ---------- accueil minimaliste ---------- */
 .hm{padding:var(--space-lg) 0 var(--space-md);text-align:center}
 .hm-lab{font-size:13.5px;color:var(--ink-3);font-weight:550}
@@ -917,7 +932,7 @@ table.t td:last-child,table.t th:last-child{text-align:right;padding-right:0}
 "use strict";
 /* Repère de version : permet de savoir en une seconde si la page affichée est
    bien la dernière. Visible dans Réglages et dans la console du navigateur. */
-const BUILD = 'live-19';
+const BUILD = 'live-20';
 console.log('%cNovaBourse ' + BUILD, 'color:#00a651;font-weight:700');
 
 /* ============================================================
@@ -3336,6 +3351,7 @@ async function runAnalysis(stockId){
   const out = document.getElementById('aiOut');
   if (!out) return;
   out.innerHTML = `
+    ${novascoreBloc(d.novascore)}
     ${d.marketConnected === false ? `<div class="notice" style="margin-bottom:18px">
       <b>Validation technique.</b> Aucun fournisseur de données de marché n'est encore
       connecté : les chiffres transmis au modèle ne sont pas des cotations réelles.
@@ -3361,6 +3377,41 @@ async function runAnalysis(stockId){
         ? ` · ${d.numericStripped.length} champ(s) chiffré(s) retiré(s)` : ''}</p>
     <div class="notice" style="margin-top:16px">Aucun objectif de cours, aucune probabilité.
       Les chiffres proviennent de nos données, jamais du modèle.</div>`;
+}
+
+/* NovaScore : rendu tel que le serveur l'a calculé. Aucune note n'est
+   fabriquée ici, et rien n'est lu dans la réponse du modèle. */
+function novascoreBloc(n){
+  if (!n) return '';
+  if (n.score === null){
+    return `<div class="notice" style="margin-bottom:18px">
+      <b>NovaScore non calculable.</b> Couverture des données : ${n.coverage} %.
+      Sous 40 %, aucune note n'est produite.</div>`;
+  }
+  const familles = Object.values(n.families || {}).filter(f => f.score !== null)
+    .sort((a, b) => b.score - a.score);
+  return `<div class="nsc">
+    <div class="nsc-head">
+      <span class="nsc-val tabular-nums">${n.score}<small>/100</small></span>
+      <span class="nsc-meta">
+        <b>NovaScore</b>
+        <span>Couverture ${n.coverage} %${n.coherence !== null
+          ? ` · Cohérence ${n.coherence} %` : ''} · Confiance ${esc(n.confidence)}</span>
+      </span>
+    </div>
+    ${n.comparable ? '' : `<p class="tiny" style="margin-top:10px">Score partiel :
+      la couverture est insuffisante pour comparer cette société à une autre.</p>`}
+    <div class="nsc-fam">
+      ${familles.map(f => `<div class="nsc-line">
+        <span>${esc(f.label)}</span>
+        <i><em style="width:${f.score}%"></em></i>
+        <b class="tabular-nums">${f.score}</b>
+      </div>`).join('')}
+    </div>
+    <p class="tiny" style="margin-top:12px">Calculé par NovaBourse
+      (${esc(n.engine)}) à partir des données du dossier. Le modèle l'explique,
+      il ne le produit pas.</p>
+  </div>`;
 }
 
 async function startCheckout(plan){
