@@ -11,18 +11,9 @@
  *   historique    eodhd → twelvedata
  */
 const { QUOTE, FUNDAMENTALS, HISTORY, cascade, KEYS } = require('./_providers.js');
-
-const CACHE = new Map();
-const TTL = { quote: 60000, fundamentals: 21600000, history: 43200000 };   // 1 min / 6 h / 12 h
-
-const cle = (bloc, t, e) => `${bloc}:${t}:${e || ''}`;
-function lire(bloc, t, e){
-  const hit = CACHE.get(cle(bloc, t, e));
-  return hit && Date.now() - hit.at < TTL[bloc] ? hit : null;
-}
-function ecrire(bloc, t, e, valeur, source){
-  CACHE.set(cle(bloc, t, e), { at: Date.now(), valeur, source });
-}
+/* Cache commun à toute la couche marché : une cotation obtenue par le batch
+   de quotes.js est réutilisée ici, et inversement. */
+const { lire, ecrire } = require('./_cache.js');
 
 module.exports = async (req, res) => {
   const ticker = String(req.query.ticker || '').trim().toUpperCase();
@@ -43,7 +34,7 @@ module.exports = async (req, res) => {
         return { data: hit.valeur, source: hit.source }; }
     }
     const r = await cascade(table, ordre, args, journal, nom);
-    if (r.data) ecrire(nom, ticker, exchange, r.data, r.source);
+    if (r.data) ecrire(nom, [ticker, exchange], r.data, r.source);
     return r;
   };
 
@@ -84,4 +75,4 @@ module.exports = async (req, res) => {
     journal,                       // ce qui a été essayé, et pourquoi ça a échoué
   });
 };
-module.exports.CACHE = CACHE;
+
