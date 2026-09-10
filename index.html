@@ -21,71 +21,102 @@
    de hausse, une couleur de baisse. Rien d'autre.
    ============================================================ */
 :root{
-  /* Sans cette déclaration, les navigateurs intégrés (webviews d'applications)
-     appliquent leur propre inversion sombre par-dessus la page : on obtient des
-     titres foncés sur fond foncé. Elle doit suivre notre thème, pas l'inverse. */
+  /* ============================================================
+     NOVABOURSE — DESIGN SYSTEM
+     Direction : lumineuse, très aérée, bleu d'accent, grands arrondis.
+     Un seul endroit définit couleurs, échelles, rayons et ombres :
+     modifier un token propage le changement à toute l'application.
+     ============================================================ */
   color-scheme:light;
-  --ink:#08090b;
-  --ink-2:#3d434a;
-  --ink-3:#6c757e;
-  --ink-4:#9aa2ab;
-  --line:#e6e8ec;
-  --line-2:#f0f2f5;
-  --bg:#ffffff;
-  --bg-2:#f6f7f9;
-  --bg-3:#eef0f4;
 
-  --accent:#00a651;
-  --accent-2:#00c462;
-  --accent-soft:#e8f7ee;
-  --up:#00a651;
-  --up-soft:#e8f7ee;
-  --down:#e0273b;
-  --down-soft:#fdebed;
-  --warn:#b8770a;
-  --warn-soft:#fdf3e0;
-  --violet:#5b4ae0;
-  --violet-soft:#eeecfd;
+  /* ---- Surfaces ---- */
+  --bg:#ffffff;              /* fond principal */
+  --bg-2:#f4f5f8;            /* grandes cartes, gris très clair */
+  --bg-3:#eceef3;            /* survol, pistes, états pressés */
+  --bg-4:#e3e6ed;            /* séparateurs appuyés, jauges */
 
-  --r-s:8px; --r-m:12px; --r-l:16px; --r-xl:22px;
-  --sp-1:8px; --sp-2:16px; --sp-3:24px; --sp-4:32px; --sp-5:56px; --sp-6:88px;
+  /* ---- Texte ---- */
+  --ink:#0d1117;             /* titres et valeurs : anthracite, pas noir pur */
+  --ink-2:#3d4453;           /* texte courant */
+  --ink-3:#6b7385;           /* labels secondaires */
+  --ink-4:#9aa1b1;           /* mentions discrètes */
+
+  /* ---- Accent : le bleu devient l'identité ---- */
+  --accent:#3557f6;
+  --accent-hover:#2a48d8;
+  --accent-press:#2440c0;
+  --accent-soft:#eef2ff;     /* fonds d'accent très légers */
+  --accent-ink:#ffffff;      /* texte sur accent */
+
+  /* ---- Couleurs de sens financier ----
+     Le vert et le rouge ne portent plus l'identité : ils portent une
+     information. Hausse, baisse, risque — rien d'autre. */
+  --up:#16a34a;   --up-soft:#e9f7ee;
+  --down:#dc2626; --down-soft:#fdecec;
+  --warn:#b45309; --warn-soft:#fdf4e7;
+
+  /* ---- Bordures : presque invisibles ---- */
+  --line:#e6e9f0;
+  --line-2:#eef0f5;
+
+  /* ---- Rayons : généreux ---- */
+  --r-xs:8px; --r-s:12px; --r-m:18px; --r-l:24px; --r-xl:32px; --r-pill:999px;
+
+  /* ---- Ombres : extrêmement discrètes ---- */
   --shadow-1:none;
-  --shadow-2:0 4px 12px rgba(10,12,15,.06), 0 12px 32px rgba(10,12,15,.07);
-  --shadow-3:0 8px 24px rgba(10,12,15,.10), 0 30px 60px rgba(10,12,15,.10);
+  --shadow-2:0 1px 2px rgba(13,17,23,.04), 0 8px 24px rgba(13,17,23,.05);
+  --shadow-3:0 2px 6px rgba(13,17,23,.06), 0 24px 48px rgba(13,17,23,.08);
+  --shadow-accent:0 8px 24px rgba(53,87,246,.24);
+
+  /* ---- Espacement : grille de 8 ---- */
+  --space-2:8px;  --space-3:12px; --space-4:16px; --space-5:24px;
+  --space-6:32px; --space-7:48px; --space-8:64px; --space-9:96px;
+  --sp-1:8px; --sp-2:16px; --sp-3:24px; --sp-4:32px; --sp-5:48px; --sp-6:80px;
+  --space-xs:8px; --space-sm:16px; --space-md:24px; --space-lg:32px;
+
+  /* ---- Échelle typographique ---- */
+  --t-display:clamp(38px,7vw,60px);
+  --t-title:clamp(26px,4vw,36px);
+  --t-h2:21px;
+  --t-h3:17px;
+  --t-body:15.5px;
+  --t-small:13.5px;
+  --t-label:12.5px;
+  --t-micro:11.5px;
+  --lh-tight:1.06; --lh-title:1.15; --lh-body:1.6;
+
+  /* ---- Cases d'icônes ---- */
+  --icon-box:44px; --icon-gap:16px; --card-pad:24px;
 
   --font:'Inter',system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
-
-  /* Grille d'espacement standardisée, système 8 px. Les variables --sp-*
-     historiques y sont alignées pour ne pas casser l'existant. */
-  --space-xs:8px; --space-sm:16px; --space-md:24px; --space-lg:32px;
-  /* Mesures communes aux cartes « icône + texte » : même case, même écart,
-     même marge interne — donc tous les titres démarrent au même X. */
-  --icon-box:46px; --icon-gap:16px; --card-pad:20px;
   --mono:ui-monospace,'SF Mono',Menlo,monospace;
+  --ease:cubic-bezier(.32,.72,0,1);
   --spring:cubic-bezier(.32,.72,0,1);
+  --fast:.14s; --slow:.28s;
   --tap:44px;
 }
+
+/* Thème sombre : construit avec les MÊMES tokens, jamais par inversion.
+   Le bleu est éclairci pour rester lisible sur fond foncé. */
 [data-theme="dark"]{
   color-scheme:dark;
-  /* Jamais #000 uniforme : trois valeurs très proches suffisent à créer de la
-     profondeur sans qu'on identifie l'effet. */
-  --bg:#08090c; --bg-2:#0d0f13; --bg-3:#14171d;
-  --ink:#f7f8f8; --ink-2:#b4b8c0; --ink-3:#8a8f99; --ink-4:#5f646e;
-  --line:#1f2229; --line-2:#16191f;
-  --ink:#f5f7f9; --ink-2:#c2c8cf; --ink-3:#8e969f; --ink-4:#666e77;
-  --line:#23262b; --line-2:#1a1d21;
-  --bg:#0c0e10; --bg-2:#141719; --bg-3:#1c1f23;
-  --accent-soft:#0d2a1a; --up-soft:#0d2a1a; --down-soft:#2c1114; --warn-soft:#2b2005;
-  --violet-soft:#1a1636;
-  --shadow-1:0 1px 2px rgba(0,0,0,.5); --shadow-2:0 8px 28px rgba(0,0,0,.45);
-  --shadow-3:0 20px 60px rgba(0,0,0,.55);
+  --bg:#0e1116; --bg-2:#161a21; --bg-3:#1d222b; --bg-4:#252b36;
+  --ink:#f2f4f8; --ink-2:#c3c9d4; --ink-3:#8d95a4; --ink-4:#646c7c;
+  --accent:#5b7cff; --accent-hover:#7590ff; --accent-press:#4568f0;
+  --accent-soft:#161d33; --accent-ink:#0e1116;
+  --up:#3ecf7f; --up-soft:#11251a; --down:#f87171; --down-soft:#2a1416;
+  --warn:#e0a63a; --warn-soft:#2a2110;
+  --line:#242a34; --line-2:#1b2028;
+  --shadow-2:0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.35);
+  --shadow-3:0 2px 6px rgba(0,0,0,.45), 0 24px 48px rgba(0,0,0,.45);
+  --shadow-accent:0 8px 24px rgba(91,124,255,.22);
 }
 
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html{-webkit-text-size-adjust:100%}
 html{background:var(--bg)}
 /* Halos très faibles, fixes : la page a un relief que l'œil ne sait pas nommer. */
-[data-theme="dark"] body::before{
+[data-theme="xxx"] body::before{
   content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
   background:
     radial-gradient(60% 40% at 50% -8%, rgba(120,140,255,.07), transparent 70%),
@@ -192,47 +223,94 @@ button:active{transform:scale(.97)}
 .section-h{display:flex;align-items:baseline;justify-content:space-between;gap:var(--sp-2);margin-bottom:var(--sp-3)}
 
 /* ---------- typographie ---------- */
-.display{font-size:clamp(40px,8.5vw,84px);font-weight:600;letter-spacing:-.045em;line-height:1.02}
-.title{font-size:clamp(28px,4.6vw,46px);font-weight:600;letter-spacing:-.038em;line-height:1.06}
-.h2{font-size:21px;font-weight:650;letter-spacing:-.028em}
-.h3{font-size:16px;font-weight:600;letter-spacing:-.02em}
-.lead{font-size:clamp(16px,1.9vw,18.5px);color:var(--ink-3);line-height:1.55;letter-spacing:-.012em}
-.small{font-size:13.5px;color:var(--ink-3);line-height:1.5}
-.tiny{font-size:12px;color:var(--ink-4);line-height:1.45}
-.eyebrow{font-size:12px;font-weight:500;letter-spacing:.04em;color:var(--ink-4);text-transform:uppercase}
+.display{font-size:var(--t-display);font-weight:700;letter-spacing:-.04em;line-height:var(--lh-tight)}
+.title{font-size:var(--t-title);font-weight:700;letter-spacing:-.032em;line-height:var(--lh-title)}
+.h2{font-size:var(--t-h2);font-weight:650;letter-spacing:-.024em}
+.h3{font-size:var(--t-h3);font-weight:600;letter-spacing:-.018em}
+.lead{font-size:17px;color:var(--ink-3);line-height:var(--lh-body);letter-spacing:-.01em}
+.small{font-size:var(--t-small);color:var(--ink-3);line-height:var(--lh-body)}
+.tiny{font-size:var(--t-micro);color:var(--ink-4);line-height:1.5}
+.eyebrow{font-size:var(--t-label);font-weight:600;letter-spacing:.02em;color:var(--accent);text-transform:none}
 .center{text-align:center}
 .measure{max-width:34ch}
 .measure-l{max-width:58ch}
 
-/* ---------- boutons ---------- */
-.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:var(--tap);
-  padding:11px 20px;border-radius:9px;font-size:14.5px;font-weight:550;letter-spacing:-.012em;
-  white-space:nowrap;transition:background .12s ease,color .12s ease,opacity .12s ease,transform .12s ease}
-.btn-sm{border-radius:8px}
-.btn-p{background:var(--ink);color:var(--bg)}
-.btn-p:hover{opacity:.86}
-.btn-a{background:var(--ink);color:var(--bg)}
-.btn-a:hover{opacity:.88}
+/* ---------- boutons : capsules, sans contour inutile ---------- */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;
+  min-height:var(--tap);padding:13px 26px;border-radius:var(--r-pill);
+  font-size:var(--t-body);font-weight:600;letter-spacing:-.012em;white-space:nowrap;
+  transition:background var(--fast) ease,color var(--fast) ease,
+    box-shadow var(--fast) ease,transform var(--fast) ease,opacity var(--fast) ease}
+.btn:active{transform:scale(.985)}
+.btn:disabled,.btn[aria-disabled="true"]{opacity:.45;pointer-events:none}
+.btn svg{width:17px;height:17px}
+
+/* Action principale : bleu plein, texte blanc. */
+.btn-a{background:var(--accent);color:var(--accent-ink);box-shadow:var(--shadow-accent)}
+.btn-a:hover{background:var(--accent-hover)}
+.btn-a:active{background:var(--accent-press)}
+
+/* Action secondaire : surface claire, sans bordure. */
 .btn-s{background:var(--bg-2);color:var(--ink)}
 .btn-s:hover{background:var(--bg-3)}
-.btn-g{border:1.5px solid var(--line);color:var(--ink-2)}
-.btn-g:hover{border-color:var(--ink-4);color:var(--ink)}
-.btn-sm{min-height:36px;padding:8px 16px;font-size:13.5px}
-.btn svg{width:16px;height:16px}
-.btns{display:flex;gap:var(--sp-1);flex-wrap:wrap}
 
-/* ---------- cartes ---------- */
-.card{background:var(--bg-2);border:1px solid var(--line-2);border-radius:16px;
-  padding:var(--sp-3);box-shadow:none}
-[data-theme="dark"] .card{background:rgba(255,255,255,.018);border-color:rgba(255,255,255,.055)}
-.card-flat{background:var(--bg-2);border:none;border-radius:var(--r-l);padding:var(--sp-3)}
-.card-lift{transition:transform .3s var(--spring),box-shadow .3s var(--spring)}
+/* Action tertiaire : contour d'un cheveu. */
+.btn-g,.btn-ghost{background:transparent;color:var(--ink-2);
+  box-shadow:inset 0 0 0 1px var(--line)}
+.btn-g:hover,.btn-ghost:hover{background:var(--bg-2);color:var(--ink)}
+
+.btn-p{background:var(--ink);color:var(--bg)}
+.btn-p:hover{opacity:.88}
+.btn-sm{min-height:38px;padding:9px 18px;font-size:var(--t-small)}
+.btn-lg{min-height:54px;padding:16px 32px;font-size:16.5px}
+.btns{display:flex;gap:10px;flex-wrap:wrap}
+
+/* ---------- cartes : grandes, arrondies, sans bordure ---------- */
+.card{background:var(--bg-2);border:none;border-radius:var(--r-l);
+  padding:var(--card-pad);box-shadow:none}
+.card-flat{background:var(--bg-2);border-radius:var(--r-l);padding:var(--card-pad)}
+.card-lift{transition:background var(--slow) var(--ease)}
 .card-lift:hover{background:var(--bg-3)}
-.grid{display:grid;gap:var(--sp-2)}
-.g-2{grid-template-columns:repeat(auto-fit,minmax(260px,1fr))}
-.g-3{grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}
-.g-4{grid-template-columns:repeat(auto-fit,minmax(158px,1fr))}
+.card-white{background:var(--bg);box-shadow:var(--shadow-2)}
+.grid{display:grid;gap:var(--space-4)}
+.g-2{grid-template-columns:repeat(auto-fit,minmax(280px,1fr))}
+.g-3{grid-template-columns:repeat(auto-fit,minmax(230px,1fr))}
+.g-4{grid-template-columns:repeat(auto-fit,minmax(165px,1fr))}
 
+/* ---------- champs ---------- */
+.field{width:100%;padding:15px 18px;border-radius:var(--r-s);background:var(--bg-2);
+  border:1.5px solid transparent;min-height:var(--tap);font-size:var(--t-body);
+  transition:border-color var(--fast) ease,background var(--fast) ease}
+.field:focus{outline:none;border-color:var(--accent);background:var(--bg)}
+.field::placeholder{color:var(--ink-4)}
+.field[aria-invalid="true"]{border-color:var(--down)}
+
+/* ---------- sélecteurs segmentés ---------- */
+.seg{display:inline-flex;padding:4px;background:var(--bg-2);border-radius:var(--r-pill);
+  gap:3px;max-width:100%;overflow-x:auto;scrollbar-width:none}
+.seg::-webkit-scrollbar{display:none}
+.seg button{padding:9px 18px;border-radius:var(--r-pill);font-size:var(--t-small);
+  font-weight:550;color:var(--ink-3);white-space:nowrap;min-height:38px;
+  transition:background var(--fast) ease,color var(--fast) ease}
+.seg button[aria-pressed="true"]{background:var(--bg);color:var(--ink);font-weight:600;
+  box-shadow:var(--shadow-2)}
+
+/* ---------- interrupteur ---------- */
+.sw{width:50px;height:30px;border-radius:var(--r-pill);background:var(--bg-4);
+  position:relative;flex:0 0 auto;transition:background var(--slow) var(--ease)}
+.sw i{position:absolute;top:3px;left:3px;width:24px;height:24px;border-radius:50%;
+  background:#fff;box-shadow:var(--shadow-2);transition:transform var(--slow) var(--ease)}
+.sw[aria-checked="true"]{background:var(--accent)}
+.sw[aria-checked="true"] i{transform:translateX(20px)}
+
+/* ---------- séparateurs et états ---------- */
+.divider{height:1px;background:var(--line-2);margin:var(--space-5) 0;border:none}
+.sk{background:linear-gradient(90deg,var(--bg-2) 25%,var(--bg-3) 50%,var(--bg-2) 75%);
+  background-size:200% 100%;animation:sk 1.4s linear infinite;border-radius:var(--r-s);display:block}
+@keyframes sk{from{background-position:200% 0}to{background-position:-200% 0}}
+:focus-visible{outline:2.5px solid var(--accent);outline-offset:3px;border-radius:var(--r-xs)}
+
+/* ---------- pastilles ---------- */
 /* ---------- pastilles ---------- */
 .tag{display:inline-flex;align-items:center;gap:5px;padding:5px 11px;border-radius:100px;
   font-size:12.5px;font-weight:600;white-space:nowrap;letter-spacing:-.01em}
@@ -498,6 +576,22 @@ button:active{transform:scale(.97)}
 .quota-bar em{display:block;height:100%;background:var(--ink);border-radius:100px;
   transition:width .5s var(--spring)}
 
+
+
+/* ---------- accueil ---------- */
+.nb-hero{padding:var(--space-8) 0 var(--space-6);max-width:20ch}
+.nb-hero-2{color:var(--ink-3);font-weight:600}
+.nb-hero-sub{margin-top:var(--space-5);max-width:46ch}
+.nb-hero-act{display:flex;gap:12px;margin-top:var(--space-6);flex-wrap:wrap}
+.nb-split{display:grid;grid-template-columns:1fr 1.25fr;gap:var(--space-4);align-items:stretch}
+.nb-pf{display:flex;flex-direction:column;min-height:220px}
+.nb-pf-val{font-size:clamp(32px,4.6vw,44px);font-weight:700;letter-spacing:-.04em;
+  line-height:1;margin-top:12px;font-variant-numeric:tabular-nums}
+.nb-pf-var{font-size:var(--t-small);font-weight:600;margin-top:12px}
+@media (max-width:820px){
+  .nb-split{grid-template-columns:1fr}
+  .nb-hero{max-width:none;padding-top:var(--space-6)}
+}
 
 /* ---------- ligne de marché ---------- */
 .row-t{font-size:15px;font-weight:600;letter-spacing:-.01em}
@@ -932,7 +1026,7 @@ table.t td:last-child,table.t th:last-child{text-align:right;padding-right:0}
 "use strict";
 /* Repère de version : permet de savoir en une seconde si la page affichée est
    bien la dernière. Visible dans Réglages et dans la console du navigateur. */
-const BUILD = 'live-22';
+const BUILD = 'v2-1';
 console.log('%cNovaBourse ' + BUILD, 'color:#00a651;font-weight:700');
 
 /* ============================================================
@@ -2119,51 +2213,53 @@ function heroChart(){
 
 /* ---------- ACCUEIL : on doit comprendre en trois secondes ---------- */
 PAGES.home = () => {
-  const top = [...scored].sort((a,b) => b.score - a.score).slice(0, 5);
-  const watched = state.watchlist.map(id => byId[id]).filter(Boolean);
+  const suivies = state.watchlist.map(id => byId[id]).filter(Boolean);
+  const marche = stocks.slice(0, 6);
   const pf = portfolioValue();
-  const pulse = marketPulse();
+  const prenom = (state.auth.name || '').split(' ')[0];
 
-  /* Un seul chiffre dominant, une seule action évidente, beaucoup de vide.
-     Tout le reste s'atteint par la navigation, pas en empilant des cartes. */
+  /* L'écran s'ouvre sur un titre, pas sur des chiffres. Il crée la
+     respiration du haut de page et donne son ton à toute l'application. */
   return `
-  <section class="hm">
-    <p class="hm-lab">Portefeuille</p>
-    <p class="hm-big">${fmt.eur(pf.total)}</p>
-    <p class="hm-var ${pf.gain >= 0 ? 'up-t' : 'down-t'}">
-      ${arrow(pf.gainPct)} ${fmt.eur(Math.abs(pf.gain))} (${fmt.pct(pf.gainPct)})</p>
-    <button class="btn btn-a btn-lg hm-cta" data-go="radar">Analyser une entreprise</button>
+  <header class="nb-hero">
+    <h1 class="display">${prenom ? `Bonjour ${esc(prenom)}.` : 'NovaBourse.'}<br>
+      <span class="nb-hero-2">Analysez avant d'investir.</span></h1>
+    <p class="lead nb-hero-sub">Des chiffres vérifiés, un score expliqué, une analyse par plusieurs modèles.</p>
+    <div class="nb-hero-act">
+      <button class="btn btn-a btn-lg" data-go="radar">Analyser une entreprise</button>
+      <button class="btn btn-ghost btn-lg" data-search>Rechercher</button>
+    </div>
+  </header>
+
+  <section class="section">
+    <div class="nb-split">
+      <article class="card nb-pf">
+        <p class="eyebrow">Portefeuille</p>
+        <p class="nb-pf-val tabular-nums">${fmt.eur(pf.total)}</p>
+        <p class="nb-pf-var ${pf.gain >= 0 ? 'up-t' : 'down-t'} tabular-nums">
+          ${arrow(pf.gainPct)} ${fmt.eur(Math.abs(pf.gain))} · ${fmt.pct(pf.gainPct)}</p>
+        <button class="btn btn-s btn-sm" style="margin-top:auto" data-go="portfolio">Voir le détail</button>
+      </article>
+
+      <article class="card nb-watch">
+        <div class="section-h" style="margin-bottom:14px">
+          <p class="eyebrow">Ma liste</p>
+          ${suivies.length ? `<button class="btn btn-ghost btn-sm" data-go="watchlist">Tout voir</button>` : ''}
+        </div>
+        ${suivies.length
+          ? `<div class="rows">${suivies.slice(0, 3).map(x => stockRow(x, { spark:true })).join('')}</div>`
+          : `<p class="small">Touchez l'étoile sur une entreprise pour la suivre.</p>`}
+      </article>
+    </div>
   </section>
 
   <section class="section">
     <div class="section-h">
       <h2 class="h2">Marché</h2>
-      <button class="btn btn-g btn-sm" data-go="radar">Tout voir</button>
+      <button class="btn btn-ghost btn-sm" data-go="explore">Tout voir</button>
     </div>
-    <div class="card"><div class="rows">${top.map(x => stockRow(x)).join('')}</div></div>
+    <div class="card"><div class="rows">${marche.map(x => stockRow(x)).join('')}</div></div>
   </section>
-
-  <section class="section">
-    <div class="section-h">
-      <h2 class="h2">Ma liste</h2>
-      ${watched.length ? `<button class="btn btn-g btn-sm" data-go="watchlist">Tout voir</button>` : ''}
-    </div>
-    <div class="card">
-      ${watched.length
-        ? `<div class="rows">${watched.slice(0, 4).map(x => stockRow(x, { spark:true })).join('')}</div>`
-        : emptyState('Rien de suivi', 'Touchez l’étoile pour suivre une valeur.',
-            { go:'radar', label:'Parcourir' })}
-    </div>
-  </section>
-
-  ${pulse.score === null ? '' : `
-  <section class="section">
-    <button class="hm-pulse" data-pulse>
-      <span><b>Marché ${pulse.score >= 60 ? 'porteur' : pulse.score >= 45 ? 'hésitant' : 'sous pression'}</b>
-        <span>${pulse.factors.length} facteurs mesurés</span></span>
-      <span class="hm-score tabular-nums" style="color:${scoreColor(pulse.score)}">${pulse.score}</span>
-    </button>
-  </section>`}
 
   ${pricingBlock(true)}`;
 };
@@ -4134,7 +4230,7 @@ document.addEventListener('keydown', e => {
 
 /* ---------- démarrage ---------- */
 function boot(){
-  if (!state.settings.theme) state.settings.theme = 'dark';
+  if (!state.settings.theme) state.settings.theme = 'light';
   if (!state.filters.radarRisk) Object.assign(state.filters,
     { radarRisk:'tous', radarMin:0, radarCountry:'tous', radarSector:'tous', exploreSector:'tous' });
   applySettings();
