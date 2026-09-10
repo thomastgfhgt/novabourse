@@ -40,8 +40,24 @@ async function getJSON(url, ms = 9000){
 const SUFFIX = { NASDAQ:'US', NYSE:'US', 'NYSE ARCA':'US', PA:'PA', AS:'AS', DE:'XETRA',
   SW:'SW', L:'LSE', MC:'MC', MI:'MI', BR:'BR', LS:'LS', HE:'HE', ST:'ST', CO:'CO', OL:'OL' };
 const eodhdSymbol = (ticker, exchange) => `${ticker}.${SUFFIX[exchange] || exchange || 'US'}`;
-const tdSymbol = (ticker, exchange) => (exchange && !['NASDAQ','NYSE'].includes(exchange)
-  ? `${ticker}:${exchange}` : ticker);
+/* Twelve Data attend « TICKER:PLACE », avec le nom de place tel qu'il l'emploie.
+   Les marchés américains se passent de suffixe. Une place inconnue est
+   transmise telle quelle : mieux vaut un symbole refusé qu'une correspondance
+   approximative avec une autre société. */
+const TD_EXCHANGE = {
+  NASDAQ:null, NYSE:null, 'NYSE ARCA':null,
+  PA:'Euronext Paris', AS:'Euronext Amsterdam', BR:'Euronext Brussels',
+  LS:'Euronext Lisbon', DE:'XETRA', SW:'SIX', L:'LSE',
+  MC:'BME', MI:'MTA', ST:'OMX', CO:'OMXC', HE:'OMXH', OL:'OSL',
+};
+const tdSymbol = (ticker, exchange) => {
+  if (!exchange) return ticker;
+  if (Object.prototype.hasOwnProperty.call(TD_EXCHANGE, exchange)){
+    const place = TD_EXCHANGE[exchange];
+    return place ? `${ticker}:${place}` : ticker;
+  }
+  return `${ticker}:${exchange}`;
+};
 
 /* ============================================================
    RECHERCHE
@@ -115,13 +131,19 @@ const FUNDAMENTALS = {
     const g = d?.General || {}, h = d?.Highlights || {}, v = d?.Valuation || {};
     const bs = Object.values(d?.Financials?.Balance_Sheet?.quarterly || {})[0] || {};
     const cf = Object.values(d?.Financials?.Cash_Flow?.quarterly || {})[0] || {};
+    /* Résultat net : on le lit dans les états financiers publiés, jamais
+       reconstitué. L'annuel prime sur le trimestriel, qui ne couvre que
+       trois mois et ne se compare pas au chiffre d'affaires sur douze. */
+    const isY = Object.values(d?.Financials?.Income_Statement?.yearly || {})[0] || {};
+    const isQ = Object.values(d?.Financials?.Income_Statement?.quarterly || {})[0] || {};
+    const netIncome = num(isY.netIncome) ?? num(isQ.netIncome) ?? null;
+    const revenue   = num(h.RevenueTTM) ?? num(isY.totalRevenue) ?? null;
     if (!Object.keys(h).length && !Object.keys(g).length) throw new Error('vide');
     return {
       identity: { name:txt(g.Name), exchange:txt(g.Exchange), country:txt(g.CountryName),
         currency:txt(g.CurrencyCode), sector:txt(g.Sector), industry:txt(g.Industry) },
       fundamentals: {
-        revenue:num(h.RevenueTTM), netIncome:num(h.ProfitMargin) !== null && num(h.RevenueTTM) !== null
-          ? Math.round(num(h.RevenueTTM) * num(h.ProfitMargin)) : null,
+        revenue, netIncome,
         eps:num(h.EarningsShare), profitMargin:num(h.ProfitMargin),
         operatingMargin:num(h.OperatingMarginTTM), roe:num(h.ReturnOnEquityTTM),
         debt:num(bs.shortLongTermDebtTotal), cash:num(bs.cash),
@@ -141,7 +163,12 @@ const FUNDAMENTALS = {
     return {
       identity: {},
       fundamentals: {
-        revenue:num(m.revenuePerShareTTM), netIncome:null, eps:num(m.epsTTM),
+        /* revenuePerShareTTM est un chiffre d'affaires PAR ACTION : ce n'est
+           pas le chiffre d'affaires total. Le confondre fausserait toute
+           comparaison de croissance. Finnhub ne donne pas le total via
+           /stock/metric, donc revenue reste null. */
+        revenue:null, revenuePerShare:num(m.revenuePerShareTTM),
+        netIncome:null, eps:num(m.epsTTM),
         profitMargin:num(m.netProfitMarginTTM) !== null ? num(m.netProfitMarginTTM) / 100 : null,
         operatingMargin:num(m.operatingMarginTTM) !== null ? num(m.operatingMarginTTM) / 100 : null,
         roe:num(m.roeTTM) !== null ? num(m.roeTTM) / 100 : null,
@@ -195,5 +222,90 @@ async function cascade(table, ordre, args, journal, bloc){
   return { data: null, source: null };
 }
 
-module.exports = { SEARCH, QUOTE, FUNDAMENTALS, HISTORY, cascade, KEYS, num, getJSON,
-  eodhdSymbol, tdSymbol };
+/* ============================================================
+   COTATIONS EN LOT
+   Twelve Data et EODHD acceptent plusieurs symboles par appel. Finnhub non :
+   il reste un dernier recours, volontairement plafonné.
+   Chaque adaptateur reçoit [{ticker, exchange}] et rend une Map indexée par
+   « TICKER@EXCHANGE » — la conversion vers le format du fournisseur se fait
+   ici, jamais dans le navigateur.
+   ============================================================ */
+const idDe = v => `${v.ticker}@${v.exchange || ''}`;
+
+const BATCH = {
+  limite: { twelvedata: 120, eodhd: 100, finnhub: 10 },
+
+  async twelvedata(valeurs, key){
+    /* En lot, Twelve Data renvoie un objet DONT LES CLÉS sont exactement les
+       symboles demandés. On s'appuie sur cette clé, pas sur les champs de la
+       réponse : q.exchange n'est pas garanti et son format varie selon les
+       places. Si une ligne n'est rattachable à aucune demande, elle est
+       ignorée — la cotation sera simplement considérée absente. */
+    const map = new Map(valeurs.map(v => [tdSymbol(v.ticker, v.exchange), v]));
+    const demandes = [...map.keys()];
+    const d = await getJSON(`https://api.twelvedata.com/quote`
+      + `?symbol=${demandes.map(encodeURIComponent).join(',')}&apikey=${key}`, 12000);
+    if (!d || d.status === 'error') throw new Error(d?.message || 'vide');
+
+    // Un seul symbole : la réponse est l'objet lui-même, sans clé.
+    const entrees = demandes.length === 1
+      ? [[demandes[0], d]]
+      : Object.entries(d);
+
+    const out = new Map();
+    for (const [cle, q] of entrees){
+      if (!q || typeof q !== 'object' || q.status === 'error') continue;
+      if (num(q.close) === null) continue;
+      const src = map.get(cle);
+      if (!src) continue;                    // aucune association certaine
+      out.set(idDe(src), { symbol: idDe(src), ticker: src.ticker, exchange: src.exchange,
+        price: num(q.close), changePercent: num(q.percent_change), change: num(q.change),
+        currency: txt(q.currency),
+        timestamp: q.timestamp ? new Date(q.timestamp * 1000).toISOString() : null });
+    }
+    if (!out.size) throw new Error('aucune ligne exploitable');
+    return out;
+  },
+
+  async eodhd(valeurs, key){
+    const map = new Map(valeurs.map(v => [eodhdSymbol(v.ticker, v.exchange), v]));
+    const [premier, ...reste] = [...map.keys()];
+    const d = await getJSON(`https://eodhd.com/api/real-time/${encodeURIComponent(premier)}`
+      + `?api_token=${key}&fmt=json`
+      + (reste.length ? `&s=${reste.map(encodeURIComponent).join(',')}` : ''), 12000);
+    const lignes = Array.isArray(d) ? d : [d];
+    const out = new Map();
+    for (const q of lignes){
+      if (!q || num(q.close) === null) continue;
+      const src = map.get(q.code);
+      if (!src) continue;
+      out.set(idDe(src), { symbol: idDe(src), ticker: src.ticker, exchange: src.exchange,
+        price: num(q.close), changePercent: num(q.change_p), change: num(q.change),
+        currency: null,
+        timestamp: q.timestamp ? new Date(q.timestamp * 1000).toISOString() : null });
+    }
+    if (!out.size) throw new Error('aucune ligne exploitable');
+    return out;
+  },
+
+  /* Finnhub n'a pas d'endpoint groupé. On le plafonne strictement : mieux vaut
+     une réponse partielle que des dizaines d'appels par affichage. */
+  async finnhub(valeurs, key){
+    const out = new Map();
+    for (const v of valeurs.slice(0, BATCH.limite.finnhub)){
+      try {
+        const q = await getJSON(`https://finnhub.io/api/v1/quote`
+          + `?symbol=${encodeURIComponent(v.ticker)}&token=${key}`, 6000);
+        if (num(q?.c) === null || num(q.c) === 0) continue;
+        out.set(idDe(v), { symbol: idDe(v), ticker: v.ticker, exchange: v.exchange,
+          price: num(q.c), changePercent: num(q.dp), change: num(q.d), currency: null,
+          timestamp: q.t ? new Date(q.t * 1000).toISOString() : null });
+      } catch {}
+    }
+    if (!out.size) throw new Error('aucune ligne exploitable');
+    return out;
+  },
+};
+
+module.exports = { SEARCH, QUOTE, FUNDAMENTALS, HISTORY, BATCH, cascade, KEYS, num, txt,
+  getJSON, eodhdSymbol, tdSymbol, idDe, SUFFIX, TD_EXCHANGE };
