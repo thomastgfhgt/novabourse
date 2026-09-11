@@ -116,11 +116,25 @@ function metriquesFondamentales(f = {}, market = {}){
   out.roe             = fini(f.roe);
 
   // — Croissance (séries annuelles extraites par l'adaptateur)
+  /* Les séries arrivent sous la forme [{date, annee, valeur}], du plus récent
+     au plus ancien. On n'accepte que deux exercices RÉELLEMENT consécutifs :
+     comparer 2025 à 2023 en l'appelant « croissance annuelle » serait faux. */
   for (const [cle, serie] of [['revenueGrowth', f.revenueSeries],
                               ['epsGrowth', f.epsSeries],
                               ['fcfGrowth', f.fcfSeries]]){
-    if (!Array.isArray(serie) || serie.length < 2){ out[cle] = null; continue; }
-    const c = croissance(serie[1], serie[0]);   // [0] = exercice le plus récent
+    out[cle] = null;
+    if (!Array.isArray(serie) || serie.length < 2) continue;
+
+    const valides = serie.filter(x => x && typeof x === 'object'
+      && Number.isFinite(x.valeur) && Number.isInteger(x.annee));
+    if (valides.length < 2){ notes[cle] = 'serie_incomplete'; continue; }
+
+    const [recent, precedent] = valides;
+    if (recent.annee - precedent.annee !== 1){
+      notes[cle] = `exercices_non_consecutifs (${precedent.annee}->${recent.annee})`;
+      continue;
+    }
+    const c = croissance(precedent.valeur, recent.valeur);
     out[cle] = c.value;
     if (c.reason) notes[cle] = c.reason;
     if (c.note) notes[cle] = c.note;
