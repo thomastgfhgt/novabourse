@@ -1,1152 +1,244 @@
 /**
  * POST /api/analyze — analyse par modèle de langage.
- *
- * Quota appliqué côté serveur selon le plan.
- * Clés privées jamais exposées au navigateur.
- *
- * Le NovaScore est calculé exclusivement par le moteur NovaBourse.
- * Le modèle de langage peut l'expliquer, mais ne peut jamais le produire,
- * le modifier ou lui substituer une autre note.
+ * Quota appliqué côté serveur selon le plan. Clés jamais exposées.
+ * Règle inchangée : le modèle rend un verdict qualitatif et des facteurs en
+ * texte. Aucun chiffre produit par lui n'est conservé.
  */
-
 const { userFromToken, sb } = require('./me.js');
+const { PLAN_LIMITS, planReel, limiteDe, consommation, reserver, cloturer, quotaBlock } = require('./_limits.js');
+const { novascore } = require('./market/_novascore.js');
 
-const {
-  planReel,
-  limiteDe,
-  reserver,
-  cloturer,
-  quotaBlock,
-} = require('./_limits.js');
-
-const {
-  novascore,
-} = require('./market/_novascore.js');
-
-
-/* ============================================================
-   FOURNISSEURS IA
-   ============================================================ */
-
-/*
- * xAI est prioritaire actuellement.
- *
- * Les modèles restent configurables par variables d'environnement
- * afin de pouvoir les mettre à jour sans modifier le code.
- */
+/* Ordre de priorité : xAI d'abord, c'est la couche qu'on valide en premier.
+   Le modèle est configurable pour ne pas avoir à toucher au code. */
 const PROVIDERS = {
-  xai: {
-    env: 'XAI_API_KEY',
-    url: 'https://api.x.ai/v1/chat/completions',
-
-    model: () =>
-      process.env.XAI_MODEL
-      || 'grok-4.6',
-
-    auth: key => ({
-      Authorization: `Bearer ${key}`,
-    }),
-  },
-
-  openai: {
-    env: 'OPENAI_API_KEY',
-    url: 'https://api.openai.com/v1/chat/completions',
-
-    model: () =>
-      process.env.OPENAI_MODEL
-      || 'gpt-4.1-mini',
-
-    auth: key => ({
-      Authorization: `Bearer ${key}`,
-    }),
-  },
-
-  anthropic: {
-    env: 'ANTHROPIC_API_KEY',
-    url: 'https://api.anthropic.com/v1/messages',
-
-    model: () =>
-      process.env.ANTHROPIC_MODEL
-      || 'claude-sonnet-4-5',
-
-    auth: key => ({
-      'x-api-key': key,
-      'anthropic-version': '2023-06-01',
-    }),
-  },
+  xai:       { env:'XAI_API_KEY',       url:'https://api.x.ai/v1/chat/completions',
+               model: () => process.env.XAI_MODEL || 'grok-4.6',
+               auth: k => ({ Authorization:`Bearer ${k}` }) },
+  openai:    { env:'OPENAI_API_KEY',    url:'https://api.openai.com/v1/chat/completions',
+               model: () => process.env.OPENAI_MODEL || 'gpt-4.1-mini',
+               auth: k => ({ Authorization:`Bearer ${k}` }) },
+  anthropic: { env:'ANTHROPIC_API_KEY', url:'https://api.anthropic.com/v1/messages',
+               model: () => process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-5',
+               auth: k => ({ 'x-api-key':k, 'anthropic-version':'2023-06-01' }) },
 };
+const actif = () => Object.entries(PROVIDERS).filter(([, p]) => process.env[p.env]);
 
-
-/**
- * Fournisseurs réellement disponibles.
- */
-const actif = () =>
-  Object.entries(PROVIDERS)
-    .filter(([, provider]) =>
-      Boolean(process.env[provider.env])
-    );
-
-
-/* ============================================================
-   CONSIGNE IA
-   ============================================================ */
-
-const CONSIGNE = `
-Tu analyses une entreprise cotée uniquement à partir des données fournies.
-
-Réponds en JSON strict avec exactement cette structure :
-
-{
-  "verdict": "positif|neutre|negatif|insuffisant",
-  "uncertainty": "faible|moyenne|elevee",
-  "summary": "...",
-  "positive": ["..."],
-  "negative": ["..."]
-}
-
+const CONSIGNE = `Tu analyses une entreprise cotée à partir des seuls chiffres fournis.
+Réponds en JSON strict : {"verdict":"positif|neutre|negatif|insuffisant","uncertainty":"faible|moyenne|elevee","summary":"...","positive":["..."],"negative":["..."]}
 Règles absolues :
-
-- N'invente aucun chiffre.
-- Ne cite que les données réellement présentes dans le contexte.
-- Une valeur null est indisponible.
-- Ne remplace jamais une donnée absente par une estimation.
-- Ne produis aucun objectif de cours.
-- Ne produis aucune probabilité de réussite.
+- N'invente aucun chiffre. Ne cite que ceux du contexte.
+- Ne produis aucun objectif de cours, aucune probabilité, aucun pourcentage de réussite.
 - Ne recommande jamais d'acheter ou de vendre.
-- Ne produis aucune note, aucun score, aucun rating.
-- Ne propose jamais ton propre NovaScore.
-- Le NovaScore fourni dans le contexte est calculé par NovaBourse.
-- Tu peux expliquer les facteurs qui semblent cohérents ou en tension avec lui.
-- Si les données importantes sont insuffisantes, utilise le verdict "insuffisant".
-`.trim();
-
-
-/* ============================================================
-   VERROU DE SORTIE IA
-   ============================================================ */
-
-/*
- * On n'essaie pas simplement d'interdire certains champs.
- *
- * On fait l'inverse :
- * seules cinq propriétés sont autorisées à sortir du modèle.
- *
- * Ainsi, même si le modèle renvoie :
- *
- * {
- *   "score": 95,
- *   "note": "88/100",
- *   "novascore": 77,
- *   "target": 400
- * }
- *
- * aucun de ces champs n'a de chemin vers analysis.
- */
-const CHAMPS_AUTORISES = new Set([
-  'verdict',
-  'uncertainty',
-  'summary',
-  'positive',
-  'negative',
-]);
-
-
-const VERDICTS = new Set([
-  'positif',
-  'neutre',
-  'negatif',
-  'insuffisant',
-]);
-
-
-const INCERTITUDES = new Set([
-  'faible',
-  'moyenne',
-  'elevee',
-]);
-
-
-/*
- * Expressions numériques ressemblant explicitement à une note.
- *
- * On ne retire PAS tous les chiffres présents dans le texte :
- * le modèle reste autorisé à commenter un chiffre financier
- * réellement fourni dans son contexte.
- *
- * En revanche :
- *
- *   95/100
- *   score 95
- *   note : 88/100
- *   NovaScore = 77
- *
- * sont supprimés.
- */
-const SCORE_SUR_100 =
-  /\b\d{1,3}(?:[.,]\d+)?\s*\/\s*100\b/gi;
-
-const SCORE_NOMME =
-  /\b(?:nova\s*score|novascore|score|note|rating)\b\s*(?:[:=]|(?:est|de|à))?\s*\d{1,3}(?:[.,]\d+)?(?:\s*\/\s*100)?/gi;
-
-const OBJECTIF_PROBA =
-  /\b(?:target|objectif(?:\s+de\s+cours)?|probabilit[eé]|probability|confidence)\b\s*(?:[:=]|(?:est|de|à))?\s*\d+(?:[.,]\d+)?\s*%?/gi;
-
-
-/**
- * Nettoyage d'un texte IA.
- */
-function nettoyerTexte(value){
-  if (typeof value !== 'string'){
-    return '';
-  }
-
-  return value
-    .replace(SCORE_NOMME, '')
-    .replace(SCORE_SUR_100, '')
-    .replace(OBJECTIF_PROBA, '')
-    .replace(/\s{2,}/g, ' ')
-    .replace(/\s+([,.;!?])/g, '$1')
-    .trim();
-}
-
-
-/**
- * Nettoyage d'une liste de facteurs.
- */
-function nettoyerListe(value){
-  if (!Array.isArray(value)){
-    return [];
-  }
-
-  return value
-    .filter(v =>
-      typeof v === 'string'
-    )
-    .map(nettoyerTexte)
-    .filter(Boolean)
-    .slice(0, 12);
-}
-
-
-/**
- * Construction explicite de l'analyse autorisée.
- *
- * Aucun autre champ du JSON produit par l'IA n'est conservé.
- */
-function verrouillerAnalyse(parsed){
-  const src =
-    parsed
-    && typeof parsed === 'object'
-    && !Array.isArray(parsed)
-      ? parsed
-      : {};
-
-  const retires =
-    Object.keys(src)
-      .filter(k =>
-        !CHAMPS_AUTORISES.has(k)
-      );
-
-  let verdict =
-    typeof src.verdict === 'string'
-      ? src.verdict
-          .trim()
-          .toLowerCase()
-      : '';
-
-  if (!VERDICTS.has(verdict)){
-    verdict = 'insuffisant';
-  }
-
-  let uncertainty =
-    typeof src.uncertainty === 'string'
-      ? src.uncertainty
-          .trim()
-          .toLowerCase()
-      : '';
-
-  if (!INCERTITUDES.has(uncertainty)){
-    uncertainty = 'elevee';
-  }
-
-  const analysis = {
-    verdict,
-
-    uncertainty,
-
-    summary:
-      nettoyerTexte(
-        src.summary
-      ),
-
-    positive:
-      nettoyerListe(
-        src.positive
-      ),
-
-    negative:
-      nettoyerListe(
-        src.negative
-      ),
-  };
-
-  return {
-    analysis,
-    removedFields: retires,
-  };
-}
-
-
-/* ============================================================
-   HANDLER
-   ============================================================ */
+- Si les données manquent, réponds "insuffisant".`;
 
 module.exports = async (req, res) => {
-
-  /* ------------------------------------------------------------
-     GET — état des modèles
-     ------------------------------------------------------------ */
-
   if (req.method === 'GET'){
     return res.status(200).json({
-      providers:
-        Object.fromEntries(
-          Object.entries(PROVIDERS)
-            .map(([name, provider]) => [
-              name,
-              {
-                configured:
-                  Boolean(
-                    process.env[
-                      provider.env
-                    ]
-                  ),
+      providers: Object.fromEntries(Object.entries(PROVIDERS)
+        .map(([k, v]) => [k, { configured: Boolean(process.env[v.env]),
+          model: typeof v.model === 'function' ? v.model() : v.model }])),
+      active: actif()[0]?.[0] || null,
+    });
+  }
+  if (req.method !== 'POST') return res.status(405).json({ error: 'methode_non_autorisee' });
 
-                model:
-                  typeof provider.model === 'function'
-                    ? provider.model()
-                    : provider.model,
-              },
-            ])
-        ),
+  const user = await userFromToken(req);
+  if (!user) return res.status(401).json({ error: 'non_connecte' });
 
-      active:
-        actif()[0]?.[0]
-        || null,
+  const dispo = actif();
+  if (!dispo.length) {
+    return res.status(503).json({ error: 'aucun_modele_configure',
+      message: "Aucune clé de modèle n'est configurée sur le serveur." });
+  }
+
+  /* ---------- PLAN RÉEL ----------
+     Lu dans Supabase. Un plan inconnu, absent ou dont l'abonnement n'est plus
+     actif retombe sur free — jamais sur pro ni elite. */
+  const { plan } = await planReel(sb, user.id);
+
+  const { ticker, exchange } = req.body || {};
+  // Aucune entreprise par défaut : sans identification, aucun appel ne part.
+  if (!ticker) return res.status(400).json({ error: 'entreprise_non_identifiee' });
+
+  /* Le dossier financier est récupéré ICI, côté serveur. Le navigateur ne
+     transmet plus aucun chiffre : il ne pourrait pas en garantir l'origine. */
+  const proto = req.headers['x-forwarded-proto'] || 'https';
+  const base = `${proto}://${req.headers.host}`;
+  let dossier = null;
+  try {
+    const r = await fetch(`${base}/api/market/company?ticker=${encodeURIComponent(ticker)}`
+      + (exchange ? `&exchange=${encodeURIComponent(exchange)}` : ''));
+    dossier = await r.json();
+  } catch (e){
+    console.error('[analyze] dossier :', e.message);
+  }
+  if (!dossier || dossier.error || !dossier.market){
+    return res.status(424).json({ error: 'donnees_indisponibles',
+      message: "Les données financières de cette société n'ont pas pu être récupérées.",
+      detail: dossier?.error || dossier?.missing || null, journal: dossier?.journal || null });
+  }
+
+  /* NovaScore : calculé ICI, par notre moteur, à partir du dossier réel.
+     Le modèle le recevra pour l'expliquer — jamais pour le produire. */
+  const nova = novascore(dossier);
+
+  /* VERROU DE QUOTA.
+     Une cotation isolée ne permet aucune analyse d'entreprise : sans
+     fondamentaux NI historique, on refuse AVANT la réservation, donc sans
+     consommer d'analyse. La réservation intervient plus bas (ligne ~129). */
+  const manquants = dossier.missing || [];
+  if (manquants.includes('fundamentals') && manquants.includes('history')){
+    return res.status(424).json({
+      error: 'donnees_insuffisantes',
+      message: "Seule une cotation ponctuelle est disponible pour cette société. "
+        + "Sans fondamentaux ni historique, aucune analyse n'est possible — "
+        + "votre quota n'a pas été utilisé.",
+      quotaConsomme: false,
+      sources: dossier.sources, missing: manquants,
+      journal: (dossier.journal || []).filter(j => !j.ok),
     });
   }
 
-
-  if (req.method !== 'POST'){
-    return res
-      .status(405)
-      .json({
-        error:
-          'methode_non_autorisee',
-      });
-  }
-
-
-  /* ------------------------------------------------------------
-     AUTHENTIFICATION
-     ------------------------------------------------------------ */
-
-  const user =
-    await userFromToken(req);
-
-  if (!user){
-    return res
-      .status(401)
-      .json({
-        error:
-          'non_connecte',
-      });
-  }
-
-
-  /* ------------------------------------------------------------
-     FOURNISSEUR IA
-     ------------------------------------------------------------ */
-
-  const dispo =
-    actif();
-
-  if (!dispo.length){
-    return res
-      .status(503)
-      .json({
-        error:
-          'aucun_modele_configure',
-
-        message:
-          "Aucune clé de modèle n'est configurée sur le serveur.",
-      });
-  }
-
-
-  /* ============================================================
-     PLAN RÉEL
-     ============================================================ */
-
-  /*
-   * Le plan est lu dans Supabase.
-   *
-   * Un plan inconnu, absent ou inactif
-   * retombe sur FREE dans _limits.js.
-   */
-  const {
-    plan,
-  } = await planReel(
-    sb,
-    user.id
-  );
-
-
-  /* ============================================================
-     ENTREPRISE
-     ============================================================ */
-
-  const {
-    ticker,
-    exchange,
-  } = req.body || {};
-
-
-  if (!ticker){
-    return res
-      .status(400)
-      .json({
-        error:
-          'entreprise_non_identifiee',
-      });
-  }
-
-
-  /* ============================================================
-     DOSSIER FINANCIER RÉEL
-     ============================================================ */
-
-  /*
-   * Le navigateur ne transmet aucun chiffre financier.
-   *
-   * Le serveur reconstruit lui-même le dossier
-   * à partir de la couche marché.
-   */
-  const proto =
-    req.headers['x-forwarded-proto']
-    || 'https';
-
-  const host =
-    req.headers.host;
-
-  const base =
-    `${proto}://${host}`;
-
-  let dossier = null;
-
-
-  try {
-    const url =
-      `${base}/api/market/company`
-      + `?ticker=${encodeURIComponent(ticker)}`
-      + (
-        exchange
-          ? `&exchange=${encodeURIComponent(exchange)}`
-          : ''
-      );
-
-    const r =
-      await fetch(url);
-
-    dossier =
-      await r.json();
-
-  } catch (e){
-    console.error(
-      '[analyze] dossier :',
-      e.message
-    );
-  }
-
-
-  /*
-   * Pas de cotation réelle :
-   * aucune analyse IA n'est lancée.
-   */
-  if (
-    !dossier
-    || dossier.error
-    || !dossier.market
-  ){
-    return res
-      .status(424)
-      .json({
-        error:
-          'donnees_indisponibles',
-
-        message:
-          "Les données financières de cette société n'ont pas pu être récupérées.",
-
-        detail:
-          dossier?.error
-          || dossier?.missing
-          || null,
-
-        journal:
-          dossier?.journal
-          || null,
-      });
-  }
-
-
-  /* ============================================================
-     NOVASCORE
-     ============================================================ */
-
-  /*
-   * Calcul déterministe côté serveur.
-   *
-   * L'objet nova est la SEULE source du NovaScore.
-   */
-  const nova =
-    novascore(dossier);
-
-
-  const company =
-    dossier.identity?.name
-    || ticker;
-
-
-  /* ============================================================
-     CONTEXTE TRANSMIS À L'IA
-     ============================================================ */
-
+  const company = dossier.identity?.name || ticker;
   const context = {
-    identite:
-      dossier.identity,
-
-    marche:
-      dossier.market,
-
-    fondamentaux:
-      dossier.fundamentals,
-
-    historique:
-      dossier.history
-        ? {
-            seances:
-              dossier.history.points,
-
-            premier:
-              dossier.history.ohlcv?.[0]
-              || null,
-
-            dernier:
-              dossier.history.ohlcv?.[
-                dossier.history.ohlcv.length - 1
-              ]
-              || null,
-
-            clotures:
-              Array.isArray(
-                dossier.history.ohlcv
-              )
-                ? dossier.history.ohlcv
-                    .slice(-60)
-                    .map(x => x.close)
-                : [],
-          }
-        : null,
-
-    sources:
-      dossier.sources,
-
-    donneesManquantes:
-      dossier.missing,
-
-    /*
-     * Le modèle voit le NovaScore officiel
-     * uniquement pour pouvoir l'expliquer.
-     */
-    novaScore:
-      nova.score,
-
-    novaDetail:
-      nova.score === null
-        ? null
-        : {
-            couverture:
-              nova.coverage,
-
-            coherence:
-              nova.coherence,
-
-            confiance:
-              nova.confidence,
-
-            familles:
-              Object.fromEntries(
-                Object.entries(
-                  nova.families
-                )
-                  .map(
-                    ([, value]) => [
-                      value.label,
-                      value.score,
-                    ]
-                  )
-              ),
-
-            metriquesAbsentes:
-              Object.values(
-                nova.families
-              )
-                .flatMap(
-                  value =>
-                    value.missing
-                    || []
-                ),
-          },
+    identite: dossier.identity,
+    marche: dossier.market,
+    fondamentaux: dossier.fundamentals,
+    historique: dossier.history ? {
+      seances: dossier.history.points,
+      premier: dossier.history.ohlcv[0] || null,
+      dernier: dossier.history.ohlcv[dossier.history.ohlcv.length - 1] || null,
+      clotures: dossier.history.ohlcv.slice(-60).map(x => x.close),
+    } : null,
+    sources: dossier.sources,
+    donneesManquantes: dossier.missing,
+    novaScore: nova.score,
+    novaDetail: nova.score === null ? null : {
+      couverture: nova.coverage, coherence: nova.coherence, confiance: nova.confidence,
+      familles: Object.fromEntries(Object.entries(nova.families)
+        .map(([k, v]) => [v.label, v.score])),
+      metriquesAbsentes: Object.values(nova.families).flatMap(v => v.missing),
+    },
   };
 
-
-  /* ============================================================
-     PROMPT
-     ============================================================ */
-
-  const [
-    id,
-    provider,
-  ] = dispo[0];
-
-
-  const key =
-    process.env[
-      provider.env
-    ];
-
-
-  const modele =
-    typeof provider.model === 'function'
-      ? provider.model()
-      : provider.model;
-
-
-  const prompt =
-`${CONSIGNE}
+  const [id, p] = dispo[0];
+  const key = process.env[p.env];
+  const modele = typeof p.model === 'function' ? p.model() : p.model;
+  const prompt = `${CONSIGNE}
 
 Entreprise : ${company} (${ticker})
-
 Données disponibles :
-${JSON.stringify(context, null, 1)}
+${JSON.stringify(context || {}, null, 1)}
 
-Si une donnée n'apparaît pas ci-dessus ou vaut null, elle est INDISPONIBLE.
-Ne la remplace jamais par une estimation.
+Si une donnée n'apparaît pas ci-dessus ou vaut null, elle est INDISPONIBLE :
+ne la remplace par aucune estimation, et signale-le dans "negative" si elle est
+importante pour juger l'entreprise.
 
-Le NovaScore éventuellement présent dans le contexte est calculé par
-NovaBourse. Tu peux expliquer les facteurs qui le soutiennent ou semblent
-en tension avec lui, mais tu ne produis jamais une autre note et tu ne
-modifies jamais le NovaScore.`;
+Le NovaScore est calculé par NovaBourse à partir de ces chiffres. Tu peux
+l'expliquer ou relever ce qui te semble en tension avec lui, mais tu ne produis
+jamais et ne modifies jamais de note.`;
 
-
-
-  /* ============================================================
-     RÉSERVATION ATOMIQUE DU QUOTA
-     ============================================================ */
-
-  /*
-   * Postgres compte et insère dans la même transaction.
-   *
-   * Deux clics simultanés ne peuvent pas dépasser la limite.
-   */
-  const resa =
-    await reserver(
-      sb,
-      user.id,
-      plan
-    );
-
-
+  /* ---------- RÉSERVATION ATOMIQUE ----------
+     Postgres compte et insère dans une seule transaction, sous verrou par
+     utilisateur : deux clics simultanés ne peuvent pas dépasser la limite.
+     Si la réservation est impossible, on s'arrête ici : jamais d'appel au
+     fournisseur sans trace de consommation. */
+  const resa = await reserver(sb, user.id, plan);
   if (!resa.ok){
-
-    if (
-      resa.reason
-      === 'quota_exceeded'
-    ){
-      const q =
-        quotaBlock(
-          plan,
-          resa.used
-          ?? limiteDe(plan)
-        );
-
-      return res
-        .status(429)
-        .json({
-          error:
-            'quota_exceeded',
-
-          message:
-            `Vous avez utilisé vos ${limiteDe(plan)} analyses incluses ce mois-ci.`,
-
-          ...q,
-        });
+    if (resa.reason === 'quota_exceeded'){
+      const q = quotaBlock(plan, resa.used ?? limiteDe(plan));
+      return res.status(429).json({ error:'quota_exceeded',
+        message:`Vous avez utilisé vos ${limiteDe(plan)} analyses incluses ce mois-ci.`, ...q });
     }
-
-
-    if (
-      resa.reason
-      === 'rate_limited'
-    ){
-      return res
-        .status(429)
-        .json({
-          error:
-            'rate_limited',
-
-          message:
-            "Trop d'analyses lancées en peu de temps. Réessayez dans quelques minutes.",
-
-          plan,
-        });
+    if (resa.reason === 'rate_limited'){
+      return res.status(429).json({ error:'rate_limited',
+        message:"Trop d'analyses lancées en peu de temps. Réessayez dans quelques minutes.",
+        plan });
     }
-
-
-    console.error(
-      '[analyze] réservation impossible :',
-      resa.detail
-      || resa.reason
-    );
-
-
-    return res
-      .status(503)
-      .json({
-        error:
-          'quota_indisponible',
-
-        message:
-          "Le compteur d'analyses est momentanément indisponible. Réessayez.",
-      });
+    console.error('[analyze] réservation impossible :', resa.detail || resa.reason);
+    return res.status(503).json({ error:'quota_indisponible',
+      message:"Le compteur d'analyses est momentanément indisponible. Réessayez." });
   }
+  const reservation = resa.reservationId;
+  /* reserve_analysis renvoie v_mois + 1 : la réservation qui vient d'être
+     insérée est DÉJÀ comptée. On ne rajoute donc rien à cette valeur. */
+  const utilise = resa.used;
 
+  const annuler = statut => cloturer(sb, reservation, statut || 'cancelled');
 
-  const reservation =
-    resa.reservationId;
-
-
-  /*
-   * reserve_analysis renvoie déjà le nombre
-   * incluant la réservation créée.
-   *
-   * Aucun +1 ici.
-   */
-  const utilise =
-    resa.used;
-
-
-  const annuler =
-    statut =>
-      cloturer(
-        sb,
-        reservation,
-        statut
-        || 'cancelled'
-      );
-
-
-  /* ============================================================
-     APPEL IA
-     ============================================================ */
-
-  let parsed = null;
-  let usage = null;
-
-
+  let parsed = null, brut = '', usage = null;
   try {
-    const body = {
-      model:
-        modele,
-
-      max_tokens:
-        900,
-
-      messages: [
-        {
-          role:
-            'user',
-
-          content:
-            prompt,
-        },
-      ],
-    };
-
-
-    const ctrl =
-      new AbortController();
-
-
-    const timeout =
-      setTimeout(
-        () => ctrl.abort(),
-        30000
-      );
-
-
-    let r;
-
-    try {
-      r =
-        await fetch(
-          provider.url,
-          {
-            method:
-              'POST',
-
-            signal:
-              ctrl.signal,
-
-            headers: {
-              'Content-Type':
-                'application/json',
-
-              ...provider.auth(
-                key
-              ),
-            },
-
-            body:
-              JSON.stringify(
-                body
-              ),
-          }
-        );
-    } finally {
-      clearTimeout(
-        timeout
-      );
-    }
-
-
-    let d;
-
-    try {
-      d =
-        await r.json();
-    } catch {
-      await annuler(
-        'cancelled'
-      );
-
-      return res
-        .status(502)
-        .json({
-          error:
-            'reponse_illisible',
-
-          provider:
-            id,
-
-          detail:
-            'json_invalide',
-        });
-    }
-
-
+    const body = { model: modele, max_tokens: 900,
+      messages: [{ role:'user', content: prompt }] };
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 30000);
+    const r = await fetch(p.url, { method:'POST', signal: ctrl.signal,
+      headers: { 'Content-Type':'application/json', ...p.auth(key) }, body: JSON.stringify(body) });
+    clearTimeout(t);
+    const d = await r.json();
     if (!r.ok){
-      console.error(
-        '[analyze]',
-        id,
-        r.status,
-        JSON.stringify(d)
-          .slice(0, 300)
-      );
-
-
-      await annuler(
-        'cancelled'
-      );
-
-
-      return res
-        .status(502)
-        .json({
-          error:
-            'fournisseur_en_erreur',
-
-          provider:
-            id,
-
-          status:
-            r.status,
-
-          detail:
-            d?.error?.message
-            || d?.error
-            || null,
-        });
+      console.error('[analyze]', id, r.status, JSON.stringify(d).slice(0, 300));
+      await annuler('cancelled');
+      return res.status(502).json({ error: 'fournisseur_en_erreur', provider: id,
+        status: r.status, detail: d?.error?.message || d?.error || null });
     }
-
-
-    const brut =
-      id === 'anthropic'
-        ? (
-            d.content?.[0]?.text
-            || ''
-          )
-        : (
-            d.choices?.[0]
-              ?.message
-              ?.content
-            || ''
-          );
-
-
-    parsed =
-      JSON.parse(
-        brut
-          .replace(
-            /```json|```/gi,
-            ''
-          )
-          .trim()
-      );
-
-
-    usage =
-      d.usage
-      || null;
-
-  } catch (e){
-
-    console.error(
-      '[analyze]',
-      id,
-      e.message
-    );
-
-
-    await annuler(
-      'cancelled'
-    );
-
-
-    return res
-      .status(502)
-      .json({
-        error:
-          e.name === 'AbortError'
-            ? 'delai_depasse'
-            : 'reponse_illisible',
-
-        provider:
-          id,
-
-        detail:
-          e.message,
-      });
+    brut = id === 'anthropic' ? (d.content?.[0]?.text || '') : (d.choices?.[0]?.message?.content || '');
+    parsed = JSON.parse(brut.replace(/```json|```/g, '').trim());
+    usage = d.usage || null;
+  } catch (e) {
+    console.error('[analyze]', id, e.message);
+    await annuler('cancelled');
+    return res.status(502).json({ error: e.name === 'AbortError' ? 'delai_depasse' : 'reponse_illisible',
+      provider: id, detail: e.message });
   }
 
-
-  /* ============================================================
-     VERROU FINAL IA
-     ============================================================ */
-
-  /*
-   * À partir d'ici, on ne transmet PAS directement parsed.
-   *
-   * On reconstruit une analyse à partir
-   * de la liste blanche de champs autorisés.
-   */
-  const {
-    analysis,
-    removedFields,
-  } = verrouillerAnalyse(
-    parsed
-  );
-
-
-  /* ============================================================
-     CLÔTURE DU QUOTA
-     ============================================================ */
-
-  await cloturer(
-    sb,
-    reservation,
-    'ok',
-    {
-      provider:
-        id,
-
-      model:
-        modele,
-
-      tokens_in:
-        usage?.prompt_tokens
-        ?? usage?.input_tokens
-        ?? null,
-
-      tokens_out:
-        usage?.completion_tokens
-        ?? usage?.output_tokens
-        ?? null,
+  /* VERROU. Deux filtres, puis une construction explicite de la réponse.
+     1. tout champ numérique produit par le modèle est retiré ;
+     2. tout champ dont le NOM évoque une note l'est aussi, quel que soit son
+        type — « "78/100" » en texte serait sinon passé ;
+     3. le NovaScore renvoyé plus bas provient de l'objet du moteur : la
+        valeur du modèle n'a aucun chemin vers l'affichage. */
+  const INTERDITS = /(^|_)(score|note|rating|novascore|target|objectif|prob|probability|confidence|valuation|price)/i;
+  const retires = [];
+  for (const k of Object.keys(parsed)) {
+    if (typeof parsed[k] === 'number' || INTERDITS.test(k)) {
+      retires.push(k); delete parsed[k];
     }
-  );
+  }
 
+  await cloturer(sb, reservation, 'ok', { provider:id, model:modele,
+    tokens_in: usage?.prompt_tokens ?? null, tokens_out: usage?.completion_tokens ?? null });
 
-  /* ============================================================
-     RÉPONSE
-     ============================================================ */
-
-  res.setHeader(
-    'Cache-Control',
-    'no-store'
-  );
-
-
-  return res
-    .status(200)
-    .json({
-
-      /*
-       * Vrai seulement si un fournisseur marché
-       * a réellement produit au moins un bloc.
-       */
-      marketConnected:
-        Boolean(
-          dossier.sources
-          && (
-            dossier.sources.quote
-            || dossier.sources.fundamentals
-            || dossier.sources.history
-          )
-        ),
-
-
-      sources:
-        dossier.sources,
-
-      asOf:
-        dossier.asOf,
-
-      missing:
-        dossier.missing,
-
-      identity:
-        dossier.identity,
-
-      market:
-        dossier.market,
-
-
-      /*
-       * Analyse qualitative strictement verrouillée.
-       */
-      analysis,
-
-      provider:
-        id,
-
-      model:
-        modele,
-
-      tokens:
-        usage,
-
-
-      /*
-       * SEULE NOTE AFFICHABLE.
-       *
-       * Elle vient exclusivement
-       * de _novascore.js.
-       */
-      novascore: {
-        engine:
-          nova.engine,
-
-        score:
-          nova.score,
-
-        coverage:
-          nova.coverage,
-
-        coherence:
-          nova.coherence,
-
-        confidence:
-          nova.confidence,
-
-        comparable:
-          nova.comparable
-          ?? false,
-
-        refused:
-          nova.refused,
-
-        families:
-          Object.fromEntries(
-            Object.entries(
-              nova.families
-            )
-              .map(
-                ([name, value]) => [
-                  name,
-                  {
-                    label:
-                      value.label,
-
-                    score:
-                      value.score,
-
-                    /*
-                     * Poids redistribué effectivement
-                     * utilisé dans la note finale.
-                     */
-                    weight:
-                      nova.weightsApplied?.[
-                        name
-                      ]
-                      ?? 0,
-
-                    /*
-                     * Poids théorique maximum.
-                     */
-                    baseWeight:
-                      value.baseWeight,
-
-                    /*
-                     * Poids réellement couvert
-                     * avant redistribution.
-                     */
-                    coverageWeight:
-                      value.coverageWeight,
-
-                    missing:
-                      value.missing,
-                  },
-                ]
-              )
-          ),
-
-        computedAt:
-          nova.computedAt,
-      },
-
-
-      /*
-       * Diagnostic :
-       * champs supplémentaires produits par l'IA
-       * mais volontairement supprimés.
-       */
-      numericStripped:
-        removedFields,
-
-
-      quota:
-        quotaBlock(
-          plan,
-          utilise
-        ),
-    });
+  res.setHeader('Cache-Control', 'no-store');
+  return res.status(200).json({
+    // Tant qu'aucun fournisseur de marché n'est configuré, l'analyse ne porte
+    // pas sur des cotations réelles : le serveur le déclare, le client l'affiche.
+    // Vrai uniquement si au moins un fournisseur a réellement répondu.
+    marketConnected: Boolean(dossier.sources
+      && (dossier.sources.quote || dossier.sources.fundamentals || dossier.sources.history)),
+    // Provenance réelle de chaque bloc de données transmis au modèle.
+    sources: dossier.sources,
+    asOf: dossier.asOf,
+    missing: dossier.missing,
+    // Motif d'échec de chaque fournisseur : sans lui, un bloc manquant reste
+    // inexplicable et le diagnostic prend des heures.
+    journal: (dossier.journal || []).filter(j => !j.ok),
+    identity: dossier.identity,
+    market: dossier.market,
+    analysis: parsed, provider: id, model: modele, tokens: usage,
+    // Seule note affichable : celle du moteur. Jamais celle du modèle.
+    novascore: {
+      engine: nova.engine, score: nova.score, coverage: nova.coverage,
+      coherence: nova.coherence, confidence: nova.confidence,
+      comparable: nova.comparable ?? false, refused: nova.refused,
+      families: Object.fromEntries(Object.entries(nova.families)
+        .map(([k, v]) => [k, { label: v.label, score: v.score,
+          weight: nova.weightsApplied[k] ?? 0,          // poids appliqué au score
+          baseWeight: v.baseWeight,                     // poids théorique
+          coverageWeight: v.coverageWeight,             // poids réellement couvert
+          missing: v.missing }])),
+      computedAt: nova.computedAt,
+    },
+    numericStripped: retires, quota: quotaBlock(plan, utilise),
+  });
 };
