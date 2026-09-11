@@ -32,6 +32,12 @@ const DEBIT_HORAIRE = { free: 10, pro: 40, elite: 120 };
 const ACTIFS = ['active', 'trialing', 'past_due'];
 const COMPTES = ['pending', 'ok'];          // statuts qui occupent une place
 
+/* Une fonction Vercel qui meurt entre la réservation et la clôture laisse une
+   ligne « pending » éternelle, qui retiendrait une analyse jusqu'au mois
+   suivant. Au-delà de ce délai — très supérieur au temps maximal d'un appel
+   au modèle — la place est restituée. */
+const PENDING_EXPIRE_MS = 15 * 60 * 1000;
+
 /* ---------- période ---------- */
 function periode(now = new Date()){
   const debut = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1, 0, 0, 0));
@@ -73,8 +79,11 @@ async function consommation(sb, userId){
   const rows = await sb(`ai_usage?user_id=eq.${encodeURIComponent(userId)}`
     + `&created_at=gte.${debut.toISOString()}`
     + `&created_at=lt.${fin.toISOString()}`
-    + `&status=in.(${COMPTES.join(',')})&select=id`);
-  return rows.length;
+    + `&status=in.(${COMPTES.join(',')})&select=id,status,created_at`);
+  // Les réservations abandonnées ne comptent plus.
+  const limite = Date.now() - PENDING_EXPIRE_MS;
+  return rows.filter(r => r.status !== 'pending'
+    || new Date(r.created_at).getTime() > limite).length;
 }
 
 /** Analyses de la dernière heure, pour le garde-fou de débit. */
@@ -145,5 +154,5 @@ function quotaBlock(plan, used){
   };
 }
 
-module.exports = { PLAN_LIMITS, DEBIT_HORAIRE, ACTIFS, COMPTES, periode, planReel,
+module.exports = { PLAN_LIMITS, DEBIT_HORAIRE, ACTIFS, COMPTES, PENDING_EXPIRE_MS, periode, planReel,
   limiteDe, consommation, debitRecent, reserver, cloturer, quotaBlock };
