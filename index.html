@@ -1027,7 +1027,7 @@ table.t td:last-child,table.t th:last-child{text-align:right;padding-right:0}
 "use strict";
 /* Repère de version : permet de savoir en une seconde si la page affichée est
    bien la dernière. Visible dans Réglages et dans la console du navigateur. */
-const BUILD = 'v2-4';
+const BUILD = 'v2-6';
 console.log('%cNovaBourse ' + BUILD, 'color:#00a651;font-weight:700');
 
 /* ============================================================
@@ -3503,9 +3503,13 @@ async function runAnalysis(stockId){
       delai_depasse:"Le modèle n'a pas répondu à temps.",
       fournisseur_en_erreur:`Le fournisseur a répondu ${err.status || ''}.`,
       donnees_indisponibles:"Les données financières de cette société n'ont pas pu être récupérées.",
+      donnees_insuffisantes: err.message || "Données insuffisantes pour analyser cette société.",
     }[err.error] || "L'analyse n'a pas abouti.";
     const out = document.getElementById('aiOut');
     if (out) out.innerHTML = `<div class="notice" style="margin-top:8px"><b>${esc(msg)}</b>
+      ${err.quotaConsomme === false ? '<br><span class="tiny">Aucune analyse décomptée.</span>' : ''}
+      ${(err.journal || []).length ? `<br><span class="tiny">${err.journal.slice(0,3).map(j =>
+        `${esc(j.bloc||'')} · ${esc(j.provider||'')} : ${esc(j.reason||'')}`).join('<br>')}</span>` : ''}
       ${err.detail ? `<br><span class="tiny">${esc(String(err.detail).slice(0,180))}</span>` : ''}</div>`;
     return;
   }
@@ -3534,7 +3538,9 @@ async function runAnalysis(stockId){
       cotation ${esc(d.sources.quote || '—')} ·
       fondamentaux ${esc(d.sources.fundamentals || '—')} ·
       historique ${esc(d.sources.history || '—')}
-      ${d.missing && d.missing.length ? `<br>Indisponible : ${esc(d.missing.join(', '))}` : ''}</p>` : ''}
+      ${d.missing && d.missing.length ? `<br>Indisponible : ${esc(d.missing.join(', '))}` : ''}
+      ${(d.journal || []).length ? `<br>${d.journal.slice(0, 4).map(j =>
+        `${esc(j.bloc || '')} · ${esc(j.provider || '')} : ${esc(j.reason || '')}`).join('<br>')}` : ''}</p>` : ''}
     <p class="tiny" style="margin-top:8px">Modèle ${esc(d.model || '')} ·
       ${d.quota && !d.quota.unlimited ? `${d.quota.used}/${d.quota.limit} analyses ce mois` : ''}
       ${d.numericStripped && d.numericStripped.length
