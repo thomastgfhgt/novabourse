@@ -1027,7 +1027,7 @@ table.t td:last-child,table.t th:last-child{text-align:right;padding-right:0}
 "use strict";
 /* Repère de version : permet de savoir en une seconde si la page affichée est
    bien la dernière. Visible dans Réglages et dans la console du navigateur. */
-const BUILD = 'v2-2';
+const BUILD = 'v2-4';
 console.log('%cNovaBourse ' + BUILD, 'color:#00a651;font-weight:700');
 
 /* ============================================================
@@ -2001,6 +2001,10 @@ function openSheet(html){
 function closeSheet(){
   const bg = document.getElementById('sheetBg');
   bg.classList.remove('on'); bg.hidden = true;
+  // Le contenu est vidé : sinon les boutons de la feuille restent dans le
+  // document et peuvent encore recevoir un clic.
+  const corps = document.getElementById('sheet');
+  if (corps) corps.innerHTML = '';
   document.body.style.overflow = '';
   lastFocus?.focus?.(); lastFocus = null;
 }
@@ -2103,26 +2107,43 @@ const MARKET_CODE = { NASDAQ:'NASDAQ', NYSE:'NYSE', 'Euronext Paris':'PA',
 async function chargerCotations(liste){
   const cibles = liste.filter(s => s && s.ticker);
   if (!cibles.length) return;
-  try {
-    const r = await fetch('/api/market/quotes?symbols='
-      + encodeURIComponent(cibles.map(symboleDe).join(',')));
-    const d = await r.json();
-    if (!d.connected){ DATA.mode = 'unavailable'; DATA.reason = d.reason || null; return paintSource(); }
-    const parId = new Map(cibles.map(s => [symboleDe(s), s]));
-    for (const q of d.quotes || []){
-      const s = parId.get(q.symbol);
-      if (s) QUOTES.set(s.id, q);
-    }
-    DATA.mode = QUOTES.size ? 'live' : 'error';
+
+  /* Les fournisseurs plafonnent le nombre de symboles par appel — souvent 8
+     sur les offres d'entrée. Un lot de 32 est rejeté en bloc et toute la page
+     reste vide. On découpe donc, et chaque lot qui répond s'affiche sans
+     attendre les autres. */
+  const TAILLE_LOT = 8;
+  const lots = [];
+  for (let i = 0; i < cibles.length; i += TAILLE_LOT) lots.push(cibles.slice(i, i + TAILLE_LOT));
+
+  let reçus = 0, source = null, echecs = 0;
+
+  await Promise.all(lots.map(async lot => {
+    try {
+      const r = await fetch('/api/market/quotes?symbols='
+        + encodeURIComponent(lot.map(symboleDe).join(',')));
+      const d = await r.json();
+      const parId = new Map(lot.map(s => [symboleDe(s), s]));
+      for (const q of d.quotes || []){
+        const s = parId.get(q.symbol);
+        if (s){ QUOTES.set(s.id, q); reçus++; }
+      }
+      if (d.source) source = d.source;
+      if (!d.quotes || !d.quotes.length) echecs++;
+    } catch { echecs++; }
+  }));
+
+  if (!reçus){
+    DATA.mode = 'unavailable';
+    DATA.reason = echecs === lots.length ? 'fournisseur_indisponible' : null;
+  } else {
+    DATA.mode = 'live';
     DATA.covered = QUOTES.size;
-    DATA.provider = d.source || null;
+    DATA.provider = source;
     DATA.at = Date.now();
-    paintSource();
-    render();
-  } catch {
-    DATA.mode = 'unavailable'; DATA.reason = 'serveur_injoignable';
-    paintSource();
   }
+  paintSource();
+  render();
 }
 
 /* Historique : uniquement pour un petit nombre de valeurs (fiche, suivies).
@@ -3954,7 +3975,7 @@ function openBuyAmount(st, initial){
   const max = Math.floor(state.wallet.cash);
   const v = Math.min(initial || Math.min(100, max), max);
   openSheet(`<div class="buy">
-    <p class="buy-co">${esc(st.name)} · ${fmt.cur(st.price, st.cur)}</p>
+    <p class="buy-co">${esc(st.name)} · ${fmt.cur(prixDe(st), st.cur)}</p>
     <h3 id="sheetTitle" class="sr">Acheter ${esc(st.name)}</h3>
     <div class="buy-big"><span id="buyBig">${fmt.int(v)}</span><small>€</small></div>
     <p class="buy-sub" id="buyShares">—</p>
@@ -3979,7 +4000,7 @@ function setBuyAmount(st, value, moveSlider = true){
   const v = Math.max(0, Math.min(+input.max, value));
   if (moveSlider) input.value = v;
   document.getElementById('buyBig').textContent = fmt.int(v);
-  const qty = v / toEUR(st.price, st.cur);
+  const qty = v / toEUR(prixDe(st), st.cur);
   document.getElementById('buyShares').textContent = `≈ ${fmt.num(qty, 4)} action(s)`;
   document.querySelectorAll('[data-amount]').forEach(b =>
     b.setAttribute('aria-pressed', String(+b.dataset.amount === v)));
@@ -3987,7 +4008,8 @@ function setBuyAmount(st, value, moveSlider = true){
 
 /* Écran 2 : vérifier l'ordre. Une ligne par information, rien de plus. */
 function openBuyReview(st, amount){
-  const priceEUR = toEUR(st.price, st.cur);
+  const prix = prixDe(st);
+  const priceEUR = toEUR(prix, st.cur);
   const qty = amount / priceEUR;
   const fx = st.cur === 'EUR' ? null : FX[st.cur];
   openSheet(`<div class="buy">
@@ -3996,7 +4018,7 @@ function openBuyReview(st, amount){
     <dl class="buy-rows">
       <div><dt>Type d'ordre</dt><dd>Achat au marché</dd></div>
       <div><dt>Nombre d'actions</dt><dd>≈ ${fmt.num(qty, 4)}</dd></div>
-      <div><dt>Cours</dt><dd>${fmt.cur(st.price, st.cur)}</dd></div>
+      <div><dt>Cours</dt><dd>${fmt.cur(prix, st.cur)}</dd></div>
       ${fx ? `<div><dt>Taux de change</dt><dd>1 ${esc(st.cur)} = ${fx} €</dd></div>` : ''}
       <div><dt>Commission</dt><dd>Aucune</dd></div>
       <div class="buy-total"><dt>Total</dt><dd>${fmt.eur(amount)}</dd></div>
@@ -4022,6 +4044,34 @@ function previewBuy(st){
 /* ---------- événements ---------- */
 document.addEventListener('click', e => {
   const q = sel => e.target.closest(sel);
+
+  /* Parcours d'achat : montant → récapitulatif → confirmation.
+     Ces trois gestionnaires manquaient : les écrans s'ouvraient, mais plus
+     aucun bouton ne répondait ensuite. */
+  const amt = q('[data-amount]');
+  if (amt){ const st = byId[amt.dataset.stock];
+    if (st) setBuyAmount(st, +amt.dataset.amount); return; }
+
+  const next = q('[data-buy-next]');
+  if (next){ const st = byId[next.dataset.buyNext];
+    const v = +(document.getElementById('buyAmt')?.value || 0);
+    if (!st) return;
+    if (!(v > 0)) { toast('Choisissez un montant.'); return; }
+    if (v > state.wallet.cash){ toast('Liquidités insuffisantes.'); return; }
+    openBuyReview(st, v); return; }
+
+  const back = q('[data-buy-back]');
+  if (back){ const st = byId[back.dataset.buyBack];
+    if (st) openBuyAmount(st, +back.dataset.value || 0); return; }
+
+  const okBuy = q('[data-buy-ok]');
+  if (okBuy){
+    const r = buyStock(okBuy.dataset.buyOk, +okBuy.dataset.value);
+    toast(r.msg);
+    if (r.ok){ closeSheet(); render(); }
+    return;
+  }
+
 
   if (q('[data-signin]')){ signIn(); return; }
   if (q('[data-signout]')){ signOut(); toast('Vous êtes déconnecté'); return; }
