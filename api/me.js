@@ -39,7 +39,16 @@ const LIMITS = {
   elite: { watchlist: Infinity, alerts: Infinity, compare: 5 },
 };
 
+const METHODES = ['GET', 'POST'];
+
 module.exports = async (req, res) => {
+  // Seules GET et POST sont prévues : PUT, PATCH et DELETE tombaient
+  // silencieusement dans le comportement GET.
+  if (!METHODES.includes(req.method)){
+    res.setHeader('Allow', METHODES.join(', '));
+    return res.status(405).json({ error: 'methode_non_autorisee' });
+  }
+
   const user = await userFromToken(req);
   if (!user) return res.status(401).json({ error: 'non_connecte' });
 
@@ -112,7 +121,10 @@ module.exports = async (req, res) => {
     name: profile.full_name || user.user_metadata?.full_name || null,
     avatar: profile.avatar_url || null,
     status: profile.subscription_status || null,
-    periodEnd: profile.subscription_current_period_end || null,
+    /* La fin de période du QUOTA (mois calendaire UTC) vient de quotaBlock
+       et ne doit pas être écrasée : la fin de période STRIPE est une autre
+       notion, et porte donc un autre nom. */
+    subscriptionPeriodEnd: profile.subscription_current_period_end || null,
     limits: LIMITS[plan],
   });
 };
