@@ -18,6 +18,18 @@ const essai = async (fn, args) => {
 };
 
 module.exports = async (req, res) => {
+  /* Cette route déclenche jusqu'à une dizaine d'appels fournisseurs payants.
+     Laissée ouverte, elle permet à n'importe qui de brûler les quotas et de
+     découvrir la configuration. Elle exige donc un secret serveur. */
+  const attendu = process.env.DIAG_SECRET;
+  if (!attendu){
+    return res.status(404).json({ error: 'introuvable' });   // désactivée par défaut
+  }
+  const fourni = req.headers['x-diag-secret'] || req.query.secret || '';
+  if (String(fourni) !== attendu){
+    return res.status(401).json({ error: 'non_autorise' });
+  }
+
   const t = String(req.query.ticker || 'AAPL').toUpperCase();
   const ex = String(req.query.exchange || 'NASDAQ').toUpperCase();
   const k = KEYS();
