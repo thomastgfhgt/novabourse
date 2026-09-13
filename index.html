@@ -1120,6 +1120,10 @@ function ensureRuntimeStock(meta, persist = true){
     market: meta.market || meta.exchange || meta.exchangeCode || '—',
     exchangeCode: code,
     sector: meta.sector || 'Non classé',
+    /* industry : conservée seulement si réellement fournie par le search
+       (jamais déduite) — utile pour ne pas la renvoyer null à l'analyse
+       alors que NovaBourse la connaît déjà (voir runAnalysis). */
+    industry: meta.industry || null,
     country: meta.country || '—',
     cur: meta.currency || meta.cur || 'USD',
     curSymbol: CUR_SYMBOL[meta.currency || meta.cur] || (meta.currency || meta.cur || ''),
@@ -1137,7 +1141,7 @@ function ensureRuntimeStock(meta, persist = true){
        veut pas perdre cette entrée si l'onglet se ferme juste après. */
     state.runtimeCatalog[id] = {
       ticker:s.ticker, name:s.name, exchangeCode:s.exchangeCode,
-      market:s.market, sector:s.sector, country:s.country, cur:s.cur,
+      market:s.market, sector:s.sector, industry:s.industry, country:s.country, cur:s.cur,
     };
     flushSaveState();
   }
@@ -3799,12 +3803,48 @@ async function runAnalysis(stockId){
 
   let d;
   try {
+    /* Identité déjà connue de NovaBourse (catalogue local, société créée via
+       /api/market/search, ou retrouvée après refresh via runtimeCatalog) :
+       transmise telle quelle pour que le dossier d'analyse ne reparte pas de
+       zéro sur des champs que le frontend connaît déjà. `exchange` envoie le
+       code canonique (exchangeCode), plus cohérent avec /api/market/company
+       et /api/market/quotes qui l'utilisent déjà ailleurs — auparavant ce
+       payload envoyait encore st.market (parfois un libellé lisible, ex.
+       "Euronext Paris", au lieu du code "PA"). Aucun champ financier
+       (fundamentals/score/prix) n'est envoyé ici : seule l'identité. */
     const r = await authFetch('/api/analyze', { method:'POST',
-      body: JSON.stringify({ ticker: st.ticker, exchange: st.market || null }) });
+      body: JSON.stringify({
+        ticker: st.ticker,
+        exchange: st.exchangeCode || st.market || null,
+        name: st.name || null,
+        country: (st.country && st.country !== '—') ? st.country : null,
+        sector: (st.sector && st.sector !== 'Non classé') ? st.sector : null,
+        industry: st.industry || null,
+        currency: st.cur || null,
+      }) });
     d = await r.json();
-    if (!r.ok) throw Object.assign(new Error(d.error || 'erreur'), { data:d });
+    if (!r.ok) throw Object.assign(new Error(d.error || d.code || 'erreur'), { data:d });
   } catch (e){
     const err = e.data || {};
+    const key = err.code || err.error;
+
+    /* Cas spécifique : couverture de données insuffisante pour produire un
+       NovaScore. Le serveur ne devrait dans ce cas ni avoir appelé le
+       modèle ni consommé de quota (voir rapport) — le frontend, lui, se
+       contente d'afficher honnêtement cet état, sans jamais présenter la
+       tentative comme une analyse IA aboutie (pas de nom de modèle ici). */
+    if (key === 'insufficient_data' || key === 'donnees_insuffisantes' || key === 'coverage_insuffisante'){
+      const out = document.getElementById('aiOut');
+      const cov = Number.isFinite(err.coverage) ? err.coverage : null;
+      const missing = Array.isArray(err.missing) ? err.missing : [];
+      if (out) out.innerHTML = `<div class="notice" style="margin-top:8px">
+        <b>Analyse impossible : données financières insuffisantes.</b>
+        ${cov !== null ? `<p class="tiny" style="margin-top:8px">Couverture : ${cov} % · Minimum requis : 40 %</p>` : ''}
+        ${missing.length ? `<p class="tiny" style="margin-top:6px">Données manquantes : ${missing.map(esc).join(', ')}</p>` : ''}
+      </div>`;
+      return;
+    }
+
     const msg = { non_connecte:'Votre session a expiré. Reconnectez-vous.',
       quota_exceeded: err.message || 'Quota mensuel atteint.',
       aucun_modele_configure:"Aucun modèle n'est configuré sur le serveur.",
@@ -3812,8 +3852,7 @@ async function runAnalysis(stockId){
       delai_depasse:"Le modèle n'a pas répondu à temps.",
       fournisseur_en_erreur:`Le fournisseur a répondu ${err.status || ''}.`,
       donnees_indisponibles:"Les données financières de cette société n'ont pas pu être récupérées.",
-      donnees_insuffisantes: err.message || "Données insuffisantes pour analyser cette société.",
-    }[err.error] || "L'analyse n'a pas abouti.";
+    }[key] || "L'analyse n'a pas abouti.";
     const out = document.getElementById('aiOut');
     if (out) out.innerHTML = `<div class="notice" style="margin-top:8px"><b>${esc(msg)}</b></div>`;
     return;
