@@ -890,6 +890,13 @@ const DEFAULT_STATE = {
     positions:[]
   },
 
+  /* Métadonnées (jamais de prix/score/fondamentaux) des sociétés créées à la
+     volée par /api/market/search, pour pouvoir les rematérialiser via
+     ensureRuntimeStock() après un rechargement — sans quoi une position ou
+     une sélection Comparer sur une société hors catalogue deviendrait
+     invisible tant que l'utilisateur ne la recherche pas à nouveau. */
+  runtimeCatalog:{},
+
   auth:{
     status:'loading',   // 'loading' | 'guest' | 'authenticated'
     signedIn:false,
@@ -959,7 +966,20 @@ function loadState(){
         settings:{ ...DEFAULT_STATE.settings, ...(saved.settings || {}) },
         filters:{ ...DEFAULT_STATE.filters, ...(saved.filters || {}) },
         ui:{ ...DEFAULT_STATE.ui, ...(saved.ui || {}) },
-        wallet:{ ...DEFAULT_STATE.wallet, ...(saved.wallet || {}) },
+        /* Fusion CHAMP PAR CHAMP, jamais un simple spread au niveau wallet :
+           un wallet sauvegardé partiel/corrompu (ex. positions absent après
+           une ancienne version, ou cash explicitement null) ne doit écraser
+           que les champs réellement absents ou invalides, jamais un cash=0
+           ou des positions=[] valides (0 et [] sont des valeurs légitimes,
+           pas des indicateurs d'absence — d'où Number.isFinite/Array.isArray
+           explicites plutôt qu'un `saved.wallet.cash || 15480`). */
+        wallet:{
+          cash: Number.isFinite(saved.wallet?.cash) ? saved.wallet.cash : DEFAULT_STATE.wallet.cash,
+          invested: Number.isFinite(saved.wallet?.invested) ? saved.wallet.invested : DEFAULT_STATE.wallet.invested,
+          positions: Array.isArray(saved.wallet?.positions) ? saved.wallet.positions : DEFAULT_STATE.wallet.positions,
+        },
+        runtimeCatalog: (saved.runtimeCatalog && typeof saved.runtimeCatalog === 'object' && !Array.isArray(saved.runtimeCatalog))
+          ? saved.runtimeCatalog : {},
         onboarding:{ ...DEFAULT_STATE.onboarding, ...(saved.onboarding || {}) },
       };
     }
@@ -986,27 +1006,48 @@ function loadState(){
 }
 
 let saveTimer = null;
+
+/* Corps réel de l'écriture, partagé par la version debouncée (saveState) et
+   la version immédiate (flushSaveState). Rien ici ne change de comportement
+   par rapport à avant : mêmes clés, auth toujours exclue. */
+function writeStateNow(){
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({
+      watchlist:state.watchlist,
+      recent:state.recent,
+      compare:state.compare,
+      settings:state.settings,
+      filters:state.filters,
+      ui:state.ui,
+      onboarding:state.onboarding,
+      runtimeCatalog:state.runtimeCatalog,
+      /* Le portefeuille virtuel est un état utilisateur réel (positions
+         qu'il a lui-même prises), pas une donnée de marché : il est
+         légitime de le conserver localement pour qu'il survive à un
+         rechargement. Aucune valeur de marché n'est stockée ici, ni la
+         session (voir auth, jamais sauvegardé). */
+      wallet:state.wallet,
+    }));
+  } catch {}
+}
+
+/* Version normale, debouncée (200ms) : évite de ré-écrire le stockage à
+   chaque frappe/toggle. */
 function saveState(){
   clearTimeout(saveTimer);
-  saveTimer = setTimeout(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({
-        watchlist:state.watchlist,
-        recent:state.recent,
-        compare:state.compare,
-        settings:state.settings,
-        filters:state.filters,
-        ui:state.ui,
-        onboarding:state.onboarding,
-        /* Le portefeuille virtuel est un état utilisateur réel (positions
-           qu'il a lui-même prises), pas une donnée de marché : il est
-           légitime de le conserver localement pour qu'il survive à un
-           rechargement. Aucune valeur de marché n'est stockée ici, ni la
-           session (voir auth, jamais sauvegardé). */
-        wallet:state.wallet,
-      }));
-    } catch {}
-  }, 200);
+  saveTimer = setTimeout(writeStateNow, 200);
+}
+
+/* Écriture IMMÉDIATE, sans attendre le debounce. Nécessaire pour deux cas :
+   1) les actions financièrement significatives (achat/vente/capital initial)
+      ne doivent jamais dépendre d'un setTimeout qui pourrait ne jamais se
+      déclencher si l'utilisateur ferme l'onglet/l'app dans les 200ms qui
+      suivent (scénario mobile très plausible : acheter puis quitter) ;
+   2) un flush de sécurité sur pagehide/visibilitychange (voir plus bas)
+      pour ne perdre aucune écriture encore en attente, quelle qu'elle soit. */
+function flushSaveState(){
+  clearTimeout(saveTimer);
+  writeStateNow();
 }
 
 const state = loadState();
@@ -1030,16 +1071,16 @@ const BLANK_FIELDS = () => ({
 });
 
 const stocks = [
-  { id:'AAPL-NAS', name:'Apple Inc.', ticker:'AAPL', market:'NASDAQ', sector:'Technologie', country:'États-Unis', cur:'USD', curSymbol:'$', ...BLANK_FIELDS() },
-  { id:'MSFT-NAS', name:'Microsoft Corp.', ticker:'MSFT', market:'NASDAQ', sector:'Technologie', country:'États-Unis', cur:'USD', curSymbol:'$', ...BLANK_FIELDS() },
-  { id:'GOOGL-NAS', name:'Alphabet Inc.', ticker:'GOOGL', market:'NASDAQ', sector:'Technologie', country:'États-Unis', cur:'USD', curSymbol:'$', ...BLANK_FIELDS() },
-  { id:'AMZN-NAS', name:'Amazon.com Inc.', ticker:'AMZN', market:'NASDAQ', sector:'Consommation', country:'États-Unis', cur:'USD', curSymbol:'$', ...BLANK_FIELDS() },
-  { id:'NVDA-NAS', name:'NVIDIA Corp.', ticker:'NVDA', market:'NASDAQ', sector:'Technologie', country:'États-Unis', cur:'USD', curSymbol:'$', ...BLANK_FIELDS() },
-  { id:'JPM-NYS', name:'JPMorgan Chase & Co.', ticker:'JPM', market:'NYSE', sector:'Finance', country:'États-Unis', cur:'USD', curSymbol:'$', ...BLANK_FIELDS() },
-  { id:'MC-PA', name:'LVMH', ticker:'MC', market:'Euronext Paris', sector:'Luxe', country:'France', cur:'EUR', curSymbol:'€', ...BLANK_FIELDS() },
-  { id:'OR-PA', name:"L'Oréal", ticker:'OR', market:'Euronext Paris', sector:'Consommation', country:'France', cur:'EUR', curSymbol:'€', ...BLANK_FIELDS() },
-  { id:'SAP-DE', name:'SAP SE', ticker:'SAP', market:'Xetra', sector:'Technologie', country:'Allemagne', cur:'EUR', curSymbol:'€', ...BLANK_FIELDS() },
-  { id:'SIE-DE', name:'Siemens AG', ticker:'SIE', market:'Xetra', sector:'Industrie', country:'Allemagne', cur:'EUR', curSymbol:'€', ...BLANK_FIELDS() },
+  { id:'AAPL-NAS', name:'Apple Inc.', ticker:'AAPL', market:'NASDAQ', exchangeCode:'NASDAQ', sector:'Technologie', country:'États-Unis', cur:'USD', curSymbol:'$', ...BLANK_FIELDS() },
+  { id:'MSFT-NAS', name:'Microsoft Corp.', ticker:'MSFT', market:'NASDAQ', exchangeCode:'NASDAQ', sector:'Technologie', country:'États-Unis', cur:'USD', curSymbol:'$', ...BLANK_FIELDS() },
+  { id:'GOOGL-NAS', name:'Alphabet Inc.', ticker:'GOOGL', market:'NASDAQ', exchangeCode:'NASDAQ', sector:'Technologie', country:'États-Unis', cur:'USD', curSymbol:'$', ...BLANK_FIELDS() },
+  { id:'AMZN-NAS', name:'Amazon.com Inc.', ticker:'AMZN', market:'NASDAQ', exchangeCode:'NASDAQ', sector:'Consommation', country:'États-Unis', cur:'USD', curSymbol:'$', ...BLANK_FIELDS() },
+  { id:'NVDA-NAS', name:'NVIDIA Corp.', ticker:'NVDA', market:'NASDAQ', exchangeCode:'NASDAQ', sector:'Technologie', country:'États-Unis', cur:'USD', curSymbol:'$', ...BLANK_FIELDS() },
+  { id:'JPM-NYS', name:'JPMorgan Chase & Co.', ticker:'JPM', market:'NYSE', exchangeCode:'NYSE', sector:'Finance', country:'États-Unis', cur:'USD', curSymbol:'$', ...BLANK_FIELDS() },
+  { id:'MC-PA', name:'LVMH', ticker:'MC', market:'Euronext Paris', exchangeCode:'PA', sector:'Luxe', country:'France', cur:'EUR', curSymbol:'€', ...BLANK_FIELDS() },
+  { id:'OR-PA', name:"L'Oréal", ticker:'OR', market:'Euronext Paris', exchangeCode:'PA', sector:'Consommation', country:'France', cur:'EUR', curSymbol:'€', ...BLANK_FIELDS() },
+  { id:'SAP-DE', name:'SAP SE', ticker:'SAP', market:'Xetra', exchangeCode:'DE', sector:'Technologie', country:'Allemagne', cur:'EUR', curSymbol:'€', ...BLANK_FIELDS() },
+  { id:'SIE-DE', name:'Siemens AG', ticker:'SIE', market:'Xetra', exchangeCode:'DE', sector:'Industrie', country:'Allemagne', cur:'EUR', curSymbol:'€', ...BLANK_FIELDS() },
 ];
 const byId = Object.fromEntries(stocks.map(s => [s.id, s]));
 
@@ -1061,15 +1102,23 @@ function remoteId(ticker, exchangeCode){
    Le catalogue local n'est donc plus une limite : c'est un noyau de départ,
    pas un plafond — toute société renvoyée par /api/market/search peut
    rejoindre `stocks`/`byId` à la demande. */
-function ensureRuntimeStock(meta){
+function ensureRuntimeStock(meta, persist = true){
   if (!meta || !meta.ticker) return null;
-  const id = meta.id || remoteId(meta.ticker, meta.exchangeCode || meta.exchange);
+  const code = meta.exchangeCode || meta.exchange || '';
+  const id = meta.id || remoteId(meta.ticker, code);
   if (byId[id]) return byId[id];
   const s = {
     id,
     name: meta.name || meta.ticker,
     ticker: String(meta.ticker).toUpperCase(),
+    /* `market` = libellé lisible pour l'affichage uniquement.
+       `exchangeCode` = code exact tel que renvoyé par /api/market/search,
+       transmis TEL QUEL (sans passer par MARKET_CODE) à /api/market/company
+       et /api/market/quotes. C'est ce champ, absent avant cette correction,
+       qui manquait pour les sociétés hors catalogue : voir chargerHistorique
+       et symboleDe ci-dessous. */
     market: meta.market || meta.exchange || meta.exchangeCode || '—',
+    exchangeCode: code,
     sector: meta.sector || 'Non classé',
     country: meta.country || '—',
     cur: meta.currency || meta.cur || 'USD',
@@ -1078,7 +1127,32 @@ function ensureRuntimeStock(meta){
   };
   stocks.push(s);
   byId[s.id] = s;
+
+  if (persist){
+    /* Mémorise les SEULES métadonnées (jamais prix/score/fondamentaux) pour
+       pouvoir recréer cette société au prochain chargement, sans quoi une
+       position achetée ou une sélection Comparer sur une société hors
+       catalogue redeviendrait invisible tant qu'elle n'est pas recherchée à
+       nouveau. Écriture immédiate : peu fréquent, coût négligeable, et on ne
+       veut pas perdre cette entrée si l'onglet se ferme juste après. */
+    state.runtimeCatalog[id] = {
+      ticker:s.ticker, name:s.name, exchangeCode:s.exchangeCode,
+      market:s.market, sector:s.sector, country:s.country, cur:s.cur,
+    };
+    flushSaveState();
+  }
+
   return s;
+}
+
+/* Recrée, au démarrage, toutes les sociétés hors catalogue déjà rencontrées
+   (positions du portefeuille, sélection Comparer…) à partir des seules
+   métadonnées persistées. Appelé une fois dans boot(), avant tout rendu, de
+   sorte que byId soit complet avant que portfolioValue()/PAGES.compare()
+   n'essaient de résoudre un id. persist:false : on ne fait que rejouer des
+   entrées déjà enregistrées, pas la peine de les ré-écrire ni de reflush. */
+function restoreRuntimeCatalog(){
+  Object.values(state.runtimeCatalog || {}).forEach(meta => ensureRuntimeStock(meta, false));
 }
 
 /* Composantes du NovaScore : cette liste décrit le MOTEUR (backend
@@ -1238,27 +1312,41 @@ function pushRecent(label){
 }
 function clearRecent(){ state.recent = []; saveState(); toast('Historique de recherche effacé'); }
 
+/* Chaque position achetée reste visible même si sa cotation est
+   momentanément indisponible : une quote manquante est un état runtime
+   temporaire, pas une preuve que la position n'existe plus (voir position
+   vs valorisation). Seules les positions dont le prix est connu contribuent
+   à `value`/`gain` ; les autres apparaissent avec priceAvailable:false et un
+   état "cours indisponible" plutôt que de disparaître silencieusement. */
 function portfolioValue(){
-  let value = 0, cost = 0;
+  let value = 0, cost = 0, unresolvedCount = 0;
   const lines = state.wallet.positions.map(pos => {
     const st = byId[pos.id];
-    if (!st) return null;
+    if (!st){
+      unresolvedCount++;
+      return { ...pos, stock:null, priceAvailable:false, cur:null,
+        localValue:null, localCost:null, value:0, cost:0, gain:0, gainPct:0 };
+    }
     const cours = prixDe(st);
-    if (cours === null) return null;
+    if (cours === null){
+      return { ...pos, stock:st, priceAvailable:false, cur:st.cur,
+        localValue:null, localCost: pos.avg * pos.qty, value:0, cost:0, gain:0, gainPct:0 };
+    }
     const localValue = cours * pos.qty;
     const localCost  = pos.avg  * pos.qty;
     const eurValue = toEUR(localValue, st.cur);
     const eurCost  = toEUR(localCost,  st.cur);
     value += eurValue; cost += eurCost;
-    return { ...pos, stock:st, localValue, localCost, cur:st.cur,
+    return { ...pos, stock:st, priceAvailable:true, localValue, localCost, cur:st.cur,
       value:eurValue, cost:eurCost, gain:eurValue-eurCost,
       gainPct: eurCost ? (eurValue/eurCost-1)*100 : 0,
       fx: FX[st.cur] };
-  }).filter(Boolean);
+  });
   const total = value + state.wallet.cash;
   const invested = cost + state.wallet.cash;
   const gain = total - invested;
   return { lines, value, cost, total, cash:state.wallet.cash, invested,
+    unresolvedCount,
     gain, gainPct: invested > 0 ? (gain / invested) * 100 : 0 };
 }
 
@@ -1399,6 +1487,7 @@ function buyStock(id, amountEUR){
   if (prix === null) return { ok:false, msg:'Cours indisponible pour cette valeur' };
   const priceEUR = toEUR(prix, st.cur);
   const qty = amountEUR / priceEUR;
+  if (!Number.isFinite(qty) || !(qty > 0)) return { ok:false, msg:'Quantité invalide' };
   const pos = state.wallet.positions.find(p => p.id === id);
   if (pos){
     const totalQty = pos.qty + qty;
@@ -1408,7 +1497,11 @@ function buyStock(id, amountEUR){
     state.wallet.positions.push({ id, qty, avg: prix });
   }
   state.wallet.cash -= amountEUR;
-  saveState();
+  /* Écriture immédiate (pas la version debouncée) : un achat ne doit jamais
+     dépendre d'un setTimeout qui n'a pas eu le temps de se déclencher si
+     l'utilisateur ferme l'app juste après — c'est la cause la plus probable
+     de la perte de portefeuille constatée en production. */
+  flushSaveState();
   return { ok:true, qty, msg:`${fmt.num(qty,2)} titre(s) de ${st.name} achetés` };
 }
 function sellStock(id, part = 1){
@@ -1418,12 +1511,12 @@ function sellStock(id, part = 1){
   const prix = prixDe(st);
   if (prix === null) return { ok:false, msg:'Cours indisponible : vente impossible' };
   const qty = pos.qty * Math.max(0, Math.min(1, part));
-  if (!(qty > 0)) return { ok:false, msg:'Quantité invalide' };
+  if (!Number.isFinite(qty) || !(qty > 0)) return { ok:false, msg:'Quantité invalide' };
   const proceeds = toEUR(prix * qty, st.cur);
   pos.qty -= qty;
   if (pos.qty <= 0.0001) state.wallet.positions.splice(i, 1);
   state.wallet.cash += proceeds;
-  saveState();
+  flushSaveState();
   return { ok:true, msg:`Vente de ${fmt.num(qty,2)} titre(s) · ${fmt.eur(proceeds)} récupérés` };
 }
 const positionOf = (id) => state.wallet.positions.find(p => p.id === id) || null;
@@ -1615,7 +1708,13 @@ const QUOTES = new Map();
    'error'    -> la requête a échoué (réseau/HTTP) ; on retente au prochain appel */
 const HIST = new Map();
 
-const symboleDe = s => `${s.ticker}@${MARKET_CODE[s.market] || ''}`;
+/* Priorité à exchangeCode (code exact renvoyé par le backend/search), avec
+   repli sur l'ancienne table MARKET_CODE pour compatibilité descendante.
+   Avant cette correction, symboleDe passait TOUJOURS par MARKET_CODE[s.market],
+   qui ne connaît que des libellés lisibles ("Euronext Paris") : toute société
+   dont `market` contenait déjà un code brut ("PA") tombait sur `undefined`
+   puis une chaîne vide, cassant silencieusement le symbole envoyé au backend. */
+const symboleDe = s => `${s.ticker}@${s.exchangeCode || MARKET_CODE[s.market] || ''}`;
 const MARKET_CODE = { NASDAQ:'NASDAQ', NYSE:'NYSE', 'Euronext Paris':'PA',
   'Euronext Amsterdam':'AS', Xetra:'DE', SIX:'SW', LSE:'L' };
 
@@ -1680,6 +1779,11 @@ const HIST_ENCOURS = new Set();
 /* Historique réel, daté. Conserve tous les points renvoyés par le serveur
    (aucune troncature arbitraire à 60) et distingue explicitement : en cours,
    prêt, vide, en erreur. Une requête déjà en cours n'est jamais dupliquée. */
+/* Historique réel, daté. Conserve tous les points renvoyés par le serveur
+   (aucune troncature arbitraire à 60) et distingue explicitement : en cours,
+   prêt, vide, en erreur. Une requête déjà en cours n'est jamais dupliquée.
+   Récupère aussi les fondamentaux au passage (même appel réseau) : voir
+   commentaire sur `stock.fundamentals` plus bas. */
 async function chargerHistorique(stock){
   if (!stock) return;
   const existing = HIST.get(stock.id);
@@ -1688,13 +1792,34 @@ async function chargerHistorique(stock){
 
   HIST_ENCOURS.add(stock.id);
   try {
+    /* CORRECTIF : utiliser exchangeCode (code brut attendu par le backend,
+       ex. "PA", "DE", "NASDAQ") au lieu de MARKET_CODE[stock.market], qui ne
+       reconnaît que des libellés lisibles ("Euronext Paris"). Toute société
+       créée via /api/market/search dont `market` contient déjà un code
+       ("PA") tombait sur une correspondance manquante -> exchange envoyé
+       vide -> historique refusé par le backend malgré des données réelles
+       disponibles (confirmé : RMS/PA renvoie 260 points en appel direct). */
+    const exch = stock.exchangeCode || MARKET_CODE[stock.market] || '';
     const r = await fetch(`/api/market/company?ticker=${encodeURIComponent(stock.ticker)}`
-      + `&exchange=${encodeURIComponent(MARKET_CODE[stock.market] || '')}`);
+      + `&exchange=${encodeURIComponent(exch)}`);
     if (!r.ok){
       HIST.set(stock.id, { status:'error', data:[] });
       return;
     }
     const d = await r.json();
+
+    /* Fondamentaux : simple passage tel quel de d.fundamentals, sans
+       renommer ni inventer de champ. NON VÉRIFIÉ contre une réponse
+       réellement peuplée (les deux exemples observés — AMZN, RMS —
+       renvoient fundamentals:null pour une cause backend/provider réelle :
+       EODHD 403, Finnhub 401/exchange non supporté ; voir rapport). Les
+       noms de champs lus par measureText/plainFundamentals/PAGES.stock
+       (margin, roe, debtEquity, per, revenueGrowth, epsGrowth, volatility,
+       upMonths, dividend, cap) restent donc une hypothèse à confirmer dès
+       qu'un provider renverra effectivement des données. */
+    stock.fundamentals = d.fundamentals ?? null;
+    stock.hasFundamentals = Boolean(d.fundamentals);
+
     const points = (d.history?.ohlcv || [])
       .filter(x => x && typeof x.date === 'string' && Number.isFinite(x.close) && x.close > 0)
       .map(x => ({ date:x.date, close:x.close }));
@@ -2043,9 +2168,12 @@ PAGES.stock = (id) => {
   </div>
   <div class="stk-more">
     <button data-nova="${esc(s.id)}">${svg(ICON.spark,2)} Analyse</button>
-    <button data-cmp="${esc(s.id)}">Comparer</button>
+    <button data-cmp="${esc(s.id)}" aria-pressed="${state.compare.includes(s.id)}">
+      ${state.compare.includes(s.id) ? '✓ Ajoutée à la comparaison' : 'Comparer'}</button>
     ${starBtn(s.id)}
   </div>
+  ${state.compare.length >= 2 ? `<button class="btn btn-ghost btn-sm" style="margin-top:10px" data-go="compare">
+    Voir la comparaison (${state.compare.length})</button>` : ''}
 
   <!-- COURS ET MOYENNES -->
   <section class="section">
@@ -2179,8 +2307,8 @@ PAGES.watchlist = () => {
 PAGES.portfolio = () => {
   const pf = portfolioValue();
   const palette = ['#00a651','#0071e3','#e0407a','#c47f0a','#5b4ae0','#0891b2'];
-  const bySector = {}; pf.lines.forEach(l => bySector[l.stock.sector] = (bySector[l.stock.sector]||0)+l.value);
-  const byCur = {}; pf.lines.forEach(l => byCur[l.cur] = (byCur[l.cur]||0)+l.value);
+  const bySector = {}; pf.lines.forEach(l => { if (l.priceAvailable && l.stock) bySector[l.stock.sector] = (bySector[l.stock.sector]||0)+l.value; });
+  const byCur = {}; pf.lines.forEach(l => { if (l.priceAvailable && l.stock) byCur[l.cur] = (byCur[l.cur]||0)+l.value; });
   const parts = o => Object.entries(o).sort((a,b)=>b[1]-a[1]).map(([k2,v],i)=>({k:k2,v,c:palette[i%palette.length]}));
 
   return `<div class="page-in">
@@ -2193,6 +2321,8 @@ PAGES.portfolio = () => {
       <p class="price" style="font-size:clamp(34px,7vw,52px);margin-top:4px">${fmt.eur(pf.total)}</p>
       <span class="tag ${pf.gain>=0?'tag-up':'tag-down'}" style="margin-top:10px">
         ${trendTxt(pf.gainPct)} · ${fmt.eur(pf.gain)}</span>
+      ${pf.unresolvedCount ? `<p class="tiny" style="margin-top:10px;color:var(--warn)">
+        ${pf.unresolvedCount} position(s) non reconnue(s) n'entrent pas dans ce total.</p>` : ''}
       <p class="tiny" style="margin-top:18px">Historique du portefeuille en cours de constitution :
         il faudra enregistrer la valeur réelle de chaque position jour après jour avant de pouvoir
         tracer une vraie courbe.</p>
@@ -2201,19 +2331,29 @@ PAGES.portfolio = () => {
     <section class="section">
       <h2 class="h2">Positions</h2>
       <div class="card" style="margin-top:14px">${pf.lines.length ? `<div class="rows">
-        ${pf.lines.map(l=>`
-          <div class="row">
+        ${pf.lines.map(l=>{
+          if (!l.stock){
+            return `<div class="row">
+              <span class="row-main"><span class="row-t">${esc(l.id)}</span>
+                <span class="row-s">Société non reconnue</span></span>
+              <span class="row-end"><span class="tiny">indisponible</span></span>
+            </div>`;
+          }
+          return `<div class="row">
             <button style="display:flex;align-items:center;gap:13px;flex:1;min-width:0;text-align:left"
               data-stock="${esc(l.stock.id)}">
               ${avatar(l.stock)}
               <span class="row-main"><span class="row-t">${esc(l.stock.name)}</span>
-                <span class="row-s">${fmt.num(l.qty,4)} × ${fmt.cur(l.localValue/l.qty, l.cur)}</span></span>
+                <span class="row-s">${fmt.num(l.qty,4)} × ${l.priceAvailable ? fmt.cur(l.localValue/l.qty, l.cur) : 'cours indisponible'}</span></span>
             </button>
             <span class="row-end">
-              <div class="tabular-nums" style="font-weight:650">${fmt.eur(l.value)}</div>
-              <div class="tabular-nums ${l.gain>=0?'up-t':'down-t'}" style="font-size:13px;margin-top:2px">${trendTxt(l.gainPct)}</div>
+              ${l.priceAvailable ? `
+                <div class="tabular-nums" style="font-weight:650">${fmt.eur(l.value)}</div>
+                <div class="tabular-nums ${l.gain>=0?'up-t':'down-t'}" style="font-size:13px;margin-top:2px">${trendTxt(l.gainPct)}</div>
+              ` : `<div class="tiny" style="color:var(--ink-4)">cours indisponible</div>`}
             </span>
-          </div>`).join('')}
+          </div>`;
+        }).join('')}
       </div>
       <p class="tiny" style="margin-top:14px">Chaque position est convertie en euros avant addition (taux
         de conversion simulé, pas un flux de change en direct) :
@@ -2514,22 +2654,102 @@ const CMP_ROWS = [
   { label:'Volatilité',        get:s => s.fundamentals && s.fundamentals.volatility, fmt:v => v + ' %',    higher:false },
 ];
 
-PAGES.compare = () => {
-  const picked = state.compare.map(id => byId[id]).filter(Boolean);
+const CMP_PALETTE = ['#3557f6','#00a651','#e0407a','#c47f0a'];
 
-  if (picked.length < 2 || picked.length > 4){
+/* Prépare, pour chaque société sélectionnée, ses points réels pour la
+   période choisie (mêmes HIST/histPeriode que la fiche action — aucun
+   second moteur d'historique). Une société sans historique suffisant est
+   marquée 'insufficient' mais ne bloque pas les autres. */
+function comparisonSeries(ids, periodId){
+  return ids.map((id, i) => {
+    const st = byId[id];
+    if (!st) return { id, label:id, color:CMP_PALETTE[i % CMP_PALETTE.length], status:'unknown' };
+    const entry = HIST.get(id);
+    if (!entry || entry.status === 'loading' || HIST_ENCOURS.has(id))
+      return { id, stock:st, label:st.name, color:CMP_PALETTE[i % CMP_PALETTE.length], status:'loading' };
+    if (entry.status === 'error')
+      return { id, stock:st, label:st.name, color:CMP_PALETTE[i % CMP_PALETTE.length], status:'error' };
+    const pts = histPeriode(id, periodId);
+    if (!pts) return { id, stock:st, label:st.name, color:CMP_PALETTE[i % CMP_PALETTE.length], status:'insufficient' };
+    const base = pts[0].close;
+    const points = pts.map(p => ({ t:new Date(p.date).getTime(), close:p.close, index: base ? (p.close / base) * 100 : null }))
+      .filter(p => Number.isFinite(p.t) && Number.isFinite(p.index));
+    if (points.length < 2) return { id, stock:st, label:st.name, color:CMP_PALETTE[i % CMP_PALETTE.length], status:'insufficient' };
+    const perfPct = (pts[pts.length - 1].close / pts[0].close - 1) * 100;
+    return { id, stock:st, label:st.name, color:CMP_PALETTE[i % CMP_PALETTE.length],
+      status:'ready', points, perfPct, firstDate:pts[0].date, lastDate:pts[pts.length - 1].date };
+  });
+}
+
+/* Graphique multi-séries, en base 100 (chaque courbe démarre à 100 sur son
+   propre premier point réel de la période affichée). Positionnement en X
+   par VRAIE DATE (timestamp), jamais par index de tableau : deux marchés
+   n'ont pas les mêmes séances, comparer "point i contre point i" fausserait
+   le résultat. Fonction séparée de areaChart()/spark(), qui ne gèrent
+   qu'une seule série et ne sont pas modifiées. */
+function comparisonChart(seriesList){
+  const ready = seriesList.filter(s => s.status === 'ready');
+  if (ready.length < 2) return '';
+
+  const w = 800, h = 260, pad = { t:16, b:14, l:4, r:8 };
+  const allT = ready.flatMap(s => s.points.map(p => p.t));
+  const allV = ready.flatMap(s => s.points.map(p => p.index));
+  const minT = Math.min(...allT), maxT = Math.max(...allT), spanT = (maxT - minT) || 1;
+  const minV = Math.min(...allV, 100), maxV = Math.max(...allV, 100);
+  const spanV = (maxV - minV) || 1;
+  const X = t => pad.l + ((t - minT) / spanT) * (w - pad.l - pad.r);
+  const Y = v => pad.t + (1 - (v - minV) / spanV) * (h - pad.t - pad.b);
+  const baseY = Y(100).toFixed(1);
+
+  const lines = ready.map(s => {
+    const d = s.points.map((p,i) => `${i?'L':'M'}${X(p.t).toFixed(1)},${Y(p.index).toFixed(1)}`).join(' ');
+    return `<path d="${d}" fill="none" stroke="${s.color}" stroke-width="2.6"
+      stroke-linejoin="round" stroke-linecap="round"/>`;
+  }).join('');
+
+  return `<svg class="chart" viewBox="0 0 ${w} ${h}" role="img" aria-label="Comparaison des performances, base 100">
+    <line x1="${pad.l}" y1="${baseY}" x2="${w-pad.r}" y2="${baseY}" stroke="var(--line-2)" stroke-width="1"/>
+    <text x="${w-pad.r-4}" y="${(Number(baseY)-6).toFixed(1)}" fill="var(--ink-4)" font-size="11"
+      text-anchor="end" font-family="ui-monospace,monospace">100 (départ)</text>
+    ${lines}
+  </svg>`;
+}
+
+PAGES.compare = () => {
+  const ids = state.compare.filter(id => byId[id]);
+  const periodId = PERIODS_DISPO.includes(state.ui.pfPeriod) ? state.ui.pfPeriod : '1A';
+  const picked = ids.map(id => byId[id]);
+
+  const chips = picked.length ? `<div class="chips" style="margin-top:20px">
+    ${picked.map(x=>`<button class="chip" aria-pressed="true" data-uncmp="${esc(x.id)}">
+      ${esc(x.name)} ✕</button>`).join('')}
+    ${picked.length < 4 ? `<button class="chip" data-search>+ Ajouter une action</button>` : ''}
+  </div>` : '';
+
+  if (picked.length < 2){
     return `<div class="page-in">
       <p class="eyebrow">Comparer</p>
-      <h1 class="title">Face à face</h1>
-      <p class="lead measure-l" style="margin-top:10px">Sélectionnez entre deux et quatre entreprises.</p>
-      ${picked.length ? `<div class="chips" style="margin-top:20px">
-        ${picked.map(x=>`<button class="chip" aria-pressed="true" data-uncmp="${esc(x.id)}">
-          ${esc(x.name)} ✕</button>`).join('')}</div>` : ''}
+      <h1 class="title">Comparer les actions</h1>
+      <p class="lead measure-l" style="margin-top:10px">Superposez les performances réelles de deux à
+        quatre entreprises, normalisées en base 100 pour rester comparables quelle que soit leur devise
+        ou leur niveau de prix.</p>
+      ${chips}
       <div class="card" style="margin-top:20px">${emptyState(
-        picked.length >= 2 ? 'Quatre entreprises au maximum' : 'Choisissez au moins deux entreprises',
+        'Choisissez au moins deux entreprises',
         'Ouvrez une fiche et touchez « Comparer » pour l’ajouter ici.',
         { go:'radar', label:'Ouvrir le Radar' })}</div></div>`;
   }
+  if (picked.length > 4){
+    return `<div class="page-in">
+      <p class="eyebrow">Comparer</p><h1 class="title">Comparer les actions</h1>
+      ${chips}
+      <div class="card" style="margin-top:20px">${emptyState('Quatre entreprises au maximum',
+        'Retirez une entreprise pour continuer.')}</div></div>`;
+  }
+
+  const series = comparisonSeries(ids, periodId);
+  const ready = series.filter(s => s.status === 'ready');
+  const notReady = series.filter(s => s.status !== 'ready');
 
   const body = CMP_ROWS.map(row => {
     const vals = picked.map(row.get);
@@ -2550,29 +2770,58 @@ PAGES.compare = () => {
 
   return `<div class="page-in">
     <p class="eyebrow">Comparer</p>
-    <h1 class="title">Face à face</h1>
-    <p class="lead measure-l" style="margin-top:10px">${picked.length} entreprises comparées critère
-      par critère. Une donnée absente n'est jamais remplacée.</p>
+    <h1 class="title">Comparer les actions</h1>
+    <p class="lead measure-l" style="margin-top:10px">${picked.length} entreprises · performance réelle,
+      base 100 au premier cours disponible de la période.</p>
 
-    <div class="chips" style="margin-top:20px">
-      ${picked.map(x=>`<button class="chip" aria-pressed="true" data-uncmp="${esc(x.id)}">
-        ${esc(x.name)} ✕</button>`).join('')}
-    </div>
+    ${chips}
 
-    <div class="card" style="margin-top:20px;overflow-x:auto">
-      <table class="cmp">
-        <thead><tr><th>Critère</th>
-          ${picked.map(x=>`<th><button data-stock="${esc(x.id)}" style="text-align:center;width:100%">
-            <span style="display:block;font-weight:650">${esc(x.name)}</span>
-            <span class="cmp-t">${esc(x.ticker)}</span></button></th>`).join('')}
-        </tr></thead>
-        <tbody>${body}</tbody>
-      </table>
-    </div>
-    <p class="tiny" style="margin-top:16px">Ces comparaisons portent sur les critères mesurés.
-      Elles ne désignent aucune action à acheter.</p>
+    <section class="section">
+      <div class="section-h"><h2 class="h2">Performance</h2>
+        <div class="seg">${PERIODS_DISPO.map(x=>`<button data-cperiod="${x}"
+          aria-pressed="${periodId===x}">${x}</button>`).join('')}</div></div>
+      <div class="card">
+        ${ready.length >= 2
+          ? comparisonChart(series)
+          : `<p class="small" style="padding:24px 0;text-align:center">
+              ${ready.length===0 && notReady.some(s=>s.status==='loading')
+                ? 'Chargement des historiques…'
+                : 'Au moins deux historiques sont nécessaires pour comparer.'}</p>`}
+        <div class="rows" style="margin-top:${ready.length>=2?'18px':'0'}">
+          ${series.map(s => `<div class="row" style="padding:9px 0">
+            <span style="display:flex;align-items:center;gap:9px;flex:1;min-width:0">
+              <i style="width:11px;height:11px;border-radius:3px;background:${s.color};flex:0 0 auto"></i>
+              <span class="row-t" style="font-size:14px">${esc(s.label)}</span>
+            </span>
+            <span class="tabular-nums ${s.status==='ready' ? (s.perfPct>=0?'up-t':'down-t') : ''}" style="font-size:13.5px;color:${s.status==='ready'?'':'var(--ink-4)'}">
+              ${s.status==='ready' ? trendTxt(s.perfPct,1)
+                : s.status==='loading' ? 'chargement…'
+                : s.status==='error' ? 'erreur réseau'
+                : 'historique indisponible'}
+            </span>
+          </div>`).join('')}
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2 class="h2">Critères mesurés</h2>
+      <div class="card" style="margin-top:14px;overflow-x:auto">
+        <table class="cmp">
+          <thead><tr><th>Critère</th>
+            ${picked.map(x=>`<th><button data-stock="${esc(x.id)}" style="text-align:center;width:100%">
+              <span style="display:block;font-weight:650">${esc(x.name)}</span>
+              <span class="cmp-t">${esc(x.ticker)}</span></button></th>`).join('')}
+          </tr></thead>
+          <tbody>${body}</tbody>
+        </table>
+      </div>
+      <p class="tiny" style="margin-top:16px">Ces critères ne sont affichés que lorsque les fondamentaux
+        sont réellement disponibles. Ils ne désignent aucune action à acheter.</p>
+    </section>
   </div>`;
 };
+
 
 /* ============================================================
    AUTHENTIFICATION — état à trois valeurs
@@ -2731,7 +2980,7 @@ function setCapital(amount){
   state.wallet = { cash:v, invested:v, positions:[] };
   state.onboarding.capital = v;
   state.onboarding.step = 4;
-  saveState();
+  flushSaveState();
   renderGate();
   toast(`Portefeuille ouvert avec ${fmt.eur(v)}`);
 }
@@ -3025,6 +3274,7 @@ function render(navigated = false){
     state.watchlist.slice(0, 6).map(id => byId[id]).filter(Boolean).forEach(chargerHistorique);
   }
   if (route.page === 'stock' && byId[route.arg]) chargerHistorique(byId[route.arg]);
+  if (route.page === 'compare') state.compare.map(id => byId[id]).filter(Boolean).forEach(chargerHistorique);
   if (route.page === 'radar')   document.getElementById('radarOut').innerHTML = radarResults();
   if (route.page === 'explore') document.getElementById('exploreOut').innerHTML = exploreRows();
   animate();
@@ -3422,13 +3672,24 @@ document.addEventListener('click', e => {
   const cmp = q('[data-cmp]');
   if (cmp){
     const id = cmp.dataset.cmp;
-    if (state.compare.includes(id)) toast('Déjà dans le comparateur');
-    else if (state.compare.length >= 4) toast('Quatre entreprises au maximum')
-    else { state.compare.push(id); saveState(); toast('Ajouté au comparateur'); }
+    if (state.compare.includes(id)){
+      state.compare = state.compare.filter(x => x !== id);
+      toast('Retirée de la comparaison');
+    } else if (state.compare.length >= 4){
+      toast('Quatre entreprises au maximum'); return;
+    } else {
+      state.compare.push(id);
+      toast('Ajoutée à la comparaison' + (state.compare.length >= 2 ? ` (${state.compare.length})` : ''));
+    }
+    saveState();
+    if (route.page === 'stock') render();   // rafraîchit le libellé du bouton + le lien "Voir la comparaison"
     return;
   }
   const uncmp = q('[data-uncmp]');
   if (uncmp){ state.compare = state.compare.filter(x=>x!==uncmp.dataset.uncmp); saveState(); render(); return; }
+
+  const cperiod = q('[data-cperiod]');
+  if (cperiod){ state.ui.pfPeriod = cperiod.dataset.cperiod; saveState(); render(); return; }
 
   const cyc = q('[data-cycle]');
   if (cyc){ state.settings.cycle = cyc.dataset.cycle; saveState(); render(); return; }
@@ -3581,6 +3842,12 @@ async function runAnalysis(stockId){
 
 /* ---------- démarrage ---------- */
 function boot(){
+  /* Rejoue le catalogue des sociétés hors catalogue déjà rencontrées
+     (positions, sélection Comparer) AVANT tout rendu, pour que byId soit
+     complet dès la première fois que portfolioValue()/PAGES.compare() en
+     ont besoin. */
+  restoreRuntimeCatalog();
+
   if (!state.settings.theme) state.settings.theme = 'light';
   applySettings();
   if (window.matchMedia){
@@ -3588,6 +3855,16 @@ function boot(){
       if (state.settings.theme === 'auto') applyTheme();
     });
   }
+
+  /* Filet de sécurité : si une écriture debouncée est encore en attente au
+     moment où l'onglet/l'app se ferme ou passe en arrière-plan, on la force
+     immédiatement plutôt que de risquer qu'elle ne se déclenche jamais.
+     Couvre tous les saveState() debouncés (watchlist, réglages, etc.), pas
+     seulement le portefeuille. */
+  window.addEventListener('pagehide', flushSaveState);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') flushSaveState();
+  });
 
   /* auth.status = 'loading' dès le boot (voir DEFAULT_STATE/loadState) :
      l'écran neutre s'affiche immédiatement, avant toute résolution réseau,
