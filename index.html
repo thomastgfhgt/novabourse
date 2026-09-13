@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -867,6 +868,19 @@ const fmt = {
   pct(v, d = 2){
     return Number.isFinite(v) ? (v >= 0 ? '+' : '') + v.toLocaleString('fr-FR', { minimumFractionDigits:d, maximumFractionDigits:d }) + ' %' : '—';
   },
+  /* Pour un ratio décimal réellement fourni par le backend (roe,
+     profitMargin, operatingMargin : ex. 0.3322 = 33,22 %) — ×100 puis
+     formaté. Ne jamais utiliser sur un champ dont l'unité n'est pas
+     confirmée (ex. dividendYield, dont Finnhub renvoie une valeur déjà en
+     points de pourcentage — voir plainFundamentals). '—' si non fini. */
+  pctRatio(v, d = 1){
+    return Number.isFinite(v) ? (v * 100).toLocaleString('fr-FR', { minimumFractionDigits:d, maximumFractionDigits:d }) + ' %' : '—';
+  },
+  /* Multiplicateur (PER, PriceToBook, EV/EBITDA…) : "27,5 ×", jamais
+     "undefined ×" ni "NaN ×". */
+  mult(v, d = 1){
+    return Number.isFinite(v) ? v.toLocaleString('fr-FR', { minimumFractionDigits:d, maximumFractionDigits:d }) + ' ×' : '—';
+  },
 };
 
 /* ---- état applicatif ---- */
@@ -1065,7 +1079,7 @@ const BLANK_FIELDS = () => ({
      strengths/weaknesses, radar) distingue "donnée absente" (null) de
      "donnée à zéro". Rien ici n'est une valeur de marché. */
   score:null, scores:{}, coverage:0, partial:true,
-  fundamentals:null, hasFundamentals:false,
+  fundamentals:null, hasFundamentals:false, fundamentalsSource:null,
   volatility:null, volRisk:null, momentum:null,
   marketCapEUR:null,
 });
@@ -1391,18 +1405,52 @@ function weaknesses(st){
     .slice(0,3)
     .map(c => `<b>${esc(c.label)}</b> — ${esc(measureText(st, c.key))} (${st.scores[c.key]}/100)`);
 }
+/* Capitalisation : les fournisseurs ne renvoient pas la même unité pour
+   marketCap (confirmé : Finnhub renvoie des MILLIONS de dollars — ex.
+   3 680 323 pour MSFT = 3 680,3 Md $ — alors qu'EODHD renvoie généralement
+   une valeur absolue). Conversion adaptée à la source réellement reçue ;
+   à terme, cette normalisation devrait se faire côté backend (_providers.js)
+   pour qu'une seule unité soit renvoyée quelle que soit la source. */
+function capEnMilliards(marketCap, source){
+  if (!Number.isFinite(marketCap)) return null;
+  if (source === 'finnhub') return marketCap / 1000;       // millions -> milliards
+  return marketCap / 1e9;                                   // valeur absolue supposée (EODHD) -> milliards
+}
+
+/* Croissance annuelle simple à partir d'une série réelle (revenueSeries /
+   epsSeries, telles que renvoyées par EODHD : [{date, annee, valeur}, ...]).
+   Ne calcule QUE si deux exercices réellement consécutifs existent — jamais
+   d'estimation. Finnhub ne fournit actuellement aucune de ces séries
+   (revenueSeries/epsSeries valent null dans son payload confirmé) : la
+   croissance reste donc "—" pour toute société dont les fondamentaux
+   viennent de Finnhub, ce qui est honnête plutôt qu'inventé. */
+function croissanceSerie(serie){
+  if (!Array.isArray(serie)) return null;
+  const valides = serie
+    .filter(x => x && Number.isInteger(x.annee) && Number.isFinite(x.valeur))
+    .sort((a, b) => b.annee - a.annee);
+  if (valides.length < 2) return null;
+  const [recent, precedent] = valides;
+  if (recent.annee - precedent.annee !== 1) return null;
+  if (precedent.valeur === 0) return null;
+  return (recent.valeur - precedent.valeur) / precedent.valeur * 100;
+}
+
+/* Noms de champs alignés sur le contrat réel confirmé (test MSFT, via
+   Finnhub) : profitMargin/operatingMargin/roe sont des ratios décimaux
+   (0.3322 = 33,22 %) ; pe est un multiplicateur ; marketCap nécessite
+   capEnMilliards(). dividendYield n'est PAS multiplié par 100 : Finnhub le
+   renvoie déjà en points de pourcentage (ex. 0.79485 = 0,79 %, un rendement
+   réaliste pour MSFT) — à confirmer/normaliser côté backend si un autre
+   provider utilisait une unité différente. */
 function measureText(st, key){
   const f = st.fundamentals;
   if (!f) return '';
   switch(key){
-    case 'quality':    return `marge opérationnelle de ${f.margin} %`;
-    case 'growth':     return `chiffre d'affaires ${f.revenueGrowth > 0 ? '+' : ''}${f.revenueGrowth} %, bénéfice ${f.epsGrowth > 0 ? '+' : ''}${f.epsGrowth} %`;
-    case 'profit':     return `ROE de ${f.roe} %`;
-    case 'debt':       return `dette à ${f.debtEquity} % des fonds propres`;
-    case 'valuation':  return `PER de ${f.per}`;
-    case 'volatility': return `volatilité de ${f.volatility} % par an`;
-    case 'momentum':   return `${f.momentum > 0 ? '+' : ''}${f.momentum} % sur six mois`;
-    case 'regularity': return `${f.upMonths} % de mois en hausse`;
+    case 'quality':    return Number.isFinite(f.profitMargin) ? `marge nette de ${fmt.pctRatio(f.profitMargin)}` : '';
+    case 'growth':     { const g = croissanceSerie(f.revenueSeries); return g !== null ? `chiffre d'affaires ${g > 0 ? '+' : ''}${fmt.num(g,1)} %` : ''; }
+    case 'profit':     return Number.isFinite(f.roe) ? `ROE de ${fmt.pctRatio(f.roe)}` : '';
+    case 'valuation':  return Number.isFinite(f.pe) ? `PER de ${fmt.mult(f.pe)}` : '';
     default: return '';
   }
 }
@@ -1410,12 +1458,10 @@ function plainFundamentals(st){
   const f = st.fundamentals;
   if (!f) return '';
   const bits = [];
-  if (f.margin !== null && f.margin !== undefined) bits.push(`sur 100 € de ventes, il reste environ ${Math.round(f.margin)} € avant impôts et frais financiers`);
-  if (f.debtEquity !== null && f.debtEquity !== undefined) bits.push(f.debtEquity > 150
-    ? `la dette dépasse largement les fonds propres, ce qui limite la marge de manœuvre`
-    : f.debtEquity > 80 ? `la dette est du même ordre que les fonds propres` : `la dette reste modérée`);
-  if (f.per !== null && f.per !== undefined) bits.push(`vous payez ${Math.round(f.per)} années de bénéfices au cours actuel`);
-  return esc(bits.join(' ; ')) + '.';
+  if (Number.isFinite(f.profitMargin)) bits.push(`sur 100 € de ventes, il reste environ ${Math.round(f.profitMargin * 100)} € de bénéfice net`);
+  if (Number.isFinite(f.pe)) bits.push(`vous payez ${Math.round(f.pe)} années de bénéfices au cours actuel`);
+  if (Number.isFinite(f.roe)) bits.push(`l'entreprise dégage ${fmt.pctRatio(f.roe)} de rentabilité sur les capitaux propres`);
+  return bits.length ? esc(bits.join(' ; ')) + '.' : '';
 }
 
 const GLOSSARY = {
@@ -1843,17 +1889,20 @@ async function chargerHistorique(stock){
       sourcesHistory: d.sources?.history, historyPresent: !!d.history,
       ohlcvLength: d.history?.ohlcv?.length ?? 0 });
 
-    /* Fondamentaux : simple passage tel quel de d.fundamentals, sans
-       renommer ni inventer de champ. NON VÉRIFIÉ contre une réponse
-       réellement peuplée (les deux exemples observés — AMZN, RMS —
-       renvoient fundamentals:null pour une cause backend/provider réelle :
-       EODHD 403, Finnhub 401/exchange non supporté ; voir rapport). Les
-       noms de champs lus par measureText/plainFundamentals/PAGES.stock
-       (margin, roe, debtEquity, per, revenueGrowth, epsGrowth, volatility,
-       upMonths, dividend, cap) restent donc une hypothèse à confirmer dès
-       qu'un provider renverra effectivement des données. */
+    /* Fondamentaux : passage tel quel de d.fundamentals, sans renommer ni
+       inventer de champ. Le contrat réel est maintenant CONFIRMÉ (test MSFT,
+       via Finnhub) : revenue, revenuePerShare, revenueSeries, epsSeries,
+       fcfSeries, netIncome, eps, profitMargin, operatingMargin, roe, debt,
+       cash, freeCashFlow, pe, forwardPE, priceToBook, evToEbitda,
+       dividendYield, marketCap. Les noms précédemment supposés (margin,
+       debtEquity, per, revenueGrowth, epsGrowth, volatility, upMonths,
+       dividend, cap) ne correspondent pas au contrat réel et ont été
+       corrigés dans PAGES.stock/measureText/plainFundamentals ci-dessous.
+       fundamentalsSource est conservé séparément : la conversion d'unité de
+       marketCap diffère selon le fournisseur (voir capEnMilliards). */
     stock.fundamentals = d.fundamentals ?? null;
     stock.hasFundamentals = Boolean(d.fundamentals);
+    stock.fundamentalsSource = d.sources?.fundamentals ?? null;
 
     const points = (d.history?.ohlcv || [])
       .filter(x => x && typeof x.date === 'string' && Number.isFinite(x.close) && x.close > 0)
@@ -2229,20 +2278,20 @@ PAGES.stock = (id) => {
     <div class="card">
       ${s.hasFundamentals && f ? `
         <dl>
-          <div class="kv"><dt>Capitalisation ${infoBtn('Capitalisation')}</dt><dd class="tabular-nums">${fmt.int(f.cap)} Md ${esc(s.curSymbol)}</dd></div>
-          <div class="kv"><dt>Rentabilité (ROE) ${infoBtn('ROE')}</dt><dd>${fmt.num(f.roe,1)} %</dd></div>
-          <div class="kv"><dt>Marge ${infoBtn('Marge')}</dt><dd>${fmt.num(f.margin,1)} %</dd></div>
-          <div class="kv"><dt>Croissance du CA</dt><dd class="${f.revenueGrowth>=0?'up-t':'down-t'}">${trendTxt(f.revenueGrowth,1)}</dd></div>
-          <div class="kv"><dt>Dette / fonds propres ${infoBtn('Dette')}</dt><dd>${f.debtEquity} %</dd></div>
-          <div class="kv"><dt>PER ${infoBtn('PER')}</dt><dd>${fmt.num(f.per,1)} ×</dd></div>
+          <div class="kv"><dt>Capitalisation ${infoBtn('Capitalisation')}</dt><dd class="tabular-nums">${fmt.num(capEnMilliards(f.marketCap, s.fundamentalsSource), 1)} Md ${esc(s.curSymbol)}</dd></div>
+          <div class="kv"><dt>Rentabilité (ROE) ${infoBtn('ROE')}</dt><dd>${fmt.pctRatio(f.roe)}</dd></div>
+          <div class="kv"><dt>Marge ${infoBtn('Marge')}</dt><dd>${fmt.pctRatio(Number.isFinite(f.profitMargin) ? f.profitMargin : f.operatingMargin)}</dd></div>
+          <div class="kv"><dt>Croissance du CA</dt><dd class="${(() => { const g = croissanceSerie(f.revenueSeries); return g === null ? '' : (g >= 0 ? 'up-t' : 'down-t'); })()}">${(() => { const g = croissanceSerie(f.revenueSeries); return g !== null ? trendTxt(g, 1) : '—'; })()}</dd></div>
+          <div class="kv"><dt>Dette / fonds propres ${infoBtn('Dette')}</dt><dd>—</dd></div>
+          <div class="kv"><dt>PER ${infoBtn('PER')}</dt><dd>${fmt.mult(f.pe)}</dd></div>
           ${isExpert()?`
-            <div class="kv"><dt>Croissance du bénéfice ${infoBtn('BPA')}</dt><dd class="${f.epsGrowth>=0?'up-t':'down-t'}">${trendTxt(f.epsGrowth,1)}</dd></div>
-            <div class="kv"><dt>Volatilité ${infoBtn('Volatilité')}</dt><dd>${f.volatility} %</dd></div>
-            <div class="kv"><dt>Mois en hausse ${infoBtn('Régularité')}</dt><dd>${f.upMonths} %</dd></div>
-            <div class="kv"><dt>Dividende ${infoBtn('Dividende')}</dt><dd>${fmt.num(f.dividend)} %</dd></div>`:''}
+            <div class="kv"><dt>Croissance du bénéfice ${infoBtn('BPA')}</dt><dd class="${(() => { const g = croissanceSerie(f.epsSeries); return g === null ? '' : (g >= 0 ? 'up-t' : 'down-t'); })()}">${(() => { const g = croissanceSerie(f.epsSeries); return g !== null ? trendTxt(g, 1) : '—'; })()}</dd></div>
+            <div class="kv"><dt>Volatilité ${infoBtn('Volatilité')}</dt><dd>—</dd></div>
+            <div class="kv"><dt>Mois en hausse ${infoBtn('Régularité')}</dt><dd>—</dd></div>
+            <div class="kv"><dt>Dividende ${infoBtn('Dividende')}</dt><dd>${fmt.num(f.dividendYield, 2)} %</dd></div>`:''}
         </dl>
-        <div class="notice" style="margin-top:16px;background:var(--bg-2);color:var(--ink-2)">
-          <b style="color:var(--ink)">En clair.</b> ${plainFundamentals(s)}</div>`
+        ${plainFundamentals(s) ? `<div class="notice" style="margin-top:16px;background:var(--bg-2);color:var(--ink-2)">
+          <b style="color:var(--ink)">En clair.</b> ${plainFundamentals(s)}</div>` : ''}`
       : `<div class="notice"><b>Données financières indisponibles.</b>
           Aucune valeur approchée n'est affichée, et les composantes concernées
           sont retirées du score tant qu'elles ne sont pas connues.</div>`}
