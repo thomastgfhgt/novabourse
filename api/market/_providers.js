@@ -21,9 +21,19 @@ const KEYS = () => ({
     process.env.TWELVEDATA_API_KEY
     || null,
 
+  /* CORRECTIF : FINNHUB_API_KEY d'abord (nom non ambigu, dédié à ce seul
+     provider). MARKET_API_KEY reste en repli pour compatibilité historique.
+     Diagnostic : un 401 "Invalid API key" chez Finnhub alors qu'une clé
+     Finnhub valide existe est exactement le symptôme d'une variable
+     MARKET_API_KEY définie avec une autre valeur (autre usage, reliquat,
+     faute de frappe) qui masquait FINNHUB_API_KEY tant que l'ancien ordre
+     (MARKET_API_KEY d'abord) était utilisé.
+     À vérifier dans Vercel (noms de variables uniquement, jamais la
+     valeur) : FINNHUB_API_KEY existe-t-elle ? MARKET_API_KEY existe-t-elle
+     aussi ? Contiennent-elles la même clé ou deux valeurs différentes ? */
   finnhub:
-    process.env.MARKET_API_KEY
-    || process.env.FINNHUB_API_KEY
+    process.env.FINNHUB_API_KEY
+    || process.env.MARKET_API_KEY
     || null,
 });
 
@@ -205,12 +215,36 @@ const SUFFIX = {
 const eodhdSymbol = (
   ticker,
   exchange
-) =>
-  `${ticker}.${
+) => {
+  /*
+   * Validation explicite plutôt que fabrication silencieuse : si
+   * `exchange` est renseigné mais n'est PAS une des places canoniques
+   * connues de ce backend (les clés de SUFFIX ci-dessus), le suffixe
+   * EODHD construit ci-dessous ("exchange" brut) est très probablement
+   * invalide et produira un symbole qui n'existera pas chez EODHD —
+   * exactement le type de perte silencieuse ticker/exchange suspectée
+   * entre /api/market/search et /api/market/company. On journalise
+   * (logs serveur uniquement, jamais exposé au client) sans jamais
+   * changer le symbole retourné : aucun exchange aujourd'hui fonctionnel
+   * n'est donc affecté par cet ajout.
+   */
+  if (
+    exchange
+    && !Object.prototype.hasOwnProperty.call(SUFFIX, exchange)
+  ) {
+    console.warn(
+      `[market] exchange non canonique reçu par eodhdSymbol : "${exchange}" `
+      + `(ticker "${ticker}") — vérifier la chaîne search -> ensureRuntimeStock `
+      + `-> /api/market/company pour une perte/mutation de exchangeCode.`
+    );
+  }
+
+  return `${ticker}.${
     SUFFIX[exchange]
     || exchange
     || 'US'
   }`;
+};
 
 const TD_EXCHANGE = {
   NASDAQ: null,
