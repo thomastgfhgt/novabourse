@@ -56,7 +56,7 @@ module.exports = async (req, res) => {
      actif retombe sur free — jamais sur pro ni elite. */
   const { plan } = await planReel(sb, user.id);
 
-  const { ticker, exchange } = req.body || {};
+  const { ticker, exchange, name, country, sector, industry, currency } = req.body || {};
   // Aucune entreprise par défaut : sans identification, aucun appel ne part.
   if (!ticker) return res.status(400).json({ error: 'entreprise_non_identifiee' });
 
@@ -78,23 +78,86 @@ module.exports = async (req, res) => {
       detail: dossier?.error || dossier?.missing || null, journal: dossier?.journal || null });
   }
 
+  /* IDENTITÉ — fusion serveur-prioritaire.
+     dossier.identity vient de /api/market/company, alimenté par les
+     fournisseurs financiers réels (EODHD General, etc.) : c'est TOUJOURS la
+     source de vérité. Le frontend peut transmettre des métadonnées NON
+     FINANCIÈRES déjà connues de NovaBourse (catalogue local, résultat de
+     recherche, catalogue runtime restauré après refresh) ; elles ne
+     comblent QUE les champs que le serveur n'a réellement pas pu déterminer
+     — jamais l'inverse, et jamais un champ financier (aucun prix, aucun
+     fondamental, aucun score n'est accepté depuis req.body ici). Chaque
+     champ conserve sa provenance dans identitySource pour audit. */
+  /* Validation stricte des métadonnées d'identité venant du client, AVANT
+     toute utilisation : elles finissent dans le prompt envoyé au modèle, et
+     /api/analyze est un endpoint public (authentifié, mais appelable
+     directement, pas seulement depuis index.html). Cela réduit la surface
+     d'entrée (type, longueur, caractères de contrôle) mais NE constitue PAS
+     une protection absolue contre une injection de prompt : un texte court,
+     bien formé et dans la limite de longueur peut rester sémantiquement
+     problématique. Seule une séparation stricte entre données et
+     instructions au niveau du prompt (hors périmètre de ce correctif)
+     éliminerait le risque plus complètement.
+     Règles appliquées ici : type string strict (un objet/tableau devient
+     null, jamais sérialisé) ; caractères de contrôle retirés ; espaces
+     superflus retirés ; longueur bornée par champ. Une valeur vide après
+     nettoyage devient null — jamais une chaîne vide propagée comme
+     "connue". */
+  function texteIdentite(valeur, maxLen){
+    if (typeof valeur !== 'string') return null;
+    const nettoye = valeur.replace(/[\u0000-\u001F\u007F]/g, '').trim();
+    return nettoye ? nettoye.slice(0, maxLen) : null;
+  }
+  const identiteClient = {
+    name: texteIdentite(name, 120),
+    country: texteIdentite(country, 60),
+    sector: texteIdentite(sector, 60),
+    industry: texteIdentite(industry, 80),
+    currency: texteIdentite(currency, 10),
+  };
+  const identitySource = {};
+  const identity = { ...dossier.identity };
+  for (const champ of Object.keys(identiteClient)) {
+    const valeurServeur = identity[champ];
+    const valeurClient = identiteClient[champ];
+    if ((valeurServeur === null || valeurServeur === undefined) && valeurClient) {
+      identity[champ] = valeurClient;
+      identitySource[champ] = 'frontend';
+    } else {
+      identitySource[champ] = valeurServeur != null ? 'server' : null;
+    }
+  }
+  dossier = { ...dossier, identity };
+
   /* NovaScore : calculé ICI, par notre moteur, à partir du dossier réel.
      Le modèle le recevra pour l'expliquer — jamais pour le produire. */
   const nova = novascore(dossier);
 
-  /* VERROU DE QUOTA.
-     Une cotation isolée ne permet aucune analyse d'entreprise : sans
-     fondamentaux NI historique, on refuse AVANT la réservation, donc sans
-     consommer d'analyse. La réservation intervient plus bas (ligne ~129). */
-  const manquants = dossier.missing || [];
-  if (manquants.includes('fundamentals') && manquants.includes('history')){
+  /* VERROU DE QUOTA — CORRIGÉ.
+     Avant ce correctif, ce verrou ne se déclenchait que si fundamentals ET
+     history manquaient TOUS LES DEUX. Une société avec un historique réel
+     mais sans fondamentaux (ex. NVIDIA : history OK, fundamentals absents)
+     passait donc ce verrou, réservait le quota et appelait le modèle, alors
+     même que le moteur NovaScore avait déjà correctement calculé une
+     couverture < 40 % et refusé de produire une note (score:null).
+     Le verrou se base maintenant directement sur ce que le moteur a déjà
+     décidé — score:null ET son signal explicite `refused` (redondants par
+     construction dans _novascore.js, vérifié : le seul chemin renvoyant
+     score:null est le refus pour couverture insuffisante, qui pose toujours
+     refused:'couverture_insuffisante') — plutôt que de dupliquer un second
+     seuil arbitraire ici, susceptible de diverger de celui de
+     _novascore.js. Aucune réservation, aucun appel au modèle ne doit avoir
+     lieu avant ce test. */
+  if (nova.score === null || nova.refused){
     return res.status(424).json({
-      error: 'donnees_insuffisantes',
-      message: "Seule une cotation ponctuelle est disponible pour cette société. "
-        + "Sans fondamentaux ni historique, aucune analyse n'est possible — "
-        + "votre quota n'a pas été utilisé.",
+      error: 'insufficient_data',
+      message: "Couverture des données insuffisante pour produire un NovaScore "
+        + "(minimum 40 % requis). Aucune analyse n'a été consommée.",
+      coverage: nova.coverage,
+      novaScore: null,
+      missing: dossier.missing || [],
       quotaConsomme: false,
-      sources: dossier.sources, missing: manquants,
+      sources: dossier.sources,
       journal: (dossier.journal || []).filter(j => !j.ok),
     });
   }
@@ -184,6 +247,45 @@ jamais et ne modifies jamais de note.`;
     }
     brut = id === 'anthropic' ? (d.content?.[0]?.text || '') : (d.choices?.[0]?.message?.content || '');
     parsed = JSON.parse(brut.replace(/```json|```/g, '').trim());
+
+    /* SCHÉMA STRICT — VALIDATION AVANT NORMALISATION.
+       Un modèle peut renvoyer un JSON syntaxiquement valide mais qui ne
+       respecte pas le contrat attendu (verdict hors énumération, uncertainty
+       hors énumération, summary/positive/negative absents ou du mauvais
+       type). Une telle réponse est REJETÉE explicitement (throw), pas
+       silencieusement coercée en null/[] : la consommer comme un "200 avec
+       verdict:null" produirait une analyse facturée au quota alors que le
+       modèle n'a en réalité pas respecté le contrat — ce que ce correctif
+       supprime. Le rejet remonte au catch englobant, qui annule la
+       réservation ('cancelled') et renvoie 502 : aucune analyse n'est donc
+       jamais consommée définitivement dans ce cas.
+       Seulement une fois cette validation passée, les champs sont bornés en
+       longueur et les éléments non-string filtrés des tableaux — ça, c'est
+       de la normalisation, pas une validation de conformité. */
+    const VERDICTS_AUTORISES = new Set(['positif', 'neutre', 'negatif', 'insuffisant']);
+    const INCERTITUDES_AUTORISEES = new Set(['faible', 'moyenne', 'elevee']);
+    if (
+      !parsed || typeof parsed !== 'object' || Array.isArray(parsed)
+      || !VERDICTS_AUTORISES.has(parsed.verdict)
+      || !INCERTITUDES_AUTORISEES.has(parsed.uncertainty)
+      || typeof parsed.summary !== 'string'
+      || !Array.isArray(parsed.positive)
+      || !Array.isArray(parsed.negative)
+    ){
+      throw new Error('schema_analyse_invalide');
+    }
+    const listeBornee = (v, maxItems, maxLen) => v
+      .filter(x => typeof x === 'string')
+      .slice(0, maxItems)
+      .map(x => x.slice(0, maxLen));
+    parsed = {
+      verdict: parsed.verdict,               // déjà validé dans l'énumération ci-dessus
+      uncertainty: parsed.uncertainty,       // déjà validé dans l'énumération ci-dessus
+      summary: parsed.summary.slice(0, 600),
+      positive: listeBornee(parsed.positive, 6, 220),
+      negative: listeBornee(parsed.negative, 6, 220),
+    };
+
     usage = d.usage || null;
   } catch (e) {
     console.error('[analyze]', id, e.message);
@@ -206,6 +308,53 @@ jamais et ne modifies jamais de note.`;
     }
   }
 
+  /* VERROU ANTI-HALLUCINATION EN TEXTE LIBRE.
+     Le filtre ci-dessus ne retire qu'un chiffre porté DIRECTEMENT par une
+     valeur JSON numérique ou un nom de champ suspect. Il laisse passer un
+     chiffre inventé glissé dans une phrase ("summary", "positive[]",
+     "negative[]"), ex. {"summary":"Le PER est de 31,4"} sans que 31,4 ne
+     figure nulle part dans le contexte réellement transmis au modèle.
+     Principe : construire l'ensemble des nombres RÉELLEMENT présents dans
+     `context` (chaque valeur, plus sa forme ×100 pour couvrir un ratio cité
+     en pourcentage, arrondie à 0/1/2 décimales pour tolérer un arrondi du
+     modèle), puis, pour chaque nombre repéré dans le texte, ne le laisser
+     passer que s'il correspond à l'une de ces valeurs autorisées. Un
+     nombre qui ne correspond à rien de fourni est remplacé par un
+     marqueur — jamais toute la phrase : le modèle garde le droit de citer
+     un vrai chiffre du contexte. Compromis assumé : un nombre non financier
+     bénin (ex. "deux segments") peut être retiré s'il ne correspond à
+     aucune valeur du contexte ; c'est jugé préférable à laisser passer un
+     chiffre financier inventé. */
+  function nombresAutorises(valeur, acc){
+    if (typeof valeur === 'number' && Number.isFinite(valeur)){
+      for (const v of [valeur, valeur * 100]){
+        for (const d of [0, 1, 2]) acc.add(v.toFixed(d));
+      }
+    } else if (Array.isArray(valeur)){
+      valeur.forEach(v => nombresAutorises(v, acc));
+    } else if (valeur && typeof valeur === 'object'){
+      Object.values(valeur).forEach(v => nombresAutorises(v, acc));
+    }
+    return acc;
+  }
+  const autorises = nombresAutorises(context, new Set());
+  let nombresRetires = 0;
+  function assainirTexte(texte){
+    if (typeof texte !== 'string') return texte;
+    return texte.replace(/-?\d+(?:[.,]\d+)?/g, jeton => {
+      const n = Number(jeton.replace(',', '.'));
+      if (!Number.isFinite(n)) return jeton;
+      for (const d of [0, 1, 2]) {
+        if (autorises.has(n.toFixed(d))) return jeton;
+      }
+      nombresRetires++;
+      return '[donnée non vérifiée]';
+    });
+  }
+  if (typeof parsed.summary === 'string') parsed.summary = assainirTexte(parsed.summary);
+  if (Array.isArray(parsed.positive)) parsed.positive = parsed.positive.map(assainirTexte);
+  if (Array.isArray(parsed.negative)) parsed.negative = parsed.negative.map(assainirTexte);
+
   await cloturer(sb, reservation, 'ok', { provider:id, model:modele,
     tokens_in: usage?.prompt_tokens ?? null, tokens_out: usage?.completion_tokens ?? null });
 
@@ -224,8 +373,15 @@ jamais et ne modifies jamais de note.`;
     // inexplicable et le diagnostic prend des heures.
     journal: (dossier.journal || []).filter(j => !j.ok),
     identity: dossier.identity,
+    // Provenance de chaque champ d'identité (server = /api/market/company,
+    // frontend = complété depuis les métadonnées transmises par le client,
+    // null = inconnu des deux côtés). Purement diagnostique.
+    identitySource,
     market: dossier.market,
     analysis: parsed, provider: id, model: modele, tokens: usage,
+    // Nombre de chiffres en texte libre retirés faute de correspondre à une
+    // valeur réellement transmise au modèle (voir verrou anti-hallucination).
+    unverifiedNumbersRemoved: nombresRetires,
     // Seule note affichable : celle du moteur. Jamais celle du modèle.
     novascore: {
       engine: nova.engine, score: nova.score, coverage: nova.coverage,
