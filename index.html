@@ -1104,8 +1104,14 @@ function remoteId(ticker, exchangeCode){
    rejoindre `stocks`/`byId` à la demande. */
 function ensureRuntimeStock(meta, persist = true){
   if (!meta || !meta.ticker) return null;
-  const code = meta.exchangeCode || meta.exchange || '';
-  const id = meta.id || remoteId(meta.ticker, code);
+  /* L'id est TOUJOURS dérivé de ticker+exchangeCode, jamais d'un éventuel
+     champ `meta.id` du backend : ça garantit que l'id calculé ici est
+     identique à celui déjà calculé par searchRemote() pour le même résultat
+     (déduplication, navigation, Comparer, portefeuille cohérents). */
+  const code = pickExchangeCode(meta);
+  const id = remoteId(meta.ticker, code);
+  console.debug('[NovaBourse][ensureRuntimeStock]', { ticker:meta.ticker, rawExchange:meta.exchange,
+    rawExchangeCode:meta.exchangeCode, codeRetenu:code, idCalcule:id, dejaConnue:!!byId[id] });
   if (byId[id]) return byId[id];
   const s = {
     id,
@@ -1117,7 +1123,7 @@ function ensureRuntimeStock(meta, persist = true){
        et /api/market/quotes. C'est ce champ, absent avant cette correction,
        qui manquait pour les sociétés hors catalogue : voir chargerHistorique
        et symboleDe ci-dessous. */
-    market: meta.market || meta.exchange || meta.exchangeCode || '—',
+    market: meta.market || meta.exchange || code || '—',
     exchangeCode: code,
     sector: meta.sector || 'Non classé',
     /* industry : conservée seulement si réellement fournie par le search
@@ -1276,6 +1282,18 @@ function searchAll(q){
    sector }] }. Lecture défensive : accepte aussi `matches`/`items`, ignore
    tout élément sans ticker, et échoue silencieusement (recherche locale
    seule) si l'endpoint est absent, en erreur, ou renvoie autre chose. */
+/* Reconnaissance élargie du code de place boursière dans un résultat de
+   /api/market/search : le contrat exact de cet endpoint n'a jamais été
+   vérifié contre une vraie réponse (contrairement à /api/market/company,
+   confirmé par des réponses réelles). "exchangeCode"/"exchange" étaient une
+   hypothèse ; on essaie ici plusieurs noms plausibles, dans l'ordre, sans
+   jamais en inventer la valeur — seulement élargir où on va la chercher. */
+function pickExchangeCode(x){
+  if (!x) return '';
+  return x.exchangeCode || x.exchange_code || x.exchangeMic || x.mic || x.micCode
+    || x.exchangeShort || x.marketCode || x.exchange || '';
+}
+
 async function searchRemote(q){
   if (!CONFIG.marketConnected) return [];
   const t = q.trim();
@@ -1288,13 +1306,20 @@ async function searchRemote(q){
       : Array.isArray(d.matches) ? d.matches
       : Array.isArray(d.items) ? d.items
       : [];
-    return list.filter(x => x && x.ticker).slice(0, 8).map(x => ({
-      type:'action', remote:true,
-      id: remoteId(x.ticker, x.exchangeCode || x.exchange),
-      title: x.name || x.ticker,
-      sub: `${x.ticker} · ${x.sector || 'Non classé'} · ${x.exchange || x.exchangeCode || '—'}`,
-      meta: x,
-    }));
+    /* Diagnostic temporaire, sans effet sur l'UI : permet de retrouver dans
+       la console du navigateur la forme RÉELLE renvoyée par le backend pour
+       confirmer/corriger ce mapping (voir rapport — jamais vérifié avant). */
+    console.debug('[NovaBourse][searchRemote] réponse brute pour', JSON.stringify(t), ':', d);
+    return list.filter(x => x && x.ticker).slice(0, 8).map(x => {
+      const code = pickExchangeCode(x);
+      return {
+        type:'action', remote:true,
+        id: remoteId(x.ticker, code),
+        title: x.name || x.ticker,
+        sub: `${x.ticker} · ${x.sector || 'Non classé'} · ${x.exchange || code || '—'}`,
+        meta: x,
+      };
+    });
   } catch {
     return [];   // recherche locale conservée en repli, aucune erreur affichée
   }
@@ -1804,13 +1829,19 @@ async function chargerHistorique(stock){
        vide -> historique refusé par le backend malgré des données réelles
        disponibles (confirmé : RMS/PA renvoie 260 points en appel direct). */
     const exch = stock.exchangeCode || MARKET_CODE[stock.market] || '';
+    console.debug('[NovaBourse][chargerHistorique] requête', { stockId:stock.id, ticker:stock.ticker,
+      exchangeCodeStocke:stock.exchangeCode, marketStocke:stock.market, exchangeEnvoye:exch });
     const r = await fetch(`/api/market/company?ticker=${encodeURIComponent(stock.ticker)}`
       + `&exchange=${encodeURIComponent(exch)}`);
     if (!r.ok){
+      console.debug('[NovaBourse][chargerHistorique] HTTP', r.status, 'pour', stock.id);
       HIST.set(stock.id, { status:'error', data:[] });
       return;
     }
     const d = await r.json();
+    console.debug('[NovaBourse][chargerHistorique] réponse', { stockId:stock.id,
+      sourcesHistory: d.sources?.history, historyPresent: !!d.history,
+      ohlcvLength: d.history?.ohlcv?.length ?? 0 });
 
     /* Fondamentaux : simple passage tel quel de d.fundamentals, sans
        renommer ni inventer de champ. NON VÉRIFIÉ contre une réponse
@@ -3398,6 +3429,7 @@ function paintSearch(q){
 function pick(h){
   pushRecent(h.title); closeSheet();
   if (h.type === 'action'){
+    console.debug('[NovaBourse][pick] résultat cliqué', h);
     /* Une société venue de /api/market/search n'existe pas encore dans
        byId : on la matérialise (métadonnées seulement) avant d'ouvrir sa
        fiche, qui se comporte alors exactement comme pour le catalogue
