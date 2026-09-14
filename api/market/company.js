@@ -34,7 +34,13 @@ const MAX_HISTORY_POINTS = 260;
 function normaliserTicker(value) {
   const ticker = String(value || '').trim().toUpperCase();
   if (!ticker) return null;
-  if (ticker.length > 30 || !/^[A-Z0-9._-]+$/.test(ticker)) return null;
+  /* CORRECTIF (audit multi-actifs) : même bug que celui déjà corrigé dans
+     search.js, trouvé indépendamment ici — confirmé empiriquement, pas
+     supposé : le "/" était rejeté, alors que c'est le format standard
+     d'une paire Forex ("EUR/USD"), utilisé tel quel par Twelve Data. Ce
+     fichier est importé par history.js ET fundamentals.js : ce correctif
+     s'applique donc aux deux automatiquement. Rien d'autre ne change. */
+  if (ticker.length > 30 || !/^[A-Z0-9._/-]+$/.test(ticker)) return null;
   return ticker;
 }
 
@@ -150,4 +156,3 @@ module.exports = async (req, res) => {
 module.exports.normaliserTicker = normaliserTicker;
 module.exports.normaliserExchange = normaliserExchange;
 module.exports.historiqueValide = historiqueValide;
-
