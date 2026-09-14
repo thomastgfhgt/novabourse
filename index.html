@@ -956,7 +956,9 @@ const DEFAULT_STATE = {
     radarCountry:'tous',
     exploreQ:'',
     exploreSector:'tous',
-    exploreCountry:'tous'
+    exploreCountry:'tous',
+    marketsCategory:'tous',
+    marketsRegion:'Monde',
   },
 
   ui:{
@@ -1073,6 +1075,36 @@ const state = loadState();
    affichera « indisponible », jamais une valeur inventée. */
 const SECTORS = ['Technologie','Finance','Santé','Industrie','Énergie','Consommation','Automobile','Luxe','Télécommunications'];
 
+/* --------------------------------------------------------------------
+   MARCHÉS — catégories et zones géographiques réellement fonctionnelles.
+   Seules les catégories pour lesquelles un provider a été vérifié
+   fonctionnel (voir search.js/_providers.js) apparaissent ici. Aucune
+   catégorie vide/non testée n'est listée — conformément à la consigne :
+   "une catégorie devient visible uniquement lorsque nous disposons d'un
+   provider réellement fonctionnel pour cette catégorie". Indices, ETF,
+   matières premières, obligations, fonds, futures, options ne sont PAS
+   dans cette liste : aucun n'a été vérifié à ce jour (voir le rapport de
+   cette passe). Ajouter une entrée ici quand (et seulement quand) un
+   provider aura été testé et confirmé pour cette catégorie. */
+const MARKET_CATEGORIES = [
+  { id:'tous',   label:'Tous' },
+  { id:'stock',  label:'Actions' },
+  { id:'forex',  label:'Devises' },
+  { id:'crypto', label:'Crypto' },
+];
+
+/* Zone géographique déduite du pays — uniquement pertinent pour les
+   actions (une paire de devises ou une crypto n'a pas de "pays coté").
+   Liste volontairement alignée sur les zones demandées ; toute valeur de
+   `country` absente de cette table n'est simplement pas filtrable par
+   zone (elle reste visible sous "Monde"). */
+const REGION_OF_COUNTRY = {
+  'France': 'France',
+  'Allemagne': 'Europe',
+  'États-Unis': 'Amériques',
+};
+const REGIONS = ['Monde','France','Europe','Amériques','Asie/Pacifique','Moyen-Orient','Afrique'];
+
 const BLANK_FIELDS = () => ({
   /* Explicitement null/false plutôt qu'absents : le reste du fichier (tests,
      strengths/weaknesses, radar) distingue "donnée absente" (null) de
@@ -1084,6 +1116,12 @@ const BLANK_FIELDS = () => ({
   fundamentalsStatus:'idle',
   volatility:null, volRisk:null, momentum:null,
   marketCapEUR:null,
+  /* Type par défaut 'stock' — rétrocompatible : toutes les entrées créées
+     avant cette passe (catalogue + sociétés déjà en localStorage) étaient
+     implicitement des actions ; ce champ le rend simplement explicite,
+     sans rien changer pour elles. Les nouveaux types (forex, crypto...)
+     l'écrasent explicitement dans leur propre littéral. */
+  type:'stock',
 });
 
 const stocks = [
@@ -1097,6 +1135,27 @@ const stocks = [
   { id:'OR-PA', name:"L'Oréal", ticker:'OR', market:'Euronext Paris', exchangeCode:'PA', sector:'Consommation', country:'France', cur:'EUR', curSymbol:'€', ...BLANK_FIELDS() },
   { id:'SAP-DE', name:'SAP SE', ticker:'SAP', market:'Xetra', exchangeCode:'DE', sector:'Technologie', country:'Allemagne', cur:'EUR', curSymbol:'€', ...BLANK_FIELDS() },
   { id:'SIE-DE', name:'Siemens AG', ticker:'SIE', market:'Xetra', exchangeCode:'DE', sector:'Industrie', country:'Allemagne', cur:'EUR', curSymbol:'€', ...BLANK_FIELDS() },
+
+  /* --------------------------------------------------------------------
+     FOREX — ajouté à cette passe. Vérifié réellement (pas supposé) :
+     tdSymbol(ticker, exchange) renvoie le ticker tel quel quand exchange
+     est vide, et Twelve Data accepte "EUR/USD" directement comme symbole
+     (confirmé par sa documentation officielle, y compris pour son propre
+     WebSocket). QUOTE.twelvedata et HISTORY.twelvedata ont été testés
+     avec une réponse Twelve Data réaliste pour EUR/USD : les deux
+     fonctionnent sans aucune modification de _providers.js.
+     exchangeCode volontairement vide : une paire de devises n'a pas de
+     place boursière. curSymbol/cur = devise de cotation (le "USD" de
+     EUR/USD), pas la paire elle-même.
+     -------------------------------------------------------------------- */
+  { id:'EUR/USD', name:'Euro / Dollar américain', ticker:'EUR/USD', market:'Forex', exchangeCode:'', sector:null, country:null, cur:'USD', curSymbol:'$', ...BLANK_FIELDS(), type:'forex' },
+  { id:'GBP/USD', name:'Livre sterling / Dollar américain', ticker:'GBP/USD', market:'Forex', exchangeCode:'', sector:null, country:null, cur:'USD', curSymbol:'$', ...BLANK_FIELDS(), type:'forex' },
+  { id:'USD/JPY', name:'Dollar américain / Yen japonais', ticker:'USD/JPY', market:'Forex', exchangeCode:'', sector:null, country:null, cur:'JPY', curSymbol:'¥', ...BLANK_FIELDS(), type:'forex' },
+
+  /* CRYPTO — même vérification que Forex, même mécanisme (tdSymbol +
+     symbole Twelve Data direct "BTC/USD"). */
+  { id:'BTC/USD', name:'Bitcoin', ticker:'BTC/USD', market:'Crypto', exchangeCode:'', sector:null, country:null, cur:'USD', curSymbol:'$', ...BLANK_FIELDS(), type:'crypto' },
+  { id:'ETH/USD', name:'Ethereum', ticker:'ETH/USD', market:'Crypto', exchangeCode:'', sector:null, country:null, cur:'USD', curSymbol:'$', ...BLANK_FIELDS(), type:'crypto' },
 ];
 const byId = Object.fromEntries(stocks.map(s => [s.id, s]));
 
@@ -1150,6 +1209,9 @@ function ensureRuntimeStock(meta, persist = true){
     cur: meta.currency || meta.cur || 'USD',
     curSymbol: CUR_SYMBOL[meta.currency || meta.cur] || (meta.currency || meta.cur || ''),
     ...BLANK_FIELDS(),
+    /* assetType vient de search.js (typeInterne()) — 'stock' par défaut si
+       absent, cohérent avec BLANK_FIELDS() et le comportement précédent. */
+    type: meta.assetType || 'stock',
   };
   stocks.push(s);
   byId[s.id] = s;
@@ -1164,6 +1226,7 @@ function ensureRuntimeStock(meta, persist = true){
     state.runtimeCatalog[id] = {
       ticker:s.ticker, name:s.name, exchangeCode:s.exchangeCode,
       market:s.market, sector:s.sector, industry:s.industry, country:s.country, cur:s.cur,
+      assetType:s.type,
     };
     flushSaveState();
   }
@@ -2231,7 +2294,7 @@ function radarResults(){
 PAGES.explore = () => `<div class="page-in">
   <p class="eyebrow">Explorer</p>
   <h1 class="title">Toutes les entreprises</h1>
-  <p class="lead measure-l" style="margin-top:10px">${stocks.length} sociétés suivies sur ${new Set(stocks.map(s=>s.market)).size} places boursières.</p>
+  <p class="lead measure-l" style="margin-top:10px">${stocks.filter(s=>s.type==='stock').length} sociétés suivies sur ${new Set(stocks.filter(s=>s.type==='stock').map(s=>s.market)).size} places boursières.</p>
   <button class="search-btn" style="margin:22px 0 0;max-width:100%" data-search>
     ${svg(ICON.search)}<span>Rechercher…</span></button>
   <div class="chips" style="margin-top:16px">
@@ -2241,7 +2304,11 @@ PAGES.explore = () => `<div class="page-in">
   <div class="card" style="margin-top:18px"><div class="rows" id="exploreOut"></div></div>
 </div>`;
 function exploreRows(){
-  let list = [...stocks];
+  /* Explorer reste le catalogue d'ENTREPRISES (actions) — exclusion
+     explicite des nouveaux types (forex/crypto) ajoutés dans `stocks` à
+     cette passe, pour ne pas changer silencieusement ce que cette page a
+     toujours affiché. Ces types vivent désormais dans Marchés. */
+  let list = stocks.filter(s => s.type === 'stock');
   const sec = state.filters.exploreSector || 'tous';
   if (sec !== 'tous') list = list.filter(s => s.sector === sec);
   if (state.filters.exploreQ){ const q = state.filters.exploreQ.toLowerCase();
@@ -2249,6 +2316,49 @@ function exploreRows(){
   list.sort((a,b)=>a.name.localeCompare(b.name,'fr'));
   return list.length ? list.map(s=>stockRow(s)).join('')
     : emptyState('Aucun résultat','Aucune entreprise ne correspond à ce filtre.');
+}
+
+/* ---------- MARCHÉS ----------
+   Navigation/découverte multi-actifs. Distincte d'Explorer (qui reste le
+   catalogue d'entreprises) : Marchés couvre toutes les catégories
+   réellement fonctionnelles (voir MARKET_CATEGORIES). Chargement léger
+   uniquement : identité + quote déjà connue via QUOTES (lazy-loading
+   intact — aucun graphique/fondamentaux/actualité chargé depuis cette
+   page). */
+PAGES.markets = () => {
+  const cat = state.filters.marketsCategory || 'tous';
+  const region = state.filters.marketsRegion || 'Monde';
+  return `<div class="page-in">
+    <p class="eyebrow">Marchés</p>
+    <h1 class="title">Explorer les marchés</h1>
+    <p class="lead measure-l" style="margin-top:10px">Actions, devises et cryptomonnaies,
+      avec des cotations réelles. D'autres catégories seront ajoutées au fur et à mesure
+      que leurs données seront vérifiées.</p>
+    <div class="chips" style="margin-top:16px;overflow-x:auto;flex-wrap:nowrap">
+      ${MARKET_CATEGORIES.map(c=>`<button class="chip" data-filter="marketsCategory" data-val="${c.id}"
+        aria-pressed="${cat===c.id}">${esc(c.label)}</button>`).join('')}
+    </div>
+    ${cat === 'stock' ? `<div class="chips" style="margin-top:10px;overflow-x:auto;flex-wrap:nowrap">
+      ${REGIONS.map(r=>`<button class="chip" data-filter="marketsRegion" data-val="${esc(r)}"
+        aria-pressed="${region===r}">${esc(r)}</button>`).join('')}
+    </div>` : ''}
+    <div class="card" style="margin-top:18px"><div class="rows" id="marketsOut">${marketsRows()}</div></div>
+  </div>`;
+};
+function marketsRows(){
+  const cat = state.filters.marketsCategory || 'tous';
+  const region = state.filters.marketsRegion || 'Monde';
+  let list = cat === 'tous' ? [...stocks] : stocks.filter(s => s.type === cat);
+  /* Filtre géographique : uniquement significatif pour les actions — une
+     paire de devises ou une crypto n'est pas "une action française"
+     (consigne explicite). Ignoré silencieusement pour les autres
+     catégories plutôt que de forcer un classement arbitraire. */
+  if (cat === 'stock' && region !== 'Monde'){
+    list = list.filter(s => REGION_OF_COUNTRY[s.country] === region);
+  }
+  list.sort((a,b)=>a.name.localeCompare(b.name,'fr'));
+  return list.length ? list.map(s=>stockRow(s)).join('')
+    : emptyState('Aucun instrument','Aucun instrument ne correspond à ce filtre.');
 }
 
 /* ---------- FICHE ENTREPRISE ---------- */
@@ -2267,7 +2377,7 @@ PAGES.stock = (id) => {
     ${avatar(s)}
     <div style="flex:1;min-width:200px">
       <h1 class="title" style="font-size:clamp(24px,4vw,34px)">${esc(s.name)}</h1>
-      <p class="small" style="margin-top:4px">${esc(s.ticker)} · ${esc(s.market)} · ${esc(s.sector)}</p>
+      <p class="small" style="margin-top:4px">${[s.ticker, s.market, s.sector].filter(Boolean).map(esc).join(' · ')}</p>
     </div>
     <div style="text-align:right">
       ${(() => {
@@ -2290,7 +2400,7 @@ PAGES.stock = (id) => {
     ${pos ? `<button class="btn btn-s btn-lg" data-sell="${esc(s.id)}">Vendre</button>` : ''}
   </div>
   <div class="stk-more">
-    <button data-nova="${esc(s.id)}">${svg(ICON.spark,2)} Analyse</button>
+    ${s.type === 'stock' ? `<button data-nova="${esc(s.id)}">${svg(ICON.spark,2)} Analyse</button>` : ''}
     <button data-cmp="${esc(s.id)}" aria-pressed="${state.compare.includes(s.id)}">
       ${state.compare.includes(s.id) ? '✓ Ajoutée à la comparaison' : 'Comparer'}</button>
     ${starBtn(s.id)}
@@ -2329,6 +2439,7 @@ PAGES.stock = (id) => {
   </section>`;
   })()}
 
+  ${s.type === 'stock' ? `
   <!-- CHIFFRES — chargement à la demande -->
   <section class="section">
     <div class="section-h"><h2 class="h2">Les chiffres</h2>
@@ -2392,7 +2503,14 @@ PAGES.stock = (id) => {
           constitution. Il sera alimenté par les relevés datés de vos analyses.</p>
       </div>
     </div>
-  </section></div>`;
+  </section>` : `
+  <!-- Forex/Crypto/etc. : ces blocs (fondamentaux, NovaScore, Analyse IA)
+       n'ont pas de sens pour ce type d'instrument — retirés entièrement
+       plutôt que remplis de "—", conformément à la consigne de ne jamais
+       afficher de métrique absurde (pas de PER pour EUR/USD, pas de ROE
+       pour Bitcoin). Rien à afficher ici pour l'instant. */
+  ''}`}
+  </div>`;
 };
 
 /* Graphique de cours : trois états possibles, aucun quatrième. */
@@ -3371,6 +3489,7 @@ function renderApp(){
    ============================================================ */
 const NAV = [
   { id:'home',      label:'Accueil',      icon:ICON.home },
+  { id:'markets',   label:'Marchés',      icon:ICON.chart },
   { id:'radar',     label:'Radar',        icon:ICON.radar },
   { id:'explore',   label:'Explorer',     icon:ICON.list },
   { id:'portfolio', label:'Portefeuille', icon:ICON.wallet },
@@ -3431,7 +3550,12 @@ function render(navigated = false){
   if (route.page === 'compare'){
     const comparees = state.compare.map(id => byId[id]).filter(Boolean);
     comparees.forEach(chargerGraphique);
-    comparees.forEach(chargerFondamentaux);
+    /* Les fondamentaux n'ont de sens que pour les actions (CMP_ROWS :
+       PER/ROE/marge...) — inutile d'appeler /api/market/fundamentals pour
+       une paire Forex ou une crypto, qui n'en auront jamais. Le tableau
+       affiche déjà "indisponible" proprement dans ce cas ; ceci évite
+       simplement l'appel réseau inutile. */
+    comparees.filter(s => s.type === 'stock').forEach(chargerFondamentaux);
   }
   if (route.page === 'radar')   document.getElementById('radarOut').innerHTML = radarResults();
   if (route.page === 'explore') document.getElementById('exploreOut').innerHTML = exploreRows();
@@ -3787,10 +3911,16 @@ document.addEventListener('click', e => {
   if (flt){
     state.filters[flt.dataset.filter] = isNaN(flt.dataset.val) ? flt.dataset.val : +flt.dataset.val;
     saveState();
+    /* marketsCategory change la MISE EN PAGE (les puces de région
+       n'apparaissent que pour la catégorie "Actions") : un simple
+       rafraîchissement de #marketsOut ne suffit pas, il faut un render()
+       complet. marketsRegion, elle, ne change que la liste. */
+    if (flt.dataset.filter === 'marketsCategory'){ render(); return; }
     document.querySelectorAll(`[data-filter="${flt.dataset.filter}"]`).forEach(b=>
       b.setAttribute('aria-pressed', String(b.dataset.val === flt.dataset.val)));
     if (route.page === 'radar') document.getElementById('radarOut').innerHTML = radarResults();
     if (route.page === 'explore') document.getElementById('exploreOut').innerHTML = exploreRows();
+    if (route.page === 'markets') document.getElementById('marketsOut').innerHTML = marketsRows();
     return;
   }
   const nl = q('[data-nl]');
@@ -4097,4 +4227,3 @@ boot();
 </script>
 </body>
 </html>
-
