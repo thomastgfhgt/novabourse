@@ -70,4 +70,3 @@ async function chargerBloc({ nom, table, ordre, args, ticker, exchange, frais, j
 }
 
 module.exports = { chargerBloc, historiqueValide };
-
