@@ -1147,15 +1147,64 @@ const stocks = [
      exchangeCode volontairement vide : une paire de devises n'a pas de
      place boursière. curSymbol/cur = devise de cotation (le "USD" de
      EUR/USD), pas la paire elle-même.
-     -------------------------------------------------------------------- */
+
+     ÉLARGISSEMENT (demande "minimum 20/catégorie") : liste de paires
+     majeures et croisées réellement standard sur les marchés des changes.
+     Ce n'est PAS une donnée financière fabriquée — seule l'IDENTITÉ
+     (nom + ticker) est codée en dur, exactement comme pour le catalogue
+     actions existant ; chaque prix est ensuite obtenu en direct via
+     /api/market/quotes, désormais réparé pour ce format de ticker.
+     IMPORTANT — honnêteté de couverture : je n'ai pas de clé API réelle
+     pour vérifier une par une que Twelve Data couvre bien les 20 paires
+     ci-dessous en environnement live. Ce sont des paires standard qu'un
+     fournisseur multi-actifs généraliste couvre normalement, mais seul un
+     test réel en production (voir rapport) confirme lesquelles renvoient
+     effectivement un prix. Toute paire non couverte affichera "—"
+     proprement, jamais une valeur inventée. */
   { id:'EUR/USD', name:'Euro / Dollar américain', ticker:'EUR/USD', market:'Forex', exchangeCode:'', sector:null, country:null, cur:'USD', curSymbol:'$', ...BLANK_FIELDS(), type:'forex' },
   { id:'GBP/USD', name:'Livre sterling / Dollar américain', ticker:'GBP/USD', market:'Forex', exchangeCode:'', sector:null, country:null, cur:'USD', curSymbol:'$', ...BLANK_FIELDS(), type:'forex' },
   { id:'USD/JPY', name:'Dollar américain / Yen japonais', ticker:'USD/JPY', market:'Forex', exchangeCode:'', sector:null, country:null, cur:'JPY', curSymbol:'¥', ...BLANK_FIELDS(), type:'forex' },
+  { id:'USD/CHF', name:'Dollar américain / Franc suisse', ticker:'USD/CHF', market:'Forex', exchangeCode:'', sector:null, country:null, cur:'CHF', curSymbol:'CHF', ...BLANK_FIELDS(), type:'forex' },
+  { id:'AUD/USD', name:'Dollar australien / Dollar américain', ticker:'AUD/USD', market:'Forex', exchangeCode:'', sector:null, country:null, cur:'USD', curSymbol:'$', ...BLANK_FIELDS(), type:'forex' },
+  { id:'USD/CAD', name:'Dollar américain / Dollar canadien', ticker:'USD/CAD', market:'Forex', exchangeCode:'', sector:null, country:null, cur:'CAD', curSymbol:'$', ...BLANK_FIELDS(), type:'forex' },
+  { id:'NZD/USD', name:'Dollar néo-zélandais / Dollar américain', ticker:'NZD/USD', market:'Forex', exchangeCode:'', sector:null, country:null, cur:'USD', curSymbol:'$', ...BLANK_FIELDS(), type:'forex' },
+  { id:'EUR/GBP', name:'Euro / Livre sterling', ticker:'EUR/GBP', market:'Forex', exchangeCode:'', sector:null, country:null, cur:'GBP', curSymbol:'£', ...BLANK_FIELDS(), type:'forex' },
+  { id:'EUR/JPY', name:'Euro / Yen japonais', ticker:'EUR/JPY', market:'Forex', exchangeCode:'', sector:null, country:null, cur:'JPY', curSymbol:'¥', ...BLANK_FIELDS(), type:'forex' },
+  { id:'GBP/JPY', name:'Livre sterling / Yen japonais', ticker:'GBP/JPY', market:'Forex', exchangeCode:'', sector:null, country:null, cur:'JPY', curSymbol:'¥', ...BLANK_FIELDS(), type:'forex' },
+  { id:'EUR/CHF', name:'Euro / Franc suisse', ticker:'EUR/CHF', market:'Forex', exchangeCode:'', sector:null, country:null, cur:'CHF', curSymbol:'CHF', ...BLANK_FIELDS(), type:'forex' },
+  { id:'AUD/JPY', name:'Dollar australien / Yen japonais', ticker:'AUD/JPY', market:'Forex', exchangeCode:'', sector:null, country:null, cur:'JPY', curSymbol:'¥', ...BLANK_FIELDS(), type:'forex' },
+  { id:'EUR/AUD', name:'Euro / Dollar australien', ticker:'EUR/AUD', market:'Forex', exchangeCode:'', sector:null, country:null, cur:'AUD', curSymbol:'$', ...BLANK_FIELDS(), type:'forex' },
+  { id:'USD/CNH', name:'Dollar américain / Yuan chinois', ticker:'USD/CNH', market:'Forex', exchangeCode:'', sector:null, country:null, cur:'CNH', curSymbol:'¥', ...BLANK_FIELDS(), type:'forex' },
+  { id:'USD/HKD', name:'Dollar américain / Dollar de Hong Kong', ticker:'USD/HKD', market:'Forex', exchangeCode:'', sector:null, country:null, cur:'HKD', curSymbol:'HK$', ...BLANK_FIELDS(), type:'forex' },
+  { id:'USD/SGD', name:'Dollar américain / Dollar de Singapour', ticker:'USD/SGD', market:'Forex', exchangeCode:'', sector:null, country:null, cur:'SGD', curSymbol:'$', ...BLANK_FIELDS(), type:'forex' },
+  { id:'USD/MXN', name:'Dollar américain / Peso mexicain', ticker:'USD/MXN', market:'Forex', exchangeCode:'', sector:null, country:null, cur:'MXN', curSymbol:'$', ...BLANK_FIELDS(), type:'forex' },
+  { id:'USD/ZAR', name:'Dollar américain / Rand sud-africain', ticker:'USD/ZAR', market:'Forex', exchangeCode:'', sector:null, country:null, cur:'ZAR', curSymbol:'R', ...BLANK_FIELDS(), type:'forex' },
+  { id:'USD/TRY', name:'Dollar américain / Livre turque', ticker:'USD/TRY', market:'Forex', exchangeCode:'', sector:null, country:null, cur:'TRY', curSymbol:'₺', ...BLANK_FIELDS(), type:'forex' },
+  { id:'EUR/CAD', name:'Euro / Dollar canadien', ticker:'EUR/CAD', market:'Forex', exchangeCode:'', sector:null, country:null, cur:'CAD', curSymbol:'$', ...BLANK_FIELDS(), type:'forex' },
 
   /* CRYPTO — même vérification que Forex, même mécanisme (tdSymbol +
-     symbole Twelve Data direct "BTC/USD"). */
+     symbole Twelve Data direct "BTC/USD"). Mêmes réserves de couverture
+     que ci-dessus : identité seulement, prix toujours en direct. */
   { id:'BTC/USD', name:'Bitcoin', ticker:'BTC/USD', market:'Crypto', exchangeCode:'', sector:null, country:null, cur:'USD', curSymbol:'$', ...BLANK_FIELDS(), type:'crypto' },
   { id:'ETH/USD', name:'Ethereum', ticker:'ETH/USD', market:'Crypto', exchangeCode:'', sector:null, country:null, cur:'USD', curSymbol:'$', ...BLANK_FIELDS(), type:'crypto' },
+  { id:'XRP/USD', name:'XRP', ticker:'XRP/USD', market:'Crypto', exchangeCode:'', sector:null, country:null, cur:'USD', curSymbol:'$', ...BLANK_FIELDS(), type:'crypto' },
+  { id:'LTC/USD', name:'Litecoin', ticker:'LTC/USD', market:'Crypto', exchangeCode:'', sector:null, country:null, cur:'USD', curSymbol:'$', ...BLANK_FIELDS(), type:'crypto' },
+  { id:'BCH/USD', name:'Bitcoin Cash', ticker:'BCH/USD', market:'Crypto', exchangeCode:'', sector:null, country:null, cur:'USD', curSymbol:'$', ...BLANK_FIELDS(), type:'crypto' },
+  { id:'ADA/USD', name:'Cardano', ticker:'ADA/USD', market:'Crypto', exchangeCode:'', sector:null, country:null, cur:'USD', curSymbol:'$', ...BLANK_FIELDS(), type:'crypto' },
+  { id:'DOGE/USD', name:'Dogecoin', ticker:'DOGE/USD', market:'Crypto', exchangeCode:'', sector:null, country:null, cur:'USD', curSymbol:'$', ...BLANK_FIELDS(), type:'crypto' },
+  { id:'SOL/USD', name:'Solana', ticker:'SOL/USD', market:'Crypto', exchangeCode:'', sector:null, country:null, cur:'USD', curSymbol:'$', ...BLANK_FIELDS(), type:'crypto' },
+  { id:'DOT/USD', name:'Polkadot', ticker:'DOT/USD', market:'Crypto', exchangeCode:'', sector:null, country:null, cur:'USD', curSymbol:'$', ...BLANK_FIELDS(), type:'crypto' },
+  { id:'MATIC/USD', name:'Polygon', ticker:'MATIC/USD', market:'Crypto', exchangeCode:'', sector:null, country:null, cur:'USD', curSymbol:'$', ...BLANK_FIELDS(), type:'crypto' },
+  { id:'AVAX/USD', name:'Avalanche', ticker:'AVAX/USD', market:'Crypto', exchangeCode:'', sector:null, country:null, cur:'USD', curSymbol:'$', ...BLANK_FIELDS(), type:'crypto' },
+  { id:'LINK/USD', name:'Chainlink', ticker:'LINK/USD', market:'Crypto', exchangeCode:'', sector:null, country:null, cur:'USD', curSymbol:'$', ...BLANK_FIELDS(), type:'crypto' },
+  { id:'XLM/USD', name:'Stellar', ticker:'XLM/USD', market:'Crypto', exchangeCode:'', sector:null, country:null, cur:'USD', curSymbol:'$', ...BLANK_FIELDS(), type:'crypto' },
+  { id:'TRX/USD', name:'TRON', ticker:'TRX/USD', market:'Crypto', exchangeCode:'', sector:null, country:null, cur:'USD', curSymbol:'$', ...BLANK_FIELDS(), type:'crypto' },
+  { id:'ATOM/USD', name:'Cosmos', ticker:'ATOM/USD', market:'Crypto', exchangeCode:'', sector:null, country:null, cur:'USD', curSymbol:'$', ...BLANK_FIELDS(), type:'crypto' },
+  { id:'ETC/USD', name:'Ethereum Classic', ticker:'ETC/USD', market:'Crypto', exchangeCode:'', sector:null, country:null, cur:'USD', curSymbol:'$', ...BLANK_FIELDS(), type:'crypto' },
+  { id:'XMR/USD', name:'Monero', ticker:'XMR/USD', market:'Crypto', exchangeCode:'', sector:null, country:null, cur:'USD', curSymbol:'$', ...BLANK_FIELDS(), type:'crypto' },
+  { id:'ALGO/USD', name:'Algorand', ticker:'ALGO/USD', market:'Crypto', exchangeCode:'', sector:null, country:null, cur:'USD', curSymbol:'$', ...BLANK_FIELDS(), type:'crypto' },
+  { id:'VET/USD', name:'VeChain', ticker:'VET/USD', market:'Crypto', exchangeCode:'', sector:null, country:null, cur:'USD', curSymbol:'$', ...BLANK_FIELDS(), type:'crypto' },
+  { id:'FIL/USD', name:'Filecoin', ticker:'FIL/USD', market:'Crypto', exchangeCode:'', sector:null, country:null, cur:'USD', curSymbol:'$', ...BLANK_FIELDS(), type:'crypto' },
 ];
 const byId = Object.fromEntries(stocks.map(s => [s.id, s]));
 
@@ -1950,7 +1999,7 @@ async function chargerGraphique(stock){
        correctif exchangeCode documenté ailleurs dans ce fichier. */
     const exch = stock.exchangeCode || MARKET_CODE[stock.market] || '';
     const r = await fetch(`/api/market/history?ticker=${encodeURIComponent(stock.ticker)}`
-      + `&exchange=${encodeURIComponent(exch)}`);
+      + `&exchange=${encodeURIComponent(exch)}&type=${encodeURIComponent(stock.type || 'stock')}`);
     if (!r.ok){
       HIST.set(stock.id, { status:'error', data:[] });
       return;
@@ -1993,7 +2042,7 @@ async function chargerFondamentaux(stock){
   try {
     const exch = stock.exchangeCode || MARKET_CODE[stock.market] || '';
     const r = await fetch(`/api/market/fundamentals?ticker=${encodeURIComponent(stock.ticker)}`
-      + `&exchange=${encodeURIComponent(exch)}`);
+      + `&exchange=${encodeURIComponent(exch)}&type=${encodeURIComponent(stock.type || 'stock')}`);
     if (!r.ok){
       stock.fundamentals = null;
       stock.hasFundamentals = false;
