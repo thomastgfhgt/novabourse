@@ -1079,6 +1079,9 @@ const BLANK_FIELDS = () => ({
      "donnée à zéro". Rien ici n'est une valeur de marché. */
   score:null, scores:{}, coverage:0, partial:true,
   fundamentals:null, hasFundamentals:false, fundamentalsSource:null,
+  /* État explicite à 4 valeurs pour le chargement à la demande :
+     'idle' (jamais demandé) | 'loading' | 'loaded' | 'error'. */
+  fundamentalsStatus:'idle',
   volatility:null, volRisk:null, momentum:null,
   marketCapEUR:null,
 });
@@ -1132,10 +1135,10 @@ function ensureRuntimeStock(meta, persist = true){
     ticker: String(meta.ticker).toUpperCase(),
     /* `market` = libellé lisible pour l'affichage uniquement.
        `exchangeCode` = code exact tel que renvoyé par /api/market/search,
-       transmis TEL QUEL (sans passer par MARKET_CODE) à /api/market/company
-       et /api/market/quotes. C'est ce champ, absent avant cette correction,
-       qui manquait pour les sociétés hors catalogue : voir chargerHistorique
-       et symboleDe ci-dessous. */
+       transmis TEL QUEL (sans passer par MARKET_CODE) à /api/market/history,
+       /api/market/fundamentals et /api/market/quotes. C'est ce champ qui
+       manquait pour les sociétés hors catalogue : voir chargerGraphique,
+       chargerFondamentaux et symboleDe ci-dessous. */
     market: meta.market || meta.exchange || code || '—',
     exchangeCode: code,
     sector: meta.sector || 'Non classé',
@@ -1853,56 +1856,43 @@ const HIST_ENCOURS = new Set();
 /* Historique réel, daté. Conserve tous les points renvoyés par le serveur
    (aucune troncature arbitraire à 60) et distingue explicitement : en cours,
    prêt, vide, en erreur. Une requête déjà en cours n'est jamais dupliquée. */
+/* --------------------------------------------------------------------
+   CHARGEMENT À LA DEMANDE — historique et fondamentaux sont désormais
+   deux appels réseau INDÉPENDANTS, déclenchés uniquement par une action
+   explicite de l'utilisateur ("Voir le graphique" / "Voir les chiffres"
+   / ouverture de Comparer), plus jamais automatiquement à l'ouverture
+   d'une fiche ou de l'accueil/watchlist. Chacun a son propre état
+   explicite à 4 valeurs (idle/loading/loaded/error), sur le modèle déjà
+   existant de HIST, pour permettre d'étendre facilement à d'autres
+   catégories de données plus tard.
+   -------------------------------------------------------------------- */
+
 /* Historique réel, daté. Conserve tous les points renvoyés par le serveur
    (aucune troncature arbitraire à 60) et distingue explicitement : en cours,
    prêt, vide, en erreur. Une requête déjà en cours n'est jamais dupliquée.
-   Récupère aussi les fondamentaux au passage (même appel réseau) : voir
-   commentaire sur `stock.fundamentals` plus bas. */
-async function chargerHistorique(stock){
+   N'appelle plus que /api/market/history (jamais /company) : les
+   fondamentaux sont désormais chargés séparément par chargerFondamentaux(). */
+async function chargerGraphique(stock){
   if (!stock) return;
   const existing = HIST.get(stock.id);
   if (existing && existing.status !== 'error') return;   // déjà chargé ou en cours
   if (HIST_ENCOURS.has(stock.id)) return;
 
   HIST_ENCOURS.add(stock.id);
+  HIST.set(stock.id, { status:'loading', data:[] });
+  render();
   try {
-    /* CORRECTIF : utiliser exchangeCode (code brut attendu par le backend,
-       ex. "PA", "DE", "NASDAQ") au lieu de MARKET_CODE[stock.market], qui ne
-       reconnaît que des libellés lisibles ("Euronext Paris"). Toute société
-       créée via /api/market/search dont `market` contient déjà un code
-       ("PA") tombait sur une correspondance manquante -> exchange envoyé
-       vide -> historique refusé par le backend malgré des données réelles
-       disponibles (confirmé : RMS/PA renvoie 260 points en appel direct). */
+    /* exchangeCode (code brut attendu par le backend, ex. "PA", "DE",
+       "NASDAQ") en priorité, MARKET_CODE[stock.market] en repli — voir
+       correctif exchangeCode documenté ailleurs dans ce fichier. */
     const exch = stock.exchangeCode || MARKET_CODE[stock.market] || '';
-    console.debug('[NovaBourse][chargerHistorique] requête', { stockId:stock.id, ticker:stock.ticker,
-      exchangeCodeStocke:stock.exchangeCode, marketStocke:stock.market, exchangeEnvoye:exch });
-    const r = await fetch(`/api/market/company?ticker=${encodeURIComponent(stock.ticker)}`
+    const r = await fetch(`/api/market/history?ticker=${encodeURIComponent(stock.ticker)}`
       + `&exchange=${encodeURIComponent(exch)}`);
     if (!r.ok){
-      console.debug('[NovaBourse][chargerHistorique] HTTP', r.status, 'pour', stock.id);
       HIST.set(stock.id, { status:'error', data:[] });
       return;
     }
     const d = await r.json();
-    console.debug('[NovaBourse][chargerHistorique] réponse', { stockId:stock.id,
-      sourcesHistory: d.sources?.history, historyPresent: !!d.history,
-      ohlcvLength: d.history?.ohlcv?.length ?? 0 });
-
-    /* Fondamentaux : passage tel quel de d.fundamentals, sans renommer ni
-       inventer de champ. Le contrat réel est maintenant CONFIRMÉ (test MSFT,
-       via Finnhub) : revenue, revenuePerShare, revenueSeries, epsSeries,
-       fcfSeries, netIncome, eps, profitMargin, operatingMargin, roe, debt,
-       cash, freeCashFlow, pe, forwardPE, priceToBook, evToEbitda,
-       dividendYield, marketCap. Les noms précédemment supposés (margin,
-       debtEquity, per, revenueGrowth, epsGrowth, volatility, upMonths,
-       dividend, cap) ne correspondent pas au contrat réel et ont été
-       corrigés dans PAGES.stock/measureText/plainFundamentals ci-dessous.
-       fundamentalsSource est conservé séparément : la conversion d'unité de
-       marketCap diffère selon le fournisseur (voir capEnMilliards). */
-    stock.fundamentals = d.fundamentals ?? null;
-    stock.hasFundamentals = Boolean(d.fundamentals);
-    stock.fundamentalsSource = d.sources?.fundamentals ?? null;
-
     const points = (d.history?.ohlcv || [])
       .filter(x => x && typeof x.date === 'string' && Number.isFinite(x.close) && x.close > 0)
       .map(x => ({ date:x.date, close:x.close }));
@@ -1913,6 +1903,56 @@ async function chargerHistorique(stock){
     HIST.set(stock.id, { status:'error', data:[] });
   } finally {
     HIST_ENCOURS.delete(stock.id);
+    render();
+  }
+}
+
+/* Ensemble des sociétés dont les fondamentaux sont en cours de chargement,
+   sur le modèle de HIST_ENCOURS : protège contre une double requête
+   identique (ex. clic répété sur "Voir les chiffres"). */
+const FUND_ENCOURS = new Set();
+
+/* Fondamentaux réels, chargés uniquement à la demande (bouton "Voir les
+   chiffres"). `stock.fundamentalsStatus` reflète explicitement l'état :
+   'idle' (jamais demandé) | 'loading' | 'loaded' | 'error'. Contrat des
+   champs confirmé par test réel (MSFT via Finnhub) : revenue,
+   revenuePerShare, revenueSeries, epsSeries, fcfSeries, netIncome, eps,
+   profitMargin, operatingMargin, roe, debt, cash, freeCashFlow, pe,
+   forwardPE, priceToBook, evToEbitda, dividendYield, marketCap. */
+async function chargerFondamentaux(stock){
+  if (!stock) return;
+  if (stock.fundamentalsStatus === 'loaded' || stock.fundamentalsStatus === 'loading') return;
+  if (FUND_ENCOURS.has(stock.id)) return;
+
+  FUND_ENCOURS.add(stock.id);
+  stock.fundamentalsStatus = 'loading';
+  render();
+  try {
+    const exch = stock.exchangeCode || MARKET_CODE[stock.market] || '';
+    const r = await fetch(`/api/market/fundamentals?ticker=${encodeURIComponent(stock.ticker)}`
+      + `&exchange=${encodeURIComponent(exch)}`);
+    if (!r.ok){
+      stock.fundamentals = null;
+      stock.hasFundamentals = false;
+      stock.fundamentalsStatus = 'error';
+      return;
+    }
+    const d = await r.json();
+    stock.fundamentals = d.fundamentals ?? null;
+    stock.hasFundamentals = Boolean(d.fundamentals);
+    stock.fundamentalsSource = d.source ?? null;
+    /* 'loaded' dès que la requête a abouti, que des données exploitables
+       existent ou non — symétrique à l'historique (ready/empty relèvent
+       tous deux de "loaded", la nuance est affichée séparément via
+       hasFundamentals). 'error' reste réservé à un échec réel de la
+       requête (ci-dessus et dans le catch), jamais à "chargé mais vide". */
+    stock.fundamentalsStatus = 'loaded';
+  } catch {
+    stock.fundamentals = null;
+    stock.hasFundamentals = false;
+    stock.fundamentalsStatus = 'error';
+  } finally {
+    FUND_ENCOURS.delete(stock.id);
     render();
   }
 }
@@ -2024,7 +2064,7 @@ PAGES.home = () => {
           ${suivies.length ? `<button class="btn btn-ghost btn-sm" data-go="watchlist">Tout voir</button>` : ''}
         </div>
         ${suivies.length
-          ? `<div class="rows">${suivies.slice(0, 3).map(x => stockRow(x, { spark:true })).join('')}</div>`
+          ? `<div class="rows">${suivies.slice(0, 3).map(x => stockRow(x)).join('')}</div>`
           : `<p class="small">Touchez l'étoile sur une entreprise pour la suivre.</p>`}
       </article>
     </div>
@@ -2258,24 +2298,51 @@ PAGES.stock = (id) => {
   ${state.compare.length >= 2 ? `<button class="btn btn-ghost btn-sm" style="margin-top:10px" data-go="compare">
     Voir la comparaison (${state.compare.length})</button>` : ''}
 
-  <!-- COURS ET MOYENNES -->
+  <!-- COURS ET MOYENNES — chargement à la demande, état explicite à 4
+       valeurs (symétrique à fundamentalsStatus) : jamais une simple
+       vérification de présence/absence dans HIST, qui pourrait être
+       ambiguë pendant un fetch en cours (entrée présente mais vide). -->
+  ${(() => {
+    const histEntry = HIST.get(s.id);
+    const histStatus = !histEntry ? 'idle'
+      : histEntry.status === 'loading' ? 'loading'
+      : histEntry.status === 'error' ? 'error'
+      : 'loaded';   // 'ready' ou 'empty' -> la requête a abouti, chartBloc distingue ensuite données/vide
+    return `
   <section class="section">
     <div class="section-h"><h2 class="h2">Cours</h2>
-      <div class="seg">${PERIODS_DISPO.map(x=>`<button data-period="${x}"
-        aria-pressed="${state.ui.period===x}">${x}</button>`).join('')}</div></div>
+      ${histStatus === 'loaded' ? `<div class="seg">${PERIODS_DISPO.map(x=>`<button data-period="${x}"
+        aria-pressed="${state.ui.period===x}">${x}</button>`).join('')}</div>` : ''}</div>
     <div class="card">
-      <div id="chart">${chartBloc(s, state.ui.period)}</div>
-      <div id="avgs">${averagesBlock(s, state.ui.period)}</div>
+      ${histStatus === 'idle' ? `
+        <div style="text-align:center;padding:24px 0">
+          <p class="small" style="margin-bottom:16px">L'historique n'est chargé que si vous le demandez.</p>
+          <button class="btn btn-a" data-show-chart="${esc(s.id)}">Voir le graphique</button>
+        </div>`
+      : histStatus === 'loading' ? `
+        <p class="small" style="padding:24px 0;text-align:center">Chargement du graphique…</p>`
+      : histStatus === 'error' ? `
+        <p class="small" style="padding:24px 0;text-align:center">Historique indisponible.</p>`
+      : `<div id="chart">${chartBloc(s, state.ui.period)}</div>
+         <div id="avgs">${averagesBlock(s, state.ui.period)}</div>`}
     </div>
-  </section>
+  </section>`;
+  })()}
 
-  <!-- CHIFFRES -->
+  <!-- CHIFFRES — chargement à la demande -->
   <section class="section">
     <div class="section-h"><h2 class="h2">Les chiffres</h2>
-      <div class="seg"><button data-mode="debutant" aria-pressed="${!isExpert()}">Simple</button>
-        <button data-mode="expert" aria-pressed="${isExpert()}">Détaillé</button></div></div>
+      ${s.fundamentalsStatus !== 'idle' ? `<div class="seg"><button data-mode="debutant" aria-pressed="${!isExpert()}">Simple</button>
+        <button data-mode="expert" aria-pressed="${isExpert()}">Détaillé</button></div>` : ''}</div>
     <div class="card">
-      ${s.hasFundamentals && f ? `
+      ${s.fundamentalsStatus === 'idle' ? `
+        <div style="text-align:center;padding:24px 0">
+          <p class="small" style="margin-bottom:16px">Les chiffres ne sont chargés que si vous le demandez.</p>
+          <button class="btn btn-a" data-show-fundamentals="${esc(s.id)}">Voir les chiffres</button>
+        </div>`
+      : s.fundamentalsStatus === 'loading' ? `
+        <p class="small" style="padding:24px 0;text-align:center">Chargement des chiffres…</p>`
+      : s.hasFundamentals && f ? `
         <dl>
           <div class="kv"><dt>Capitalisation ${infoBtn('Capitalisation')}</dt><dd class="tabular-nums">${fmt.num(capEnMilliards(f.marketCap, s.fundamentalsSource), 1)} Md ${esc(s.curSymbol)}</dd></div>
           <div class="kv"><dt>Rentabilité (ROE) ${infoBtn('ROE')}</dt><dd>${fmt.pctRatio(f.roe)}</dd></div>
@@ -2379,7 +2446,7 @@ PAGES.watchlist = () => {
     <h1 class="title">Ma liste</h1>
     <p class="lead" style="margin-top:10px">${list.length} entreprise${list.length>1?'s':''} suivie${list.length>1?'s':''}.</p>
     <div class="card" style="margin-top:22px">
-      ${list.length ? `<div class="rows">${list.map(x=>stockRow(x, { spark:true })).join('')}</div>`
+      ${list.length ? `<div class="rows">${list.map(x=>stockRow(x)).join('')}</div>`
         : emptyState('Votre liste est vide',
             'Touchez l’étoile pour suivre une valeur. Sa note et son évolution vous attendront ici.',
             { go:'radar', label:'Parcourir le Radar' })}
@@ -3353,11 +3420,19 @@ function render(navigated = false){
     document.documentElement.scrollTop = 0; document.body.scrollTop = 0;
   }
   paintNav();
-  if (route.page === 'watchlist' || route.page === 'home'){
-    state.watchlist.slice(0, 6).map(id => byId[id]).filter(Boolean).forEach(chargerHistorique);
+  /* Chargement à la demande : l'accueil/watchlist n'entraîne plus aucun
+     appel history/fondamentaux (seules les quotes, déjà séparées, restent
+     automatiques). L'ouverture d'une fiche n'en déclenche plus non plus —
+     l'utilisateur doit cliquer "Voir le graphique"/"Voir les chiffres".
+     Seul Comparer reste un déclenchement automatique légitime : ouvrir une
+     comparaison EST une demande explicite de graphique et de chiffres pour
+     les sociétés choisies (validé explicitement). Chaque fonction protège
+     déjà contre une société déjà chargée ou en cours de chargement. */
+  if (route.page === 'compare'){
+    const comparees = state.compare.map(id => byId[id]).filter(Boolean);
+    comparees.forEach(chargerGraphique);
+    comparees.forEach(chargerFondamentaux);
   }
-  if (route.page === 'stock' && byId[route.arg]) chargerHistorique(byId[route.arg]);
-  if (route.page === 'compare') state.compare.map(id => byId[id]).filter(Boolean).forEach(chargerHistorique);
   if (route.page === 'radar')   document.getElementById('radarOut').innerHTML = radarResults();
   if (route.page === 'explore') document.getElementById('exploreOut').innerHTML = exploreRows();
   animate();
@@ -3774,6 +3849,26 @@ document.addEventListener('click', e => {
 
   const cperiod = q('[data-cperiod]');
   if (cperiod){ state.ui.pfPeriod = cperiod.dataset.cperiod; saveState(); render(); return; }
+
+  /* Chargement à la demande : ces deux boutons déclenchent respectivement
+     l'appel history et l'appel fundamentals pour la société affichée.
+     chargerGraphique()/chargerFondamentaux() protègent déjà contre une
+     société déjà chargée ou en cours de chargement — le second render()
+     ici couvre le cas où les données étaient déjà en cache (ex. société
+     déjà vue via Comparer) et où la fonction ne redéclenche donc aucun
+     rendu interne. */
+  const showChart = q('[data-show-chart]');
+  if (showChart){
+    const st = byId[showChart.dataset.showChart];
+    if (st){ chargerGraphique(st); render(); }
+    return;
+  }
+  const showFund = q('[data-show-fundamentals]');
+  if (showFund){
+    const st = byId[showFund.dataset.showFundamentals];
+    if (st){ chargerFondamentaux(st); render(); }
+    return;
+  }
 
   const cyc = q('[data-cycle]');
   if (cyc){ state.settings.cycle = cyc.dataset.cycle; saveState(); render(); return; }
