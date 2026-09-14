@@ -1,5 +1,5 @@
 /**
- * GET /api/market/fundamentals?ticker=X&exchange=Y[&fresh=1]
+ * GET /api/market/fundamentals?ticker=X&exchange=Y&type=Z[&fresh=1]
  *
  * Fondamentaux seuls (sans cotation ni historique), destinés au
  * chargement à la demande côté frontend (bouton "Voir les chiffres").
@@ -9,11 +9,22 @@
  * _marketBlock.js). SimFin/Eulerpool ne sont PAS intégrés dans cette
  * passe — cascade inchangée, comme demandé.
  * Aucune donnée manquante n'est comblée : un champ absent reste null.
+ *
+ * `type` (optionnel, 'stock' par défaut) : pour forex/crypto, aucun
+ * fournisseur actuellement branché ne peut légitimement renvoyer des
+ * "fondamentaux d'entreprise" (ROE, PER, marge...) — une paire de devises
+ * ou une crypto n'a pas de bilan. Plutôt que d'interroger EODHD/Finnhub
+ * pour obtenir invariablement une réponse vide, la route répond
+ * directement `fundamentals:null` sans consommer d'appel fournisseur.
+ * Le frontend ne propose déjà pas cette section pour ces types ; ceci
+ * protège la route elle-même si elle est appelée directement.
  */
 
 const { FUNDAMENTALS, KEYS } = require('./_providers.js');
 const { chargerBloc } = require('./_marketBlock.js');
 const { normaliserTicker, normaliserExchange } = require('./company.js');
+
+const TYPES_SANS_FONDAMENTAUX = new Set(['forex', 'crypto']);
 
 function fondamentauxValides(data) {
   return Boolean(data && typeof data === 'object' && data.fundamentals && typeof data.fundamentals === 'object');
@@ -32,6 +43,14 @@ module.exports = async (req, res) => {
 
   const exchange = normaliserExchange(req.query?.exchange);
   const frais = req.query?.fresh === '1';
+  const type = String(req.query?.type || 'stock').toLowerCase();
+
+  if (TYPES_SANS_FONDAMENTAUX.has(type)) {
+    return res.status(200).json({
+      ticker, exchange, fundamentals: null, source: null, asOf: null,
+      journal: [{ bloc: 'fundamentals', ok: false, reason: `type_sans_fondamentaux:${type}` }],
+    });
+  }
 
   const keys = KEYS();
   if (!keys.eodhd && !keys.finnhub) {
@@ -58,5 +77,3 @@ module.exports = async (req, res) => {
     journal,
   });
 };
-
-
