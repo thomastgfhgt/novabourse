@@ -68,3 +68,4 @@ module.exports = async (req, res) => {
     journal,
   });
 };
+
