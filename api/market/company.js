@@ -150,3 +150,4 @@ module.exports = async (req, res) => {
 module.exports.normaliserTicker = normaliserTicker;
 module.exports.normaliserExchange = normaliserExchange;
 module.exports.historiqueValide = historiqueValide;
+
