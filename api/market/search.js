@@ -36,122 +36,66 @@ const ORDRE = [
    NORMALISATION DES PLACES
    ============================================================ */
 
-/**
- * Code interne unique utilisé ensuite par :
- *
- *   company.js
- *   _providers.js
- *   quotes.js
- *
- * Important :
- * Twelve Data peut par exemple renvoyer "Euronext Paris"
- * tandis qu'EODHD utilise PA.
- */
 const EXCHANGE_ALIASES = {
-  /* États-Unis */
   NASDAQ: 'NASDAQ',
   'NASDAQ GLOBAL SELECT': 'NASDAQ',
   'NASDAQ GLOBAL MARKET': 'NASDAQ',
   'NASDAQ CAPITAL MARKET': 'NASDAQ',
-
   NYSE: 'NYSE',
   'NEW YORK STOCK EXCHANGE': 'NYSE',
-
   'NYSE ARCA': 'NYSE ARCA',
   ARCA: 'NYSE ARCA',
-
-  /* France */
   PA: 'PA',
   PARIS: 'PA',
   'EURONEXT PARIS': 'PA',
-
-  /* Amsterdam */
   AS: 'AS',
   AMSTERDAM: 'AS',
   'EURONEXT AMSTERDAM': 'AS',
-
-  /* Bruxelles */
   BR: 'BR',
   BRUSSELS: 'BR',
   'EURONEXT BRUSSELS': 'BR',
-
-  /* Lisbonne */
   LS: 'LS',
   LISBON: 'LS',
   'EURONEXT LISBON': 'LS',
-
-  /* Allemagne */
   DE: 'DE',
   XETRA: 'DE',
   FRANKFURT: 'DE',
-
-  /* Suisse */
   SW: 'SW',
   SIX: 'SW',
   'SIX SWISS EXCHANGE': 'SW',
-
-  /* Royaume-Uni */
   L: 'L',
   LSE: 'L',
   'LONDON STOCK EXCHANGE': 'L',
-
-  /* Espagne */
   MC: 'MC',
   BME: 'MC',
   MADRID: 'MC',
-
-  /* Italie */
   MI: 'MI',
   MTA: 'MI',
   MILAN: 'MI',
   'BORSA ITALIANA': 'MI',
-
-  /* Nordiques */
   ST: 'ST',
   STOCKHOLM: 'ST',
   OMX: 'ST',
   'NASDAQ STOCKHOLM': 'ST',
-
   CO: 'CO',
   COPENHAGEN: 'CO',
   OMXC: 'CO',
   'NASDAQ COPENHAGEN': 'CO',
-
   HE: 'HE',
   HELSINKI: 'HE',
   OMXH: 'HE',
   'NASDAQ HELSINKI': 'HE',
-
   OL: 'OL',
   OSLO: 'OL',
   OSL: 'OL',
 };
 
 function normaliserExchange(value) {
-  if (
-    value === null
-    || value === undefined
-  ) {
-    return null;
-  }
-
-  const brut =
-    String(value)
-      .trim();
-
-  if (!brut) {
-    return null;
-  }
-
-  const cle =
-    brut
-      .toUpperCase()
-      .replace(/\s+/g, ' ');
-
-  return (
-    EXCHANGE_ALIASES[cle]
-    || cle
-  );
+  if (value === null || value === undefined) return null;
+  const brut = String(value).trim();
+  if (!brut) return null;
+  const cle = brut.toUpperCase().replace(/\s+/g, ' ');
+  return EXCHANGE_ALIASES[cle] || cle;
 }
 
 /* ============================================================
@@ -159,39 +103,39 @@ function normaliserExchange(value) {
    ============================================================ */
 
 function propre(value) {
-  if (
-    typeof value !== 'string'
-  ) {
-    return null;
-  }
+  if (typeof value !== 'string') return null;
+  const valueTrimmed = value.trim();
+  return valueTrimmed ? valueTrimmed : null;
+}
 
-  const valueTrimmed =
-    value.trim();
-
-  return valueTrimmed
-    ? valueTrimmed
-    : null;
+/* Retire les signes diacritiques (accents, cédilles...) pour la SEULE
+   finalité de comparer deux chaînes lors du calcul de pertinence.
+   N'affecte JAMAIS les données stockées/retournées : `name`/`ticker`
+   gardent leur graphie exacte (ex. "Hermès" reste affiché avec l'accent).
+   Cause réelle corrigée ici, confirmée empiriquement : une recherche
+   "Hermes" (sans accent — le cas le plus probable en pratique, l'accent
+   n'étant pas d'accès direct sur la plupart des claviers) ne matchait
+   jamais "Hermès International" (nom stocké avec l'accent), ce dernier
+   se retrouvant alors à égalité de score (0) avec du bruit sans aucun
+   rapport, et perdant le départage alphabétique. */
+function sansAccents(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
 }
 
 function normaliserTicker(value) {
-  const ticker =
-    propre(value);
-
-  if (!ticker) {
-    return null;
-  }
-
-  const out =
-    ticker
-      .toUpperCase();
-
-  if (
-    out.length > 30
-    || !/^[A-Z0-9._-]+$/.test(out)
-  ) {
-    return null;
-  }
-
+  const ticker = propre(value);
+  if (!ticker) return null;
+  const out = ticker.toUpperCase();
+  /* CORRECTIF (audit multi-actifs), confirmé empiriquement : le "/" est
+     rejeté, alors que c'est le format standard d'une paire Forex
+     ("EUR/USD") — Twelve Data l'utilise tel quel comme symbole (confirmé
+     par leur documentation officielle, y compris pour le WebSocket). Le
+     "/" est ajouté au jeu de caractères autorisés, rien d'autre ne change :
+     la limite de longueur et le reste du filtre (contre l'injection dans
+     une URL de provider) restent strictement identiques. */
+  if (out.length > 30 || !/^[A-Z0-9._/-]+$/.test(out)) return null;
   return out;
 }
 
@@ -204,99 +148,57 @@ function typeAccepte(type) {
    * Certains fournisseurs ne donnent aucun type.
    * On ne rejette pas automatiquement ces résultats :
    * le ticker + le nom restent des informations réelles.
+   *
+   * CORRECTIF (audit multi-actifs) : la regex précédente ne matchait que
+   * action/ETF ("common stock", "equity", "etf"...) et rejetait donc
+   * systématiquement tout résultat Forex ("Physical Currency" chez
+   * Twelve Data), Crypto ("Digital Currency") ou Indice ("Index") —
+   * confirmé empiriquement, pas supposé. Élargi pour accepter ces types
+   * réels sans changer le comportement existant pour les actions/ETF.
    */
-  if (!type) {
-    return true;
-  }
+  if (!type) return true;
+  return /common stock|common share|ordinary share|equity|stock|cs|etf|index|indices|currency|forex|fx|crypto|digital currency|physical currency/i.test(type);
+}
 
-  return (
-    /common stock|common share|ordinary share|equity|stock|cs|etf/i
-      .test(type)
-  );
+/* Fait correspondre un type brut fournisseur (très hétérogène selon EODHD/
+   Twelve Data/Finnhub) à la taxonomie interne NovaBourse. Volontairement
+   conservateur : un type non reconnu devient 'stock' par défaut plutôt que
+   d'inventer une nouvelle catégorie — cohérent avec le comportement actuel
+   avant cette passe, où tout était implicitement une action. */
+function typeInterne(type) {
+  const t = String(type || '').toLowerCase();
+  if (/digital currency|crypto/.test(t)) return 'crypto';
+  if (/physical currency|forex|^fx$|currency/.test(t)) return 'forex';
+  if (/^index$|indices/.test(t)) return 'index';
+  if (/etf/.test(t)) return 'etf';
+  return 'stock';
 }
 
 /* ============================================================
    NORMALISATION D'UN RÉSULTAT
    ============================================================ */
 
-function normaliserResultat(
-  raw,
-  provider
-) {
-  if (
-    !raw
-    || typeof raw !== 'object'
-  ) {
-    return null;
-  }
-
-  const ticker =
-    normaliserTicker(
-      raw.ticker
-    );
-
-  const name =
-    propre(
-      raw.name
-    );
-
-  if (
-    !ticker
-    || !name
-  ) {
-    return null;
-  }
-
-  if (
-    !typeAccepte(
-      raw.type
-    )
-  ) {
-    return null;
-  }
-
-  const exchange =
-    normaliserExchange(
-      raw.exchange
-    );
-
+function normaliserResultat(raw, provider) {
+  if (!raw || typeof raw !== 'object') return null;
+  const ticker = normaliserTicker(raw.ticker);
+  const name = propre(raw.name);
+  if (!ticker || !name) return null;
+  if (!typeAccepte(raw.type)) return null;
+  const exchange = normaliserExchange(raw.exchange);
   return {
     ticker,
     exchange,
-
     name,
-
-    country:
-      propre(
-        raw.country
-      ),
-
-    currency:
-      propre(
-        raw.currency
-      ),
-
-    type:
-      propre(
-        raw.type
-      ),
-
-    /*
-     * L'identifiant repose sur le symbole ET la place.
-     *
-     * Lorsque la place est inconnue (ex. résultat Finnhub),
-     * on conserve simplement le ticker.
-     */
-    id:
-      exchange
-        ? `${ticker}@${exchange}`
-        : ticker,
-
+    country: propre(raw.country),
+    currency: propre(raw.currency),
+    type: propre(raw.type),
+    /* Taxonomie interne dérivée du type brut fournisseur (voir
+       typeInterne()) — additif : ne remplace pas `type`, qui garde la
+       valeur brute exacte du fournisseur pour référence/debug. */
+    assetType: typeInterne(raw.type),
+    id: exchange ? `${ticker}@${exchange}` : ticker,
     provider,
-
-    providers: [
-      provider,
-    ],
+    providers: [provider],
   };
 }
 
@@ -304,141 +206,36 @@ function normaliserResultat(
    FUSION DE RÉSULTATS
    ============================================================ */
 
-/**
- * Score uniquement destiné à classer les résultats de recherche.
- *
- * CE N'EST PAS UN SCORE FINANCIER.
- *
- * Il favorise :
- *   - correspondance exacte ticker ;
- *   - correspondance exacte nom ;
- *   - nom commençant par la recherche ;
- *   - présence d'une place identifiée.
- */
-function pertinence(
-  result,
-  query
-) {
-  const q =
-    query
-      .trim()
-      .toLowerCase();
-
-  const ticker =
-    String(
-      result.ticker
-      || ''
-    )
-      .toLowerCase();
-
-  const name =
-    String(
-      result.name
-      || ''
-    )
-      .toLowerCase();
-
+function pertinence(result, query) {
+  /* Comparaison insensible aux accents (voir sansAccents()) — c'est la
+     correction du bug confirmé empiriquement : sans ceci, "Hermes" (sans
+     accent) ne matchait jamais "Hermès" (avec accent). */
+  const q = sansAccents(query.trim().toLowerCase());
+  const ticker = sansAccents(String(result.ticker || '').toLowerCase());
+  const name = sansAccents(String(result.name || '').toLowerCase());
   let score = 0;
-
-  if (ticker === q) {
-    score += 100;
-  }
-
-  if (name === q) {
-    score += 90;
-  }
-
-  if (
-    ticker.startsWith(q)
-  ) {
-    score += 60;
-  }
-
-  if (
-    name.startsWith(q)
-  ) {
-    score += 50;
-  }
-
-  if (
-    name.includes(q)
-  ) {
-    score += 30;
-  }
-
-  if (
-    ticker.includes(q)
-  ) {
-    score += 20;
-  }
-
-  if (
-    result.exchange
-  ) {
-    score += 5;
-  }
-
+  if (ticker === q) score += 100;
+  if (name === q) score += 90;
+  if (ticker.startsWith(q)) score += 60;
+  if (name.startsWith(q)) score += 50;
+  if (name.includes(q)) score += 30;
+  if (ticker.includes(q)) score += 20;
+  if (result.exchange) score += 5;
   return score;
 }
 
-/**
- * Fusion sans inventer de données.
- *
- * Si deux fournisseurs renvoient le même ticker@place,
- * on conserve les informations déjà présentes et on complète
- * uniquement les champs absents.
- */
-function fusionner(
-  existant,
-  nouveau
-) {
-  const providers =
-    [
-      ...new Set([
-        ...(
-          existant.providers
-          || []
-        ),
-
-        ...(
-          nouveau.providers
-          || []
-        ),
-      ]),
-    ];
-
+function fusionner(existant, nouveau) {
+  const providers = [...new Set([...(existant.providers || []), ...(nouveau.providers || [])])];
   return {
     ...existant,
-
-    name:
-      existant.name
-      || nouveau.name,
-
-    country:
-      existant.country
-      || nouveau.country,
-
-    currency:
-      existant.currency
-      || nouveau.currency,
-
-    type:
-      existant.type
-      || nouveau.type,
-
-    exchange:
-      existant.exchange
-      || nouveau.exchange,
-
+    name: existant.name || nouveau.name,
+    country: existant.country || nouveau.country,
+    currency: existant.currency || nouveau.currency,
+    type: existant.type || nouveau.type,
+    assetType: existant.assetType || nouveau.assetType,
+    exchange: existant.exchange || nouveau.exchange,
     providers,
-
-    /*
-     * provider = source principale,
-     * providers = toutes les sources ayant confirmé l'instrument.
-     */
-    provider:
-      existant.provider
-      || nouveau.provider,
+    provider: existant.provider || nouveau.provider,
   };
 }
 
@@ -446,367 +243,101 @@ function fusionner(
    ROUTE
    ============================================================ */
 
-module.exports = async (
-  req,
-  res
-) => {
-  res.setHeader(
-    'Cache-Control',
-    'public, s-maxage=600'
-  );
+module.exports = async (req, res) => {
+  res.setHeader('Cache-Control', 'public, s-maxage=600');
 
-  /* ---------- méthode ---------- */
-
-  if (
-    req.method !== 'GET'
-  ) {
-    res.setHeader(
-      'Allow',
-      'GET'
-    );
-
-    return res.status(405).json({
-      error:
-        'methode_non_autorisee',
-    });
+  if (req.method !== 'GET') {
+    res.setHeader('Allow', 'GET');
+    return res.status(405).json({ error: 'methode_non_autorisee' });
   }
 
-  /* ---------- requête ---------- */
+  const q = String(req.query?.q || '').trim();
+  if (q.length < 2) return res.status(400).json({ error: 'requete_trop_courte' });
+  if (q.length > MAX_QUERY_LENGTH) return res.status(400).json({ error: 'requete_trop_longue' });
 
-  const q =
-    String(
-      req.query?.q
-      || ''
-    )
-      .trim();
-
-  if (
-    q.length < 2
-  ) {
-    return res.status(400).json({
-      error:
-        'requete_trop_courte',
-    });
+  const keys = KEYS();
+  if (!keys.eodhd && !keys.twelvedata && !keys.finnhub) {
+    res.setHeader('Cache-Control', 'no-store');
+    return res.status(503).json({ error: 'aucun_fournisseur_configure' });
   }
 
-  if (
-    q.length > MAX_QUERY_LENGTH
-  ) {
-    return res.status(400).json({
-      error:
-        'requete_trop_longue',
-    });
+  const cacheKey = q.toLowerCase().replace(/\s+/g, ' ');
+  const hit = CACHE.get(cacheKey);
+  if (hit && (Date.now() - hit.at < TTL)) {
+    return res.status(200).json({ ...hit.payload, cached: true });
   }
 
-  /* ---------- fournisseurs ---------- */
+  const journal = [];
+  const resultats = new Map();
 
-  const keys =
-    KEYS();
-
-  if (
-    !keys.eodhd
-    && !keys.twelvedata
-    && !keys.finnhub
-  ) {
-    res.setHeader(
-      'Cache-Control',
-      'no-store'
-    );
-
-    return res.status(503).json({
-      error:
-        'aucun_fournisseur_configure',
-    });
-  }
-
-  /* ---------- cache ---------- */
-
-  const cacheKey =
-    q
-      .toLowerCase()
-      .replace(/\s+/g, ' ');
-
-  const hit =
-    CACHE.get(
-      cacheKey
-    );
-
-  if (
-    hit
-    && (
-      Date.now()
-      - hit.at
-      < TTL
-    )
-  ) {
-    return res.status(200).json({
-      ...hit.payload,
-
-      cached:
-        true,
-    });
-  }
-
-  /* =========================================================
-     RECHERCHE MULTI-FOURNISSEURS
-     ========================================================= */
-
-  const journal =
-    [];
-
-  const resultats =
-    new Map();
-
-  for (
-    const provider
-    of ORDRE
-  ) {
-    if (
-      !keys[provider]
-    ) {
-      journal.push({
-        provider,
-
-        ok:
-          false,
-
-        reason:
-          'cle_absente',
-      });
-
+  for (const provider of ORDRE) {
+    if (!keys[provider]) {
+      journal.push({ provider, ok: false, reason: 'cle_absente' });
       continue;
     }
-
-    const fonction =
-      SEARCH[provider];
-
-    if (
-      typeof fonction !== 'function'
-    ) {
-      continue;
-    }
+    const fonction = SEARCH[provider];
+    if (typeof fonction !== 'function') continue;
 
     try {
-      const bruts =
-        await fonction(
-          q,
-          keys[provider]
-        );
-
-      let acceptes =
-        0;
-
-      for (
-        const brut
-        of (
-          Array.isArray(bruts)
-            ? bruts
-            : []
-        )
-      ) {
-        const resultat =
-          normaliserResultat(
-            brut,
-            provider
-          );
-
-        if (!resultat) {
-          continue;
-        }
-
-        const existant =
-          resultats.get(
-            resultat.id
-          );
-
+      const bruts = await fonction(q, keys[provider]);
+      let acceptes = 0;
+      for (const brut of (Array.isArray(bruts) ? bruts : [])) {
+        const resultat = normaliserResultat(brut, provider);
+        if (!resultat) continue;
+        const existant = resultats.get(resultat.id);
         if (existant) {
-          resultats.set(
-            resultat.id,
-            fusionner(
-              existant,
-              resultat
-            )
-          );
-
+          resultats.set(resultat.id, fusionner(existant, resultat));
         } else {
-          resultats.set(
-            resultat.id,
-            resultat
-          );
+          resultats.set(resultat.id, resultat);
         }
-
         acceptes++;
       }
-
-      journal.push({
-        provider,
-
-        ok:
-          true,
-
-        recus:
-          Array.isArray(bruts)
-            ? bruts.length
-            : 0,
-
-        acceptes,
-      });
-
-      /*
-       * On possède déjà suffisamment de bons candidats.
-       *
-       * Inutile de brûler systématiquement tous les quotas.
-       */
-      if (
-        resultats.size
-        >= MAX_RESULTS * 2
-      ) {
-        break;
-      }
-
+      journal.push({ provider, ok: true, recus: Array.isArray(bruts) ? bruts.length : 0, acceptes });
+      if (resultats.size >= MAX_RESULTS * 2) break;
     } catch (error) {
-      journal.push({
-        provider,
-
-        ok:
-          false,
-
-        reason:
-          error.status
-            ? `HTTP ${error.status}`
-            : (
-                error.message
-                || 'erreur_fournisseur'
-              ),
-      });
+      journal.push({ provider, ok: false, reason: error.status ? `HTTP ${error.status}` : (error.message || 'erreur_fournisseur') });
     }
   }
 
-  /* =========================================================
-     CLASSEMENT
-     ========================================================= */
+  const scores = [...resultats.values()]
+    .map(result => ({ ...result, _pertinence: pertinence(result, q) }));
 
-  const results =
-    [
-      ...resultats.values(),
-    ]
-      .map(result => ({
-        ...result,
+  /* Plancher de pertinence : un résultat à score 0 n'a aucune correspondance
+     textuelle réelle avec la requête (ni ticker, ni nom, ni préfixe) — ce
+     n'est pas "un résultat moins bon", c'est du bruit qui ne devrait
+     apparaître que s'il n'y a strictement rien d'autre. Confirmé
+     empiriquement : c'est ce qui faisait apparaître "Hera S.p.A." et
+     "Hermana Holding" pour une recherche Hermès, sans aucun rapport
+     textuel, simplement parce que la liste n'était jamais filtrée. */
+  const pertinents = scores.filter(r => r._pertinence > 0);
+  const base = pertinents.length ? pertinents : scores;
 
-        _pertinence:
-          pertinence(
-            result,
-            q
-          ),
-      }))
-      .sort(
-        (a, b) => {
-          /*
-           * Pertinence d'abord.
-           */
-          if (
-            b._pertinence
-            !== a._pertinence
-          ) {
-            return (
-              b._pertinence
-              - a._pertinence
-            );
-          }
+  const results = base
+    .sort((a, b) => {
+      if (b._pertinence !== a._pertinence) return b._pertinence - a._pertinence;
+      if (Boolean(b.exchange) !== Boolean(a.exchange)) return b.exchange ? 1 : -1;
+      return a.name.localeCompare(b.name);
+    })
+    .slice(0, MAX_RESULTS)
+    .map(({ _pertinence, ...result }) => result);
 
-          /*
-           * En cas d'égalité, une place connue
-           * est préférable.
-           */
-          if (
-            Boolean(b.exchange)
-            !== Boolean(a.exchange)
-          ) {
-            return b.exchange
-              ? 1
-              : -1;
-          }
-
-          return (
-            a.name
-              .localeCompare(
-                b.name
-              )
-          );
-        }
-      )
-      .slice(
-        0,
-        MAX_RESULTS
-      )
-      .map(
-        ({
-          _pertinence,
-          ...result
-        }) => result
-      );
-
-  const sources =
-    [
-      ...new Set(
-        results.flatMap(
-          result =>
-            result.providers
-            || []
-        )
-      ),
-    ];
+  const sources = [...new Set(results.flatMap(result => result.providers || []))];
 
   const payload = {
     results,
-
-    /*
-     * Gardé pour compatibilité :
-     * source n'est défini que si tous les résultats
-     * proviennent d'une seule source.
-     */
-    source:
-      sources.length === 1
-        ? sources[0]
-        : null,
-
+    source: sources.length === 1 ? sources[0] : null,
     sources,
-
-    partial:
-      results.length === 0,
-
+    partial: results.length === 0,
     journal,
   };
 
-  /*
-   * On ne met en cache qu'une recherche
-   * ayant réellement produit quelque chose.
-   */
-  if (
-    results.length
-  ) {
-    CACHE.set(
-      cacheKey,
-      {
-        at:
-          Date.now(),
-
-        payload,
-      }
-    );
+  if (results.length) {
+    CACHE.set(cacheKey, { at: Date.now(), payload });
   }
 
-  return res.status(200).json(
-    payload
-  );
+  return res.status(200).json(payload);
 };
 
-/* Exports utiles pour tests. */
-module.exports.normaliserExchange =
-  normaliserExchange;
-
-module.exports.normaliserResultat =
-  normaliserResultat;
-
-module.exports.pertinence =
-  pertinence;
+module.exports.normaliserExchange = normaliserExchange;
+module.exports.normaliserResultat = normaliserResultat;
+module.exports.pertinence = pertinence;
