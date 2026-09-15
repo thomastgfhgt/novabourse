@@ -5,14 +5,32 @@ const { freshnessCotation, SOURCE_URL_PROVIDER } = require('./_freshness.js');
 const ORDRE = ['twelvedata', 'eodhd', 'finnhub'];
 const MAX_SYMBOLES = 120;
 
+/* CORRECTIF (audit routage multi-actifs — bug de production confirmé) :
+   cette route ne connaissait AUCUN type d'instrument avant ce correctif —
+   elle traitait chaque symbole comme une action, quel que soit son type
+   réel. Conséquence directe et vérifiée en production : crypto/forex/
+   index/commodity passaient TOUS par BATCH.eodhd avec un symbole construit
+   pour les actions (ex. "BTC/USD.US"), qui échoue toujours (404), et par
+   Finnhub avec un ticker que ce fournisseur ne reconnaît jamais dans ce
+   format — les rendant ENTIÈREMENT dépendants de Twelve Data seul. Un
+   simple HTTP 429 (quota) chez Twelve Data — confirmé en production le
+   jour de cet audit — suffisait alors à rendre indisponible la classe
+   d'actif entière, pas un symbole en particulier.
+   Format accepté : "TICKER@EXCHANGE@TYPE" (EXCHANGE et TYPE optionnels).
+   Rétrocompatible : un appelant existant qui n'envoie pas TYPE obtient
+   'stock' par défaut, comportement inchangé pour toute action déjà
+   fonctionnelle. */
+const TYPES_CONNUS = new Set(['stock', 'etf', 'forex', 'crypto', 'index', 'commodity']);
+
 function normaliserSymbole(raw) {
   if (typeof raw !== 'string') return null;
   const valeur = raw.trim();
-  if (!valeur || valeur.length > 80) return null;
+  if (!valeur || valeur.length > 100) return null;
   const morceaux = valeur.split('@');
-  if (morceaux.length > 2) return null;
+  if (morceaux.length > 3) return null;
   const ticker = String(morceaux[0] || '').trim().toUpperCase();
   const exchange = String(morceaux[1] || '').trim().toUpperCase();
+  const typeBrut = String(morceaux[2] || '').trim().toLowerCase();
   /* CORRECTIF (audit multi-actifs) : troisième occurrence indépendante du
      même bug, déjà corrigé dans search.js et company.js — confirmé
      empiriquement ici aussi avant correction : normaliserSymbole('EUR/USD@')
@@ -22,7 +40,8 @@ function normaliserSymbole(raw) {
      ajouté au jeu de caractères autorisés, rien d'autre ne change. */
   if (!ticker || ticker.length > 30 || !/^[A-Z0-9._/-]+$/.test(ticker)) return null;
   if (exchange && (exchange.length > 40 || !/^[A-Z0-9 ._-]+$/.test(exchange))) return null;
-  return { ticker, exchange };
+  const type = TYPES_CONNUS.has(typeBrut) ? typeBrut : 'stock';
+  return { ticker, exchange, type };
 }
 
 function parseSymboles(raw) {

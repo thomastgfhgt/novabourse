@@ -43,6 +43,15 @@
   --space-2:8px;  --space-3:12px; --space-4:16px; --space-5:24px;
   --space-6:32px; --space-7:48px; --space-8:64px; --space-9:96px;
   --sp-1:8px; --sp-2:16px; --sp-3:24px; --sp-4:32px; --sp-5:48px; --sp-6:80px;
+  /* CORRECTIF dock mobile (confirmé sur Safari iPhone réel, pas seulement en
+     test automatisé) : --dock-h = hauteur réelle du dock flottant (padding
+     7px haut+bas + bouton 8px/22px icône/3px gap/~13px texte/7px ≈ 67px,
+     arrondi par prudence) ; --dock-gap = son décalage du bas de l'écran
+     (bottom:14px dans .dock, hors safe-area). Utilisées ensemble avec
+     env(safe-area-inset-bottom) — jamais une valeur fixe devinée — pour que
+     le padding-bottom du contenu s'adapte à la VRAIE zone sûre de l'appareil
+     (elle varie selon le modèle d'iPhone/Android et l'orientation). */
+  --dock-h:68px; --dock-gap:14px;
   --space-xs:8px; --space-sm:16px; --space-md:24px; --space-lg:32px;
   --t-display:clamp(38px,7vw,60px);
   --t-title:clamp(26px,4vw,36px);
@@ -767,7 +776,15 @@ table.t th{text-align:left;font-size:12px;font-weight:600;color:var(--ink-4);pad
 table.t td{padding:13px 10px 13px 0;border-bottom:1px solid var(--line-2);font-size:14.5px}
 table.t td:last-child,table.t th:last-child{text-align:right;padding-right:0}
 @media (max-width:900px){
-  .wrap{padding:var(--sp-3) 18px calc(var(--sp-6) + 46px)}
+  /* CORRECTIF dock mobile : ancienne valeur fixe (calc(80px+46px)=126px)
+     ne tenait pas compte de env(safe-area-inset-bottom), qui varie selon
+     l'appareil (ex. ~34px sur iPhone avec Face ID en portrait, différent
+     en paysage ou sur d'autres modèles) — confirmé en constatant du
+     contenu masqué derrière le dock sur un vrai iPhone Safari, pas
+     seulement en supposition. Formule explicite : hauteur du dock +
+     son décalage du bas + la VRAIE zone sûre de l'appareil + une marge
+     de confort, plutôt qu'un nombre deviné. */
+  .wrap{padding:var(--sp-3) 18px calc(var(--dock-h) + var(--dock-gap) + env(safe-area-inset-bottom, 0px) + 28px)}
   .section{margin-top:64px}
   .hero{padding:var(--sp-4) 0 var(--sp-3)}
 }
@@ -2219,8 +2236,22 @@ const HIST = new Map();
    Avant cette correction, symboleDe passait TOUJOURS par MARKET_CODE[s.market],
    qui ne connaît que des libellés lisibles ("Euronext Paris") : toute société
    dont `market` contenait déjà un code brut ("PA") tombait sur `undefined`
-   puis une chaîne vide, cassant silencieusement le symbole envoyé au backend. */
-const symboleDe = s => `${s.ticker}@${s.exchangeCode || MARKET_CODE[s.market] || ''}`;
+   puis une chaîne vide, cassant silencieusement le symbole envoyé au backend.
+   CORRECTIF (audit routage multi-actifs) : le type est désormais TOUJOURS
+   transmis (3e segment "@type") à /api/market/quotes — sans lui, le backend
+   traitait tout symbole comme une action, envoyant crypto/forex/index/
+   commodity à EODHD avec un symbole d'action invalide (cause racine
+   confirmée du bug "ALGO/USD cours indisponible" en production). */
+const symboleDe = s => `${s.ticker}@${s.exchangeCode || MARKET_CODE[s.market] || ''}@${s.type || 'stock'}`;
+/* Le backend (voir api/market/_providers.js, idDe()) identifie toujours
+   une cotation par SEULEMENT ticker+exchange (2 segments), jamais le type
+   — chaque `quote.symbol` renvoyé par /api/market/quotes a cette forme.
+   symboleDe() ci-dessus a 3 segments (ticker@exchange@type) UNIQUEMENT
+   pour que le backend sache router la requête ; il ne faut donc PAS
+   l'utiliser pour faire correspondre une réponse à sa société d'origine
+   (ça ne matcherait jamais, 3 segments ≠ 2) — idDeCotation() reproduit
+   exactement le format 2-segments attendu en retour. */
+const idDeCotation = s => `${s.ticker}@${s.exchangeCode || MARKET_CODE[s.market] || ''}`;
 const MARKET_CODE = { NASDAQ:'NASDAQ', NYSE:'NYSE', 'Euronext Paris':'PA',
   'Euronext Amsterdam':'AS', Xetra:'DE', SIX:'SW', LSE:'L' };
 
@@ -2255,7 +2286,7 @@ async function liveTick(){
       + encodeURIComponent(cibles.map(symboleDe).join(',')));
     if (!r.ok) return;
     const d = await r.json();
-    const parId = new Map(cibles.map(s => [symboleDe(s), s]));
+    const parId = new Map(cibles.map(s => [idDeCotation(s), s]));
     let misAJour = false;
     for (const q of d.quotes || []){
       const s = parId.get(q.symbol);
@@ -2369,7 +2400,7 @@ async function chargerCotations(liste){
           + encodeURIComponent(lot.map(symboleDe).join(',')));
         if (!r.ok){ echecs++; return; }
         const d = await r.json();
-        const parId = new Map(lot.map(s => [symboleDe(s), s]));
+        const parId = new Map(lot.map(s => [idDeCotation(s), s]));
         for (const q of d.quotes || []){
           const s = parId.get(q.symbol);
           if (s && Number.isFinite(q.price) && q.price > 0){ QUOTES.set(s.id, q); reçus++; }

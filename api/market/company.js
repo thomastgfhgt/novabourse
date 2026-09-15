@@ -73,6 +73,13 @@ module.exports = async (req, res) => {
 
   const exchange = normaliserExchange(req.query?.exchange);
   const frais = req.query?.fresh === '1';
+  /* Ajouté lors du correctif routage multi-actifs : QUOTE/HISTORY
+     attendent désormais `type` en 3e/4e position (voir _providers.js,
+     eodhdSymbolPourType) — sans ce paramètre, `key` se retrouverait décalé
+     dans le slot `type` et casserait TOUTE cotation/historique, y compris
+     pour les actions. 'stock' par défaut : comportement inchangé pour tous
+     les appels existants qui n'envoient pas `type`. */
+  const type = String(req.query?.type || 'stock').toLowerCase();
 
   const keys = KEYS();
   if (!keys.eodhd && !keys.twelvedata && !keys.finnhub) {
@@ -87,11 +94,11 @@ module.exports = async (req, res) => {
      factorisé pour être réutilisable par history.js et fundamentals.js. */
   const [q, f, h] = await Promise.all([
     chargerBloc({ nom:'quote', table:QUOTE, ordre:['twelvedata', 'eodhd', 'finnhub'],
-      args:[ticker, exchange], ticker, exchange, frais, journal }),
+      args:[ticker, exchange, type], ticker, exchange, frais, journal }),
     chargerBloc({ nom:'fundamentals', table:FUNDAMENTALS, ordre:['eodhd', 'finnhub'],
       args:[ticker, exchange], ticker, exchange, frais, journal }),
     chargerBloc({ nom:'history', table:HISTORY, ordre:['eodhd', 'twelvedata'],
-      args:[ticker, exchange, 400], ticker, exchange, frais, journal }),
+      args:[ticker, exchange, 400, type], ticker, exchange, frais, journal }),
   ]);
 
   const aMarket = quoteValide(q.data);

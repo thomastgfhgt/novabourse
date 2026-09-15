@@ -246,6 +246,62 @@ const eodhdSymbol = (
   }`;
 };
 
+/* ============================================================
+   SYMBOLES EODHD — CRYPTO / FOREX (audit multi-actifs)
+   ============================================================
+   Root cause confirmée en production (voir rapport) : les cotations
+   crypto/forex reposaient à 100% sur Twelve Data, sans repli fonctionnel,
+   car eodhdSymbol() ci-dessus construit un symbole "action" (ex.
+   "BTC/USD.US") qui n'a aucun sens pour EODHD et échoue toujours (404).
+   Résultat : la moindre panne/quota Twelve Data (confirmé : HTTP 429 en
+   production au moment de l'audit) rend TOUTE la classe d'actif
+   indisponible d'un coup — c'est le vrai bug architectural, pas un
+   problème par symbole.
+
+   Conventions ci-dessous vérifiées EMPIRIQUEMENT (pas depuis la seule
+   documentation) via l'endpoint réel EODHD avec le token public "demo" :
+     GET https://eodhd.com/api/real-time/BTC-USD.CC?api_token=demo
+       -> vraies données retournées (close ≈ 76014, etc.)
+     GET https://eodhd.com/api/real-time/EURUSD.FOREX?api_token=demo
+       -> vraies données retournées (close ≈ 1.1545)
+   Le token demo est limité à quelques symboles de démonstration (ALGO-USD.CC
+   et ATOM-USD.CC renvoient "Forbidden" avec ce token précis) : ceci ne
+   remet pas en cause le FORMAT (confirmé sur BTC/EUR), seulement la
+   couverture exacte de la clé de démonstration — à confirmer en production
+   avec la vraie clé NovaBourse (voir résultats de test joints au rapport). */
+
+/**
+ * "BASE/QUOTE" (ex. "BTC/USD") -> "BASE-QUOTE.CC" (ex. "BTC-USD.CC").
+ * Retourne null si le ticker n'a pas exactement cette forme — jamais un
+ * symbole partiellement construit à partir d'un ticker inattendu.
+ */
+function eodhdCryptoSymbol(ticker) {
+  const m = /^([A-Z0-9]+)\/([A-Z0-9]+)$/.exec(String(ticker || '').toUpperCase());
+  return m ? `${m[1]}-${m[2]}.CC` : null;
+}
+
+/**
+ * "BASE/QUOTE" (ex. "EUR/USD") -> "BASEQUOTE.FOREX" (ex. "EURUSD.FOREX").
+ */
+function eodhdForexSymbol(ticker) {
+  const m = /^([A-Z0-9]+)\/([A-Z0-9]+)$/.exec(String(ticker || '').toUpperCase());
+  return m ? `${m[1]}${m[2]}.FOREX` : null;
+}
+
+/**
+ * Point d'entrée UNIQUE pour obtenir un symbole EODHD, quel que soit le
+ * type d'instrument. 'index'/'commodity' renvoient explicitement null :
+ * aucune convention EODHD n'a pu être vérifiée pour ces deux types (voir
+ * rapport précédent) — mieux vaut ne pas appeler EODHD du tout que
+ * d'envoyer un symbole non vérifié.
+ */
+function eodhdSymbolPourType(ticker, exchange, type) {
+  if (type === 'crypto') return eodhdCryptoSymbol(ticker);
+  if (type === 'forex') return eodhdForexSymbol(ticker);
+  if (type === 'index' || type === 'commodity') return null;
+  return eodhdSymbol(ticker, exchange);
+}
+
 const TD_EXCHANGE = {
   NASDAQ: null,
   NYSE: null,
@@ -309,7 +365,16 @@ const US_EXCHANGES =
     'US',
   ]);
 
-function finnhubAutorise(exchange) {
+/* Finnhub /quote n'accepte qu'un ticker brut (ex. "AAPL"), jamais une paire
+   "BASE/QUOTE" ni un symbole EODHD-style : structurellement incompatible
+   avec crypto/forex/index/commodity dans NovaBourse (leur ticker contient
+   un "/" ou n'a pas d'équivalent US direct). Avant cette correction,
+   finnhubAutorise('') renvoyait true pour ces quatre types (exchange vide),
+   déclenchant un appel Finnhub voué à l'échec à chaque fois. */
+const TYPES_INCOMPATIBLES_FINNHUB = new Set(['crypto', 'forex', 'index', 'commodity']);
+
+function finnhubAutorise(exchange, type) {
+  if (TYPES_INCOMPATIBLES_FINNHUB.has(type)) return false;
   return (
     !exchange
     || US_EXCHANGES.has(
@@ -433,6 +498,7 @@ const QUOTE = {
   async twelvedata(
     ticker,
     exchange,
+    type,
     key
   ) {
     const d =
@@ -489,11 +555,21 @@ const QUOTE = {
   async eodhd(
     ticker,
     exchange,
+    type,
     key
   ) {
+    const symbole =
+      eodhdSymbolPourType(ticker, exchange, type);
+
+    if (!symbole) {
+      throw new Error(
+        'type_sans_convention_eodhd'
+      );
+    }
+
     const d =
       await getJSON(
-        `https://eodhd.com/api/real-time/${encodeURIComponent(eodhdSymbol(ticker, exchange))}`
+        `https://eodhd.com/api/real-time/${encodeURIComponent(symbole)}`
         + `?api_token=${key}&fmt=json`
       );
 
@@ -542,10 +618,11 @@ const QUOTE = {
   async finnhub(
     ticker,
     exchange,
+    type,
     key
   ) {
     if (
-      !finnhubAutorise(exchange)
+      !finnhubAutorise(exchange, type)
     ) {
       throw new Error(
         'place_non_supportee_par_finnhub'
@@ -1213,6 +1290,7 @@ const HISTORY = {
     ticker,
     exchange,
     n,
+    type,
     key
   ) {
     const jours =
@@ -1230,10 +1308,17 @@ const HISTORY = {
         );
 
     const symbole =
-      eodhdSymbol(
+      eodhdSymbolPourType(
         ticker,
-        exchange
+        exchange,
+        type
       );
+
+    if (!symbole) {
+      throw new Error(
+        'type_sans_convention_eodhd'
+      );
+    }
 
     const url =
       `https://eodhd.com/api/eod/${encodeURIComponent(symbole)}`
@@ -1353,6 +1438,7 @@ const HISTORY = {
     ticker,
     exchange,
     n,
+    type,
     key
   ) {
     const jours =
@@ -1701,17 +1787,19 @@ const BATCH = {
     valeurs,
     key
   ) {
+    /* Filtre AVANT construction de la requête : un instrument dont le
+       type n'a aucune convention EODHD vérifiée (index/commodity, voir
+       eodhdSymbolPourType) est simplement exclu de ce lot, jamais envoyé
+       avec un symbole inventé. Il reste éligible aux autres fournisseurs
+       de la cascade (twelvedata). */
     const map =
       new Map(
-        valeurs.map(
-          v => [
-            eodhdSymbol(
-              v.ticker,
-              v.exchange
-            ),
+        valeurs
+          .map(v => [
+            eodhdSymbolPourType(v.ticker, v.exchange, v.type),
             v,
-          ]
-        )
+          ])
+          .filter(([symbole]) => Boolean(symbole))
       );
 
     const symboles =
@@ -1839,7 +1927,8 @@ const BATCH = {
       valeurs.filter(
         v =>
           finnhubAutorise(
-            v.exchange
+            v.exchange,
+            v.type
           )
       );
 
@@ -1946,6 +2035,9 @@ module.exports = {
   getJSON,
 
   eodhdSymbol,
+  eodhdCryptoSymbol,
+  eodhdForexSymbol,
+  eodhdSymbolPourType,
   tdSymbol,
 
   idDe,
