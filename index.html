@@ -959,6 +959,7 @@ const DEFAULT_STATE = {
     exploreCountry:'tous',
     marketsCategory:'tous',
     marketsRegion:'Monde',
+    marketsVisibles:20,
   },
 
   ui:{
@@ -2032,6 +2033,30 @@ document.addEventListener('visibilitychange', () => {
 const CHARGEMENT_MASSE_MAX_SYMBOLES = 50;
 const CHARGEMENT_MASSE_PAUSE_MS = 61000;
 
+/* Enveloppe de déduplication : NE demande jamais une cotation déjà connue
+   (QUOTES.has), NI une cotation dont la dernière tentative a échoué il y
+   a moins de COTATION_COOLDOWN_MS — sans ce délai de recul, un symbole
+   qui ne se résout JAMAIS (ticker invalide, fournisseur en panne)
+   redéclencherait une tentative à chaque render(), donc une boucle sans
+   fin (confirmé en test réel). Le délai laisse une chance de réessayer
+   plus tard sans marteler un symbole cassé à chaque rendu.
+   C'est ELLE qu'il faut appeler partout dans l'application — jamais
+   chargerCotations() directement — pour que "catalogue large" ne rime
+   jamais avec "tout charger". */
+const COTATION_COOLDOWN_MS = 30000;
+const derniereTentativeEchouee = new Map();
+
+function assurerCotations(liste){
+  const maintenant = Date.now();
+  const manquantes = liste.filter(s => {
+    if (!s || !s.ticker || QUOTES.has(s.id)) return false;
+    const derniere = derniereTentativeEchouee.get(s.id);
+    return !derniere || (maintenant - derniere) > COTATION_COOLDOWN_MS;
+  });
+  if (!manquantes.length) return Promise.resolve();
+  return chargerCotations(manquantes);
+}
+
 async function chargerCotations(liste){
   const cibles = liste.filter(s => s && s.ticker);
   if (!cibles.length) return;
@@ -2077,6 +2102,15 @@ async function chargerCotations(liste){
     if (vagues.length > 1) render();
   }
 
+  /* Enregistre un délai de recul pour tout symbole demandé qui reste
+     inconnu après cette tentative — voir COTATION_COOLDOWN_MS ci-dessus,
+     c'est ce qui empêche une boucle sans fin sur un symbole qui ne se
+     résout jamais. */
+  const maintenant = Date.now();
+  for (const s of cibles){
+    if (!QUOTES.has(s.id)) derniereTentativeEchouee.set(s.id, maintenant);
+  }
+
   if (!reçus){
     DATA.mode = 'unavailable';
     DATA.reason = echecs === totalLots ? 'fournisseur_indisponible' : null;
@@ -2087,7 +2121,15 @@ async function chargerCotations(liste){
     DATA.at = Date.now();
   }
   paintSource();
-  render();
+  /* CORRECTIF — bug réel trouvé en test : appeler render() sans condition
+     ici, même quand reçus===0, recrée exactement la liste "encore
+     manquante" à l'identique au prochain rendu -> assurerCotations()
+     la redemande -> chargerCotations() la re-échoue -> render() de
+     nouveau : une boucle sans fin dès qu'un symbole ne se résout jamais
+     (fournisseur en panne, ticker invalide, ou — comme dans ce test —
+     un mock qui ne le satisfait jamais). Un aller simple sans rien de
+     nouveau à afficher ne doit jamais redéclencher un rendu. */
+  if (reçus) render();
 }
 
 /* Séances par période, sur des données journalières uniquement. 1J/1S
@@ -2558,10 +2600,26 @@ function marketsListeFiltree(){
   list.sort((a,b)=>a.name.localeCompare(b.name,'fr'));
   return list;
 }
+/* Exactement les instruments actuellement révélés à l'écran (après
+   pagination) — c'est CETTE liste, jamais la catégorie entière, qui doit
+   servir à charger des cotations ou à alimenter le rafraîchissement
+   vivant. */
+function marketsListeVisible(){
+  return marketsListeFiltree().slice(0, state.filters.marketsVisibles || 20);
+}
 function marketsRows(){
   const list = marketsListeFiltree();
-  return list.length ? list.map(s=>stockRow(s)).join('')
-    : emptyState('Aucun instrument','Aucun instrument ne correspond à ce filtre.');
+  if (!list.length) return emptyState('Aucun instrument','Aucun instrument ne correspond à ce filtre.');
+  /* Pagination : "20 minimum accessibles" ne veut pas dire "20 affichés
+     et chargés d'un coup pour toujours" — marketsVisibles suit combien
+     sont actuellement révélés (20 par défaut, +20 à chaque clic "Voir
+     plus"), réinitialisé à 20 dès qu'on change de catégorie/région. */
+  const visibles = state.filters.marketsVisibles || 20;
+  const page = list.slice(0, visibles);
+  return page.map(s=>stockRow(s)).join('') + (list.length > page.length
+    ? `<button class="btn btn-ghost btn-sm" style="width:100%;margin-top:12px" data-markets-plus="1">
+        Voir plus (${list.length - page.length} restants)</button>`
+    : '');
 }
 
 /* ---------- FICHE ENTREPRISE ---------- */
@@ -3849,15 +3907,37 @@ function render(navigated = false){
      visibles sur la page courante, jamais tout le catalogue. Une page
      sans instrument pertinent (compte, réglages...) coupe le
      rafraîchissement. */
+  /* Cotations : n'appeler assurerCotations() que sur ce qui est
+     RÉELLEMENT affiché à l'écran pour cette route — jamais la catégorie
+     entière, jamais tout le catalogue. C'est la même liste, scopée par
+     page, qui sert aussi de base au rafraîchissement vivant juste après. */
+  const listesParRoute = {
+    stock: () => [byId[route.arg]].filter(Boolean),
+    compare: () => state.compare.map(id => byId[id]).filter(Boolean),
+    markets: () => marketsListeVisible(),
+    watchlist: () => state.watchlist.map(id => byId[id]).filter(Boolean),
+    home: () => [...state.watchlist.map(id => byId[id]), ...stocks.slice(0, 6)].filter(Boolean),
+    portfolio: () => state.wallet.positions.map(p => byId[p.id]).filter(Boolean),
+  };
   const liveParRoute = {
     stock: () => [route.arg],
     compare: () => state.compare,
-    markets: () => marketsListeFiltree().slice(0, LIVE_MAX_SYMBOLES).map(s => s.id),
+    markets: () => marketsListeVisible().slice(0, LIVE_MAX_SYMBOLES).map(s => s.id),
     watchlist: () => state.watchlist,
     home: () => state.watchlist.slice(0, 6),
     portfolio: () => state.wallet.positions.map(p => p.id),
   };
+  const listeVisible = (listesParRoute[route.page] || (() => []))();
   const idsVisibles = (liveParRoute[route.page] || (() => []))();
+  /* Ne jamais redemander via assurerCotations() ce que le rafraîchissement
+     vivant s'apprête de toute façon à obtenir tout de suite (son tick
+     immédiat) — sinon les mêmes premiers symboles partent deux fois dans
+     le même cycle (confirmé en test : "OR@PA"/"MC@PA" comptés deux fois).
+     assurerCotations() ne comble donc que le RESTE de la page visible,
+     au-delà des LIVE_MAX_SYMBOLES suivis en direct. */
+  const idsVivantsSet = new Set(idsVisibles);
+  const resteACombler = listeVisible.filter(s => s && !idsVivantsSet.has(s.id));
+  if (resteACombler.length) assurerCotations(resteACombler);
   if (idsVisibles.length) demarrerRafraichissementVivant(idsVisibles);
   else arreterRafraichissementVivant();
 
@@ -4209,9 +4289,27 @@ document.addEventListener('click', e => {
     return;
   }
 
+  const marketsPlus = q('[data-markets-plus]');
+  if (marketsPlus){
+    /* +20 seulement — jamais tout le reste d'un coup, même si l'utilisateur
+       clique plusieurs fois de suite ("Voir plus" progressif, pas une
+       bascule "tout charger"). */
+    state.filters.marketsVisibles = (state.filters.marketsVisibles || 20) + 20;
+    saveState();
+    render();
+    return;
+  }
+
   const flt = q('[data-filter]');
   if (flt){
     state.filters[flt.dataset.filter] = isNaN(flt.dataset.val) ? flt.dataset.val : +flt.dataset.val;
+    /* Changer de catégorie/région = nouvelle liste = pagination repartie
+       de zéro. Sans ça, "Voir plus" cliqué en Actions resterait à 40/60
+       en passant sur Crypto, chargeant inutilement plus que les 20
+       premiers de la nouvelle catégorie. */
+    if (flt.dataset.filter === 'marketsCategory' || flt.dataset.filter === 'marketsRegion'){
+      state.filters.marketsVisibles = 20;
+    }
     saveState();
     /* marketsCategory change la MISE EN PAGE (les puces de région
        n'apparaissent que pour la catégorie "Actions") : un simple
@@ -4222,7 +4320,7 @@ document.addEventListener('click', e => {
       b.setAttribute('aria-pressed', String(b.dataset.val === flt.dataset.val)));
     if (route.page === 'radar') document.getElementById('radarOut').innerHTML = radarResults();
     if (route.page === 'explore') document.getElementById('exploreOut').innerHTML = exploreRows();
-    if (route.page === 'markets') document.getElementById('marketsOut').innerHTML = marketsRows();
+    if (route.page === 'markets') render();   // pagination + éventuels nouveaux instruments à charger
     return;
   }
   const nl = q('[data-nl]');
@@ -4349,7 +4447,19 @@ async function loadRealQuotes(){
     DATA.mode = 'unavailable'; DATA.reason = 'source_non_connectee';
     return paintSource();
   }
-  await chargerCotations(stocks);
+  /* CORRECTIF ARCHITECTURE : plus question de charger les 70 instruments
+     du catalogue au démarrage simplement parce qu'ils existent
+     ("catalogue large ≠ tout charger"). On ne charge ici que ce dont
+     l'écran d'accueil a RÉELLEMENT besoin pour s'afficher : la liste
+     suivie + le petit aperçu marché ("marche", 6 valeurs) que PAGES.home
+     affiche systématiquement. Tout le reste (Marchés par catégorie,
+     Comparer, une fiche...) se charge à l'ouverture de la page
+     correspondante, via assurerCotations() — jamais avant. */
+  const besoinsAccueil = [
+    ...state.watchlist.map(id => byId[id]),
+    ...stocks.slice(0, 6),
+  ].filter(Boolean);
+  await assurerCotations(besoinsAccueil);
 }
 function sourceBadge(){
   if (DATA.mode === 'live'){
