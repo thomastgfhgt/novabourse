@@ -9,17 +9,25 @@
  * règle, aucune donnée fabriquée. Un historique vide est indisponible,
  * jamais une série synthétique.
  *
- * `type` (optionnel, 'stock' par défaut) détermine l'ordre de cascade :
- * confirmé par lecture de _providers.js, eodhdSymbol() n'a AUCUNE
- * convention de suffixe pour forex/crypto (uniquement des codes de place
- * boursière : PA, DE, NASDAQ...) et retombe sur ".US" par défaut quand
- * `exchange` est vide — un symbole EODHD invalide pour une paire de
- * devises ou une crypto (ex. "EUR/USD.US"). La cascade s'en remet
- * normalement à Twelve Data ensuite (EODHD échoue proprement), mais
- * envoyer cet appel voué à l'échec n'a pas de sens : pour forex/crypto,
- * EODHD est explicitement retiré de l'ordre plutôt que laissé échouer
- * "par accident". Twelve Data accepte nativement "EUR/USD"/"BTC/USD"
- * comme symbole direct (confirmé par sa documentation officielle).
+ * `type` (optionnel, 'stock' par défaut) détermine l'ordre de cascade.
+ *
+ * CORRECTIF (audit routage multi-actifs — bug de production confirmé) :
+ * crypto/forex utilisent désormais EODHD avec le VRAI symbole de ce
+ * fournisseur pour ces types (voir eodhdSymbolPourType() dans
+ * _providers.js : "BTC-USD.CC", "EURUSD.FOREX" — vérifiés empiriquement en
+ * direct, pas depuis la seule documentation). Avant ce correctif,
+ * crypto/forex étaient réduits à Twelve Data SEUL, sans aucun repli : un
+ * simple HTTP 429 (quota) chez Twelve Data — confirmé en production le
+ * jour de cet audit — rendait alors TOUTE la classe d'actif indisponible
+ * d'un coup. C'est la cause racine du bug "ALGO/USD cours indisponible" /
+ * "ATOM/USD historique indisponible" : ni l'un ni l'autre n'a de rapport
+ * avec le ticker lui-même (vérifié : les deux existent bien chez Twelve
+ * Data), c'est l'absence de repli fonctionnel qui posait problème.
+ *
+ * 'index'/'commodity' restent sur Twelve Data seul : aucune convention
+ * EODHD n'a pu être vérifiée pour ces deux types (voir rapport précédent),
+ * donc EODHD reste explicitement retiré de leur cascade plutôt que
+ * d'envoyer un symbole non vérifié.
  */
 
 const { HISTORY, KEYS } = require('./_providers.js');
@@ -30,7 +38,7 @@ const { normaliserTicker, normaliserExchange } = require('./company.js');
    cotations quotidiennes. */
 const MAX_HISTORY_POINTS = 260;
 
-const TYPES_SANS_SUFFIXE_EODHD = new Set(['forex', 'crypto']);
+const TYPES_SANS_SUFFIXE_EODHD = new Set(['index', 'commodity']);
 
 module.exports = async (req, res) => {
   res.setHeader('Cache-Control', 'no-store');
@@ -61,7 +69,7 @@ module.exports = async (req, res) => {
     nom: 'history',
     table: HISTORY,
     ordre,
-    args: [ticker, exchange, 400],
+    args: [ticker, exchange, 400, type],
     ticker, exchange, frais, journal,
   });
 
@@ -81,6 +89,10 @@ module.exports = async (req, res) => {
     /* Dérivé de la donnée réellement reçue (date du dernier point), jamais
        une estampille fabriquée : null si aucun historique exploitable. */
     asOf: aHistory ? (history.ohlcv[history.ohlcv.length - 1]?.date ?? null) : null,
+    /* Additif (voir api/market/_freshness.js) : un OHLCV quotidien n'est
+       jamais du temps réel, quel que soit le fournisseur. */
+    freshness: aHistory ? h.freshness : null,
+    provenance: aHistory ? { source: h.source, sourceUrl: h.sourceUrl, retrievedAt: h.retrievedAt } : null,
     journal,
   });
 };
