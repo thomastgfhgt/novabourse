@@ -81,6 +81,10 @@ module.exports = async (req, res) => {
     /* Dérivé de la donnée réellement reçue (date du dernier point), jamais
        une estampille fabriquée : null si aucun historique exploitable. */
     asOf: aHistory ? (history.ohlcv[history.ohlcv.length - 1]?.date ?? null) : null,
+    /* Additif (voir api/market/_freshness.js) : un OHLCV quotidien n'est
+       jamais du temps réel, quel que soit le fournisseur. */
+    freshness: aHistory ? h.freshness : null,
+    provenance: aHistory ? { source: h.source, sourceUrl: h.sourceUrl, retrievedAt: h.retrievedAt } : null,
     journal,
   });
 };

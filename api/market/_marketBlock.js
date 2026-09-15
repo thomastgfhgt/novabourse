@@ -17,6 +17,35 @@
 
 const { cascade } = require('./_providers.js');
 const { lire, ecrire } = require('./_cache.js');
+const {
+  freshnessCotation,
+  freshnessHistorique,
+  freshnessFondamentaux,
+  SOURCE_URL_PROVIDER,
+} = require('./_freshness.js');
+
+/* Calcule freshness/sourceUrl/retrievedAt pour un bloc — ajout PUREMENT
+   ADDITIF au résultat de chargerBloc() : les appelants existants qui ne
+   déstructurent que { data, source } ne sont pas affectés. `source` peut
+   être null (tous les fournisseurs ont échoué) : la fraîcheur devient alors
+   naturellement null plutôt qu'une valeur inventée. */
+function metaBloc(nom, source, auMoment) {
+  if (!source) {
+    return { freshness: null, sourceUrl: null, retrievedAt: null };
+  }
+
+  const freshness =
+    nom === 'quote' ? freshnessCotation(source)
+    : nom === 'history' ? freshnessHistorique()
+    : nom === 'fundamentals' ? freshnessFondamentaux()
+    : null;
+
+  return {
+    freshness,
+    sourceUrl: SOURCE_URL_PROVIDER[source] || null,
+    retrievedAt: new Date(auMoment).toISOString(),
+  };
+}
 
 /* Dupliquée intentionnellement en une ligne plutôt qu'importée de
    company.js : c'est une règle de validation générique du bloc "history"
@@ -51,22 +80,30 @@ async function chargerBloc({ nom, table, ordre, args, ticker, exchange, frais, j
          vrai historique — comportement identique à l'ancien company.js. */
       if (nom !== 'history' || historiqueValide(hit.valeur)){
         journal.push({ bloc: nom, provider: hit.source, ok: true, cache: true });
-        return { data: hit.valeur, source: hit.source };
+        /* hit.at = horodatage RÉEL de récupération (écrit ci-dessous lors du
+           premier appel fournisseur), jamais l'instant du cache hit — une
+           donnée servie depuis le cache reste aussi fraîche (ou aussi
+           périmée) qu'au moment où elle a été obtenue. */
+        return { data: hit.valeur, source: hit.source, ...metaBloc(nom, hit.source, hit.at) };
       }
     }
   }
 
   const resultat = await cascade(table, ordre, args, journal, nom);
+  /* Un seul horodatage, réutilisé pour l'écriture cache ET la réponse :
+     évite toute dérive entre le retrievedAt renvoyé maintenant et celui
+     qu'un futur cache hit relira (voir _cache.js). */
+  const auMoment = Date.now();
 
   /* On ne met pas un historique vide en cache, pour permettre à une
      requête ultérieure de retenter un fournisseur plutôt que de rester
      bloquée sur []. Comportement identique à l'ancien company.js. */
   const peutEcrire = nom === 'history' ? historiqueValide(resultat.data) : Boolean(resultat.data);
   if (peutEcrire){
-    ecrire(nom, [ticker, exchange], resultat.data, resultat.source);
+    ecrire(nom, [ticker, exchange], resultat.data, resultat.source, auMoment);
   }
 
-  return resultat;
+  return { ...resultat, ...metaBloc(nom, resultat.source, auMoment) };
 }
 
 module.exports = { chargerBloc, historiqueValide };

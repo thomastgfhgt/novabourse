@@ -1,5 +1,6 @@
 const { BATCH, KEYS, idDe } = require('./_providers.js');
 const { lire, ecrire } = require('./_cache.js');
+const { freshnessCotation, SOURCE_URL_PROVIDER } = require('./_freshness.js');
 
 const ORDRE = ['twelvedata', 'eodhd', 'finnhub'];
 const MAX_SYMBOLES = 120;
@@ -66,7 +67,15 @@ module.exports = async (req, res) => {
     for (const valeur of demandes) {
       const hit = lire('quote', valeur.ticker, valeur.exchange);
       if (hit) {
-        trouve.set(idDe(valeur), { ...hit.valeur, source: hit.source, cached: true });
+        trouve.set(idDe(valeur), {
+          ...hit.valeur, source: hit.source, cached: true,
+          /* Fraîcheur recalculée depuis le fournisseur (pure fonction, pas
+             besoin de la persister) ; retrievedAt = horodatage RÉEL de la
+             récupération d'origine (hit.at), jamais l'instant du cache hit. */
+          freshness: freshnessCotation(hit.source),
+          sourceUrl: SOURCE_URL_PROVIDER[hit.source] || null,
+          retrievedAt: new Date(hit.at).toISOString(),
+        });
       } else {
         aChercher.push(valeur);
       }
@@ -97,10 +106,16 @@ module.exports = async (req, res) => {
       try {
         const map = await BATCH[nom](lot, keys[nom]);
         const idsLot = new Set(lot.map(idDe));
+        const auMoment = Date.now();
         for (const [id, quote] of map) {
           if (!idsLot.has(id)) continue;
-          trouve.set(id, { ...quote, source: nom, cached: false });
-          ecrire('quote', [quote.ticker, quote.exchange], quote, nom);
+          trouve.set(id, {
+            ...quote, source: nom, cached: false,
+            freshness: freshnessCotation(nom),
+            sourceUrl: SOURCE_URL_PROVIDER[nom] || null,
+            retrievedAt: new Date(auMoment).toISOString(),
+          });
+          ecrire('quote', [quote.ticker, quote.exchange], quote, nom, auMoment);
         }
         const avant = reste.length;
         reste = reste.filter(valeur => !map.has(idDe(valeur)));

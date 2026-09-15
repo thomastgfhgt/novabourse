@@ -74,6 +74,10 @@ module.exports = async (req, res) => {
     fundamentals: aFundamentals ? f.data.fundamentals : null,
     source: aFundamentals ? f.source : null,
     asOf: aFundamentals ? (f.data?.asOf ?? null) : null,
+    /* Additif (voir api/market/_freshness.js) : un bilan/résultat publié
+       est une donnée périodique déjà close, jamais en direct. */
+    freshness: aFundamentals ? f.freshness : null,
+    provenance: aFundamentals ? { source: f.source, sourceUrl: f.sourceUrl, retrievedAt: f.retrievedAt } : null,
     journal,
   });
 };

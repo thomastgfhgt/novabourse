@@ -2699,8 +2699,17 @@ PAGES.stock = (id) => {
            rafraîchissement vivant sur CETTE fiche (state.ui.liveAt posé
            par liveTick), jamais une horloge qui tourne toute seule sans
            donnée réelle derrière. */
+        /* Préfixe de fraîcheur (voir api/market/_freshness.js) : évite que
+           "Actualisé à HH:MM:SS" ne laisse croire à du temps réel alors que
+           la cotation est en réalité différée (cas par défaut aujourd'hui,
+           EODHD documentant explicitement 15-20 min de délai). Rien
+           n'apparaît si `freshness` est absent (ancienne réponse serveur
+           en cache, ou fournisseur non reconnu) plutôt que d'inventer un
+           libellé. */
+        const FRESHNESS_LABEL = { LIVE:'Temps réel', DELAYED:'Différé', END_OF_DAY:'Clôture', HISTORICAL:'Historique' };
+        const labelFraicheur = FRESHNESS_LABEL[q.freshness] || '';
         const fraicheur = (state.ui.liveAt && route.page === 'stock' && route.arg === s.id)
-          ? `<div class="tiny" style="margin-top:4px;color:var(--ink-4)">Actualisé à ${new Date(state.ui.liveAt).toLocaleTimeString('fr-FR')}</div>`
+          ? `<div class="tiny" style="margin-top:4px;color:var(--ink-4)">${labelFraicheur ? esc(labelFraicheur) + ' · ' : ''}Actualisé à ${new Date(state.ui.liveAt).toLocaleTimeString('fr-FR')}</div>`
           : '';
         return `<div class="price">${fmt.num(q.price)}<small>${esc(s.curSymbol)}</small></div>
           ${v === null ? '' : `<div class="price-chg ${v >= 0 ? 'up-t' : 'down-t'}">

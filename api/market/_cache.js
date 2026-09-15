@@ -29,8 +29,14 @@ function lire(bloc, ...parts){
   return hit;               // { at, valeur, source }
 }
 
-function ecrire(bloc, parts, valeur, source){
-  STORE.set(cle(bloc, ...[].concat(parts)), { at: Date.now(), valeur, source });
+/* `at` optionnel : permet à l'appelant (voir _marketBlock.js) de fournir
+   l'horodatage EXACT déjà utilisé pour construire sa propre réponse
+   (retrievedAt), plutôt que de laisser ce module recalculer un Date.now()
+   indépendant qui dévierait de quelques millisecondes. Défaut inchangé
+   pour tout appelant existant (ex. quotes.js) qui n'a pas besoin de cette
+   précision. */
+function ecrire(bloc, parts, valeur, source, at = Date.now()){
+  STORE.set(cle(bloc, ...[].concat(parts)), { at, valeur, source });
   // Garde-fou mémoire : au-delà de 2000 entrées, on purge les plus anciennes.
   if (STORE.size > 2000){
     const vieux = [...STORE.entries()].sort((a, b) => a[1].at - b[1].at).slice(0, 500);

@@ -119,6 +119,10 @@ module.exports = async (req, res) => {
     volume: q.data.volume ?? null,
     marketCap: f.data?.fundamentals?.marketCap ?? null,
     timestamp: q.data.timestamp ?? null,
+    /* Jamais LIVE par défaut : voir api/market/_freshness.js pour la
+       justification (EODHD confirme un délai documenté de 15-20 min ;
+       Twelve Data/Finnhub non garantis génériquement temps réel). */
+    freshness: q.freshness ?? null,
   } : null;
 
   let history = null;
@@ -146,6 +150,21 @@ module.exports = async (req, res) => {
     asOf: {
       quote: aMarket ? (q.data?.timestamp || null) : null,
       fundamentals: aFundamentals ? (f.data?.asOf || null) : null,
+    },
+    /* Ajout additif (voir api/market/_freshness.js) : ne remplace ni
+       `sources` ni `asOf` ci-dessus, pour ne rien casser chez un
+       consommateur existant (frontend, api/analyze.js). `provenance`
+       donne la traçabilité complète demandée (source, sourceUrl,
+       retrievedAt) par bloc ; `freshness` la résume pour un accès rapide. */
+    freshness: {
+      quote: aMarket ? q.freshness : null,
+      fundamentals: aFundamentals ? f.freshness : null,
+      history: aHistory ? h.freshness : null,
+    },
+    provenance: {
+      quote: aMarket ? { source: q.source, sourceUrl: q.sourceUrl, retrievedAt: q.retrievedAt } : null,
+      fundamentals: aFundamentals ? { source: f.source, sourceUrl: f.sourceUrl, retrievedAt: f.retrievedAt } : null,
+      history: aHistory ? { source: h.source, sourceUrl: h.sourceUrl, retrievedAt: h.retrievedAt } : null,
     },
     complete,
     missing,
