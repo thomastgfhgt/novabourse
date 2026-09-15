@@ -1983,11 +1983,29 @@ async function liveTick(){
 
 /* Remplace tout abonnement précédent — jamais deux minuteurs en parallèle
    (ex. navigation rapide entre deux fiches). `ids` au-delà de
-   LIVE_MAX_SYMBOLES est tronqué, jamais étendu. */
+   LIVE_MAX_SYMBOLES est tronqué, jamais étendu.
+   GARDE-FOU ESSENTIEL : si la liste demandée est EXACTEMENT celle déjà
+   suivie, ne rien faire — ni redémarrer le minuteur, ni retirer un tick
+   immédiat. Sans ce garde-fou, un tick réussi déclenche render(), qui
+   rappelle cette fonction avec les mêmes ids (puisque render() relit la
+   même route), qui relance un tick immédiat, qui réussit, qui rappelle
+   render()... : une boucle non bornée, confirmée en test réel, où le
+   rafraîchissement se déclenche en continu au lieu de toutes les 8
+   secondes. Ce garde-fou la supprime sans changer le comportement
+   attendu (nouveaux ids -> toujours un tick immédiat + minuteur relancé). */
 function demarrerRafraichissementVivant(ids){
+  const nouveaux = [...new Set(ids.filter(Boolean))].slice(0, LIVE_MAX_SYMBOLES);
+  const inchange = nouveaux.length === liveIds.length
+    && nouveaux.every(id => liveIds.includes(id));
+  if (inchange && liveTimer) return;
   arreterRafraichissementVivant();
-  liveIds = [...new Set(ids.filter(Boolean))].slice(0, LIVE_MAX_SYMBOLES);
+  liveIds = nouveaux;
   if (!liveIds.length) return;
+  /* Premier tick IMMÉDIAT (pas d'attente des 8 premières secondes) : une
+     société fraîchement ajoutée par recherche, ou tout simplement la
+     fiche qu'on vient d'ouvrir, obtient un prix tout de suite plutôt que
+     d'attendre le premier cycle programmé. */
+  liveTick();
   liveTimer = setInterval(liveTick, LIVE_INTERVALLE_MS);
 }
 function arreterRafraichissementVivant(){
@@ -2002,6 +2020,18 @@ document.addEventListener('visibilitychange', () => {
   }
 });
 
+/* Chargement en masse (catalogue entier au démarrage) : contrairement au
+   rafraîchissement vivant ci-dessus (déjà sûr par construction, 7 symboles
+   max), CE chargement peut porter sur ~70 instruments d'un coup — bien
+   au-delà du palier d'ENTRÉE de Twelve Data Grow (55 crédits/minute).
+   Sans précaution, `Promise.all` sur tous les lots partirait en une seule
+   salve et dépasserait le budget dès le premier appel. On regroupe donc
+   les lots en VAGUES dont la somme de symboles reste sûre, avec une pause
+   d'une minute entre deux vagues si le catalogue en réclame plusieurs —
+   jamais un pic qui dépasse le crédit disponible. */
+const CHARGEMENT_MASSE_MAX_SYMBOLES = 50;
+const CHARGEMENT_MASSE_PAUSE_MS = 61000;
+
 async function chargerCotations(liste){
   const cibles = liste.filter(s => s && s.ticker);
   if (!cibles.length) return;
@@ -2010,27 +2040,46 @@ async function chargerCotations(liste){
   const lots = [];
   for (let i = 0; i < cibles.length; i += TAILLE_LOT) lots.push(cibles.slice(i, i + TAILLE_LOT));
 
-  let reçus = 0, source = null, echecs = 0;
+  const vagues = [];
+  let vagueCourante = [], compteurCourant = 0;
+  for (const lot of lots){
+    if (compteurCourant + lot.length > CHARGEMENT_MASSE_MAX_SYMBOLES && vagueCourante.length){
+      vagues.push(vagueCourante); vagueCourante = []; compteurCourant = 0;
+    }
+    vagueCourante.push(lot); compteurCourant += lot.length;
+  }
+  if (vagueCourante.length) vagues.push(vagueCourante);
 
-  await Promise.all(lots.map(async lot => {
-    try {
-      const r = await fetch('/api/market/quotes?symbols='
-        + encodeURIComponent(lot.map(symboleDe).join(',')));
-      if (!r.ok){ echecs++; return; }
-      const d = await r.json();
-      const parId = new Map(lot.map(s => [symboleDe(s), s]));
-      for (const q of d.quotes || []){
-        const s = parId.get(q.symbol);
-        if (s && Number.isFinite(q.price) && q.price > 0){ QUOTES.set(s.id, q); reçus++; }
-      }
-      if (d.source) source = d.source;
-      if (!d.quotes || !d.quotes.length) echecs++;
-    } catch { echecs++; }
-  }));
+  let reçus = 0, source = null, echecs = 0, totalLots = 0;
+
+  for (let v = 0; v < vagues.length; v++){
+    if (v > 0) await new Promise(res => setTimeout(res, CHARGEMENT_MASSE_PAUSE_MS));
+    totalLots += vagues[v].length;
+    await Promise.all(vagues[v].map(async lot => {
+      try {
+        const r = await fetch('/api/market/quotes?symbols='
+          + encodeURIComponent(lot.map(symboleDe).join(',')));
+        if (!r.ok){ echecs++; return; }
+        const d = await r.json();
+        const parId = new Map(lot.map(s => [symboleDe(s), s]));
+        for (const q of d.quotes || []){
+          const s = parId.get(q.symbol);
+          if (s && Number.isFinite(q.price) && q.price > 0){ QUOTES.set(s.id, q); reçus++; }
+        }
+        if (d.source) source = d.source;
+        if (!d.quotes || !d.quotes.length) echecs++;
+      } catch { echecs++; }
+    }));
+    /* Dès la 1ère vague reçue, on affiche déjà ce qu'on a — l'utilisateur
+       voit des prix réels tout de suite plutôt que d'attendre la fin de
+       toutes les vagues (pertinent seulement si le catalogue en réclame
+       plusieurs). */
+    if (vagues.length > 1) render();
+  }
 
   if (!reçus){
     DATA.mode = 'unavailable';
-    DATA.reason = echecs === lots.length ? 'fournisseur_indisponible' : null;
+    DATA.reason = echecs === totalLots ? 'fournisseur_indisponible' : null;
   } else {
     DATA.mode = 'live';
     DATA.covered = QUOTES.size;
