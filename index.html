@@ -957,6 +957,7 @@ const DEFAULT_STATE = {
     exploreQ:'',
     exploreSector:'tous',
     exploreCountry:'tous',
+    exploreVisibles:20,
     marketsCategory:'tous',
     marketsRegion:'Monde',
     marketsVisibles:20,
@@ -1074,7 +1075,46 @@ const state = loadState();
    n'existent que lorsqu'ils proviennent réellement de QUOTES / HIST / d'un
    dossier company chargé depuis le backend. Une fiche sans ces données
    affichera « indisponible », jamais une valeur inventée. */
-const SECTORS = ['Technologie','Finance','Santé','Industrie','Énergie','Consommation','Automobile','Luxe','Télécommunications'];
+/* 'Matériaux'/'Immobilier'/'Services publics' ajoutés pour accueillir les
+   secteurs GICS du catalogue mondial (voir SECTEUR_CATALOGUE plus bas) qui
+   n'avaient pas d'équivalent dans la liste d'origine (calibrée sur les ~10
+   sociétés codées en dur). Aucune donnée : uniquement 3 nouvelles étiquettes
+   de filtre. */
+const SECTORS = ['Technologie','Finance','Santé','Industrie','Énergie','Consommation','Automobile','Luxe','Télécommunications','Matériaux','Immobilier','Services publics'];
+
+/* Traduction des secteurs GICS bruts du catalogue mondial (colonne
+   stock_sector de free-ticker-database, en anglais) vers les libellés
+   français déjà utilisés par Explorer. Traduction déterministe d'une
+   taxonomie connue, pas une donnée inventée. Un secteur absent de cette
+   table (rare, dataset non exhaustif) redevient simplement null ->
+   'Non classé' via BLANK_FIELDS()/ensureRuntimeStock, comme aujourd'hui
+   pour toute société sans secteur connu. */
+const SECTEUR_CATALOGUE = {
+  'Information Technology': 'Technologie',
+  'Financials': 'Finance',
+  'Health Care': 'Santé',
+  'Industrials': 'Industrie',
+  'Energy': 'Énergie',
+  'Consumer Discretionary': 'Consommation',
+  'Consumer Staples': 'Consommation',
+  'Communication Services': 'Télécommunications',
+  'Materials': 'Matériaux',
+  'Real Estate': 'Immobilier',
+  'Utilities': 'Services publics',
+};
+
+/* Libellés de fraîcheur (voir api/market/_freshness.js) : affichés tels
+   quels dès qu'une cotation a une valeur `freshness` connue. UNKNOWN a
+   volontairement SON PROPRE libellé (pas de repli silencieux) : c'est une
+   valeur explicite du backend, distincte d'une cotation pas encore
+   chargée (où `freshness` est simplement absent et n'affiche donc rien). */
+const FRESHNESS_LABEL = {
+  LIVE: 'Temps réel',
+  DELAYED: 'Différé',
+  END_OF_DAY: 'Clôture',
+  HISTORICAL: 'Historique',
+  UNKNOWN: 'Fraîcheur inconnue',
+};
 
 /* --------------------------------------------------------------------
    MARCHÉS — catégories et zones géographiques réellement fonctionnelles.
@@ -1104,6 +1144,25 @@ const REGION_OF_COUNTRY = {
   'France': 'France',
   'Allemagne': 'Europe',
   'États-Unis': 'Amériques',
+  /* Le catalogue mondial (voir /api/market/catalog) fournit `country` en
+     anglais, tel que reçu du dataset source — jamais traduit (aucune
+     raison de modifier une donnée réelle). Ajouts limités aux pays des
+     places déjà couvertes par le crosswalk fournisseur (voir
+     api/market/_exchangeCrosswalk.js) : un pays absent d'ici reste
+     honnêtement classé "Monde", jamais deviné. */
+  'United States': 'Amériques',
+  'Germany': 'Europe',
+  'Netherlands': 'Europe',
+  'Belgium': 'Europe',
+  'Portugal': 'Europe',
+  'Switzerland': 'Europe',
+  'United Kingdom': 'Europe',
+  'Spain': 'Europe',
+  'Italy': 'Europe',
+  'Sweden': 'Europe',
+  'Denmark': 'Europe',
+  'Finland': 'Europe',
+  'Norway': 'Europe',
 };
 const REGIONS = ['Monde','France','Europe','Amériques','Asie/Pacifique','Moyen-Orient','Afrique'];
 
@@ -1325,6 +1384,82 @@ function ensureRuntimeStock(meta, persist = true){
    entrées déjà enregistrées, pas la peine de les ré-écrire ni de reflush. */
 function restoreRuntimeCatalog(){
   Object.values(state.runtimeCatalog || {}).forEach(meta => ensureRuntimeStock(meta, false));
+}
+
+/* --------------------------------------------------------------------
+   CATALOGUE MONDIAL (Explorer/Marchés) — parcours par pages de 20, jamais
+   la recherche comme seul point d'entrée. S'appuie sur /api/market/catalog
+   (voir rapport backend), lui-même alimenté par free-ticker-database.
+
+   IMPORTANT — couverture réelle du dataset : uniquement 'stock' et 'etf'
+   (colonnes asset_type constatées = Stock/ETF uniquement, aucune ligne
+   forex/crypto/indice/matière première/obligation). Forex et Crypto
+   restent donc sur leur liste statique existante (déjà 20 entrées chacune)
+   : aucun appel catalogue n'est fait pour ces deux types, pour ne jamais
+   laisser croire à une couverture qui n'existe pas dans la source.
+
+   Chaque société matérialisée passe par ensureRuntimeStock(), exactement
+   comme un résultat de recherche : même garantie qu'aucun prix/score n'est
+   jamais fabriqué, seule l'identité (ticker/nom/ISIN/secteur/place) vient
+   du catalogue — le cours reste à charger en direct via QUOTES. */
+const CATALOG_TYPES = new Set(['stock', 'etf']);
+const CATALOG_PAGE_SIZE = 20;
+
+const catalogState = {};
+function etatCatalogue(type){
+  if (!catalogState[type]) catalogState[type] = { cursor:null, done:false, loading:false };
+  return catalogState[type];
+}
+
+/* Charge UNE page (20 au plus) depuis le catalogue mondial et matérialise
+   chaque résultat. Retourne le nombre de sociétés réellement ajoutées
+   (0 si épuisé, en erreur, ou déjà en cours de chargement — jamais deux
+   requêtes concurrentes pour le même type). N'est JAMAIS appelée pour
+   forex/crypto (voir CATALOG_TYPES). */
+async function chargerPageCatalogue(type){
+  if (!CATALOG_TYPES.has(type)) return 0;
+  const st = etatCatalogue(type);
+  if (st.done || st.loading) return 0;
+  st.loading = true;
+  try {
+    const url = '/api/market/catalog?type=' + encodeURIComponent(type)
+      + '&limit=' + CATALOG_PAGE_SIZE
+      + (st.cursor ? '&cursor=' + encodeURIComponent(st.cursor) : '');
+    const r = await fetch(url);
+    if (!r.ok) return 0;   // erreur transitoire : pas de `done`, un futur essai pourra réussir
+    const d = await r.json();
+    const results = Array.isArray(d.results) ? d.results : [];
+    let ajoutees = 0;
+    for (const x of results){
+      if (!x || !x.ticker) continue;
+      const avant = stocks.length;
+      ensureRuntimeStock({ ...x, sector: SECTEUR_CATALOGUE[x.sector] || null });
+      if (stocks.length > avant) ajoutees++;
+    }
+    st.cursor = d.nextCursor || null;
+    if (!d.nextCursor) st.done = true;
+    return ajoutees;
+  } catch {
+    return 0;   // hors-ligne/erreur réseau : pas de `done`, retentable plus tard
+  } finally {
+    st.loading = false;
+  }
+}
+
+/* Charge des pages successives jusqu'à atteindre `minimum` instruments de
+   ce type dans `stocks`, ou jusqu'à épuisement réel du catalogue (`done`).
+   Ne boucle jamais indéfiniment : chaque page vide ou en erreur arrête la
+   boucle immédiatement (voir chargerPageCatalogue). */
+async function assurerCatalogueSuffisant(type, minimum){
+  if (!CATALOG_TYPES.has(type)) return false;
+  const st = etatCatalogue(type);
+  let changement = false;
+  while (!st.done && stocks.filter(s => s.type === type).length < minimum){
+    const ajoutees = await chargerPageCatalogue(type);
+    if (ajoutees > 0) changement = true;
+    if (ajoutees === 0) break;
+  }
+  return changement;
 }
 
 /* Composantes du NovaScore : cette liste décrit le MOTEUR (backend
@@ -1948,6 +2083,12 @@ function stockRow(s, opts = {}){
   const varPct = q && Number.isFinite(q.changePercent) ? q.changePercent : null;
   const hEntry = opts.spark === true ? HIST.get(s.id) : null;
   const hist = (hEntry && hEntry.status === 'ready') ? hEntry.data.map(p => p.close) : null;
+  /* Fraîcheur (voir api/market/_freshness.js / FRESHNESS_LABEL) : n'affiche
+     rien tant qu'aucune cotation n'a été reçue pour cette ligne (prix = —
+     déjà suffisamment honnête) ; sinon montre TOUJOURS le libellé exact
+     renvoyé par le serveur, y compris "Fraîcheur inconnue" — jamais un
+     silence qui laisserait sous-entendre du temps réel par défaut. */
+  const labelFraicheur = (prix !== null && q) ? (FRESHNESS_LABEL[q.freshness] || '') : '';
 
   return `<div class="row">
     <button style="display:flex;align-items:center;gap:14px;flex:1;min-width:0;text-align:left"
@@ -1964,6 +2105,7 @@ function stockRow(s, opts = {}){
       <span class="row-px tabular-nums">${prix === null ? '—' : fmt.num(prix)}</span>
       <span class="row-var tabular-nums ${varPct === null ? 'na' : varPct >= 0 ? 'up-t' : 'down-t'}">
         ${varPct === null ? '—' : fmt.pct(varPct)}</span>
+      ${labelFraicheur ? `<span class="tiny" style="color:var(--ink-4);display:block;text-align:right">${esc(labelFraicheur)}</span>` : ''}
     </span>
   </div>`;
 }
@@ -2584,7 +2726,14 @@ function radarResults(){
     </div></div>`;
 }
 
-PAGES.explore = () => `<div class="page-in">
+PAGES.explore = () => {
+  /* Déclenche (sans bloquer ce rendu) le chargement du catalogue mondial
+     'stock' si l'affichage courant en réclame plus que ce qui est déjà
+     chargé localement — voir garantirCatalogueExplore(). Le rendu ci-dessous
+     utilise ce qui est disponible MAINTENANT ; le "Voir plus"/chargement
+     de fond se charge de compléter et de rafraîchir #exploreOut. */
+  garantirCatalogueExplore();
+  return `<div class="page-in">
   <p class="eyebrow">Explorer</p>
   <h1 class="title">Toutes les entreprises</h1>
   <p class="lead measure-l" style="margin-top:10px">${stocks.filter(s=>s.type==='stock').length} sociétés suivies sur ${new Set(stocks.filter(s=>s.type==='stock').map(s=>s.market)).size} places boursières.</p>
@@ -2594,21 +2743,50 @@ PAGES.explore = () => `<div class="page-in">
     ${['tous',...SECTORS].map(c=>`<button class="chip" data-filter="exploreSector" data-val="${esc(c)}"
       aria-pressed="${String(state.filters.exploreSector||'tous')===c}">${c==='tous'?'Tous les secteurs':esc(c)}</button>`).join('')}
   </div>
-  <div class="card" style="margin-top:18px"><div class="rows" id="exploreOut"></div></div>
+  <div class="card" style="margin-top:18px"><div class="rows" id="exploreOut">${exploreRows()}</div></div>
 </div>`;
-function exploreRows(){
+};
+function exploreListeFiltree(){
   /* Explorer reste le catalogue d'ENTREPRISES (actions) — exclusion
-     explicite des nouveaux types (forex/crypto) ajoutés dans `stocks` à
-     cette passe, pour ne pas changer silencieusement ce que cette page a
-     toujours affiché. Ces types vivent désormais dans Marchés. */
+     explicite des autres types (ETF/forex/crypto), qui vivent dans
+     Marchés. Inclut désormais aussi bien le noyau statique que les
+     sociétés matérialisées depuis le catalogue mondial (même tableau
+     `stocks`, voir ensureRuntimeStock). */
   let list = stocks.filter(s => s.type === 'stock');
   const sec = state.filters.exploreSector || 'tous';
   if (sec !== 'tous') list = list.filter(s => s.sector === sec);
   if (state.filters.exploreQ){ const q = state.filters.exploreQ.toLowerCase();
     list = list.filter(s => (s.name+' '+s.ticker).toLowerCase().includes(q)); }
   list.sort((a,b)=>a.name.localeCompare(b.name,'fr'));
-  return list.length ? list.map(s=>stockRow(s)).join('')
-    : emptyState('Aucun résultat','Aucune entreprise ne correspond à ce filtre.');
+  return list;
+}
+function exploreRows(){
+  const list = exploreListeFiltree();
+  if (!list.length) return emptyState('Aucun résultat','Aucune entreprise ne correspond à ce filtre.');
+  /* Même logique de pagination progressive que Marchés (voir marketsRows) :
+     jamais tout le catalogue rendu d'un coup, même une fois les dizaines de
+     milliers de sociétés potentiellement chargées en mémoire. */
+  const visibles = state.filters.exploreVisibles || 20;
+  const page = list.slice(0, visibles);
+  return page.map(s=>stockRow(s)).join('') + (list.length > page.length
+    ? `<button class="btn btn-ghost btn-sm" style="width:100%;margin-top:12px" data-explore-plus="1">
+        Voir plus (${list.length - page.length} restants)</button>`
+    : '');
+}
+/* Charge autant de pages catalogue 'stock' que nécessaire pour couvrir
+   exploreVisibles (mini 20), puis rafraîchit #exploreOut si de nouvelles
+   sociétés sont arrivées et que la page Explorer est toujours affichée
+   (gen évite d'écraser un rendu plus récent si l'utilisateur a navigué
+   ailleurs entre-temps). */
+let exploreCatalogGen = 0;
+async function garantirCatalogueExplore(){
+  const gen = ++exploreCatalogGen;
+  const minimum = Math.max(20, state.filters.exploreVisibles || 20);
+  const changement = await assurerCatalogueSuffisant('stock', minimum);
+  if (changement && gen === exploreCatalogGen && route.page === 'explore'){
+    const out = document.getElementById('exploreOut');
+    if (out) out.innerHTML = exploreRows();
+  }
 }
 
 /* ---------- MARCHÉS ----------
@@ -2618,13 +2796,39 @@ function exploreRows(){
    uniquement : identité + quote déjà connue via QUOTES (lazy-loading
    intact — aucun graphique/fondamentaux/actualité chargé depuis cette
    page). */
+/* Types du catalogue mondial réellement utiles à une catégorie Marchés
+   donnée — voir CATALOG_TYPES : jamais forex/crypto (dataset sans ces
+   actifs, voir plus haut), 'tous' réclame donc les deux types couverts. */
+function typesCatalogueUtiles(cat){
+  if (cat === 'stock') return ['stock'];
+  if (cat === 'etf') return ['etf'];
+  if (cat === 'tous') return ['stock', 'etf'];
+  return [];
+}
+let marketsCatalogGen = 0;
+async function garantirCatalogueMarkets(){
+  const gen = ++marketsCatalogGen;
+  const cat = state.filters.marketsCategory || 'tous';
+  const minimum = Math.max(20, state.filters.marketsVisibles || 20);
+  const resultats = await Promise.all(
+    typesCatalogueUtiles(cat).map(type => assurerCatalogueSuffisant(type, minimum))
+  );
+  const changement = resultats.some(Boolean);
+  if (changement && gen === marketsCatalogGen && route.page === 'markets'){
+    const out = document.getElementById('marketsOut');
+    if (out) out.innerHTML = marketsRows();
+  }
+}
 PAGES.markets = () => {
   const cat = state.filters.marketsCategory || 'tous';
   const region = state.filters.marketsRegion || 'Monde';
+  /* Déclenche (sans bloquer ce rendu) le chargement du catalogue mondial
+     pour stock/etf si nécessaire — voir garantirCatalogueMarkets(). */
+  garantirCatalogueMarkets();
   return `<div class="page-in">
     <p class="eyebrow">Marchés</p>
     <h1 class="title">Explorer les marchés</h1>
-    <p class="lead measure-l" style="margin-top:10px">Actions, devises et cryptomonnaies,
+    <p class="lead measure-l" style="margin-top:10px">Actions, ETF, devises et cryptomonnaies,
       avec des cotations réelles. D'autres catégories seront ajoutées au fur et à mesure
       que leurs données seront vérifiées.</p>
     <div class="chips" style="margin-top:16px;overflow-x:auto;flex-wrap:nowrap">
@@ -2699,14 +2903,15 @@ PAGES.stock = (id) => {
            rafraîchissement vivant sur CETTE fiche (state.ui.liveAt posé
            par liveTick), jamais une horloge qui tourne toute seule sans
            donnée réelle derrière. */
-        /* Préfixe de fraîcheur (voir api/market/_freshness.js) : évite que
-           "Actualisé à HH:MM:SS" ne laisse croire à du temps réel alors que
-           la cotation est en réalité différée (cas par défaut aujourd'hui,
-           EODHD documentant explicitement 15-20 min de délai). Rien
-           n'apparaît si `freshness` est absent (ancienne réponse serveur
-           en cache, ou fournisseur non reconnu) plutôt que d'inventer un
-           libellé. */
-        const FRESHNESS_LABEL = { LIVE:'Temps réel', DELAYED:'Différé', END_OF_DAY:'Clôture', HISTORICAL:'Historique' };
+        /* Préfixe de fraîcheur (voir FRESHNESS_LABEL, constante partagée
+           avec stockRow() plus haut) : évite que "Actualisé à HH:MM:SS" ne
+           laisse croire à du temps réel alors que la cotation est en
+           réalité différée (cas par défaut aujourd'hui, EODHD documentant
+           explicitement 15-20 min de délai). Rien n'apparaît si
+           `freshness` est absent (ancienne réponse serveur en cache, ou
+           fournisseur non reconnu) plutôt que d'inventer un libellé —
+           mais "Fraîcheur inconnue" s'affiche bien si le serveur renvoie
+           explicitement UNKNOWN. */
         const labelFraicheur = FRESHNESS_LABEL[q.freshness] || '';
         const fraicheur = (state.ui.liveAt && route.page === 'stock' && route.arg === s.id)
           ? `<div class="tiny" style="margin-top:4px;color:var(--ink-4)">${labelFraicheur ? esc(labelFraicheur) + ' · ' : ''}Actualisé à ${new Date(state.ui.liveAt).toLocaleTimeString('fr-FR')}</div>`
@@ -4350,10 +4555,23 @@ document.addEventListener('click', e => {
   if (marketsPlus){
     /* +20 seulement — jamais tout le reste d'un coup, même si l'utilisateur
        clique plusieurs fois de suite ("Voir plus" progressif, pas une
-       bascule "tout charger"). */
+       bascule "tout charger"). render() relance PAGES.markets(), qui
+       redéclenche garantirCatalogueMarkets() avec le nouveau seuil : si le
+       catalogue local est insuffisant, une page catalogue supplémentaire
+       est chargée automatiquement. */
     state.filters.marketsVisibles = (state.filters.marketsVisibles || 20) + 20;
     saveState();
     render();
+    return;
+  }
+
+  const explorePlus = q('[data-explore-plus]');
+  if (explorePlus){
+    state.filters.exploreVisibles = (state.filters.exploreVisibles || 20) + 20;
+    saveState();
+    const out = document.getElementById('exploreOut');
+    if (out) out.innerHTML = exploreRows();
+    garantirCatalogueExplore();
     return;
   }
 
@@ -4367,6 +4585,11 @@ document.addEventListener('click', e => {
     if (flt.dataset.filter === 'marketsCategory' || flt.dataset.filter === 'marketsRegion'){
       state.filters.marketsVisibles = 20;
     }
+    /* Changer de secteur = nouvelle liste filtrée = pagination Explorer
+       repartie de zéro, même raisonnement que Marchés ci-dessus. */
+    if (flt.dataset.filter === 'exploreSector'){
+      state.filters.exploreVisibles = 20;
+    }
     saveState();
     /* marketsCategory change la MISE EN PAGE (les puces de région
        n'apparaissent que pour la catégorie "Actions") : un simple
@@ -4376,7 +4599,13 @@ document.addEventListener('click', e => {
     document.querySelectorAll(`[data-filter="${flt.dataset.filter}"]`).forEach(b=>
       b.setAttribute('aria-pressed', String(b.dataset.val === flt.dataset.val)));
     if (route.page === 'radar') document.getElementById('radarOut').innerHTML = radarResults();
-    if (route.page === 'explore') document.getElementById('exploreOut').innerHTML = exploreRows();
+    if (route.page === 'explore'){
+      document.getElementById('exploreOut').innerHTML = exploreRows();
+      /* Un changement de secteur peut révéler un manque local (le
+         catalogue chargé jusqu'ici n'a pas encore rencontré ce secteur) :
+         tente de compléter en tâche de fond, comme au premier affichage. */
+      garantirCatalogueExplore();
+    }
     if (route.page === 'markets') render();   // pagination + éventuels nouveaux instruments à charger
     return;
   }
