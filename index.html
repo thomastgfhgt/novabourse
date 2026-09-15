@@ -1119,20 +1119,31 @@ const FRESHNESS_LABEL = {
 /* --------------------------------------------------------------------
    MARCHÉS — catégories et zones géographiques réellement fonctionnelles.
    Seules les catégories pour lesquelles un provider a été vérifié
-   fonctionnel (voir search.js/_providers.js) apparaissent ici. Aucune
-   catégorie vide/non testée n'est listée — conformément à la consigne :
-   "une catégorie devient visible uniquement lorsque nous disposons d'un
-   provider réellement fonctionnel pour cette catégorie". Indices, ETF,
-   matières premières, obligations, fonds, futures, options ne sont PAS
-   dans cette liste : aucun n'a été vérifié à ce jour (voir le rapport de
-   cette passe). Ajouter une entrée ici quand (et seulement quand) un
-   provider aura été testé et confirmé pour cette catégorie. */
+   fonctionnel apparaissent ici. Aucune catégorie vide/non testée n'est
+   listée — conformément à la consigne : "une catégorie devient visible
+   uniquement lorsque nous disposons d'un provider réellement fonctionnel
+   pour cette catégorie".
+
+   'index'/'commodity' AJOUTÉS à cette passe : symboles vérifiés
+   empiriquement via l'API publique de référence Twelve Data, sans clé
+   (https://api.twelvedata.com/indices et /commodities — réponses réelles
+   inspectées, pas une supposition), voir les entrées correspondantes dans
+   `stocks` ci-dessous pour le détail par instrument.
+
+   Obligations, fonds, futures, options ne sont TOUJOURS PAS dans cette
+   liste : aucune convention de symbole n'a pu être vérifiée sans clé API
+   payante (EODHD documente des exchanges virtuels GBOND/EUFUND mais sans
+   exemple de ticker consultable publiquement — voir le rapport de cette
+   passe). Ajouter une entrée ici quand (et seulement quand) un provider
+   aura été testé et confirmé pour cette catégorie. */
 const MARKET_CATEGORIES = [
-  { id:'tous',   label:'Tous' },
-  { id:'stock',  label:'Actions' },
-  { id:'etf',    label:'ETF' },
-  { id:'forex',  label:'Devises' },
-  { id:'crypto', label:'Crypto' },
+  { id:'tous',      label:'Tous' },
+  { id:'stock',     label:'Actions' },
+  { id:'etf',       label:'ETF' },
+  { id:'forex',     label:'Devises' },
+  { id:'crypto',    label:'Crypto' },
+  { id:'index',     label:'Indices' },
+  { id:'commodity', label:'Matières premières' },
 ];
 
 /* Zone géographique déduite du pays — uniquement pertinent pour les
@@ -1298,6 +1309,88 @@ const stocks = [
   { id:'LQD-NYA', name:'iShares iBoxx Investment Grade Corporate Bond ETF', ticker:'LQD', market:'NYSE Arca', exchangeCode:'NYSE ARCA', sector:null, country:'États-Unis', cur:'USD', curSymbol:'$', ...BLANK_FIELDS(), type:'etf' },
   { id:'AGG-NYA', name:'iShares Core U.S. Aggregate Bond ETF', ticker:'AGG', market:'NYSE Arca', exchangeCode:'NYSE ARCA', sector:null, country:'États-Unis', cur:'USD', curSymbol:'$', ...BLANK_FIELDS(), type:'etf' },
   { id:'ARKK-NYA', name:'ARK Innovation ETF', ticker:'ARKK', market:'NYSE Arca', exchangeCode:'NYSE ARCA', sector:null, country:'États-Unis', cur:'USD', curSymbol:'$', ...BLANK_FIELDS(), type:'etf' },
+
+  /* --------------------------------------------------------------------
+     INDICES — ajoutés à cette passe. AUCUN symbole deviné : chaque ticker
+     ci-dessous a été vérifié en interrogeant EN DIRECT l'API PUBLIQUE de
+     référence de Twelve Data (https://api.twelvedata.com/indices, sans
+     clé — réponse JSON réelle inspectée, pas une supposition ni une
+     convention "connue" non vérifiée). `exchangeCode` reste VOLONTAIREMENT
+     vide : le `symbol` Twelve Data (ex. "N225") s'utilise seul, sans
+     suffixe de place — ajouter un suffixe non vérifié (ex. ":JPX") aurait
+     été un risque non justifié. `market` indique la place réelle listée
+     par Twelve Data, à titre d'affichage seulement.
+     EODHD n'a AUCUNE convention documentée publiquement pour les indices
+     (vérifié : leur documentation ne mentionne aucun exchange virtuel
+     dédié) — voir TYPES_SANS_SUFFIXE_EODHD dans api/market/history.js,
+     qui retire EODHD de la cascade pour ce type, comme pour forex/crypto.
+     Indices US majeurs (S&P 500, Dow Jones, Nasdaq) volontairement ABSENTS :
+     non présents dans cette liste de référence publique sans clé API
+     (voir le rapport de cette passe — à revérifier avec un accès complet). */
+  { id:'GDAXI', name:'DAX Performance-Index', ticker:'GDAXI', market:'XETR', exchangeCode:'', sector:null, country:'Allemagne', cur:'EUR', curSymbol:'€', ...BLANK_FIELDS(), type:'index' },
+  { id:'FCHI', name:'CAC 40', ticker:'FCHI', market:'Euronext', exchangeCode:'', sector:null, country:'France', cur:'EUR', curSymbol:'€', ...BLANK_FIELDS(), type:'index' },
+  { id:'FTSE', name:'FTSE 100', ticker:'FTSE', market:'LSE', exchangeCode:'', sector:null, country:'Royaume-Uni', cur:'GBP', curSymbol:'£', ...BLANK_FIELDS(), type:'index' },
+  { id:'FTSEMIB', name:'FTSE MIB', ticker:'FTSEMIB', market:'MTA', exchangeCode:'', sector:null, country:'Italie', cur:'EUR', curSymbol:'€', ...BLANK_FIELDS(), type:'index' },
+  { id:'AEX', name:'AEX Index', ticker:'AEX', market:'Euronext', exchangeCode:'', sector:null, country:'Pays-Bas', cur:'EUR', curSymbol:'€', ...BLANK_FIELDS(), type:'index' },
+  { id:'PSI20', name:'PSI 20', ticker:'PSI20', market:'Euronext', exchangeCode:'', sector:null, country:'Portugal', cur:'EUR', curSymbol:'€', ...BLANK_FIELDS(), type:'index' },
+  { id:'ATX', name:'Austrian Traded Index', ticker:'ATX', market:'VSE', exchangeCode:'', sector:null, country:'Autriche', cur:'EUR', curSymbol:'€', ...BLANK_FIELDS(), type:'index' },
+  { id:'OMX', name:'OMX Stockholm 30', ticker:'OMX', market:'OMX', exchangeCode:'', sector:null, country:'Suède', cur:'SEK', curSymbol:'kr', ...BLANK_FIELDS(), type:'index' },
+  /* country ajusté par rapport au champ brut Twelve Data ("Sweden" pour ces
+     deux entrées, artefact de leur regroupement des indices OMX Nordiques
+     sous une même entité) : Copenhagen 25/Helsinki 25 sont géographiquement
+     danois/finlandais — fait déterministe, pas une donnée de marché. */
+  { id:'OMXC25', name:'OMX Copenhagen 25', ticker:'OMXC25', market:'OMX', exchangeCode:'', sector:null, country:'Danemark', cur:'DKK', curSymbol:'kr', ...BLANK_FIELDS(), type:'index' },
+  { id:'OMXH25', name:'OMX Helsinki 25', ticker:'OMXH25', market:'OMX', exchangeCode:'', sector:null, country:'Finlande', cur:'EUR', curSymbol:'€', ...BLANK_FIELDS(), type:'index' },
+  { id:'OSEBX', name:'Oslo Børs Benchmark Index', ticker:'OSEBX', market:'OSE', exchangeCode:'', sector:null, country:'Norvège', cur:'NOK', curSymbol:'kr', ...BLANK_FIELDS(), type:'index' },
+  { id:'XU100', name:'Borsa Istanbul 100', ticker:'XU100', market:'BIST', exchangeCode:'', sector:null, country:'Turquie', cur:'TRY', curSymbol:'₺', ...BLANK_FIELDS(), type:'index' },
+  { id:'AXJO', name:'S&P/ASX 200', ticker:'AXJO', market:'ASX', exchangeCode:'', sector:null, country:'Australie', cur:'AUD', curSymbol:'$', ...BLANK_FIELDS(), type:'index' },
+  { id:'GSPTSE', name:'S&P/TSX Composite', ticker:'GSPTSE', market:'TSX', exchangeCode:'', sector:null, country:'Canada', cur:'CAD', curSymbol:'$', ...BLANK_FIELDS(), type:'index' },
+  { id:'N225', name:'Nikkei 225', ticker:'N225', market:'JPX', exchangeCode:'', sector:null, country:'Japon', cur:'JPY', curSymbol:'¥', ...BLANK_FIELDS(), type:'index' },
+  { id:'HSI', name:'Hang Seng Index', ticker:'HSI', market:'HKEX', exchangeCode:'', sector:null, country:'Hong Kong', cur:'HKD', curSymbol:'HK$', ...BLANK_FIELDS(), type:'index' },
+  { id:'IBEX', name:'IBEX 35', ticker:'IBEX', market:'BME', exchangeCode:'', sector:null, country:'Espagne', cur:'EUR', curSymbol:'€', ...BLANK_FIELDS(), type:'index' },
+  { id:'BVSP', name:'Bovespa', ticker:'BVSP', market:'B3', exchangeCode:'', sector:null, country:'Brésil', cur:'BRL', curSymbol:'R$', ...BLANK_FIELDS(), type:'index' },
+  { id:'BSESN', name:'S&P BSE Sensex', ticker:'BSESN', market:'BSE', exchangeCode:'', sector:null, country:'Inde', cur:'INR', curSymbol:'₹', ...BLANK_FIELDS(), type:'index' },
+  { id:'KOSPI', name:'KOSPI Index', ticker:'KOSPI', market:'KRX', exchangeCode:'', sector:null, country:'Corée du Sud', cur:'KRW', curSymbol:'₩', ...BLANK_FIELDS(), type:'index' },
+  { id:'STI', name:'Straits Times Index', ticker:'STI', market:'SGX', exchangeCode:'', sector:null, country:'Singapour', cur:'SGD', curSymbol:'$', ...BLANK_FIELDS(), type:'index' },
+  { id:'RTSI', name:'RTS Index', ticker:'RTSI', market:'MOEX', exchangeCode:'', sector:null, country:'Russie', cur:'USD', curSymbol:'$', ...BLANK_FIELDS(), type:'index' },
+  { id:'JKSE', name:'Jakarta Composite Index', ticker:'JKSE', market:'IDX', exchangeCode:'', sector:null, country:'Indonésie', cur:'IDR', curSymbol:'Rp', ...BLANK_FIELDS(), type:'index' },
+  { id:'KLSE', name:'FTSE Bursa Malaysia KLCI', ticker:'KLSE', market:'MYX', exchangeCode:'', sector:null, country:'Malaisie', cur:'MYR', curSymbol:'RM', ...BLANK_FIELDS(), type:'index' },
+  { id:'MXX', name:'IPC Mexico', ticker:'MXX', market:'BMV', exchangeCode:'', sector:null, country:'Mexique', cur:'MXN', curSymbol:'$', ...BLANK_FIELDS(), type:'index' },
+  { id:'TA35', name:'TA-35 Index', ticker:'TA35', market:'TASE', exchangeCode:'', sector:null, country:'Israël', cur:'ILS', curSymbol:'₪', ...BLANK_FIELDS(), type:'index' },
+  { id:'JTOPI', name:'FTSE/JSE Top 40', ticker:'JTOPI', market:'JSE', exchangeCode:'', sector:null, country:'Afrique du Sud', cur:'ZAR', curSymbol:'R', ...BLANK_FIELDS(), type:'index' },
+
+  /* --------------------------------------------------------------------
+     MATIÈRES PREMIÈRES — mêmes garanties que les indices ci-dessus :
+     chaque symbole vérifié en direct via l'API publique de référence
+     Twelve Data (https://api.twelvedata.com/commodities, sans clé).
+     Format confirmé : paire "MÉTAL/DEVISE" avec "/" (identique au forex,
+     déjà supporté sans modification par _providers.js), à l'exception de
+     HG1 (cuivre), symbole direct sans paire — vérifié tel quel dans la
+     réponse réelle de l'API, pas une extrapolation depuis le format XAU/XAG. */
+  { id:'XAU/USD', name:'Or (Gold Spot)', ticker:'XAU/USD', market:'Commodity', exchangeCode:'', sector:null, country:null, cur:'USD', curSymbol:'$', ...BLANK_FIELDS(), type:'commodity' },
+  { id:'XAU/EUR', name:'Or / Euro', ticker:'XAU/EUR', market:'Commodity', exchangeCode:'', sector:null, country:null, cur:'EUR', curSymbol:'€', ...BLANK_FIELDS(), type:'commodity' },
+  { id:'XAU/GBP', name:'Or / Livre sterling', ticker:'XAU/GBP', market:'Commodity', exchangeCode:'', sector:null, country:null, cur:'GBP', curSymbol:'£', ...BLANK_FIELDS(), type:'commodity' },
+  { id:'XAU/CHF', name:'Or / Franc suisse', ticker:'XAU/CHF', market:'Commodity', exchangeCode:'', sector:null, country:null, cur:'CHF', curSymbol:'CHF', ...BLANK_FIELDS(), type:'commodity' },
+  { id:'XAU/JPY', name:'Or / Yen japonais', ticker:'XAU/JPY', market:'Commodity', exchangeCode:'', sector:null, country:null, cur:'JPY', curSymbol:'¥', ...BLANK_FIELDS(), type:'commodity' },
+  { id:'XAU/AUD', name:'Or / Dollar australien', ticker:'XAU/AUD', market:'Commodity', exchangeCode:'', sector:null, country:null, cur:'AUD', curSymbol:'$', ...BLANK_FIELDS(), type:'commodity' },
+  { id:'XAU/CAD', name:'Or / Dollar canadien', ticker:'XAU/CAD', market:'Commodity', exchangeCode:'', sector:null, country:null, cur:'CAD', curSymbol:'$', ...BLANK_FIELDS(), type:'commodity' },
+  { id:'XAU/HKD', name:'Or / Dollar de Hong Kong', ticker:'XAU/HKD', market:'Commodity', exchangeCode:'', sector:null, country:null, cur:'HKD', curSymbol:'HK$', ...BLANK_FIELDS(), type:'commodity' },
+  { id:'XAU/NZD', name:'Or / Dollar néo-zélandais', ticker:'XAU/NZD', market:'Commodity', exchangeCode:'', sector:null, country:null, cur:'NZD', curSymbol:'$', ...BLANK_FIELDS(), type:'commodity' },
+  { id:'XAU/SGD', name:'Or / Dollar de Singapour', ticker:'XAU/SGD', market:'Commodity', exchangeCode:'', sector:null, country:null, cur:'SGD', curSymbol:'$', ...BLANK_FIELDS(), type:'commodity' },
+  { id:'XAG/USD', name:'Argent (Silver Spot)', ticker:'XAG/USD', market:'Commodity', exchangeCode:'', sector:null, country:null, cur:'USD', curSymbol:'$', ...BLANK_FIELDS(), type:'commodity' },
+  { id:'XAG/EUR', name:'Argent / Euro', ticker:'XAG/EUR', market:'Commodity', exchangeCode:'', sector:null, country:null, cur:'EUR', curSymbol:'€', ...BLANK_FIELDS(), type:'commodity' },
+  { id:'XAG/GBP', name:'Argent / Livre sterling', ticker:'XAG/GBP', market:'Commodity', exchangeCode:'', sector:null, country:null, cur:'GBP', curSymbol:'£', ...BLANK_FIELDS(), type:'commodity' },
+  { id:'XAG/AUD', name:'Argent / Dollar australien', ticker:'XAG/AUD', market:'Commodity', exchangeCode:'', sector:null, country:null, cur:'AUD', curSymbol:'$', ...BLANK_FIELDS(), type:'commodity' },
+  { id:'XAG/CAD', name:'Argent / Dollar canadien', ticker:'XAG/CAD', market:'Commodity', exchangeCode:'', sector:null, country:null, cur:'CAD', curSymbol:'$', ...BLANK_FIELDS(), type:'commodity' },
+  { id:'XAG/CHF', name:'Argent / Franc suisse', ticker:'XAG/CHF', market:'Commodity', exchangeCode:'', sector:null, country:null, cur:'CHF', curSymbol:'CHF', ...BLANK_FIELDS(), type:'commodity' },
+  { id:'XAG/TRY', name:'Argent / Livre turque', ticker:'XAG/TRY', market:'Commodity', exchangeCode:'', sector:null, country:null, cur:'TRY', curSymbol:'₺', ...BLANK_FIELDS(), type:'commodity' },
+  { id:'XPD/USD', name:'Palladium (Palladium Spot)', ticker:'XPD/USD', market:'Commodity', exchangeCode:'', sector:null, country:null, cur:'USD', curSymbol:'$', ...BLANK_FIELDS(), type:'commodity' },
+  { id:'XPT/USD', name:'Platine (Platinum Spot)', ticker:'XPT/USD', market:'Commodity', exchangeCode:'', sector:null, country:null, cur:'USD', curSymbol:'$', ...BLANK_FIELDS(), type:'commodity' },
+  { id:'HG1', name:'Cuivre (Copper Spot)', ticker:'HG1', market:'Commodity', exchangeCode:'', sector:null, country:null, cur:'USD', curSymbol:'$', ...BLANK_FIELDS(), type:'commodity' },
+  { id:'WTI/USD', name:'Pétrole WTI', ticker:'WTI/USD', market:'Commodity', exchangeCode:'', sector:null, country:null, cur:'USD', curSymbol:'$', ...BLANK_FIELDS(), type:'commodity' },
+  { id:'XBR/USD', name:'Pétrole Brent', ticker:'XBR/USD', market:'Commodity', exchangeCode:'', sector:null, country:null, cur:'USD', curSymbol:'$', ...BLANK_FIELDS(), type:'commodity' },
+  { id:'URALS/USD', name:'Pétrole Urals', ticker:'URALS/USD', market:'Commodity', exchangeCode:'', sector:null, country:null, cur:'USD', curSymbol:'$', ...BLANK_FIELDS(), type:'commodity' },
+  { id:'GAU/USD', name:'Or au gramme (Gold Gram)', ticker:'GAU/USD', market:'Commodity', exchangeCode:'', sector:null, country:null, cur:'USD', curSymbol:'$', ...BLANK_FIELDS(), type:'commodity' },
 ];
 const byId = Object.fromEntries(stocks.map(s => [s.id, s]));
 
@@ -2828,9 +2921,9 @@ PAGES.markets = () => {
   return `<div class="page-in">
     <p class="eyebrow">Marchés</p>
     <h1 class="title">Explorer les marchés</h1>
-    <p class="lead measure-l" style="margin-top:10px">Actions, ETF, devises et cryptomonnaies,
-      avec des cotations réelles. D'autres catégories seront ajoutées au fur et à mesure
-      que leurs données seront vérifiées.</p>
+    <p class="lead measure-l" style="margin-top:10px">Actions, ETF, devises, cryptomonnaies,
+      indices et matières premières, avec des cotations réelles. D'autres catégories
+      (obligations, fonds, futures) seront ajoutées quand leurs données seront vérifiées.</p>
     <div class="chips" style="margin-top:16px;overflow-x:auto;flex-wrap:nowrap">
       ${MARKET_CATEGORIES.map(c=>`<button class="chip" data-filter="marketsCategory" data-val="${c.id}"
         aria-pressed="${cat===c.id}">${esc(c.label)}</button>`).join('')}

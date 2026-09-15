@@ -20,6 +20,14 @@
  * EODHD est explicitement retiré de l'ordre plutôt que laissé échouer
  * "par accident". Twelve Data accepte nativement "EUR/USD"/"BTC/USD"
  * comme symbole direct (confirmé par sa documentation officielle).
+ *
+ * 'index'/'commodity' (ajoutés à cette passe) : mêmes raisons, mêmes
+ * conséquences. Vérifié empiriquement via l'API publique de référence de
+ * Twelve Data (https://api.twelvedata.com/indices et /commodities, sans
+ * clé) : ces instruments utilisent leur propre `symbol` (ex. "N225",
+ * "XAU/USD") sans code de place NovaBourse, donc `exchangeCode` reste
+ * volontairement vide côté frontend — exactement le même cas que
+ * forex/crypto, EODHD n'a aucune convention documentée pour ces symboles.
  */
 
 const { HISTORY, KEYS } = require('./_providers.js');
@@ -30,7 +38,7 @@ const { normaliserTicker, normaliserExchange } = require('./company.js');
    cotations quotidiennes. */
 const MAX_HISTORY_POINTS = 260;
 
-const TYPES_SANS_SUFFIXE_EODHD = new Set(['forex', 'crypto']);
+const TYPES_SANS_SUFFIXE_EODHD = new Set(['forex', 'crypto', 'index', 'commodity']);
 
 module.exports = async (req, res) => {
   res.setHeader('Cache-Control', 'no-store');

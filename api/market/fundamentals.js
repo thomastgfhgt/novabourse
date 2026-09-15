@@ -10,12 +10,13 @@
  * passe — cascade inchangée, comme demandé.
  * Aucune donnée manquante n'est comblée : un champ absent reste null.
  *
- * `type` (optionnel, 'stock' par défaut) : pour forex/crypto, aucun
- * fournisseur actuellement branché ne peut légitimement renvoyer des
- * "fondamentaux d'entreprise" (ROE, PER, marge...) — une paire de devises
- * ou une crypto n'a pas de bilan. Plutôt que d'interroger EODHD/Finnhub
- * pour obtenir invariablement une réponse vide, la route répond
- * directement `fundamentals:null` sans consommer d'appel fournisseur.
+ * `type` (optionnel, 'stock' par défaut) : pour forex/crypto/index/
+ * commodity, aucun fournisseur actuellement branché ne peut légitimement
+ * renvoyer des "fondamentaux d'entreprise" (ROE, PER, marge...) — une
+ * paire de devises, une crypto, un indice ou une matière première n'a pas
+ * de bilan. Plutôt que d'interroger EODHD/Finnhub pour obtenir
+ * invariablement une réponse vide, la route répond directement
+ * `fundamentals:null` sans consommer d'appel fournisseur.
  * Le frontend ne propose déjà pas cette section pour ces types ; ceci
  * protège la route elle-même si elle est appelée directement.
  */
@@ -24,7 +25,7 @@ const { FUNDAMENTALS, KEYS } = require('./_providers.js');
 const { chargerBloc } = require('./_marketBlock.js');
 const { normaliserTicker, normaliserExchange } = require('./company.js');
 
-const TYPES_SANS_FONDAMENTAUX = new Set(['forex', 'crypto']);
+const TYPES_SANS_FONDAMENTAUX = new Set(['forex', 'crypto', 'index', 'commodity']);
 
 function fondamentauxValides(data) {
   return Boolean(data && typeof data === 'object' && data.fundamentals && typeof data.fundamentals === 'object');
