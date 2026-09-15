@@ -1089,6 +1089,7 @@ const SECTORS = ['Technologie','Finance','Santé','Industrie','Énergie','Consom
 const MARKET_CATEGORIES = [
   { id:'tous',   label:'Tous' },
   { id:'stock',  label:'Actions' },
+  { id:'etf',    label:'ETF' },
   { id:'forex',  label:'Devises' },
   { id:'crypto', label:'Crypto' },
 ];
@@ -1205,6 +1206,38 @@ const stocks = [
   { id:'ALGO/USD', name:'Algorand', ticker:'ALGO/USD', market:'Crypto', exchangeCode:'', sector:null, country:null, cur:'USD', curSymbol:'$', ...BLANK_FIELDS(), type:'crypto' },
   { id:'VET/USD', name:'VeChain', ticker:'VET/USD', market:'Crypto', exchangeCode:'', sector:null, country:null, cur:'USD', curSymbol:'$', ...BLANK_FIELDS(), type:'crypto' },
   { id:'FIL/USD', name:'Filecoin', ticker:'FIL/USD', market:'Crypto', exchangeCode:'', sector:null, country:null, cur:'USD', curSymbol:'$', ...BLANK_FIELDS(), type:'crypto' },
+
+  /* ETF — AUCUN nouveau mécanisme fournisseur : un ETF se négocie avec un
+     ticker NASDAQ/NYSE Arca ordinaire, exactement comme une action. Les
+     mêmes fonctions QUOTE et HISTORY déjà éprouvées pour Apple/Microsoft
+     s'appliquent donc directement, sans deviner de convention de symbole
+     exotique (contrairement aux indices ".INDX"/"^GSPC" ou aux matières
+     premières, non vérifiées et donc volontairement absentes de cette
+     passe).
+     La fiche masque "Les chiffres"/Analyse IA/Risque (même traitement que
+     Forex/Crypto) : les fondamentaux d'entreprise (PER, ROE...) n'ont pas
+     de sens pour un ETF, et nous n'avons pas encore de source confirmée
+     pour AUM/TER/composition — les ajouter viendra dans une passe dédiée. */
+  { id:'SPY-NYA', name:'SPDR S&P 500 ETF Trust', ticker:'SPY', market:'NYSE Arca', exchangeCode:'NYSE ARCA', sector:null, country:'États-Unis', cur:'USD', curSymbol:'$', ...BLANK_FIELDS(), type:'etf' },
+  { id:'QQQ-NAS', name:'Invesco QQQ Trust', ticker:'QQQ', market:'NASDAQ', exchangeCode:'NASDAQ', sector:null, country:'États-Unis', cur:'USD', curSymbol:'$', ...BLANK_FIELDS(), type:'etf' },
+  { id:'VOO-NYA', name:'Vanguard S&P 500 ETF', ticker:'VOO', market:'NYSE Arca', exchangeCode:'NYSE ARCA', sector:null, country:'États-Unis', cur:'USD', curSymbol:'$', ...BLANK_FIELDS(), type:'etf' },
+  { id:'VTI-NYA', name:'Vanguard Total Stock Market ETF', ticker:'VTI', market:'NYSE Arca', exchangeCode:'NYSE ARCA', sector:null, country:'États-Unis', cur:'USD', curSymbol:'$', ...BLANK_FIELDS(), type:'etf' },
+  { id:'IWM-NYA', name:'iShares Russell 2000 ETF', ticker:'IWM', market:'NYSE Arca', exchangeCode:'NYSE ARCA', sector:null, country:'États-Unis', cur:'USD', curSymbol:'$', ...BLANK_FIELDS(), type:'etf' },
+  { id:'DIA-NYA', name:'SPDR Dow Jones Industrial Average ETF', ticker:'DIA', market:'NYSE Arca', exchangeCode:'NYSE ARCA', sector:null, country:'États-Unis', cur:'USD', curSymbol:'$', ...BLANK_FIELDS(), type:'etf' },
+  { id:'XLF-NYA', name:'Financial Select Sector SPDR Fund', ticker:'XLF', market:'NYSE Arca', exchangeCode:'NYSE ARCA', sector:null, country:'États-Unis', cur:'USD', curSymbol:'$', ...BLANK_FIELDS(), type:'etf' },
+  { id:'XLE-NYA', name:'Energy Select Sector SPDR Fund', ticker:'XLE', market:'NYSE Arca', exchangeCode:'NYSE ARCA', sector:null, country:'États-Unis', cur:'USD', curSymbol:'$', ...BLANK_FIELDS(), type:'etf' },
+  { id:'XLK-NYA', name:'Technology Select Sector SPDR Fund', ticker:'XLK', market:'NYSE Arca', exchangeCode:'NYSE ARCA', sector:null, country:'États-Unis', cur:'USD', curSymbol:'$', ...BLANK_FIELDS(), type:'etf' },
+  { id:'XLV-NYA', name:'Health Care Select Sector SPDR Fund', ticker:'XLV', market:'NYSE Arca', exchangeCode:'NYSE ARCA', sector:null, country:'États-Unis', cur:'USD', curSymbol:'$', ...BLANK_FIELDS(), type:'etf' },
+  { id:'XLY-NYA', name:'Consumer Discretionary Select Sector SPDR Fund', ticker:'XLY', market:'NYSE Arca', exchangeCode:'NYSE ARCA', sector:null, country:'États-Unis', cur:'USD', curSymbol:'$', ...BLANK_FIELDS(), type:'etf' },
+  { id:'XLP-NYA', name:'Consumer Staples Select Sector SPDR Fund', ticker:'XLP', market:'NYSE Arca', exchangeCode:'NYSE ARCA', sector:null, country:'États-Unis', cur:'USD', curSymbol:'$', ...BLANK_FIELDS(), type:'etf' },
+  { id:'GLD-NYA', name:'SPDR Gold Shares', ticker:'GLD', market:'NYSE Arca', exchangeCode:'NYSE ARCA', sector:null, country:'États-Unis', cur:'USD', curSymbol:'$', ...BLANK_FIELDS(), type:'etf' },
+  { id:'SLV-NYA', name:'iShares Silver Trust', ticker:'SLV', market:'NYSE Arca', exchangeCode:'NYSE ARCA', sector:null, country:'États-Unis', cur:'USD', curSymbol:'$', ...BLANK_FIELDS(), type:'etf' },
+  { id:'USO-NYA', name:'United States Oil Fund', ticker:'USO', market:'NYSE Arca', exchangeCode:'NYSE ARCA', sector:null, country:'États-Unis', cur:'USD', curSymbol:'$', ...BLANK_FIELDS(), type:'etf' },
+  { id:'TLT-NAS', name:'iShares 20+ Year Treasury Bond ETF', ticker:'TLT', market:'NASDAQ', exchangeCode:'NASDAQ', sector:null, country:'États-Unis', cur:'USD', curSymbol:'$', ...BLANK_FIELDS(), type:'etf' },
+  { id:'HYG-NYA', name:'iShares iBoxx High Yield Corporate Bond ETF', ticker:'HYG', market:'NYSE Arca', exchangeCode:'NYSE ARCA', sector:null, country:'États-Unis', cur:'USD', curSymbol:'$', ...BLANK_FIELDS(), type:'etf' },
+  { id:'LQD-NYA', name:'iShares iBoxx Investment Grade Corporate Bond ETF', ticker:'LQD', market:'NYSE Arca', exchangeCode:'NYSE ARCA', sector:null, country:'États-Unis', cur:'USD', curSymbol:'$', ...BLANK_FIELDS(), type:'etf' },
+  { id:'AGG-NYA', name:'iShares Core U.S. Aggregate Bond ETF', ticker:'AGG', market:'NYSE Arca', exchangeCode:'NYSE ARCA', sector:null, country:'États-Unis', cur:'USD', curSymbol:'$', ...BLANK_FIELDS(), type:'etf' },
+  { id:'ARKK-NYA', name:'ARK Innovation ETF', ticker:'ARKK', market:'NYSE Arca', exchangeCode:'NYSE ARCA', sector:null, country:'États-Unis', cur:'USD', curSymbol:'$', ...BLANK_FIELDS(), type:'etf' },
 ];
 const byId = Object.fromEntries(stocks.map(s => [s.id, s]));
 
@@ -1332,7 +1365,7 @@ const isExpert = () => state.settings.mode === 'expert';
    1J et 1S (intraday) ne sont volontairement pas proposés : aucune source
    intraday n'est branchée dans ce fichier, et il est hors de question de
    simuler de l'intraday à partir de clôtures journalières. */
-const PERIODS_DISPO = ['1M','3M','6M','1A'];
+const PERIODS_DISPO = ['1S','1M','3M','6M','AAJ','1A'];
 const PERIODS = PERIODS_DISPO.map(id => ({ id, label:id }));
 
 const INDICES = [
@@ -1907,6 +1940,68 @@ const symboleDe = s => `${s.ticker}@${s.exchangeCode || MARKET_CODE[s.market] ||
 const MARKET_CODE = { NASDAQ:'NASDAQ', NYSE:'NYSE', 'Euronext Paris':'PA',
   'Euronext Amsterdam':'AS', Xetra:'DE', SIX:'SW', LSE:'L' };
 
+/* --------------------------------------------------------------------
+   RAFRAÎCHISSEMENT VIVANT — "quelques secondes de retard", pas du vrai
+   streaming WebSocket (qu'on n'a pas). Budget calibré prudemment sur le
+   palier d'ENTRÉE de Twelve Data Grow : 55 crédits/minute (confirmé par
+   leur documentation officielle — les paliers supérieurs de Grow, 144 et
+   377 crédits/min, ont simplement plus de marge, jamais moins).
+   Chaque symbole interrogé consomme 1 crédit PAR APPEL — et ce cycle
+   utilise `fresh=1` volontairement : sans ça, le cache serveur d'1 minute
+   (voir _cache.js, TTL.quote=60000) renverrait le même prix à chaque
+   tick pendant la minute en cours, rendant ce rafraîchissement inutile.
+   Budget respecté : (nb symboles) × (cycles/minute) ≤ 55.
+   Calibrage retenu : 7 symboles maximum, toutes les 8 secondes
+   → 7 × 7,5 = 52,5 crédits/min, marge de sécurité incluse.
+   Ne suit QUE les instruments réellement visibles sur la page courante
+   (fiche ouverte, Comparer, Marchés/Watchlist visibles, positions du
+   portefeuille) — jamais tout le catalogue. Coupé quand l'onglet est
+   masqué (aucun crédit consommé pendant ce temps), repris à la reprise
+   de visibilité. */
+const LIVE_INTERVALLE_MS = 8000;
+const LIVE_MAX_SYMBOLES = 7;
+let liveTimer = null;
+let liveIds = [];
+
+async function liveTick(){
+  const cibles = liveIds.map(id => byId[id]).filter(s => s && s.ticker);
+  if (!cibles.length) return;
+  try {
+    const r = await fetch('/api/market/quotes?fresh=1&symbols='
+      + encodeURIComponent(cibles.map(symboleDe).join(',')));
+    if (!r.ok) return;
+    const d = await r.json();
+    const parId = new Map(cibles.map(s => [symboleDe(s), s]));
+    let misAJour = false;
+    for (const q of d.quotes || []){
+      const s = parId.get(q.symbol);
+      if (s && Number.isFinite(q.price) && q.price > 0){ QUOTES.set(s.id, q); misAJour = true; }
+    }
+    if (misAJour){ state.ui.liveAt = Date.now(); render(); }
+  } catch { /* un cycle raté n'interrompt pas les suivants, le prochain tick réessaiera */ }
+}
+
+/* Remplace tout abonnement précédent — jamais deux minuteurs en parallèle
+   (ex. navigation rapide entre deux fiches). `ids` au-delà de
+   LIVE_MAX_SYMBOLES est tronqué, jamais étendu. */
+function demarrerRafraichissementVivant(ids){
+  arreterRafraichissementVivant();
+  liveIds = [...new Set(ids.filter(Boolean))].slice(0, LIVE_MAX_SYMBOLES);
+  if (!liveIds.length) return;
+  liveTimer = setInterval(liveTick, LIVE_INTERVALLE_MS);
+}
+function arreterRafraichissementVivant(){
+  if (liveTimer){ clearInterval(liveTimer); liveTimer = null; }
+  liveIds = [];
+}
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden){
+    if (liveTimer){ clearInterval(liveTimer); liveTimer = null; }
+  } else if (liveIds.length && !liveTimer){
+    liveTimer = setInterval(liveTick, LIVE_INTERVALLE_MS);
+  }
+});
+
 async function chargerCotations(liste){
   const cibles = liste.filter(s => s && s.ticker);
   if (!cibles.length) return;
@@ -1949,7 +2044,7 @@ async function chargerCotations(liste){
 /* Séances par période, sur des données journalières uniquement. 1J/1S
    intraday ne sont pas proposés (voir PERIODS_DISPO) : aucune donnée
    intraday n'est chargée par ce fichier. */
-const SEANCES = { '1M':21, '3M':63, '6M':126, '1A':252 };
+const SEANCES = { '1S':5, '1M':21, '3M':63, '6M':126, '1A':252 };
 
 /* Filtre l'historique réel par période. Ne complète JAMAIS artificiellement :
    si moins de deux points réels existent pour la période demandée, retourne
@@ -1957,6 +2052,16 @@ const SEANCES = { '1M':21, '3M':63, '6M':126, '1A':252 };
 function histPeriode(stockId, periodId){
   const entry = HIST.get(stockId);
   if (!entry || entry.status !== 'ready' || !Array.isArray(entry.data) || entry.data.length < 2) return null;
+  /* AAJ (année à ce jour) : filtre par date réelle plutôt qu'un nombre de
+     séances fixe — calculable immédiatement à partir de l'historique
+     quotidien déjà chargé, sans appel supplémentaire. Contrairement à un
+     graphique "à la seconde", ceci n'exige aucune infrastructure de
+     streaming : c'est un simple filtre sur des données déjà en main. */
+  if (periodId === 'AAJ'){
+    const debutAnnee = `${new Date().getFullYear()}-01-01`;
+    const pts = entry.data.filter(p => p.date >= debutAnnee);
+    return pts.length >= 2 ? pts : null;
+  }
   const n = SEANCES[periodId];
   if (!n) return null;
   const pts = entry.data.slice(-n);
@@ -2394,18 +2499,18 @@ PAGES.markets = () => {
     <div class="card" style="margin-top:18px"><div class="rows" id="marketsOut">${marketsRows()}</div></div>
   </div>`;
 };
-function marketsRows(){
+function marketsListeFiltree(){
   const cat = state.filters.marketsCategory || 'tous';
   const region = state.filters.marketsRegion || 'Monde';
   let list = cat === 'tous' ? [...stocks] : stocks.filter(s => s.type === cat);
-  /* Filtre géographique : uniquement significatif pour les actions — une
-     paire de devises ou une crypto n'est pas "une action française"
-     (consigne explicite). Ignoré silencieusement pour les autres
-     catégories plutôt que de forcer un classement arbitraire. */
   if (cat === 'stock' && region !== 'Monde'){
     list = list.filter(s => REGION_OF_COUNTRY[s.country] === region);
   }
   list.sort((a,b)=>a.name.localeCompare(b.name,'fr'));
+  return list;
+}
+function marketsRows(){
+  const list = marketsListeFiltree();
   return list.length ? list.map(s=>stockRow(s)).join('')
     : emptyState('Aucun instrument','Aucun instrument ne correspond à ce filtre.');
 }
@@ -2435,13 +2540,41 @@ PAGES.stock = (id) => {
           return `<div class="price" style="color:var(--ink-4)">—</div>
             <div class="tiny" style="margin-top:6px">Cours indisponible pour cette place</div>`;
         const v = Number.isFinite(q.changePercent) ? q.changePercent : null;
+        /* Indicateur honnête : n'apparaît qu'après un vrai cycle de
+           rafraîchissement vivant sur CETTE fiche (state.ui.liveAt posé
+           par liveTick), jamais une horloge qui tourne toute seule sans
+           donnée réelle derrière. */
+        const fraicheur = (state.ui.liveAt && route.page === 'stock' && route.arg === s.id)
+          ? `<div class="tiny" style="margin-top:4px;color:var(--ink-4)">Actualisé à ${new Date(state.ui.liveAt).toLocaleTimeString('fr-FR')}</div>`
+          : '';
         return `<div class="price">${fmt.num(q.price)}<small>${esc(s.curSymbol)}</small></div>
           ${v === null ? '' : `<div class="price-chg ${v >= 0 ? 'up-t' : 'down-t'}">
-            ${arrow(v)} ${fmt.pct(v)}</div>`}`;
+            ${arrow(v)} ${fmt.pct(v)}</div>`}${fraicheur}`;
       })()}
     </div>
     ${starBtn(s.id)}
   </div>
+
+  ${(() => {
+    const q = QUOTES.get(s.id);
+    if (!q) return '';
+    /* Champs déjà présents dans la cotation batch (aucun appel
+       supplémentaire) — affichés seulement s'ils existent réellement,
+       jamais de "—" en série pour un instrument qui n'en a simplement
+       pas (ex. Forex n'a pas de volume chez tous les providers). */
+    const champs = [
+      ['Ouverture', q.open], ['Plus haut', q.high], ['Plus bas', q.low],
+      ['Clôture préc.', q.previousClose],
+    ].filter(([, v]) => Number.isFinite(v));
+    if (Number.isFinite(q.volume) && q.volume > 0) champs.push(['Volume', q.volume]);
+    if (!champs.length) return '';
+    return `<div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(90px,1fr));gap:10px;margin-top:16px">
+      ${champs.map(([label, v]) => `<div class="card" style="padding:10px 12px">
+        <div class="tiny" style="color:var(--ink-4)">${esc(label)}</div>
+        <div class="small tabular-nums" style="margin-top:2px;font-weight:600">${label === 'Volume' ? fmt.int(v) : fmt.num(v, 2)}</div>
+      </div>`).join('')}
+    </div>`;
+  })()}
 
   <div class="stk-cta">
     <button class="btn btn-a btn-lg" data-buy="${esc(s.id)}" style="flex:1"
@@ -2512,8 +2645,25 @@ PAGES.stock = (id) => {
           <div class="kv"><dt>PER ${infoBtn('PER')}</dt><dd>${fmt.mult(f.pe)}</dd></div>
           ${isExpert()?`
             <div class="kv"><dt>Croissance du bénéfice ${infoBtn('BPA')}</dt><dd class="${(() => { const g = croissanceSerie(f.epsSeries); return g === null ? '' : (g >= 0 ? 'up-t' : 'down-t'); })()}">${(() => { const g = croissanceSerie(f.epsSeries); return g !== null ? trendTxt(g, 1) : '—'; })()}</dd></div>
-            <div class="kv"><dt>Volatilité ${infoBtn('Volatilité')}</dt><dd>—</dd></div>
-            <div class="kv"><dt>Mois en hausse ${infoBtn('Régularité')}</dt><dd>—</dd></div>
+            <div class="kv"><dt>Plus haut 52 sem. ${infoBtn('52 semaines')}</dt><dd>${Number.isFinite(f.week52High) ? fmt.num(f.week52High, 2) + ' ' + esc(s.curSymbol) : '—'}</dd></div>
+            <div class="kv"><dt>Plus bas 52 sem. ${infoBtn('52 semaines')}</dt><dd>${Number.isFinite(f.week52Low) ? fmt.num(f.week52Low, 2) + ' ' + esc(s.curSymbol) : '—'}</dd></div>
+            <div class="kv"><dt>Bêta ${infoBtn('Bêta')}</dt><dd>${Number.isFinite(f.beta) ? fmt.num(f.beta, 2) : '—'}</dd></div>
+            <div class="kv"><dt>Volume moyen (3 mois) ${infoBtn('Volume')}</dt><dd>${Number.isFinite(f.avgVolume3M) ? fmt.num(f.avgVolume3M, 1) + ' M' : '—'}</dd></div>
+            <div class="kv"><dt>Marge brute ${infoBtn('Marge')}</dt><dd>${Number.isFinite(f.grossMargin) ? fmt.pctRatio(f.grossMargin) : '—'}</dd></div>
+            <div class="kv"><dt>Ratio de liquidité générale ${infoBtn('Liquidité')}</dt><dd>${Number.isFinite(f.currentRatio) ? fmt.num(f.currentRatio, 2) : '—'}</dd></div>
+            <div class="kv"><dt>Prix / Chiffre d'affaires ${infoBtn('PSR')}</dt><dd>${Number.isFinite(f.priceToSales) ? fmt.mult(f.priceToSales) : '—'}</dd></div>
+            <div class="kv"><dt>Volatilité ${infoBtn('Volatilité')}</dt><dd>${(() => {
+              const h = HIST.get(s.id);
+              if (!h || h.status !== 'ready') return '—';
+              const v = volatiliteAnnualisee(h.data);
+              return v !== null ? fmt.num(v, 1) + ' %' : '—';
+            })()}</dd></div>
+            <div class="kv"><dt>Mois en hausse ${infoBtn('Régularité')}</dt><dd>${(() => {
+              const h = HIST.get(s.id);
+              if (!h || h.status !== 'ready') return '—';
+              const m = pourcentageMoisHausse(h.data);
+              return m !== null ? fmt.num(m, 0) + ' %' : '—';
+            })()}</dd></div>
             <div class="kv"><dt>Dividende ${infoBtn('Dividende')}</dt><dd>${fmt.num(f.dividendYield, 2)} %</dd></div>`:''}
         </dl>
         ${plainFundamentals(s) ? `<div class="notice" style="margin-top:16px;background:var(--bg-2);color:var(--ink-2)">
@@ -2563,6 +2713,43 @@ PAGES.stock = (id) => {
 };
 
 /* Graphique de cours : trois états possibles, aucun quatrième. */
+/* Volatilité annualisée et régularité (% de mois en hausse), calculées à
+   partir de l'historique RÉEL déjà chargé (HIST) — jamais une nouvelle
+   requête, jamais une estimation. Écart-type des rendements quotidiens
+   annualisé (convention standard : ×√252), et pourcentage de mois dont
+   la clôture est supérieure à celle du mois précédent. Retourne null (pas
+   0) si l'historique est absent/insuffisant — l'appelant affiche alors
+   "—", jamais une valeur fabriquée. */
+function volatiliteAnnualisee(points){
+  if (!Array.isArray(points) || points.length < 10) return null;
+  const rendements = [];
+  for (let i = 1; i < points.length; i++){
+    const prev = points[i - 1].close, cur = points[i].close;
+    if (Number.isFinite(prev) && Number.isFinite(cur) && prev > 0) rendements.push(cur / prev - 1);
+  }
+  if (rendements.length < 10) return null;
+  const moyenne = rendements.reduce((a, b) => a + b, 0) / rendements.length;
+  const variance = rendements.reduce((a, b) => a + (b - moyenne) ** 2, 0) / (rendements.length - 1);
+  return Math.sqrt(variance) * Math.sqrt(252) * 100;
+}
+
+function pourcentageMoisHausse(points){
+  if (!Array.isArray(points) || points.length < 20) return null;
+  const parMois = new Map();
+  for (const p of points){
+    if (!p.date || !Number.isFinite(p.close)) continue;
+    parMois.set(p.date.slice(0, 7), p.close);   // dernière clôture rencontrée pour ce mois (points triés croissant)
+  }
+  const mois = [...parMois.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+  if (mois.length < 3) return null;   // au moins 2 transitions mois-à-mois
+  let hausses = 0, total = 0;
+  for (let i = 1; i < mois.length; i++){
+    total++;
+    if (mois[i][1] > mois[i - 1][1]) hausses++;
+  }
+  return total >= 2 ? (hausses / total) * 100 : null;
+}
+
 function chartBloc(stock, periodId){
   const entry = HIST.get(stock.id);
   if (!entry || entry.status === 'loading')
@@ -3608,6 +3795,23 @@ function render(navigated = false){
   }
   if (route.page === 'radar')   document.getElementById('radarOut').innerHTML = radarResults();
   if (route.page === 'explore') document.getElementById('exploreOut').innerHTML = exploreRows();
+
+  /* Rafraîchissement vivant — uniquement les instruments réellement
+     visibles sur la page courante, jamais tout le catalogue. Une page
+     sans instrument pertinent (compte, réglages...) coupe le
+     rafraîchissement. */
+  const liveParRoute = {
+    stock: () => [route.arg],
+    compare: () => state.compare,
+    markets: () => marketsListeFiltree().slice(0, LIVE_MAX_SYMBOLES).map(s => s.id),
+    watchlist: () => state.watchlist,
+    home: () => state.watchlist.slice(0, 6),
+    portfolio: () => state.wallet.positions.map(p => p.id),
+  };
+  const idsVisibles = (liveParRoute[route.page] || (() => []))();
+  if (idsVisibles.length) demarrerRafraichissementVivant(idsVisibles);
+  else arreterRafraichissementVivant();
+
   animate();
 }
 function animate(){
