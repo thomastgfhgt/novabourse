@@ -1456,10 +1456,8 @@ function pickExchangeCode(x){
     || x.exchangeShort || x.marketCode || x.exchange || '';
 }
 
-async function searchRemote(q){
+async function searchProviders(t){
   if (!CONFIG.marketConnected) return [];
-  const t = q.trim();
-  if (t.length < 2) return [];
   try {
     const r = await fetch('/api/market/search?q=' + encodeURIComponent(t));
     if (!r.ok) return [];
@@ -1471,7 +1469,7 @@ async function searchRemote(q){
     /* Diagnostic temporaire, sans effet sur l'UI : permet de retrouver dans
        la console du navigateur la forme RÉELLE renvoyée par le backend pour
        confirmer/corriger ce mapping (voir rapport — jamais vérifié avant). */
-    console.debug('[NovaBourse][searchRemote] réponse brute pour', JSON.stringify(t), ':', d);
+    console.debug('[NovaBourse][searchProviders] réponse brute pour', JSON.stringify(t), ':', d);
     return list.filter(x => x && x.ticker).slice(0, 8).map(x => {
       const code = pickExchangeCode(x);
       return {
@@ -1485,6 +1483,56 @@ async function searchRemote(q){
   } catch {
     return [];   // recherche locale conservée en repli, aucune erreur affichée
   }
+}
+
+/* Catalogue mondial (free-ticker-database, importé côté serveur — voir
+   scripts/import-catalog.js) : identité seule (ticker/nom/ISIN/place),
+   jamais de prix. Même mapping que searchProviders() pour que les deux
+   sources produisent des résultats strictement interchangeables du point
+   de vue de ensureRuntimeStock(). Un instrument sans exchangeCode reste
+   affichable (cours "indisponible", comportement déjà existant) : aucune
+   UI nouvelle n'est nécessaire pour ce cas. */
+async function searchCatalog(t){
+  try {
+    const r = await fetch('/api/market/catalog?q=' + encodeURIComponent(t) + '&limit=8');
+    if (!r.ok) return [];
+    const d = await r.json();
+    const list = Array.isArray(d.results) ? d.results : [];
+    return list.map(x => {
+      const code = pickExchangeCode(x);
+      return {
+        type:'action', remote:true,
+        id: remoteId(x.ticker, code),
+        title: x.name || x.ticker,
+        sub: `${x.ticker} · ${x.sector || 'Non classé'} · ${x.exchange || code || '—'}`,
+        meta: x,
+      };
+    });
+  } catch {
+    return [];
+  }
+}
+
+/* Fusionne les deux sources distantes (fournisseurs payants + catalogue
+   mondial importé) : searchProviders() passe en premier (couverture déjà
+   éprouvée), searchCatalog() complète sans jamais dupliquer un id déjà
+   trouvé. Ni l'un ni l'autre ne bloque si l'autre échoue (Promise.all sur
+   des fonctions qui catchent déjà leurs propres erreurs). */
+async function searchRemote(q){
+  const t = q.trim();
+  if (t.length < 2) return [];
+  const [providers, catalogue] = await Promise.all([
+    searchProviders(t),
+    searchCatalog(t),
+  ]);
+  const vus = new Set();
+  const fusion = [];
+  for (const hit of [...providers, ...catalogue]){
+    if (vus.has(hit.id)) continue;
+    vus.add(hit.id);
+    fusion.push(hit);
+  }
+  return fusion.slice(0, 8);
 }
 function toggleWatch(id){
   const i = state.watchlist.indexOf(id);
