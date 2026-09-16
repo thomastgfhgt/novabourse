@@ -930,8 +930,22 @@ const DEFAULT_STATE = {
   wallet:{
     cash:15480,
     invested:110000,
-    positions:[]
+    positions:[],
+    /* Somme cumulée des gains/pertes RÉALISÉS (positions vendues), en euros.
+       Jamais recalculée depuis l'historique des positions (qui ne garde pas
+       trace d'une position déjà entièrement vendue) : alimentée uniquement
+       par sellStock() au moment de chaque vente, sur la méthode du coût
+       moyen pondéré (pos.avg). */
+    realizedPnL:0
   },
+
+  /* Historique RÉEL du portefeuille : un point par événement (achat, vente,
+     ouverture) plus au plus un point par jour (snapshot quotidien, voir
+     snapshotPortfolio()). Jamais de passé reconstitué : si le portefeuille
+     est ouvert aujourd'hui, cette liste commence aujourd'hui — la période
+     "MAX" du graphique portefeuille reflète alors exactement ce fait,
+     jamais une courbe antidatée. */
+  walletHistory:[],
 
   /* Métadonnées (jamais de prix/score/fondamentaux) des sociétés créées à la
      volée par /api/market/search, pour pouvoir les rematérialiser via
@@ -1026,7 +1040,9 @@ function loadState(){
           cash: Number.isFinite(saved.wallet?.cash) ? saved.wallet.cash : DEFAULT_STATE.wallet.cash,
           invested: Number.isFinite(saved.wallet?.invested) ? saved.wallet.invested : DEFAULT_STATE.wallet.invested,
           positions: Array.isArray(saved.wallet?.positions) ? saved.wallet.positions : DEFAULT_STATE.wallet.positions,
+          realizedPnL: Number.isFinite(saved.wallet?.realizedPnL) ? saved.wallet.realizedPnL : DEFAULT_STATE.wallet.realizedPnL,
         },
+        walletHistory: Array.isArray(saved.walletHistory) ? saved.walletHistory : DEFAULT_STATE.walletHistory,
         runtimeCatalog: (saved.runtimeCatalog && typeof saved.runtimeCatalog === 'object' && !Array.isArray(saved.runtimeCatalog))
           ? saved.runtimeCatalog : {},
         onboarding:{ ...DEFAULT_STATE.onboarding, ...(saved.onboarding || {}) },
@@ -1050,6 +1066,7 @@ function loadState(){
   };
 
   if (!Array.isArray(merged.wallet.positions)) merged.wallet.positions = [];
+  if (!Array.isArray(merged.walletHistory)) merged.walletHistory = [];
 
   return merged;
 }
@@ -1076,6 +1093,10 @@ function writeStateNow(){
          rechargement. Aucune valeur de marché n'est stockée ici, ni la
          session (voir auth, jamais sauvegardé). */
       wallet:state.wallet,
+      /* Historique réel du portefeuille (voir snapshotPortfolio()) : même
+         raisonnement que wallet ci-dessus — état utilisateur, pas donnée de
+         marché, légitime à conserver localement. */
+      walletHistory:state.walletHistory,
     }));
   } catch {}
 }
@@ -1839,6 +1860,15 @@ function clearRecent(){ state.recent = []; saveState(); toast('Historique de rec
    vs valorisation). Seules les positions dont le prix est connu contribuent
    à `value`/`gain` ; les autres apparaissent avec priceAvailable:false et un
    état "cours indisponible" plutôt que de disparaître silencieusement. */
+/* Formules (voir cahier des charges) — costBasis/marketValue/unrealizedPnL
+   sont des ALIAS explicites de cost/value/gain ci-dessous (mêmes valeurs,
+   deux noms) : cost/value/gain restent le nom historique utilisé par le
+   reste du fichier, costBasis/marketValue/unrealizedPnL(Percent) le
+   vocabulaire demandé, pour ne renommer nulle part ailleurs par prudence.
+     costBasis          = quantité × prix moyen d'achat (PRU)
+     marketValue         = quantité × cours actuel
+     unrealizedPnL        = marketValue - costBasis
+     unrealizedPnLPercent = unrealizedPnL / costBasis × 100 */
 function portfolioValue(){
   let value = 0, cost = 0, unresolvedCount = 0;
   const lines = state.wallet.positions.map(pos => {
@@ -1846,29 +1876,97 @@ function portfolioValue(){
     if (!st){
       unresolvedCount++;
       return { ...pos, stock:null, priceAvailable:false, cur:null,
-        localValue:null, localCost:null, value:0, cost:0, gain:0, gainPct:0 };
+        localValue:null, localCost:null, value:0, cost:0, gain:0, gainPct:0,
+        costBasis:0, marketValue:0, unrealizedPnL:0, unrealizedPnLPercent:0 };
     }
     const cours = prixDe(st);
     if (cours === null){
+      const localCost = pos.avg * pos.qty;
       return { ...pos, stock:st, priceAvailable:false, cur:st.cur,
-        localValue:null, localCost: pos.avg * pos.qty, value:0, cost:0, gain:0, gainPct:0 };
+        localValue:null, localCost, value:0, cost:0, gain:0, gainPct:0,
+        costBasis:toEUR(localCost, st.cur), marketValue:0, unrealizedPnL:0, unrealizedPnLPercent:0 };
     }
     const localValue = cours * pos.qty;
     const localCost  = pos.avg  * pos.qty;
     const eurValue = toEUR(localValue, st.cur);
     const eurCost  = toEUR(localCost,  st.cur);
     value += eurValue; cost += eurCost;
+    const gain = eurValue - eurCost;
+    const gainPct = eurCost ? (eurValue/eurCost-1)*100 : 0;
     return { ...pos, stock:st, priceAvailable:true, localValue, localCost, cur:st.cur,
-      value:eurValue, cost:eurCost, gain:eurValue-eurCost,
-      gainPct: eurCost ? (eurValue/eurCost-1)*100 : 0,
+      value:eurValue, cost:eurCost, gain, gainPct,
+      costBasis:eurCost, marketValue:eurValue, unrealizedPnL:gain, unrealizedPnLPercent:gainPct,
       fx: FX[st.cur] };
   });
   const total = value + state.wallet.cash;
   const invested = cost + state.wallet.cash;
   const gain = total - invested;
+  const realizedPnL = Number.isFinite(state.wallet.realizedPnL) ? state.wallet.realizedPnL : 0;
+  const netDeposits = Number.isFinite(state.wallet.invested) ? state.wallet.invested : null;
   return { lines, value, cost, total, cash:state.wallet.cash, invested,
     unresolvedCount,
-    gain, gainPct: invested > 0 ? (gain / invested) * 100 : 0 };
+    gain, gainPct: invested > 0 ? (gain / invested) * 100 : 0,
+    /* unrealizedPnL du portefeuille = somme des unrealizedPnL de chaque
+       position = value - cost (cash exclu : les liquidités ne gagnent ni ne
+       perdent). realizedPnL = cumul des ventes déjà exécutées (voir
+       sellStock()). Le gain "depuis l'ouverture" du portefeuille (comparé à
+       netDeposits) est réalisé + latent, jamais l'un sans l'autre. */
+    unrealizedPnL: gain,
+    unrealizedPnLPercent: cost > 0 ? (gain / cost) * 100 : (invested > 0 ? (gain / invested) * 100 : 0),
+    realizedPnL,
+    netDeposits,
+  };
+}
+
+/* Nombre maximal de points conservés dans l'historique du portefeuille —
+   même logique de garde-fou que MAX_HISTORY_POINTS/joursHistorique côté
+   marché : borne large (≈13 ans de relevés quotidiens), jamais atteinte en
+   usage normal, purge les plus anciens plutôt que de planter. */
+const MAX_WALLET_SNAPSHOTS = 5000;
+
+/* Enregistre un point RÉEL de l'historique du portefeuille — jamais de
+   valeur reconstituée pour le passé. Appelé après chaque achat/vente (voir
+   buyStock/sellStock) et une fois par jour au plus lors de la consultation
+   de la page Portefeuille (voir PAGES.portfolio) : ce n'est pas un minuteur
+   qui tourne en arrière-plan, seulement une garde "un point par jour déjà
+   là ?" posée à chaque affichage réel de la page. */
+function snapshotPortfolio(reason){
+  const pf = portfolioValue();
+  state.walletHistory.push({
+    t: Date.now(),
+    totalValue: pf.total,
+    cash: pf.cash,
+    investedValue: pf.value,
+    netDeposits: pf.netDeposits,
+    unrealizedPnL: pf.unrealizedPnL,
+    realizedPnL: pf.realizedPnL,
+    reason,
+  });
+  if (state.walletHistory.length > MAX_WALLET_SNAPSHOTS){
+    state.walletHistory.splice(0, state.walletHistory.length - MAX_WALLET_SNAPSHOTS);
+  }
+}
+
+/* Ajoute un relevé quotidien si celui d'aujourd'hui (heure locale) n'existe
+   pas déjà — appelée à l'affichage de la page Portefeuille, jamais par un
+   minuteur. Si l'historique est totalement vide (portefeuille déjà actif
+   avant l'introduction de cette fonctionnalité, ou première visite de la
+   page avant tout achat), ce premier appel POSE le point de départ
+   aujourd'hui — jamais un passé reconstitué : "MAX" commencera simplement à
+   cet instant, conformément à la consigne de ne rien antidater. */
+function assurerRelevéQuotidien(){
+  const aujourdHui = new Date().toDateString();
+  const dernier = state.walletHistory[state.walletHistory.length - 1];
+  if (dernier && new Date(dernier.t).toDateString() === aujourdHui) return;
+  snapshotPortfolio(dernier ? 'daily' : 'first');
+  saveState();
+  /* Le HTML déjà produit par ce même render() utilisait l'ancien
+     walletHistory (un point manquant) : un second passage l'affiche
+     immédiatement, sur le même modèle que chargerGraphique()/
+     chargerFondamentaux() ailleurs dans ce fichier. Aucune boucle possible :
+     au second passage, le relevé du jour existe déjà et la garde ci-dessus
+     retourne aussitôt. */
+  render();
 }
 
 function strengths(st){
@@ -2050,6 +2148,7 @@ function buyStock(id, amountEUR){
     state.wallet.positions.push({ id, qty, avg: prix });
   }
   state.wallet.cash -= amountEUR;
+  snapshotPortfolio('buy');
   /* Écriture immédiate (pas la version debouncée) : un achat ne doit jamais
      dépendre d'un setTimeout qui n'a pas eu le temps de se déclencher si
      l'utilisateur ferme l'app juste après — c'est la cause la plus probable
@@ -2057,6 +2156,11 @@ function buyStock(id, amountEUR){
   flushSaveState();
   return { ok:true, qty, msg:`${fmt.num(qty,2)} titre(s) de ${st.name} achetés` };
 }
+/* P&L réalisé, méthode du coût moyen pondéré (même PRU que buyStock ci-dessus
+   utilise pour l'achat) : pour une vente PARTIELLE, seul le coût des titres
+   RÉELLEMENT vendus sort du coût moyen — pos.avg ne change jamais lors d'une
+   vente (seul un nouvel achat le recalcule), cohérent avec la méthode du coût
+   moyen pondéré standard. */
 function sellStock(id, part = 1){
   const i = state.wallet.positions.findIndex(p => p.id === id);
   if (i < 0) return { ok:false, msg:'Aucune position sur cette valeur' };
@@ -2066,11 +2170,17 @@ function sellStock(id, part = 1){
   const qty = pos.qty * Math.max(0, Math.min(1, part));
   if (!Number.isFinite(qty) || !(qty > 0)) return { ok:false, msg:'Quantité invalide' };
   const proceeds = toEUR(prix * qty, st.cur);
+  const costBasisVendu = toEUR(pos.avg * qty, st.cur);
+  const realizedGain = proceeds - costBasisVendu;
   pos.qty -= qty;
   if (pos.qty <= 0.0001) state.wallet.positions.splice(i, 1);
   state.wallet.cash += proceeds;
+  state.wallet.realizedPnL = (Number.isFinite(state.wallet.realizedPnL) ? state.wallet.realizedPnL : 0) + realizedGain;
+  snapshotPortfolio('sell');
   flushSaveState();
-  return { ok:true, msg:`Vente de ${fmt.num(qty,2)} titre(s) · ${fmt.eur(proceeds)} récupérés` };
+  return { ok:true, msg:`Vente de ${fmt.num(qty,2)} titre(s) · ${fmt.eur(proceeds)} récupérés `
+    + `· ${realizedGain >= 0 ? 'gain réalisé de ' + fmt.eur(realizedGain) : 'perte réalisée de ' + fmt.eur(Math.abs(realizedGain))}`,
+    realizedGain };
 }
 const positionOf = (id) => state.wallet.positions.find(p => p.id === id) || null;
 
@@ -3343,12 +3453,56 @@ function formatDateAffichage(date, kind){
     : d.toLocaleDateString('fr-FR', { day:'2-digit', month:'2-digit', year:'numeric' });
 }
 
+/* Statistiques réelles de LA PÉRIODE ACTUELLEMENT AFFICHÉE (pts = entry.data
+   de cette période précise, jamais l'historique complet HIST) — recalculées
+   entièrement à chaque changement de période via CHART_PERIODS, jamais
+   réutilisées d'une période à l'autre. Formules retenues, explicites :
+ *   moyenne du cours   = somme des clôtures de la période / nombre de clôtures ;
+ *   volume moyen       = somme des volumes connus / nombre de barres à volume connu ;
+ *   volatilité période = écart-type (non biaisé) des rendements barre-à-barre
+ *     (clôture[i]/clôture[i-1] - 1), exprimé en %, NON annualisé — distinct de
+ *     volatiliteAnnualisee() ci-dessus, qui porte sur l'historique quotidien
+ *     complet (~1 an) et annualise par ×√252 : les deux mesurent des choses
+ *     différentes et ne doivent jamais être confondues dans l'affichage ;
+ *   séances +/-         = nombre de barres dont la clôture est strictement
+ *     supérieure/inférieure à la clôture de la barre précédente (égalité :
+ *     ne compte dans aucun des deux, jamais arrondie vers l'un ou l'autre).
+ * Renvoie null pour toute métrique dont les données réelles sont insuffisantes
+ * — jamais une estimation ni un zéro qui laisserait croire à une vraie mesure. */
+function statsPeriode(pts){
+  const closes = pts.map(p => p.close).filter(Number.isFinite);
+  const volumes = pts.map(p => p.volume).filter(v => Number.isFinite(v) && v >= 0);
+
+  const average = closes.length ? closes.reduce((a, b) => a + b, 0) / closes.length : null;
+  const avgVolume = volumes.length ? volumes.reduce((a, b) => a + b, 0) / volumes.length : null;
+
+  const rendements = [];
+  let positives = 0, negatives = 0;
+  for (let i = 1; i < pts.length; i++){
+    const prev = pts[i - 1].close, cur = pts[i].close;
+    if (!Number.isFinite(prev) || !Number.isFinite(cur) || prev <= 0) continue;
+    rendements.push(cur / prev - 1);
+    if (cur > prev) positives++;
+    else if (cur < prev) negatives++;
+  }
+
+  let volatility = null;
+  if (rendements.length >= 2){
+    const m = rendements.reduce((a, b) => a + b, 0) / rendements.length;
+    const variance = rendements.reduce((a, b) => a + (b - m) ** 2, 0) / (rendements.length - 1);
+    volatility = Math.sqrt(variance) * 100;
+  }
+
+  return { average, avgVolume, volatility, positives, negatives, sessions: rendements.length };
+}
+
 /* Coquille HTML du graphique : barre d'info (prix/variation, mise à jour en
    direct par le crosshair via mountChartPro), bascule courbe/chandeliers
    (seulement si l'OHLC complet est réellement disponible — jamais affichée
    pour forcer un mode que la donnée ne permet pas), conteneur du graphique
    lui-même (rempli par Lightweight Charts, pas par ce template), puis les
-   statistiques réelles de la période (haut/bas/ouverture/clôture/volume). */
+   statistiques réelles de la période (haut/bas/ouverture/clôture/volume/
+   moyenne/volatilité/séances +/-, voir statsPeriode ci-dessus). */
 function chartProShell(stock, period, entry){
   const pts = entry.data;
   const first = pts[0], last = pts[pts.length - 1];
@@ -3360,6 +3514,15 @@ function chartProShell(stock, period, entry){
   const hasOHLC = pts.every(p => Number.isFinite(p.open) && Number.isFinite(p.high) && Number.isFinite(p.low));
   const hasVolume = pts.some(p => Number.isFinite(p.volume) && p.volume > 0);
   const volTotal = pts.reduce((s, p) => s + (Number.isFinite(p.volume) ? p.volume : 0), 0);
+  const closesValides = pts.map(p => p.close).filter(Number.isFinite);
+  /* Repli sur les clôtures quand haut/bas intra-barre n'existent pas (ex.
+     CoinGecko, qui ne fournit qu'un prix ponctuel par horodatage, jamais
+     d'OHLC) : le plus haut/bas des CLÔTURES réellement reçues reste une
+     donnée réelle, jamais une estimation — seulement moins précis qu'un
+     vrai haut/bas intra-séance. */
+  const plusHaut = highs.length ? Math.max(...highs) : (closesValides.length ? Math.max(...closesValides) : null);
+  const plusBas = lows.length ? Math.min(...lows) : (closesValides.length ? Math.min(...closesValides) : null);
+  const st = statsPeriode(pts);
 
   return `
     <div class="chart-toolbar">
@@ -3378,10 +3541,14 @@ function chartProShell(stock, period, entry){
       data-hausse="${hausse ? '1' : '0'}"></div>
     <div class="chart-stats">
       <div><span class="tiny">Ouverture</span><b class="tabular-nums">${fmt.num(Number.isFinite(first.open) ? first.open : first.close, 2)}</b></div>
-      <div><span class="tiny">Plus haut</span><b class="tabular-nums">${highs.length ? fmt.num(Math.max(...highs), 2) : '—'}</b></div>
-      <div><span class="tiny">Plus bas</span><b class="tabular-nums">${lows.length ? fmt.num(Math.min(...lows), 2) : '—'}</b></div>
+      <div><span class="tiny">Plus haut</span><b class="tabular-nums">${plusHaut !== null ? fmt.num(plusHaut, 2) : '—'}</b></div>
+      <div><span class="tiny">Plus bas</span><b class="tabular-nums">${plusBas !== null ? fmt.num(plusBas, 2) : '—'}</b></div>
       <div><span class="tiny">Clôture</span><b class="tabular-nums">${fmt.num(last.close, 2)}</b></div>
       ${hasVolume ? `<div><span class="tiny">Volume</span><b class="tabular-nums">${fmt.int(volTotal)}</b></div>` : ''}
+      <div><span class="tiny">Moyenne période</span><b class="tabular-nums">${st.average !== null ? fmt.num(st.average, 2) : '—'}</b></div>
+      ${hasVolume ? `<div><span class="tiny">Volume moyen</span><b class="tabular-nums">${st.avgVolume !== null ? fmt.int(st.avgVolume) : '—'}</b></div>` : ''}
+      <div><span class="tiny">Volatilité période</span><b class="tabular-nums">${st.volatility !== null ? fmt.num(st.volatility, 2) + ' %' : '—'}</b></div>
+      <div><span class="tiny">${entry.kind === 'intraday' ? 'Barres' : 'Séances'} +/−</span><b class="tabular-nums"><span class="up-t">${st.positives}</span> / <span class="down-t">${st.negatives}</span></b></div>
     </div>
     <p class="tiny" style="margin-top:10px;color:var(--ink-4)">${pts.length} ${entry.kind === 'intraday' ? 'barres' : 'séances'} réelles
       · ${entry.kind === 'intraday' ? 'intraday ' + esc(entry.interval || '') : 'quotidien'} · source ${esc(entry.source || '—')}</p>`;
@@ -3529,12 +3696,42 @@ PAGES.watchlist = () => {
 };
 
 /* ---------- PORTEFEUILLE ---------- */
+/* Périodes de la courbe portefeuille — bornées par une durée réelle en
+   millisecondes (pas des "séances" comme pour un titre coté : le
+   portefeuille peut avoir des relevés les week-ends/jours fériés). */
+const PF_PERIODS = ['1J','1S','1M','3M','6M','1A','MAX'];
+const PF_PERIOD_MS = { '1J':86400000, '1S':7*86400000, '1M':30*86400000,
+  '3M':90*86400000, '6M':180*86400000, '1A':365*86400000, MAX:Infinity };
+
+/* Sous-ensemble RÉEL de walletHistory pour la période demandée — jamais un
+   point interpolé/fabriqué. `Infinity` (MAX) renvoie tout l'historique tel
+   quel : s'il commence aujourd'hui, la courbe MAX commence aujourd'hui. */
+function walletHistoryPourPeriode(period){
+  const ms = PF_PERIOD_MS[period] ?? PF_PERIOD_MS['1A'];
+  if (!Number.isFinite(ms)) return state.walletHistory;
+  const cutoff = Date.now() - ms;
+  return state.walletHistory.filter(p => p.t >= cutoff);
+}
+
 PAGES.portfolio = () => {
   const pf = portfolioValue();
   const palette = ['#00a651','#0071e3','#e0407a','#c47f0a','#5b4ae0','#0891b2'];
   const bySector = {}; pf.lines.forEach(l => { if (l.priceAvailable && l.stock) bySector[l.stock.sector] = (bySector[l.stock.sector]||0)+l.value; });
   const byCur = {}; pf.lines.forEach(l => { if (l.priceAvailable && l.stock) byCur[l.cur] = (byCur[l.cur]||0)+l.value; });
   const parts = o => Object.entries(o).sort((a,b)=>b[1]-a[1]).map(([k2,v],i)=>({k:k2,v,c:palette[i%palette.length]}));
+
+  const pfPeriod = PF_PERIODS.includes(state.ui.pfPeriod) ? state.ui.pfPeriod : '1A';
+  const histPts = walletHistoryPourPeriode(pfPeriod);
+  const first = histPts[0], last = histPts[histPts.length - 1];
+  /* Gain/perte et performance AFFICHÉS DANS LE SÉLECTEUR DE PÉRIODE portent
+     sur LA PÉRIODE choisie (comme le graphique de cours d'un titre : voir
+     chartProShell) — first/last DE CETTE PÉRIODE, pas depuis l'ouverture du
+     portefeuille. Le badge du bloc "Valeur totale" ci-dessus, lui, reste le
+     gain latent total depuis l'ouverture (pf.gain), toujours visible quelle
+     que soit la période choisie ci-dessous — deux informations différentes,
+     jamais confondues. */
+  const periodeGain = (first && last) ? last.totalValue - first.totalValue : null;
+  const periodePct = (first && last && first.totalValue) ? (periodeGain / first.totalValue) * 100 : null;
 
   return `<div class="page-in">
     <p class="eyebrow">Simulation</p>
@@ -3546,12 +3743,38 @@ PAGES.portfolio = () => {
       <p class="price" style="font-size:clamp(34px,7vw,52px);margin-top:4px">${fmt.eur(pf.total)}</p>
       <span class="tag ${pf.gain>=0?'tag-up':'tag-down'}" style="margin-top:10px">
         ${trendTxt(pf.gainPct)} · ${fmt.eur(pf.gain)}</span>
+      <p class="tiny" style="margin-top:10px">Gain latent depuis l'ouverture du portefeuille
+        (positions actuellement détenues, hors ventes déjà réalisées).</p>
+      ${pf.realizedPnL ? `<p class="small" style="margin-top:10px">
+        Gain/perte <b>réalisé</b> (positions déjà vendues) :
+        <b class="${pf.realizedPnL>=0?'up-t':'down-t'}">${pf.realizedPnL>=0?'+':''}${fmt.eur(pf.realizedPnL)}</b></p>` : ''}
       ${pf.unresolvedCount ? `<p class="tiny" style="margin-top:10px;color:var(--warn)">
         ${pf.unresolvedCount} position(s) non reconnue(s) n'entrent pas dans ce total.</p>` : ''}
-      <p class="tiny" style="margin-top:18px">Historique du portefeuille en cours de constitution :
-        il faudra enregistrer la valeur réelle de chaque position jour après jour avant de pouvoir
-        tracer une vraie courbe.</p>
     </div>
+
+    <section class="section">
+      <div class="section-h"><h2 class="h2">Évolution</h2>
+        <div class="seg">${PF_PERIODS.map(p=>`<button data-pf-period="${p}"
+          aria-pressed="${pfPeriod===p}">${p}</button>`).join('')}</div>
+      </div>
+      <div class="card" style="margin-top:14px">
+        ${histPts.length >= 2 ? `
+          ${areaChart(histPts.map(p=>p.totalValue), { color: periodeGain>=0 ? 'var(--up)' : 'var(--down)', id:'pf' })}
+          <div class="chart-stats" style="margin-top:14px">
+            <div><span class="tiny">Valeur du portefeuille</span><b class="tabular-nums">${fmt.eur(last.totalValue)}</b></div>
+            <div><span class="tiny">Capital net apporté</span><b class="tabular-nums">${Number.isFinite(last.netDeposits) ? fmt.eur(last.netDeposits) : '—'}</b></div>
+            <div><span class="tiny">Gain/perte (période)</span><b class="tabular-nums ${periodeGain>=0?'up-t':'down-t'}">${periodeGain>=0?'+':''}${fmt.eur(periodeGain)}</b></div>
+            <div><span class="tiny">Performance (période)</span><b class="tabular-nums ${periodePct>=0?'up-t':'down-t'}">${periodePct===null?'—':(periodePct>=0?'+':'')+fmt.num(periodePct,2)+' %'}</b></div>
+          </div>
+          <p class="tiny" style="margin-top:10px;color:var(--ink-4)">${histPts.length} relevé(s) réel(s) sur cette période
+            · premier relevé le ${new Date(state.walletHistory[0].t).toLocaleDateString('fr-FR')}</p>`
+        : `<p class="small" style="padding:16px 0;text-align:center">
+            ${state.walletHistory.length ? `Pas encore assez d'historique réel sur ${pfPeriod} : le portefeuille
+              n'a commencé à être enregistré que le ${new Date(state.walletHistory[0].t).toLocaleDateString('fr-FR')}.`
+            : `L'historique se constitue à partir de maintenant : achetez ou vendez une position, ou revenez
+              plus tard, pour voir apparaître une première courbe.`}</p>`}
+      </div>
+    </section>
 
     <section class="section">
       <h2 class="h2">Positions</h2>
@@ -3569,12 +3792,14 @@ PAGES.portfolio = () => {
               data-stock="${esc(l.stock.id)}">
               ${avatar(l.stock)}
               <span class="row-main"><span class="row-t">${esc(l.stock.name)}</span>
-                <span class="row-s">${fmt.num(l.qty,4)} × ${l.priceAvailable ? fmt.cur(l.localValue/l.qty, l.cur) : 'cours indisponible'}</span></span>
+                <span class="row-s">${fmt.num(l.qty,4)} × PRU ${fmt.cur(l.avg, l.cur)}${l.priceAvailable ? ` → cours ${fmt.cur(l.localValue/l.qty, l.cur)}` : ''}</span>
+                <span class="row-s tabular-nums">Capital investi : ${fmt.eur(l.costBasis)}</span></span>
             </button>
             <span class="row-end">
               ${l.priceAvailable ? `
-                <div class="tabular-nums" style="font-weight:650">${fmt.eur(l.value)}</div>
-                <div class="tabular-nums ${l.gain>=0?'up-t':'down-t'}" style="font-size:13px;margin-top:2px">${trendTxt(l.gainPct)}</div>
+                <div class="tabular-nums" style="font-weight:650">${fmt.eur(l.marketValue)}</div>
+                <div class="tabular-nums ${l.unrealizedPnL>=0?'up-t':'down-t'}" style="font-size:13px;margin-top:2px">
+                  ${l.unrealizedPnL>=0?'+':''}${fmt.eur(l.unrealizedPnL)} · ${trendTxt(l.unrealizedPnLPercent)}</div>
               ` : `<div class="tiny" style="color:var(--ink-4)">cours indisponible</div>`}
             </span>
           </div>`;
@@ -4202,9 +4427,14 @@ async function refreshAccount(){
 
 function setCapital(amount){
   const v = Math.max(100, Math.min(10000000, Math.round(amount)));
-  state.wallet = { cash:v, invested:v, positions:[] };
+  state.wallet = { cash:v, invested:v, positions:[], realizedPnL:0 };
+  /* Un nouveau portefeuille repart d'un historique VIDE, jamais celui d'un
+     portefeuille précédent : la période "MAX" de la courbe recommence
+     honnêtement à cet instant précis (voir snapshotPortfolio). */
+  state.walletHistory = [];
   state.onboarding.capital = v;
   state.onboarding.step = 4;
+  snapshotPortfolio('open');
   flushSaveState();
   renderGate();
   toast(`Portefeuille ouvert avec ${fmt.eur(v)}`);
@@ -4516,6 +4746,10 @@ function render(navigated = false){
   }
   if (route.page === 'radar')   document.getElementById('radarOut').innerHTML = radarResults();
   if (route.page === 'explore') document.getElementById('exploreOut').innerHTML = exploreRows();
+  /* Pose/complète le relevé du jour à chaque visite réelle de la page
+     Portefeuille — jamais un minuteur en tâche de fond (voir
+     assurerRelevéQuotidien). */
+  if (route.page === 'portfolio') assurerRelevéQuotidien();
 
   /* Rafraîchissement vivant — uniquement les instruments réellement
      visibles sur la page courante, jamais tout le catalogue. Une page
@@ -4897,6 +5131,13 @@ document.addEventListener('click', e => {
 
   const md = q('[data-mode]');
   if (md){ state.settings.mode = md.dataset.mode; saveState(); render(); return; }
+
+  /* Sélecteur de période de la courbe Portefeuille — purement local
+     (walletHistoryPourPeriode filtre l'historique déjà en mémoire), jamais
+     de requête réseau : contrairement au graphique d'un titre, aucune
+     donnée supplémentaire à charger à la demande ici. */
+  const pfp = q('[data-pf-period]');
+  if (pfp){ state.ui.pfPeriod = pfp.dataset.pfPeriod; saveState(); render(); return; }
 
   /* Sélecteur de période du graphique professionnel (fiche instrument).
      chargerGraphiquePeriode() ne relance une requête que si cette période
