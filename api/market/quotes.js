@@ -1,4 +1,4 @@
-const { BATCH, HISTORY, KEYS, idDe } = require('./_providers.js');
+const { BATCH, HISTORY, KEYS, idDe, ajusterPenceQuote } = require('./_providers.js');
 const { lire, ecrire, avecVerrou } = require('./_cache.js');
 const { freshnessCotation, FRESHNESS, SOURCE_URL_PROVIDER } = require('./_freshness.js');
 const { chargerBloc, historiqueValide } = require('./_marketBlock.js');
@@ -96,8 +96,12 @@ module.exports = async (req, res) => {
     for (const valeur of demandes) {
       const hit = lire('quote', valeur.ticker, valeur.exchange);
       if (hit) {
+        /* Cache = valeur brute fournisseur (jamais convertie) : le
+           correctif pence/LSE (voir _providers.js) s'applique à CHAQUE
+           lecture, cache ou fraîche, jamais une seule fois à l'écriture —
+           évite tout risque de double conversion. */
         trouve.set(idDe(valeur), {
-          ...hit.valeur, source: hit.source, cached: true,
+          ...ajusterPenceQuote(valeur.ticker, valeur.exchange, hit.valeur), source: hit.source, cached: true,
           /* Fraîcheur recalculée depuis le fournisseur (pure fonction, pas
              besoin de la persister) ; retrievedAt = horodatage RÉEL de la
              récupération d'origine (hit.at), jamais l'instant du cache hit. */
@@ -155,7 +159,7 @@ module.exports = async (req, res) => {
         for (const [id, quote] of map) {
           if (!idsLot.has(id)) continue;
           trouve.set(id, {
-            ...quote, source: nom, cached: false,
+            ...ajusterPenceQuote(quote.ticker, quote.exchange, quote), source: nom, cached: false,
             freshness: freshnessCotation(nom),
             sourceUrl: SOURCE_URL_PROVIDER[nom] || null,
             retrievedAt: new Date(auMoment).toISOString(),
@@ -225,7 +229,7 @@ module.exports = async (req, res) => {
       const change = precedent ? dernier.close - precedent.close : null;
       const changePercent = (precedent && precedent.close) ? (change / precedent.close) * 100 : null;
 
-      trouve.set(idDe(valeur), {
+      trouve.set(idDe(valeur), ajusterPenceQuote(valeur.ticker, valeur.exchange, {
         symbol: idDe(valeur),
         ticker: valeur.ticker,
         exchange: valeur.exchange,
@@ -240,7 +244,7 @@ module.exports = async (req, res) => {
         freshness: FRESHNESS.END_OF_DAY,
         sourceUrl: SOURCE_URL_PROVIDER[h.source] || null,
         retrievedAt: h.retrievedAt || new Date().toISOString(),
-      });
+      }));
       journal.push({ provider: h.source, ok: true, derivedFromHistory: true, ticker: valeur.ticker });
     }
   }

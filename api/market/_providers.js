@@ -291,6 +291,59 @@ const eodhdSymbol = (
 };
 
 /* ============================================================
+   CORRECTIF LSE : COTATION EN PENCE (GBX), PAS EN LIVRES (GBP)
+   ============================================================
+   Bug de correction potentiellement invisible tant qu'aucune action LSE
+   n'était au catalogue : vérifié empiriquement en production (audit
+   d'expansion du catalogue européen) — GET /api/market/quotes pour AZN@L
+   renvoie price=12136, alors que le cours réel d'AstraZeneca est d'environ
+   121,36 GBP. EODHD (et la plupart des fournisseurs) cotent la majorité
+   des actions du London Stock Exchange en pence (GBX = 1/100 GBP), pas en
+   livres. Sans ce correctif, tout prix/variation absolue affiché pour ces
+   valeurs serait 100x trop grand — exactement le type de donnée fausse
+   interdit par le cahier des charges.
+   Liste vérifiée via l'endpoint réel EODHD /exchange-symbol-list/LSE
+   (champ Currency="GBX" par ticker, jamais supposé) : quelques valeurs du
+   LSE font exception et cotent déjà dans une devise "normale" (LLOY en
+   GBP directement, CPG et IHG en USD) — exclues ci-dessous, jamais
+   divisées. changePercent n'est PAS affecté (ratio, la division par 100
+   s'annule au numérateur et au dénominateur) : uniquement les montants
+   absolus (price/change/open/high/low/close/previousClose). */
+const LSE_TICKERS_PENCE = new Set([
+  'AZN', 'SHEL', 'HSBA', 'ULVR', 'BP', 'GSK', 'DGE', 'RIO', 'BATS', 'RKT',
+  'NG', 'VOD', 'BARC', 'NWG', 'PRU', 'TSCO', 'SBRY', 'BT-A', 'RR', 'AAL',
+  'GLEN', 'AV', 'LGEN', 'STAN', 'NXT', 'ABF', 'EXPN', 'REL', 'LSEG', 'SN',
+  'PSON', 'WTB',
+]);
+
+function estCotePenceLSE(ticker, exchange) {
+  return exchange === 'L' && LSE_TICKERS_PENCE.has(String(ticker || '').toUpperCase());
+}
+
+/** Convertit un objet cotation (price/change/...) de pence vers livres. */
+function ajusterPenceQuote(ticker, exchange, quote) {
+  if (!quote || !estCotePenceLSE(ticker, exchange)) return quote;
+  const sortie = { ...quote };
+  for (const champ of ['price', 'change', 'open', 'high', 'low', 'close', 'previousClose']) {
+    if (Number.isFinite(sortie[champ])) sortie[champ] = sortie[champ] / 100;
+  }
+  sortie.currency = 'GBP';
+  return sortie;
+}
+
+/** Même correctif pour une série OHLCV (historique/intraday). */
+function ajusterPenceHistorique(ticker, exchange, points) {
+  if (!Array.isArray(points) || !estCotePenceLSE(ticker, exchange)) return points;
+  return points.map((p) => {
+    const q = { ...p };
+    for (const champ of ['open', 'high', 'low', 'close', 'adjClose']) {
+      if (Number.isFinite(q[champ])) q[champ] = q[champ] / 100;
+    }
+    return q;
+  });
+}
+
+/* ============================================================
    SYMBOLES EODHD — CRYPTO / FOREX (audit multi-actifs)
    ============================================================
    Root cause confirmée en production (voir rapport) : les cotations
@@ -3392,6 +3445,10 @@ module.exports = {
 
   SUFFIX,
   TD_EXCHANGE,
+  LSE_TICKERS_PENCE,
+  estCotePenceLSE,
+  ajusterPenceQuote,
+  ajusterPenceHistorique,
 
   normaliserHistorique,
   normaliserIntraday,

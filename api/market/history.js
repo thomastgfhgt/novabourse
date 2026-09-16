@@ -30,7 +30,7 @@
  *   - intraday jamais reconstruit à partir de clôtures quotidiennes.
  */
 
-const { HISTORY, INTRADAY, INTRADAY_MINUTES, KEYS } = require('./_providers.js');
+const { HISTORY, INTRADAY, INTRADAY_MINUTES, KEYS, ajusterPenceHistorique } = require('./_providers.js');
 const { chargerBloc, historiqueValide } = require('./_marketBlock.js');
 const { normaliserTicker, normaliserExchange } = require('./company.js');
 const { resolveOrdre, noterResultat } = require('./_router.js');
@@ -117,11 +117,15 @@ module.exports = async (req, res) => {
     });
     noterResultat('history', ticker, exchange, type, h.source);
 
-    const aHistory = historiqueValide(h.data);
+    /* Correctif pence/LSE (voir _providers.js) : h.data reste la valeur
+       brute mise en cache par chargerBloc, jamais convertie avant écriture
+       — la conversion s'applique ici, à chaque lecture. */
+    const donnees = ajusterPenceHistorique(ticker, exchange, h.data);
+    const aHistory = historiqueValide(donnees);
 
     let history = null;
     if (aHistory) {
-      const ohlcv = h.data.slice(-MAX_HISTORY_POINTS);
+      const ohlcv = donnees.slice(-MAX_HISTORY_POINTS);
       history = { points: ohlcv.length, availablePoints: h.data.length, ohlcv };
     }
 
@@ -172,14 +176,15 @@ module.exports = async (req, res) => {
     });
     noterResultat('intraday', ticker, exchange, type, h.source);
 
-    const disponible = historiqueValide(h.data);
+    const donneesIntraday = ajusterPenceHistorique(ticker, exchange, h.data);
+    const disponible = historiqueValide(donneesIntraday);
 
     let history = null;
     if (disponible) {
-      const ohlcv = h.data.length > MAX_INTRADAY_POINTS
-        ? h.data.slice(-MAX_INTRADAY_POINTS)
-        : h.data;
-      history = { points: ohlcv.length, availablePoints: h.data.length, ohlcv };
+      const ohlcv = donneesIntraday.length > MAX_INTRADAY_POINTS
+        ? donneesIntraday.slice(-MAX_INTRADAY_POINTS)
+        : donneesIntraday;
+      history = { points: ohlcv.length, availablePoints: donneesIntraday.length, ohlcv };
     }
 
     return res.status(200).json({
@@ -216,11 +221,12 @@ module.exports = async (req, res) => {
   });
   noterResultat('history', ticker, exchange, type, h.source);
 
-  const disponible = historiqueValide(h.data);
+  const donneesPeriode = ajusterPenceHistorique(ticker, exchange, h.data);
+  const disponible = historiqueValide(donneesPeriode);
 
   let history = null;
   if (disponible) {
-    history = { points: h.data.length, availablePoints: h.data.length, ohlcv: h.data };
+    history = { points: donneesPeriode.length, availablePoints: donneesPeriode.length, ohlcv: donneesPeriode };
   }
 
   return res.status(200).json({

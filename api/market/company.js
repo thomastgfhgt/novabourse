@@ -25,6 +25,8 @@ const {
   FUNDAMENTALS,
   HISTORY,
   KEYS,
+  ajusterPenceQuote,
+  ajusterPenceHistorique,
 } = require('./_providers.js');
 
 const { chargerBloc, historiqueValide } = require('./_marketBlock.js');
@@ -119,16 +121,22 @@ module.exports = async (req, res) => {
   noterResultat('fundamentals', ticker, exchange, 'stock', f.source);
   noterResultat('history', ticker, exchange, type, h.source);
 
-  const aMarket = quoteValide(q.data);
+  /* Correctif pence/LSE (voir _providers.js) : q.data/h.data restent les
+     valeurs brutes mises en cache par chargerBloc, jamais converties avant
+     écriture — la conversion s'applique ici, à chaque lecture. */
+  const qData = ajusterPenceQuote(ticker, exchange, q.data);
+  const hData = ajusterPenceHistorique(ticker, exchange, h.data);
+
+  const aMarket = quoteValide(qData);
   const aFundamentals = fondamentauxValides(f.data);
-  const aHistory = historiqueValide(h.data);
+  const aHistory = historiqueValide(hData);
 
   const identity = {
     name: f.data?.identity?.name || null,
     ticker,
     exchange: f.data?.identity?.exchange || exchange,
     country: f.data?.identity?.country || null,
-    currency: f.data?.identity?.currency || q.data?.currency || null,
+    currency: f.data?.identity?.currency || qData?.currency || null,
     sector: f.data?.identity?.sector || null,
     industry: f.data?.identity?.industry || null,
     /* Déjà présent dans la réponse fondamentaux EODHD (aucun coût
@@ -138,16 +146,16 @@ module.exports = async (req, res) => {
   };
 
   const market = aMarket ? {
-    price: q.data.price,
-    change: q.data.change ?? null,
-    changePercent: q.data.changePercent ?? null,
-    previousClose: q.data.previousClose ?? null,
-    open: q.data.open ?? null,
-    high: q.data.high ?? null,
-    low: q.data.low ?? null,
-    volume: q.data.volume ?? null,
+    price: qData.price,
+    change: qData.change ?? null,
+    changePercent: qData.changePercent ?? null,
+    previousClose: qData.previousClose ?? null,
+    open: qData.open ?? null,
+    high: qData.high ?? null,
+    low: qData.low ?? null,
+    volume: qData.volume ?? null,
     marketCap: f.data?.fundamentals?.marketCap ?? null,
-    timestamp: q.data.timestamp ?? null,
+    timestamp: qData.timestamp ?? null,
     /* Jamais LIVE par défaut : voir api/market/_freshness.js pour la
        justification (EODHD confirme un délai documenté de 15-20 min ;
        Twelve Data/Finnhub non garantis génériquement temps réel). */
@@ -156,8 +164,8 @@ module.exports = async (req, res) => {
 
   let history = null;
   if (aHistory) {
-    const ohlcv = h.data.slice(-MAX_HISTORY_POINTS);
-    history = { points: ohlcv.length, availablePoints: h.data.length, ohlcv };
+    const ohlcv = hData.slice(-MAX_HISTORY_POINTS);
+    history = { points: ohlcv.length, availablePoints: hData.length, ohlcv };
   }
 
   const complete = Boolean(market && aFundamentals && history);
@@ -177,7 +185,7 @@ module.exports = async (req, res) => {
       history: aHistory ? h.source : null,
     },
     asOf: {
-      quote: aMarket ? (q.data?.timestamp || null) : null,
+      quote: aMarket ? (qData?.timestamp || null) : null,
       fundamentals: aFundamentals ? (f.data?.asOf || null) : null,
     },
     /* Ajout additif (voir api/market/_freshness.js) : ne remplace ni
