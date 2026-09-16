@@ -73,25 +73,48 @@ module.exports = async (req, res) => {
 
   const exchange = normaliserExchange(req.query?.exchange);
   const frais = req.query?.fresh === '1';
+  /* Ajouté lors du correctif routage multi-actifs : QUOTE/HISTORY
+     attendent désormais `type` en 3e/4e position (voir _providers.js,
+     eodhdSymbolPourType) — sans ce paramètre, `key` se retrouverait décalé
+     dans le slot `type` et casserait TOUTE cotation/historique, y compris
+     pour les actions. 'stock' par défaut : comportement inchangé pour tous
+     les appels existants qui n'envoient pas `type`. */
+  const type = String(req.query?.type || 'stock').toLowerCase();
 
   const keys = KEYS();
-  if (!keys.eodhd && !keys.twelvedata && !keys.finnhub) {
+  /* `keys.coingecko` inclus : voir history.js pour la même garde — un
+     déploiement sans clé payante peut tout de même servir crypto via
+     CoinGecko seul. */
+  if (!keys.eodhd && !keys.twelvedata && !keys.finnhub && !keys.coingecko) {
     return res.status(503).json({ error: 'aucun_fournisseur_configure' });
   }
 
   const journal = [];
+
+  /* CoinGecko (gratuit, sans clé) en tête pour crypto — préserve le quota
+     payant, cf. history.js/ordreHistoriquePourType pour le même principe.
+     Les fonctions QUOTE.eodhd/HISTORY.eodhd et QUOTE.finnhub se
+     désactivent déjà elles-mêmes pour les types qu'elles ne savent pas
+     traiter (eodhdSymbolPourType/finnhubAutorise) : les inclure sans
+     condition ici ne déclenche donc jamais un appel réseau invalide. */
+  const ordreQuote = type === 'crypto'
+    ? ['coingecko', 'twelvedata', 'eodhd']
+    : ['twelvedata', 'eodhd', 'finnhub'];
+  const ordreHistory = type === 'crypto'
+    ? ['coingecko', 'eodhd', 'twelvedata']
+    : ['eodhd', 'twelvedata'];
 
   /* Remplace l'ancienne closure locale `bloc()` par le module partagé
      _marketBlock.js — comportement strictement identique (même lecture
      cache, même cascade, même écriture cache, même journal), juste
      factorisé pour être réutilisable par history.js et fundamentals.js. */
   const [q, f, h] = await Promise.all([
-    chargerBloc({ nom:'quote', table:QUOTE, ordre:['twelvedata', 'eodhd', 'finnhub'],
-      args:[ticker, exchange], ticker, exchange, frais, journal }),
+    chargerBloc({ nom:'quote', table:QUOTE, ordre:ordreQuote,
+      args:[ticker, exchange, type], ticker, exchange, frais, journal }),
     chargerBloc({ nom:'fundamentals', table:FUNDAMENTALS, ordre:['eodhd', 'finnhub'],
       args:[ticker, exchange], ticker, exchange, frais, journal }),
-    chargerBloc({ nom:'history', table:HISTORY, ordre:['eodhd', 'twelvedata'],
-      args:[ticker, exchange, 400], ticker, exchange, frais, journal }),
+    chargerBloc({ nom:'history', table:HISTORY, ordre:ordreHistory,
+      args:[ticker, exchange, 400, type], ticker, exchange, frais, journal }),
   ]);
 
   const aMarket = quoteValide(q.data);
@@ -123,6 +146,10 @@ module.exports = async (req, res) => {
     volume: q.data.volume ?? null,
     marketCap: f.data?.fundamentals?.marketCap ?? null,
     timestamp: q.data.timestamp ?? null,
+    /* Jamais LIVE par défaut : voir api/market/_freshness.js pour la
+       justification (EODHD confirme un délai documenté de 15-20 min ;
+       Twelve Data/Finnhub non garantis génériquement temps réel). */
+    freshness: q.freshness ?? null,
   } : null;
 
   let history = null;
@@ -150,6 +177,21 @@ module.exports = async (req, res) => {
     asOf: {
       quote: aMarket ? (q.data?.timestamp || null) : null,
       fundamentals: aFundamentals ? (f.data?.asOf || null) : null,
+    },
+    /* Ajout additif (voir api/market/_freshness.js) : ne remplace ni
+       `sources` ni `asOf` ci-dessus, pour ne rien casser chez un
+       consommateur existant (frontend, api/analyze.js). `provenance`
+       donne la traçabilité complète demandée (source, sourceUrl,
+       retrievedAt) par bloc ; `freshness` la résume pour un accès rapide. */
+    freshness: {
+      quote: aMarket ? q.freshness : null,
+      fundamentals: aFundamentals ? f.freshness : null,
+      history: aHistory ? h.freshness : null,
+    },
+    provenance: {
+      quote: aMarket ? { source: q.source, sourceUrl: q.sourceUrl, retrievedAt: q.retrievedAt } : null,
+      fundamentals: aFundamentals ? { source: f.source, sourceUrl: f.sourceUrl, retrievedAt: f.retrievedAt } : null,
+      history: aHistory ? { source: h.source, sourceUrl: h.sourceUrl, retrievedAt: h.retrievedAt } : null,
     },
     complete,
     missing,

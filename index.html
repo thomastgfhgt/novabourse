@@ -43,6 +43,15 @@
   --space-2:8px;  --space-3:12px; --space-4:16px; --space-5:24px;
   --space-6:32px; --space-7:48px; --space-8:64px; --space-9:96px;
   --sp-1:8px; --sp-2:16px; --sp-3:24px; --sp-4:32px; --sp-5:48px; --sp-6:80px;
+  /* CORRECTIF dock mobile (confirmé sur Safari iPhone réel, pas seulement en
+     test automatisé) : --dock-h = hauteur réelle du dock flottant (padding
+     7px haut+bas + bouton 8px/22px icône/3px gap/~13px texte/7px ≈ 67px,
+     arrondi par prudence) ; --dock-gap = son décalage du bas de l'écran
+     (bottom:14px dans .dock, hors safe-area). Utilisées ensemble avec
+     env(safe-area-inset-bottom) — jamais une valeur fixe devinée — pour que
+     le padding-bottom du contenu s'adapte à la VRAIE zone sûre de l'appareil
+     (elle varie selon le modèle d'iPhone/Android et l'orientation). */
+  --dock-h:68px; --dock-gap:14px;
   --space-xs:8px; --space-sm:16px; --space-md:24px; --space-lg:32px;
   --t-display:clamp(38px,7vw,60px);
   --t-title:clamp(26px,4vw,36px);
@@ -767,7 +776,15 @@ table.t th{text-align:left;font-size:12px;font-weight:600;color:var(--ink-4);pad
 table.t td{padding:13px 10px 13px 0;border-bottom:1px solid var(--line-2);font-size:14.5px}
 table.t td:last-child,table.t th:last-child{text-align:right;padding-right:0}
 @media (max-width:900px){
-  .wrap{padding:var(--sp-3) 18px calc(var(--sp-6) + 46px)}
+  /* CORRECTIF dock mobile : ancienne valeur fixe (calc(80px+46px)=126px)
+     ne tenait pas compte de env(safe-area-inset-bottom), qui varie selon
+     l'appareil (ex. ~34px sur iPhone avec Face ID en portrait, différent
+     en paysage ou sur d'autres modèles) — confirmé en constatant du
+     contenu masqué derrière le dock sur un vrai iPhone Safari, pas
+     seulement en supposition. Formule explicite : hauteur du dock +
+     son décalage du bas + la VRAIE zone sûre de l'appareil + une marge
+     de confort, plutôt qu'un nombre deviné. */
+  .wrap{padding:var(--sp-3) 18px calc(var(--dock-h) + var(--dock-gap) + env(safe-area-inset-bottom, 0px) + 28px)}
   .section{margin-top:64px}
   .hero{padding:var(--sp-4) 0 var(--sp-3)}
 }
@@ -913,8 +930,22 @@ const DEFAULT_STATE = {
   wallet:{
     cash:15480,
     invested:110000,
-    positions:[]
+    positions:[],
+    /* Somme cumulée des gains/pertes RÉALISÉS (positions vendues), en euros.
+       Jamais recalculée depuis l'historique des positions (qui ne garde pas
+       trace d'une position déjà entièrement vendue) : alimentée uniquement
+       par sellStock() au moment de chaque vente, sur la méthode du coût
+       moyen pondéré (pos.avg). */
+    realizedPnL:0
   },
+
+  /* Historique RÉEL du portefeuille : un point par événement (achat, vente,
+     ouverture) plus au plus un point par jour (snapshot quotidien, voir
+     snapshotPortfolio()). Jamais de passé reconstitué : si le portefeuille
+     est ouvert aujourd'hui, cette liste commence aujourd'hui — la période
+     "MAX" du graphique portefeuille reflète alors exactement ce fait,
+     jamais une courbe antidatée. */
+  walletHistory:[],
 
   /* Métadonnées (jamais de prix/score/fondamentaux) des sociétés créées à la
      volée par /api/market/search, pour pouvoir les rematérialiser via
@@ -970,6 +1001,7 @@ const DEFAULT_STATE = {
     exploreQ:'',
     exploreSector:'tous',
     exploreCountry:'tous',
+    exploreVisibles:20,
     marketsCategory:'tous',
     marketsRegion:'Monde',
     marketsVisibles:20,
@@ -1008,7 +1040,9 @@ function loadState(){
           cash: Number.isFinite(saved.wallet?.cash) ? saved.wallet.cash : DEFAULT_STATE.wallet.cash,
           invested: Number.isFinite(saved.wallet?.invested) ? saved.wallet.invested : DEFAULT_STATE.wallet.invested,
           positions: Array.isArray(saved.wallet?.positions) ? saved.wallet.positions : DEFAULT_STATE.wallet.positions,
+          realizedPnL: Number.isFinite(saved.wallet?.realizedPnL) ? saved.wallet.realizedPnL : DEFAULT_STATE.wallet.realizedPnL,
         },
+        walletHistory: Array.isArray(saved.walletHistory) ? saved.walletHistory : DEFAULT_STATE.walletHistory,
         runtimeCatalog: (saved.runtimeCatalog && typeof saved.runtimeCatalog === 'object' && !Array.isArray(saved.runtimeCatalog))
           ? saved.runtimeCatalog : {},
         onboarding:{ ...DEFAULT_STATE.onboarding, ...(saved.onboarding || {}) },
@@ -1032,6 +1066,7 @@ function loadState(){
   };
 
   if (!Array.isArray(merged.wallet.positions)) merged.wallet.positions = [];
+  if (!Array.isArray(merged.walletHistory)) merged.walletHistory = [];
 
   return merged;
 }
@@ -1058,6 +1093,10 @@ function writeStateNow(){
          rechargement. Aucune valeur de marché n'est stockée ici, ni la
          session (voir auth, jamais sauvegardé). */
       wallet:state.wallet,
+      /* Historique réel du portefeuille (voir snapshotPortfolio()) : même
+         raisonnement que wallet ci-dessus — état utilisateur, pas donnée de
+         marché, légitime à conserver localement. */
+      walletHistory:state.walletHistory,
     }));
   } catch {}
 }
@@ -1089,25 +1128,75 @@ const state = loadState();
    n'existent que lorsqu'ils proviennent réellement de QUOTES / HIST / d'un
    dossier company chargé depuis le backend. Une fiche sans ces données
    affichera « indisponible », jamais une valeur inventée. */
-const SECTORS = ['Technologie','Finance','Santé','Industrie','Énergie','Consommation','Automobile','Luxe','Télécommunications'];
+/* 'Matériaux'/'Immobilier'/'Services publics' ajoutés pour accueillir les
+   secteurs GICS du catalogue mondial (voir SECTEUR_CATALOGUE plus bas) qui
+   n'avaient pas d'équivalent dans la liste d'origine (calibrée sur les ~10
+   sociétés codées en dur). Aucune donnée : uniquement 3 nouvelles étiquettes
+   de filtre. */
+const SECTORS = ['Technologie','Finance','Santé','Industrie','Énergie','Consommation','Automobile','Luxe','Télécommunications','Matériaux','Immobilier','Services publics'];
+
+/* Traduction des secteurs GICS bruts du catalogue mondial (colonne
+   stock_sector de free-ticker-database, en anglais) vers les libellés
+   français déjà utilisés par Explorer. Traduction déterministe d'une
+   taxonomie connue, pas une donnée inventée. Un secteur absent de cette
+   table (rare, dataset non exhaustif) redevient simplement null ->
+   'Non classé' via BLANK_FIELDS()/ensureRuntimeStock, comme aujourd'hui
+   pour toute société sans secteur connu. */
+const SECTEUR_CATALOGUE = {
+  'Information Technology': 'Technologie',
+  'Financials': 'Finance',
+  'Health Care': 'Santé',
+  'Industrials': 'Industrie',
+  'Energy': 'Énergie',
+  'Consumer Discretionary': 'Consommation',
+  'Consumer Staples': 'Consommation',
+  'Communication Services': 'Télécommunications',
+  'Materials': 'Matériaux',
+  'Real Estate': 'Immobilier',
+  'Utilities': 'Services publics',
+};
+
+/* Libellés de fraîcheur (voir api/market/_freshness.js) : affichés tels
+   quels dès qu'une cotation a une valeur `freshness` connue. UNKNOWN a
+   volontairement SON PROPRE libellé (pas de repli silencieux) : c'est une
+   valeur explicite du backend, distincte d'une cotation pas encore
+   chargée (où `freshness` est simplement absent et n'affiche donc rien). */
+const FRESHNESS_LABEL = {
+  LIVE: 'Temps réel',
+  DELAYED: 'Différé',
+  END_OF_DAY: 'Clôture',
+  HISTORICAL: 'Historique',
+  UNKNOWN: 'Fraîcheur inconnue',
+};
 
 /* --------------------------------------------------------------------
    MARCHÉS — catégories et zones géographiques réellement fonctionnelles.
    Seules les catégories pour lesquelles un provider a été vérifié
-   fonctionnel (voir search.js/_providers.js) apparaissent ici. Aucune
-   catégorie vide/non testée n'est listée — conformément à la consigne :
-   "une catégorie devient visible uniquement lorsque nous disposons d'un
-   provider réellement fonctionnel pour cette catégorie". Indices, ETF,
-   matières premières, obligations, fonds, futures, options ne sont PAS
-   dans cette liste : aucun n'a été vérifié à ce jour (voir le rapport de
-   cette passe). Ajouter une entrée ici quand (et seulement quand) un
-   provider aura été testé et confirmé pour cette catégorie. */
+   fonctionnel apparaissent ici. Aucune catégorie vide/non testée n'est
+   listée — conformément à la consigne : "une catégorie devient visible
+   uniquement lorsque nous disposons d'un provider réellement fonctionnel
+   pour cette catégorie".
+
+   'index'/'commodity' AJOUTÉS à cette passe : symboles vérifiés
+   empiriquement via l'API publique de référence Twelve Data, sans clé
+   (https://api.twelvedata.com/indices et /commodities — réponses réelles
+   inspectées, pas une supposition), voir les entrées correspondantes dans
+   `stocks` ci-dessous pour le détail par instrument.
+
+   Obligations, fonds, futures, options ne sont TOUJOURS PAS dans cette
+   liste : aucune convention de symbole n'a pu être vérifiée sans clé API
+   payante (EODHD documente des exchanges virtuels GBOND/EUFUND mais sans
+   exemple de ticker consultable publiquement — voir le rapport de cette
+   passe). Ajouter une entrée ici quand (et seulement quand) un provider
+   aura été testé et confirmé pour cette catégorie. */
 const MARKET_CATEGORIES = [
-  { id:'tous',   label:'Tous' },
-  { id:'stock',  label:'Actions' },
-  { id:'etf',    label:'ETF' },
-  { id:'forex',  label:'Devises' },
-  { id:'crypto', label:'Crypto' },
+  { id:'tous',      label:'Tous' },
+  { id:'stock',     label:'Actions' },
+  { id:'etf',       label:'ETF' },
+  { id:'forex',     label:'Devises' },
+  { id:'crypto',    label:'Crypto' },
+  { id:'index',     label:'Indices' },
+  { id:'commodity', label:'Matières premières' },
 ];
 
 /* Zone géographique déduite du pays — uniquement pertinent pour les
@@ -1119,6 +1208,25 @@ const REGION_OF_COUNTRY = {
   'France': 'France',
   'Allemagne': 'Europe',
   'États-Unis': 'Amériques',
+  /* Le catalogue mondial (voir /api/market/catalog) fournit `country` en
+     anglais, tel que reçu du dataset source — jamais traduit (aucune
+     raison de modifier une donnée réelle). Ajouts limités aux pays des
+     places déjà couvertes par le crosswalk fournisseur (voir
+     api/market/_exchangeCrosswalk.js) : un pays absent d'ici reste
+     honnêtement classé "Monde", jamais deviné. */
+  'United States': 'Amériques',
+  'Germany': 'Europe',
+  'Netherlands': 'Europe',
+  'Belgium': 'Europe',
+  'Portugal': 'Europe',
+  'Switzerland': 'Europe',
+  'United Kingdom': 'Europe',
+  'Spain': 'Europe',
+  'Italy': 'Europe',
+  'Sweden': 'Europe',
+  'Denmark': 'Europe',
+  'Finland': 'Europe',
+  'Norway': 'Europe',
 };
 const REGIONS = ['Monde','France','Europe','Amériques','Asie/Pacifique','Moyen-Orient','Afrique'];
 
@@ -1254,6 +1362,88 @@ const stocks = [
   { id:'LQD-NYA', name:'iShares iBoxx Investment Grade Corporate Bond ETF', ticker:'LQD', market:'NYSE Arca', exchangeCode:'NYSE ARCA', sector:null, country:'États-Unis', cur:'USD', curSymbol:'$', ...BLANK_FIELDS(), type:'etf' },
   { id:'AGG-NYA', name:'iShares Core U.S. Aggregate Bond ETF', ticker:'AGG', market:'NYSE Arca', exchangeCode:'NYSE ARCA', sector:null, country:'États-Unis', cur:'USD', curSymbol:'$', ...BLANK_FIELDS(), type:'etf' },
   { id:'ARKK-NYA', name:'ARK Innovation ETF', ticker:'ARKK', market:'NYSE Arca', exchangeCode:'NYSE ARCA', sector:null, country:'États-Unis', cur:'USD', curSymbol:'$', ...BLANK_FIELDS(), type:'etf' },
+
+  /* --------------------------------------------------------------------
+     INDICES — ajoutés à cette passe. AUCUN symbole deviné : chaque ticker
+     ci-dessous a été vérifié en interrogeant EN DIRECT l'API PUBLIQUE de
+     référence de Twelve Data (https://api.twelvedata.com/indices, sans
+     clé — réponse JSON réelle inspectée, pas une supposition ni une
+     convention "connue" non vérifiée). `exchangeCode` reste VOLONTAIREMENT
+     vide : le `symbol` Twelve Data (ex. "N225") s'utilise seul, sans
+     suffixe de place — ajouter un suffixe non vérifié (ex. ":JPX") aurait
+     été un risque non justifié. `market` indique la place réelle listée
+     par Twelve Data, à titre d'affichage seulement.
+     EODHD n'a AUCUNE convention documentée publiquement pour les indices
+     (vérifié : leur documentation ne mentionne aucun exchange virtuel
+     dédié) — voir TYPES_SANS_SUFFIXE_EODHD dans api/market/history.js,
+     qui retire EODHD de la cascade pour ce type, comme pour forex/crypto.
+     Indices US majeurs (S&P 500, Dow Jones, Nasdaq) volontairement ABSENTS :
+     non présents dans cette liste de référence publique sans clé API
+     (voir le rapport de cette passe — à revérifier avec un accès complet). */
+  { id:'GDAXI', name:'DAX Performance-Index', ticker:'GDAXI', market:'XETR', exchangeCode:'', sector:null, country:'Allemagne', cur:'EUR', curSymbol:'€', ...BLANK_FIELDS(), type:'index' },
+  { id:'FCHI', name:'CAC 40', ticker:'FCHI', market:'Euronext', exchangeCode:'', sector:null, country:'France', cur:'EUR', curSymbol:'€', ...BLANK_FIELDS(), type:'index' },
+  { id:'FTSE', name:'FTSE 100', ticker:'FTSE', market:'LSE', exchangeCode:'', sector:null, country:'Royaume-Uni', cur:'GBP', curSymbol:'£', ...BLANK_FIELDS(), type:'index' },
+  { id:'FTSEMIB', name:'FTSE MIB', ticker:'FTSEMIB', market:'MTA', exchangeCode:'', sector:null, country:'Italie', cur:'EUR', curSymbol:'€', ...BLANK_FIELDS(), type:'index' },
+  { id:'AEX', name:'AEX Index', ticker:'AEX', market:'Euronext', exchangeCode:'', sector:null, country:'Pays-Bas', cur:'EUR', curSymbol:'€', ...BLANK_FIELDS(), type:'index' },
+  { id:'PSI20', name:'PSI 20', ticker:'PSI20', market:'Euronext', exchangeCode:'', sector:null, country:'Portugal', cur:'EUR', curSymbol:'€', ...BLANK_FIELDS(), type:'index' },
+  { id:'ATX', name:'Austrian Traded Index', ticker:'ATX', market:'VSE', exchangeCode:'', sector:null, country:'Autriche', cur:'EUR', curSymbol:'€', ...BLANK_FIELDS(), type:'index' },
+  { id:'OMX', name:'OMX Stockholm 30', ticker:'OMX', market:'OMX', exchangeCode:'', sector:null, country:'Suède', cur:'SEK', curSymbol:'kr', ...BLANK_FIELDS(), type:'index' },
+  /* country ajusté par rapport au champ brut Twelve Data ("Sweden" pour ces
+     deux entrées, artefact de leur regroupement des indices OMX Nordiques
+     sous une même entité) : Copenhagen 25/Helsinki 25 sont géographiquement
+     danois/finlandais — fait déterministe, pas une donnée de marché. */
+  { id:'OMXC25', name:'OMX Copenhagen 25', ticker:'OMXC25', market:'OMX', exchangeCode:'', sector:null, country:'Danemark', cur:'DKK', curSymbol:'kr', ...BLANK_FIELDS(), type:'index' },
+  { id:'OMXH25', name:'OMX Helsinki 25', ticker:'OMXH25', market:'OMX', exchangeCode:'', sector:null, country:'Finlande', cur:'EUR', curSymbol:'€', ...BLANK_FIELDS(), type:'index' },
+  { id:'OSEBX', name:'Oslo Børs Benchmark Index', ticker:'OSEBX', market:'OSE', exchangeCode:'', sector:null, country:'Norvège', cur:'NOK', curSymbol:'kr', ...BLANK_FIELDS(), type:'index' },
+  { id:'XU100', name:'Borsa Istanbul 100', ticker:'XU100', market:'BIST', exchangeCode:'', sector:null, country:'Turquie', cur:'TRY', curSymbol:'₺', ...BLANK_FIELDS(), type:'index' },
+  { id:'AXJO', name:'S&P/ASX 200', ticker:'AXJO', market:'ASX', exchangeCode:'', sector:null, country:'Australie', cur:'AUD', curSymbol:'$', ...BLANK_FIELDS(), type:'index' },
+  { id:'GSPTSE', name:'S&P/TSX Composite', ticker:'GSPTSE', market:'TSX', exchangeCode:'', sector:null, country:'Canada', cur:'CAD', curSymbol:'$', ...BLANK_FIELDS(), type:'index' },
+  { id:'N225', name:'Nikkei 225', ticker:'N225', market:'JPX', exchangeCode:'', sector:null, country:'Japon', cur:'JPY', curSymbol:'¥', ...BLANK_FIELDS(), type:'index' },
+  { id:'HSI', name:'Hang Seng Index', ticker:'HSI', market:'HKEX', exchangeCode:'', sector:null, country:'Hong Kong', cur:'HKD', curSymbol:'HK$', ...BLANK_FIELDS(), type:'index' },
+  { id:'IBEX', name:'IBEX 35', ticker:'IBEX', market:'BME', exchangeCode:'', sector:null, country:'Espagne', cur:'EUR', curSymbol:'€', ...BLANK_FIELDS(), type:'index' },
+  { id:'BVSP', name:'Bovespa', ticker:'BVSP', market:'B3', exchangeCode:'', sector:null, country:'Brésil', cur:'BRL', curSymbol:'R$', ...BLANK_FIELDS(), type:'index' },
+  { id:'BSESN', name:'S&P BSE Sensex', ticker:'BSESN', market:'BSE', exchangeCode:'', sector:null, country:'Inde', cur:'INR', curSymbol:'₹', ...BLANK_FIELDS(), type:'index' },
+  { id:'KOSPI', name:'KOSPI Index', ticker:'KOSPI', market:'KRX', exchangeCode:'', sector:null, country:'Corée du Sud', cur:'KRW', curSymbol:'₩', ...BLANK_FIELDS(), type:'index' },
+  { id:'STI', name:'Straits Times Index', ticker:'STI', market:'SGX', exchangeCode:'', sector:null, country:'Singapour', cur:'SGD', curSymbol:'$', ...BLANK_FIELDS(), type:'index' },
+  { id:'RTSI', name:'RTS Index', ticker:'RTSI', market:'MOEX', exchangeCode:'', sector:null, country:'Russie', cur:'USD', curSymbol:'$', ...BLANK_FIELDS(), type:'index' },
+  { id:'JKSE', name:'Jakarta Composite Index', ticker:'JKSE', market:'IDX', exchangeCode:'', sector:null, country:'Indonésie', cur:'IDR', curSymbol:'Rp', ...BLANK_FIELDS(), type:'index' },
+  { id:'KLSE', name:'FTSE Bursa Malaysia KLCI', ticker:'KLSE', market:'MYX', exchangeCode:'', sector:null, country:'Malaisie', cur:'MYR', curSymbol:'RM', ...BLANK_FIELDS(), type:'index' },
+  { id:'MXX', name:'IPC Mexico', ticker:'MXX', market:'BMV', exchangeCode:'', sector:null, country:'Mexique', cur:'MXN', curSymbol:'$', ...BLANK_FIELDS(), type:'index' },
+  { id:'TA35', name:'TA-35 Index', ticker:'TA35', market:'TASE', exchangeCode:'', sector:null, country:'Israël', cur:'ILS', curSymbol:'₪', ...BLANK_FIELDS(), type:'index' },
+  { id:'JTOPI', name:'FTSE/JSE Top 40', ticker:'JTOPI', market:'JSE', exchangeCode:'', sector:null, country:'Afrique du Sud', cur:'ZAR', curSymbol:'R', ...BLANK_FIELDS(), type:'index' },
+
+  /* --------------------------------------------------------------------
+     MATIÈRES PREMIÈRES — mêmes garanties que les indices ci-dessus :
+     chaque symbole vérifié en direct via l'API publique de référence
+     Twelve Data (https://api.twelvedata.com/commodities, sans clé).
+     Format confirmé : paire "MÉTAL/DEVISE" avec "/" (identique au forex,
+     déjà supporté sans modification par _providers.js), à l'exception de
+     HG1 (cuivre), symbole direct sans paire — vérifié tel quel dans la
+     réponse réelle de l'API, pas une extrapolation depuis le format XAU/XAG. */
+  { id:'XAU/USD', name:'Or (Gold Spot)', ticker:'XAU/USD', market:'Commodity', exchangeCode:'', sector:null, country:null, cur:'USD', curSymbol:'$', ...BLANK_FIELDS(), type:'commodity' },
+  { id:'XAU/EUR', name:'Or / Euro', ticker:'XAU/EUR', market:'Commodity', exchangeCode:'', sector:null, country:null, cur:'EUR', curSymbol:'€', ...BLANK_FIELDS(), type:'commodity' },
+  { id:'XAU/GBP', name:'Or / Livre sterling', ticker:'XAU/GBP', market:'Commodity', exchangeCode:'', sector:null, country:null, cur:'GBP', curSymbol:'£', ...BLANK_FIELDS(), type:'commodity' },
+  { id:'XAU/CHF', name:'Or / Franc suisse', ticker:'XAU/CHF', market:'Commodity', exchangeCode:'', sector:null, country:null, cur:'CHF', curSymbol:'CHF', ...BLANK_FIELDS(), type:'commodity' },
+  { id:'XAU/JPY', name:'Or / Yen japonais', ticker:'XAU/JPY', market:'Commodity', exchangeCode:'', sector:null, country:null, cur:'JPY', curSymbol:'¥', ...BLANK_FIELDS(), type:'commodity' },
+  { id:'XAU/AUD', name:'Or / Dollar australien', ticker:'XAU/AUD', market:'Commodity', exchangeCode:'', sector:null, country:null, cur:'AUD', curSymbol:'$', ...BLANK_FIELDS(), type:'commodity' },
+  { id:'XAU/CAD', name:'Or / Dollar canadien', ticker:'XAU/CAD', market:'Commodity', exchangeCode:'', sector:null, country:null, cur:'CAD', curSymbol:'$', ...BLANK_FIELDS(), type:'commodity' },
+  { id:'XAU/HKD', name:'Or / Dollar de Hong Kong', ticker:'XAU/HKD', market:'Commodity', exchangeCode:'', sector:null, country:null, cur:'HKD', curSymbol:'HK$', ...BLANK_FIELDS(), type:'commodity' },
+  { id:'XAU/NZD', name:'Or / Dollar néo-zélandais', ticker:'XAU/NZD', market:'Commodity', exchangeCode:'', sector:null, country:null, cur:'NZD', curSymbol:'$', ...BLANK_FIELDS(), type:'commodity' },
+  { id:'XAU/SGD', name:'Or / Dollar de Singapour', ticker:'XAU/SGD', market:'Commodity', exchangeCode:'', sector:null, country:null, cur:'SGD', curSymbol:'$', ...BLANK_FIELDS(), type:'commodity' },
+  { id:'XAG/USD', name:'Argent (Silver Spot)', ticker:'XAG/USD', market:'Commodity', exchangeCode:'', sector:null, country:null, cur:'USD', curSymbol:'$', ...BLANK_FIELDS(), type:'commodity' },
+  { id:'XAG/EUR', name:'Argent / Euro', ticker:'XAG/EUR', market:'Commodity', exchangeCode:'', sector:null, country:null, cur:'EUR', curSymbol:'€', ...BLANK_FIELDS(), type:'commodity' },
+  { id:'XAG/GBP', name:'Argent / Livre sterling', ticker:'XAG/GBP', market:'Commodity', exchangeCode:'', sector:null, country:null, cur:'GBP', curSymbol:'£', ...BLANK_FIELDS(), type:'commodity' },
+  { id:'XAG/AUD', name:'Argent / Dollar australien', ticker:'XAG/AUD', market:'Commodity', exchangeCode:'', sector:null, country:null, cur:'AUD', curSymbol:'$', ...BLANK_FIELDS(), type:'commodity' },
+  { id:'XAG/CAD', name:'Argent / Dollar canadien', ticker:'XAG/CAD', market:'Commodity', exchangeCode:'', sector:null, country:null, cur:'CAD', curSymbol:'$', ...BLANK_FIELDS(), type:'commodity' },
+  { id:'XAG/CHF', name:'Argent / Franc suisse', ticker:'XAG/CHF', market:'Commodity', exchangeCode:'', sector:null, country:null, cur:'CHF', curSymbol:'CHF', ...BLANK_FIELDS(), type:'commodity' },
+  { id:'XAG/TRY', name:'Argent / Livre turque', ticker:'XAG/TRY', market:'Commodity', exchangeCode:'', sector:null, country:null, cur:'TRY', curSymbol:'₺', ...BLANK_FIELDS(), type:'commodity' },
+  { id:'XPD/USD', name:'Palladium (Palladium Spot)', ticker:'XPD/USD', market:'Commodity', exchangeCode:'', sector:null, country:null, cur:'USD', curSymbol:'$', ...BLANK_FIELDS(), type:'commodity' },
+  { id:'XPT/USD', name:'Platine (Platinum Spot)', ticker:'XPT/USD', market:'Commodity', exchangeCode:'', sector:null, country:null, cur:'USD', curSymbol:'$', ...BLANK_FIELDS(), type:'commodity' },
+  { id:'HG1', name:'Cuivre (Copper Spot)', ticker:'HG1', market:'Commodity', exchangeCode:'', sector:null, country:null, cur:'USD', curSymbol:'$', ...BLANK_FIELDS(), type:'commodity' },
+  { id:'WTI/USD', name:'Pétrole WTI', ticker:'WTI/USD', market:'Commodity', exchangeCode:'', sector:null, country:null, cur:'USD', curSymbol:'$', ...BLANK_FIELDS(), type:'commodity' },
+  { id:'XBR/USD', name:'Pétrole Brent', ticker:'XBR/USD', market:'Commodity', exchangeCode:'', sector:null, country:null, cur:'USD', curSymbol:'$', ...BLANK_FIELDS(), type:'commodity' },
+  { id:'URALS/USD', name:'Pétrole Urals', ticker:'URALS/USD', market:'Commodity', exchangeCode:'', sector:null, country:null, cur:'USD', curSymbol:'$', ...BLANK_FIELDS(), type:'commodity' },
+  { id:'GAU/USD', name:'Or au gramme (Gold Gram)', ticker:'GAU/USD', market:'Commodity', exchangeCode:'', sector:null, country:null, cur:'USD', curSymbol:'$', ...BLANK_FIELDS(), type:'commodity' },
 ];
 const byId = Object.fromEntries(stocks.map(s => [s.id, s]));
 
@@ -1340,6 +1530,82 @@ function ensureRuntimeStock(meta, persist = true){
    entrées déjà enregistrées, pas la peine de les ré-écrire ni de reflush. */
 function restoreRuntimeCatalog(){
   Object.values(state.runtimeCatalog || {}).forEach(meta => ensureRuntimeStock(meta, false));
+}
+
+/* --------------------------------------------------------------------
+   CATALOGUE MONDIAL (Explorer/Marchés) — parcours par pages de 20, jamais
+   la recherche comme seul point d'entrée. S'appuie sur /api/market/catalog
+   (voir rapport backend), lui-même alimenté par free-ticker-database.
+
+   IMPORTANT — couverture réelle du dataset : uniquement 'stock' et 'etf'
+   (colonnes asset_type constatées = Stock/ETF uniquement, aucune ligne
+   forex/crypto/indice/matière première/obligation). Forex et Crypto
+   restent donc sur leur liste statique existante (déjà 20 entrées chacune)
+   : aucun appel catalogue n'est fait pour ces deux types, pour ne jamais
+   laisser croire à une couverture qui n'existe pas dans la source.
+
+   Chaque société matérialisée passe par ensureRuntimeStock(), exactement
+   comme un résultat de recherche : même garantie qu'aucun prix/score n'est
+   jamais fabriqué, seule l'identité (ticker/nom/ISIN/secteur/place) vient
+   du catalogue — le cours reste à charger en direct via QUOTES. */
+const CATALOG_TYPES = new Set(['stock', 'etf']);
+const CATALOG_PAGE_SIZE = 20;
+
+const catalogState = {};
+function etatCatalogue(type){
+  if (!catalogState[type]) catalogState[type] = { cursor:null, done:false, loading:false };
+  return catalogState[type];
+}
+
+/* Charge UNE page (20 au plus) depuis le catalogue mondial et matérialise
+   chaque résultat. Retourne le nombre de sociétés réellement ajoutées
+   (0 si épuisé, en erreur, ou déjà en cours de chargement — jamais deux
+   requêtes concurrentes pour le même type). N'est JAMAIS appelée pour
+   forex/crypto (voir CATALOG_TYPES). */
+async function chargerPageCatalogue(type){
+  if (!CATALOG_TYPES.has(type)) return 0;
+  const st = etatCatalogue(type);
+  if (st.done || st.loading) return 0;
+  st.loading = true;
+  try {
+    const url = '/api/market/catalog?type=' + encodeURIComponent(type)
+      + '&limit=' + CATALOG_PAGE_SIZE
+      + (st.cursor ? '&cursor=' + encodeURIComponent(st.cursor) : '');
+    const r = await fetch(url);
+    if (!r.ok) return 0;   // erreur transitoire : pas de `done`, un futur essai pourra réussir
+    const d = await r.json();
+    const results = Array.isArray(d.results) ? d.results : [];
+    let ajoutees = 0;
+    for (const x of results){
+      if (!x || !x.ticker) continue;
+      const avant = stocks.length;
+      ensureRuntimeStock({ ...x, sector: SECTEUR_CATALOGUE[x.sector] || null });
+      if (stocks.length > avant) ajoutees++;
+    }
+    st.cursor = d.nextCursor || null;
+    if (!d.nextCursor) st.done = true;
+    return ajoutees;
+  } catch {
+    return 0;   // hors-ligne/erreur réseau : pas de `done`, retentable plus tard
+  } finally {
+    st.loading = false;
+  }
+}
+
+/* Charge des pages successives jusqu'à atteindre `minimum` instruments de
+   ce type dans `stocks`, ou jusqu'à épuisement réel du catalogue (`done`).
+   Ne boucle jamais indéfiniment : chaque page vide ou en erreur arrête la
+   boucle immédiatement (voir chargerPageCatalogue). */
+async function assurerCatalogueSuffisant(type, minimum){
+  if (!CATALOG_TYPES.has(type)) return false;
+  const st = etatCatalogue(type);
+  let changement = false;
+  while (!st.done && stocks.filter(s => s.type === type).length < minimum){
+    const ajoutees = await chargerPageCatalogue(type);
+    if (ajoutees > 0) changement = true;
+    if (ajoutees === 0) break;
+  }
+  return changement;
 }
 
 /* Composantes du NovaScore : cette liste décrit le MOTEUR (backend
@@ -1493,10 +1759,8 @@ function pickExchangeCode(x){
     || x.exchangeShort || x.marketCode || x.exchange || '';
 }
 
-async function searchRemote(q){
+async function searchProviders(t){
   if (!CONFIG.marketConnected) return [];
-  const t = q.trim();
-  if (t.length < 2) return [];
   try {
     const r = await fetch('/api/market/search?q=' + encodeURIComponent(t));
     if (!r.ok) return [];
@@ -1508,7 +1772,7 @@ async function searchRemote(q){
     /* Diagnostic temporaire, sans effet sur l'UI : permet de retrouver dans
        la console du navigateur la forme RÉELLE renvoyée par le backend pour
        confirmer/corriger ce mapping (voir rapport — jamais vérifié avant). */
-    console.debug('[NovaBourse][searchRemote] réponse brute pour', JSON.stringify(t), ':', d);
+    console.debug('[NovaBourse][searchProviders] réponse brute pour', JSON.stringify(t), ':', d);
     return list.filter(x => x && x.ticker).slice(0, 8).map(x => {
       const code = pickExchangeCode(x);
       return {
@@ -1522,6 +1786,56 @@ async function searchRemote(q){
   } catch {
     return [];   // recherche locale conservée en repli, aucune erreur affichée
   }
+}
+
+/* Catalogue mondial (free-ticker-database, importé côté serveur — voir
+   scripts/import-catalog.js) : identité seule (ticker/nom/ISIN/place),
+   jamais de prix. Même mapping que searchProviders() pour que les deux
+   sources produisent des résultats strictement interchangeables du point
+   de vue de ensureRuntimeStock(). Un instrument sans exchangeCode reste
+   affichable (cours "indisponible", comportement déjà existant) : aucune
+   UI nouvelle n'est nécessaire pour ce cas. */
+async function searchCatalog(t){
+  try {
+    const r = await fetch('/api/market/catalog?q=' + encodeURIComponent(t) + '&limit=8');
+    if (!r.ok) return [];
+    const d = await r.json();
+    const list = Array.isArray(d.results) ? d.results : [];
+    return list.map(x => {
+      const code = pickExchangeCode(x);
+      return {
+        type:'action', remote:true,
+        id: remoteId(x.ticker, code),
+        title: x.name || x.ticker,
+        sub: `${x.ticker} · ${x.sector || 'Non classé'} · ${x.exchange || code || '—'}`,
+        meta: x,
+      };
+    });
+  } catch {
+    return [];
+  }
+}
+
+/* Fusionne les deux sources distantes (fournisseurs payants + catalogue
+   mondial importé) : searchProviders() passe en premier (couverture déjà
+   éprouvée), searchCatalog() complète sans jamais dupliquer un id déjà
+   trouvé. Ni l'un ni l'autre ne bloque si l'autre échoue (Promise.all sur
+   des fonctions qui catchent déjà leurs propres erreurs). */
+async function searchRemote(q){
+  const t = q.trim();
+  if (t.length < 2) return [];
+  const [providers, catalogue] = await Promise.all([
+    searchProviders(t),
+    searchCatalog(t),
+  ]);
+  const vus = new Set();
+  const fusion = [];
+  for (const hit of [...providers, ...catalogue]){
+    if (vus.has(hit.id)) continue;
+    vus.add(hit.id);
+    fusion.push(hit);
+  }
+  return fusion.slice(0, 8);
 }
 function toggleWatch(id){
   const i = state.watchlist.indexOf(id);
@@ -1546,6 +1860,15 @@ function clearRecent(){ state.recent = []; saveState(); toast('Historique de rec
    vs valorisation). Seules les positions dont le prix est connu contribuent
    à `value`/`gain` ; les autres apparaissent avec priceAvailable:false et un
    état "cours indisponible" plutôt que de disparaître silencieusement. */
+/* Formules (voir cahier des charges) — costBasis/marketValue/unrealizedPnL
+   sont des ALIAS explicites de cost/value/gain ci-dessous (mêmes valeurs,
+   deux noms) : cost/value/gain restent le nom historique utilisé par le
+   reste du fichier, costBasis/marketValue/unrealizedPnL(Percent) le
+   vocabulaire demandé, pour ne renommer nulle part ailleurs par prudence.
+     costBasis          = quantité × prix moyen d'achat (PRU)
+     marketValue         = quantité × cours actuel
+     unrealizedPnL        = marketValue - costBasis
+     unrealizedPnLPercent = unrealizedPnL / costBasis × 100 */
 function portfolioValue(){
   let value = 0, cost = 0, unresolvedCount = 0;
   const lines = state.wallet.positions.map(pos => {
@@ -1553,29 +1876,97 @@ function portfolioValue(){
     if (!st){
       unresolvedCount++;
       return { ...pos, stock:null, priceAvailable:false, cur:null,
-        localValue:null, localCost:null, value:0, cost:0, gain:0, gainPct:0 };
+        localValue:null, localCost:null, value:0, cost:0, gain:0, gainPct:0,
+        costBasis:0, marketValue:0, unrealizedPnL:0, unrealizedPnLPercent:0 };
     }
     const cours = prixDe(st);
     if (cours === null){
+      const localCost = pos.avg * pos.qty;
       return { ...pos, stock:st, priceAvailable:false, cur:st.cur,
-        localValue:null, localCost: pos.avg * pos.qty, value:0, cost:0, gain:0, gainPct:0 };
+        localValue:null, localCost, value:0, cost:0, gain:0, gainPct:0,
+        costBasis:toEUR(localCost, st.cur), marketValue:0, unrealizedPnL:0, unrealizedPnLPercent:0 };
     }
     const localValue = cours * pos.qty;
     const localCost  = pos.avg  * pos.qty;
     const eurValue = toEUR(localValue, st.cur);
     const eurCost  = toEUR(localCost,  st.cur);
     value += eurValue; cost += eurCost;
+    const gain = eurValue - eurCost;
+    const gainPct = eurCost ? (eurValue/eurCost-1)*100 : 0;
     return { ...pos, stock:st, priceAvailable:true, localValue, localCost, cur:st.cur,
-      value:eurValue, cost:eurCost, gain:eurValue-eurCost,
-      gainPct: eurCost ? (eurValue/eurCost-1)*100 : 0,
+      value:eurValue, cost:eurCost, gain, gainPct,
+      costBasis:eurCost, marketValue:eurValue, unrealizedPnL:gain, unrealizedPnLPercent:gainPct,
       fx: FX[st.cur] };
   });
   const total = value + state.wallet.cash;
   const invested = cost + state.wallet.cash;
   const gain = total - invested;
+  const realizedPnL = Number.isFinite(state.wallet.realizedPnL) ? state.wallet.realizedPnL : 0;
+  const netDeposits = Number.isFinite(state.wallet.invested) ? state.wallet.invested : null;
   return { lines, value, cost, total, cash:state.wallet.cash, invested,
     unresolvedCount,
-    gain, gainPct: invested > 0 ? (gain / invested) * 100 : 0 };
+    gain, gainPct: invested > 0 ? (gain / invested) * 100 : 0,
+    /* unrealizedPnL du portefeuille = somme des unrealizedPnL de chaque
+       position = value - cost (cash exclu : les liquidités ne gagnent ni ne
+       perdent). realizedPnL = cumul des ventes déjà exécutées (voir
+       sellStock()). Le gain "depuis l'ouverture" du portefeuille (comparé à
+       netDeposits) est réalisé + latent, jamais l'un sans l'autre. */
+    unrealizedPnL: gain,
+    unrealizedPnLPercent: cost > 0 ? (gain / cost) * 100 : (invested > 0 ? (gain / invested) * 100 : 0),
+    realizedPnL,
+    netDeposits,
+  };
+}
+
+/* Nombre maximal de points conservés dans l'historique du portefeuille —
+   même logique de garde-fou que MAX_HISTORY_POINTS/joursHistorique côté
+   marché : borne large (≈13 ans de relevés quotidiens), jamais atteinte en
+   usage normal, purge les plus anciens plutôt que de planter. */
+const MAX_WALLET_SNAPSHOTS = 5000;
+
+/* Enregistre un point RÉEL de l'historique du portefeuille — jamais de
+   valeur reconstituée pour le passé. Appelé après chaque achat/vente (voir
+   buyStock/sellStock) et une fois par jour au plus lors de la consultation
+   de la page Portefeuille (voir PAGES.portfolio) : ce n'est pas un minuteur
+   qui tourne en arrière-plan, seulement une garde "un point par jour déjà
+   là ?" posée à chaque affichage réel de la page. */
+function snapshotPortfolio(reason){
+  const pf = portfolioValue();
+  state.walletHistory.push({
+    t: Date.now(),
+    totalValue: pf.total,
+    cash: pf.cash,
+    investedValue: pf.value,
+    netDeposits: pf.netDeposits,
+    unrealizedPnL: pf.unrealizedPnL,
+    realizedPnL: pf.realizedPnL,
+    reason,
+  });
+  if (state.walletHistory.length > MAX_WALLET_SNAPSHOTS){
+    state.walletHistory.splice(0, state.walletHistory.length - MAX_WALLET_SNAPSHOTS);
+  }
+}
+
+/* Ajoute un relevé quotidien si celui d'aujourd'hui (heure locale) n'existe
+   pas déjà — appelée à l'affichage de la page Portefeuille, jamais par un
+   minuteur. Si l'historique est totalement vide (portefeuille déjà actif
+   avant l'introduction de cette fonctionnalité, ou première visite de la
+   page avant tout achat), ce premier appel POSE le point de départ
+   aujourd'hui — jamais un passé reconstitué : "MAX" commencera simplement à
+   cet instant, conformément à la consigne de ne rien antidater. */
+function assurerRelevéQuotidien(){
+  const aujourdHui = new Date().toDateString();
+  const dernier = state.walletHistory[state.walletHistory.length - 1];
+  if (dernier && new Date(dernier.t).toDateString() === aujourdHui) return;
+  snapshotPortfolio(dernier ? 'daily' : 'first');
+  saveState();
+  /* Le HTML déjà produit par ce même render() utilisait l'ancien
+     walletHistory (un point manquant) : un second passage l'affiche
+     immédiatement, sur le même modèle que chargerGraphique()/
+     chargerFondamentaux() ailleurs dans ce fichier. Aucune boucle possible :
+     au second passage, le relevé du jour existe déjà et la garde ci-dessus
+     retourne aussitôt. */
+  render();
 }
 
 function strengths(st){
@@ -1757,6 +2148,7 @@ function buyStock(id, amountEUR){
     state.wallet.positions.push({ id, qty, avg: prix });
   }
   state.wallet.cash -= amountEUR;
+  snapshotPortfolio('buy');
   /* Écriture immédiate (pas la version debouncée) : un achat ne doit jamais
      dépendre d'un setTimeout qui n'a pas eu le temps de se déclencher si
      l'utilisateur ferme l'app juste après — c'est la cause la plus probable
@@ -1764,6 +2156,11 @@ function buyStock(id, amountEUR){
   flushSaveState();
   return { ok:true, qty, msg:`${fmt.num(qty,2)} titre(s) de ${st.name} achetés` };
 }
+/* P&L réalisé, méthode du coût moyen pondéré (même PRU que buyStock ci-dessus
+   utilise pour l'achat) : pour une vente PARTIELLE, seul le coût des titres
+   RÉELLEMENT vendus sort du coût moyen — pos.avg ne change jamais lors d'une
+   vente (seul un nouvel achat le recalcule), cohérent avec la méthode du coût
+   moyen pondéré standard. */
 function sellStock(id, part = 1){
   const i = state.wallet.positions.findIndex(p => p.id === id);
   if (i < 0) return { ok:false, msg:'Aucune position sur cette valeur' };
@@ -1773,11 +2170,17 @@ function sellStock(id, part = 1){
   const qty = pos.qty * Math.max(0, Math.min(1, part));
   if (!Number.isFinite(qty) || !(qty > 0)) return { ok:false, msg:'Quantité invalide' };
   const proceeds = toEUR(prix * qty, st.cur);
+  const costBasisVendu = toEUR(pos.avg * qty, st.cur);
+  const realizedGain = proceeds - costBasisVendu;
   pos.qty -= qty;
   if (pos.qty <= 0.0001) state.wallet.positions.splice(i, 1);
   state.wallet.cash += proceeds;
+  state.wallet.realizedPnL = (Number.isFinite(state.wallet.realizedPnL) ? state.wallet.realizedPnL : 0) + realizedGain;
+  snapshotPortfolio('sell');
   flushSaveState();
-  return { ok:true, msg:`Vente de ${fmt.num(qty,2)} titre(s) · ${fmt.eur(proceeds)} récupérés` };
+  return { ok:true, msg:`Vente de ${fmt.num(qty,2)} titre(s) · ${fmt.eur(proceeds)} récupérés `
+    + `· ${realizedGain >= 0 ? 'gain réalisé de ' + fmt.eur(realizedGain) : 'perte réalisée de ' + fmt.eur(Math.abs(realizedGain))}`,
+    realizedGain };
 }
 const positionOf = (id) => state.wallet.positions.find(p => p.id === id) || null;
 
@@ -1937,6 +2340,12 @@ function stockRow(s, opts = {}){
   const varPct = q && Number.isFinite(q.changePercent) ? q.changePercent : null;
   const hEntry = opts.spark === true ? HIST.get(s.id) : null;
   const hist = (hEntry && hEntry.status === 'ready') ? hEntry.data.map(p => p.close) : null;
+  /* Fraîcheur (voir api/market/_freshness.js / FRESHNESS_LABEL) : n'affiche
+     rien tant qu'aucune cotation n'a été reçue pour cette ligne (prix = —
+     déjà suffisamment honnête) ; sinon montre TOUJOURS le libellé exact
+     renvoyé par le serveur, y compris "Fraîcheur inconnue" — jamais un
+     silence qui laisserait sous-entendre du temps réel par défaut. */
+  const labelFraicheur = (prix !== null && q) ? (FRESHNESS_LABEL[q.freshness] || '') : '';
 
   return `<div class="row">
     <button style="display:flex;align-items:center;gap:14px;flex:1;min-width:0;text-align:left"
@@ -1953,6 +2362,7 @@ function stockRow(s, opts = {}){
       <span class="row-px tabular-nums">${prix === null ? '—' : fmt.num(prix)}</span>
       <span class="row-var tabular-nums ${varPct === null ? 'na' : varPct >= 0 ? 'up-t' : 'down-t'}">
         ${varPct === null ? '—' : fmt.pct(varPct)}</span>
+      ${labelFraicheur ? `<span class="tiny" style="color:var(--ink-4);display:block;text-align:right">${esc(labelFraicheur)}</span>` : ''}
     </span>
   </div>`;
 }
@@ -1973,8 +2383,22 @@ const HIST = new Map();
    Avant cette correction, symboleDe passait TOUJOURS par MARKET_CODE[s.market],
    qui ne connaît que des libellés lisibles ("Euronext Paris") : toute société
    dont `market` contenait déjà un code brut ("PA") tombait sur `undefined`
-   puis une chaîne vide, cassant silencieusement le symbole envoyé au backend. */
-const symboleDe = s => `${s.ticker}@${s.exchangeCode || MARKET_CODE[s.market] || ''}`;
+   puis une chaîne vide, cassant silencieusement le symbole envoyé au backend.
+   CORRECTIF (audit routage multi-actifs) : le type est désormais TOUJOURS
+   transmis (3e segment "@type") à /api/market/quotes — sans lui, le backend
+   traitait tout symbole comme une action, envoyant crypto/forex/index/
+   commodity à EODHD avec un symbole d'action invalide (cause racine
+   confirmée du bug "ALGO/USD cours indisponible" en production). */
+const symboleDe = s => `${s.ticker}@${s.exchangeCode || MARKET_CODE[s.market] || ''}@${s.type || 'stock'}`;
+/* Le backend (voir api/market/_providers.js, idDe()) identifie toujours
+   une cotation par SEULEMENT ticker+exchange (2 segments), jamais le type
+   — chaque `quote.symbol` renvoyé par /api/market/quotes a cette forme.
+   symboleDe() ci-dessus a 3 segments (ticker@exchange@type) UNIQUEMENT
+   pour que le backend sache router la requête ; il ne faut donc PAS
+   l'utiliser pour faire correspondre une réponse à sa société d'origine
+   (ça ne matcherait jamais, 3 segments ≠ 2) — idDeCotation() reproduit
+   exactement le format 2-segments attendu en retour. */
+const idDeCotation = s => `${s.ticker}@${s.exchangeCode || MARKET_CODE[s.market] || ''}`;
 const MARKET_CODE = { NASDAQ:'NASDAQ', NYSE:'NYSE', 'Euronext Paris':'PA',
   'Euronext Amsterdam':'AS', Xetra:'DE', SIX:'SW', LSE:'L' };
 
@@ -2009,7 +2433,7 @@ async function liveTick(){
       + encodeURIComponent(cibles.map(symboleDe).join(',')));
     if (!r.ok) return;
     const d = await r.json();
-    const parId = new Map(cibles.map(s => [symboleDe(s), s]));
+    const parId = new Map(cibles.map(s => [idDeCotation(s), s]));
     let misAJour = false;
     for (const q of d.quotes || []){
       const s = parId.get(q.symbol);
@@ -2123,7 +2547,7 @@ async function chargerCotations(liste){
           + encodeURIComponent(lot.map(symboleDe).join(',')));
         if (!r.ok){ echecs++; return; }
         const d = await r.json();
-        const parId = new Map(lot.map(s => [symboleDe(s), s]));
+        const parId = new Map(lot.map(s => [idDeCotation(s), s]));
         for (const q of d.quotes || []){
           const s = parId.get(q.symbol);
           if (s && Number.isFinite(q.price) && q.price > 0){ QUOTES.set(s.id, q); reçus++; }
@@ -2347,6 +2771,43 @@ async function chargerFondamentaux(stock){
     stock.fundamentalsStatus = 'error';
   } finally {
     FUND_ENCOURS.delete(stock.id);
+    render();
+  }
+}
+
+/* Actualités réelles, chargées uniquement à la demande (bouton "Voir les
+   actualités"). Même modèle à 4 états que chargerFondamentaux ci-dessus :
+   'idle' | 'loading' | 'loaded' | 'error'. Un fournisseur unique aujourd'hui
+   (EODHD, voir NEWS dans _providers.js) — stock/etf uniquement, le backend
+   répond directement articles:null pour les autres types sans appel réseau
+   (déjà géré côté serveur, pas besoin de le reproduire ici). */
+const NEWS_ENCOURS = new Set();
+async function chargerActualites(stock){
+  if (!stock) return;
+  if (stock.newsStatus === 'loaded' || stock.newsStatus === 'loading') return;
+  if (NEWS_ENCOURS.has(stock.id)) return;
+
+  NEWS_ENCOURS.add(stock.id);
+  stock.newsStatus = 'loading';
+  render();
+  try {
+    const exch = stock.exchangeCode || MARKET_CODE[stock.market] || '';
+    const r = await fetch(`/api/market/news?ticker=${encodeURIComponent(stock.ticker)}`
+      + `&exchange=${encodeURIComponent(exch)}&type=${encodeURIComponent(stock.type || 'stock')}&limit=8`);
+    if (!r.ok){
+      stock.news = null;
+      stock.newsStatus = 'error';
+      return;
+    }
+    const d = await r.json();
+    stock.news = Array.isArray(d.articles) ? d.articles : null;
+    stock.newsSource = d.source ?? null;
+    stock.newsStatus = 'loaded';
+  } catch {
+    stock.news = null;
+    stock.newsStatus = 'error';
+  } finally {
+    NEWS_ENCOURS.delete(stock.id);
     render();
   }
 }
@@ -2622,7 +3083,14 @@ function radarResults(){
     </div></div>`;
 }
 
-PAGES.explore = () => `<div class="page-in">
+PAGES.explore = () => {
+  /* Déclenche (sans bloquer ce rendu) le chargement du catalogue mondial
+     'stock' si l'affichage courant en réclame plus que ce qui est déjà
+     chargé localement — voir garantirCatalogueExplore(). Le rendu ci-dessous
+     utilise ce qui est disponible MAINTENANT ; le "Voir plus"/chargement
+     de fond se charge de compléter et de rafraîchir #exploreOut. */
+  garantirCatalogueExplore();
+  return `<div class="page-in">
   <p class="eyebrow">Explorer</p>
   <h1 class="title">Toutes les entreprises</h1>
   <p class="lead measure-l" style="margin-top:10px">${stocks.filter(s=>s.type==='stock').length} sociétés suivies sur ${new Set(stocks.filter(s=>s.type==='stock').map(s=>s.market)).size} places boursières.</p>
@@ -2632,21 +3100,50 @@ PAGES.explore = () => `<div class="page-in">
     ${['tous',...SECTORS].map(c=>`<button class="chip" data-filter="exploreSector" data-val="${esc(c)}"
       aria-pressed="${String(state.filters.exploreSector||'tous')===c}">${c==='tous'?'Tous les secteurs':esc(c)}</button>`).join('')}
   </div>
-  <div class="card" style="margin-top:18px"><div class="rows" id="exploreOut"></div></div>
+  <div class="card" style="margin-top:18px"><div class="rows" id="exploreOut">${exploreRows()}</div></div>
 </div>`;
-function exploreRows(){
+};
+function exploreListeFiltree(){
   /* Explorer reste le catalogue d'ENTREPRISES (actions) — exclusion
-     explicite des nouveaux types (forex/crypto) ajoutés dans `stocks` à
-     cette passe, pour ne pas changer silencieusement ce que cette page a
-     toujours affiché. Ces types vivent désormais dans Marchés. */
+     explicite des autres types (ETF/forex/crypto), qui vivent dans
+     Marchés. Inclut désormais aussi bien le noyau statique que les
+     sociétés matérialisées depuis le catalogue mondial (même tableau
+     `stocks`, voir ensureRuntimeStock). */
   let list = stocks.filter(s => s.type === 'stock');
   const sec = state.filters.exploreSector || 'tous';
   if (sec !== 'tous') list = list.filter(s => s.sector === sec);
   if (state.filters.exploreQ){ const q = state.filters.exploreQ.toLowerCase();
     list = list.filter(s => (s.name+' '+s.ticker).toLowerCase().includes(q)); }
   list.sort((a,b)=>a.name.localeCompare(b.name,'fr'));
-  return list.length ? list.map(s=>stockRow(s)).join('')
-    : emptyState('Aucun résultat','Aucune entreprise ne correspond à ce filtre.');
+  return list;
+}
+function exploreRows(){
+  const list = exploreListeFiltree();
+  if (!list.length) return emptyState('Aucun résultat','Aucune entreprise ne correspond à ce filtre.');
+  /* Même logique de pagination progressive que Marchés (voir marketsRows) :
+     jamais tout le catalogue rendu d'un coup, même une fois les dizaines de
+     milliers de sociétés potentiellement chargées en mémoire. */
+  const visibles = state.filters.exploreVisibles || 20;
+  const page = list.slice(0, visibles);
+  return page.map(s=>stockRow(s)).join('') + (list.length > page.length
+    ? `<button class="btn btn-ghost btn-sm" style="width:100%;margin-top:12px" data-explore-plus="1">
+        Voir plus (${list.length - page.length} restants)</button>`
+    : '');
+}
+/* Charge autant de pages catalogue 'stock' que nécessaire pour couvrir
+   exploreVisibles (mini 20), puis rafraîchit #exploreOut si de nouvelles
+   sociétés sont arrivées et que la page Explorer est toujours affichée
+   (gen évite d'écraser un rendu plus récent si l'utilisateur a navigué
+   ailleurs entre-temps). */
+let exploreCatalogGen = 0;
+async function garantirCatalogueExplore(){
+  const gen = ++exploreCatalogGen;
+  const minimum = Math.max(20, state.filters.exploreVisibles || 20);
+  const changement = await assurerCatalogueSuffisant('stock', minimum);
+  if (changement && gen === exploreCatalogGen && route.page === 'explore'){
+    const out = document.getElementById('exploreOut');
+    if (out) out.innerHTML = exploreRows();
+  }
 }
 
 /* ---------- MARCHÉS ----------
@@ -2656,15 +3153,41 @@ function exploreRows(){
    uniquement : identité + quote déjà connue via QUOTES (lazy-loading
    intact — aucun graphique/fondamentaux/actualité chargé depuis cette
    page). */
+/* Types du catalogue mondial réellement utiles à une catégorie Marchés
+   donnée — voir CATALOG_TYPES : jamais forex/crypto (dataset sans ces
+   actifs, voir plus haut), 'tous' réclame donc les deux types couverts. */
+function typesCatalogueUtiles(cat){
+  if (cat === 'stock') return ['stock'];
+  if (cat === 'etf') return ['etf'];
+  if (cat === 'tous') return ['stock', 'etf'];
+  return [];
+}
+let marketsCatalogGen = 0;
+async function garantirCatalogueMarkets(){
+  const gen = ++marketsCatalogGen;
+  const cat = state.filters.marketsCategory || 'tous';
+  const minimum = Math.max(20, state.filters.marketsVisibles || 20);
+  const resultats = await Promise.all(
+    typesCatalogueUtiles(cat).map(type => assurerCatalogueSuffisant(type, minimum))
+  );
+  const changement = resultats.some(Boolean);
+  if (changement && gen === marketsCatalogGen && route.page === 'markets'){
+    const out = document.getElementById('marketsOut');
+    if (out) out.innerHTML = marketsRows();
+  }
+}
 PAGES.markets = () => {
   const cat = state.filters.marketsCategory || 'tous';
   const region = state.filters.marketsRegion || 'Monde';
+  /* Déclenche (sans bloquer ce rendu) le chargement du catalogue mondial
+     pour stock/etf si nécessaire — voir garantirCatalogueMarkets(). */
+  garantirCatalogueMarkets();
   return `<div class="page-in">
     <p class="eyebrow">Marchés</p>
     <h1 class="title">Explorer les marchés</h1>
-    <p class="lead measure-l" style="margin-top:10px">Actions, devises et cryptomonnaies,
-      avec des cotations réelles. D'autres catégories seront ajoutées au fur et à mesure
-      que leurs données seront vérifiées.</p>
+    <p class="lead measure-l" style="margin-top:10px">Actions, ETF, devises, cryptomonnaies,
+      indices et matières premières, avec des cotations réelles. D'autres catégories
+      (obligations, fonds, futures) seront ajoutées quand leurs données seront vérifiées.</p>
     <div class="chips" style="margin-top:16px;overflow-x:auto;flex-wrap:nowrap">
       ${MARKET_CATEGORIES.map(c=>`<button class="chip" data-filter="marketsCategory" data-val="${c.id}"
         aria-pressed="${cat===c.id}">${esc(c.label)}</button>`).join('')}
@@ -2737,8 +3260,18 @@ PAGES.stock = (id) => {
            rafraîchissement vivant sur CETTE fiche (state.ui.liveAt posé
            par liveTick), jamais une horloge qui tourne toute seule sans
            donnée réelle derrière. */
+        /* Préfixe de fraîcheur (voir FRESHNESS_LABEL, constante partagée
+           avec stockRow() plus haut) : évite que "Actualisé à HH:MM:SS" ne
+           laisse croire à du temps réel alors que la cotation est en
+           réalité différée (cas par défaut aujourd'hui, EODHD documentant
+           explicitement 15-20 min de délai). Rien n'apparaît si
+           `freshness` est absent (ancienne réponse serveur en cache, ou
+           fournisseur non reconnu) plutôt que d'inventer un libellé —
+           mais "Fraîcheur inconnue" s'affiche bien si le serveur renvoie
+           explicitement UNKNOWN. */
+        const labelFraicheur = FRESHNESS_LABEL[q.freshness] || '';
         const fraicheur = (state.ui.liveAt && route.page === 'stock' && route.arg === s.id)
-          ? `<div class="tiny" style="margin-top:4px;color:var(--ink-4)">Actualisé à ${new Date(state.ui.liveAt).toLocaleTimeString('fr-FR')}</div>`
+          ? `<div class="tiny" style="margin-top:4px;color:var(--ink-4)">${labelFraicheur ? esc(labelFraicheur) + ' · ' : ''}Actualisé à ${new Date(state.ui.liveAt).toLocaleTimeString('fr-FR')}</div>`
           : '';
         return `<div class="price">${fmt.num(q.price)}<small>${esc(s.curSymbol)}</small></div>
           ${v === null ? '' : `<div class="price-chg ${v >= 0 ? 'up-t' : 'down-t'}">
@@ -2864,6 +3397,81 @@ PAGES.stock = (id) => {
     </div>
   </section>
 
+  <!-- ANALYSTES — même appel réseau que "Les chiffres" (/api/market/fundamentals,
+       déjà mis en cache par chargerFondamentaux) : cette section n'ajoute
+       AUCUNE requête si les chiffres ont déjà été consultés, un clic sur
+       "Voir les analystes" seul en déclenche une comme "Voir les chiffres" le
+       ferait. -->
+  <section class="section">
+    <div class="section-h"><h2 class="h2">Analystes</h2></div>
+    <div class="card">
+      ${s.fundamentalsStatus === 'idle' ? `
+        <div style="text-align:center;padding:24px 0">
+          <p class="small" style="margin-bottom:16px">Le consensus des analystes n'est chargé que si vous le demandez.</p>
+          <button class="btn btn-a" data-show-fundamentals="${esc(s.id)}">Voir les analystes</button>
+        </div>`
+      : s.fundamentalsStatus === 'loading' ? `
+        <p class="small" style="padding:24px 0;text-align:center">Chargement…</p>`
+      : (f && f.analystRatings) ? (() => {
+          const ar = f.analystRatings;
+          const total = [ar.strongBuy, ar.buy, ar.hold, ar.sell, ar.strongSell]
+            .filter(Number.isFinite).reduce((a,b)=>a+b, 0);
+          const repartition = [
+            ['Achat fort', ar.strongBuy, 'var(--up)'], ['Achat', ar.buy, 'var(--up)'],
+            ['Conserver', ar.hold, 'var(--warn)'], ['Vente', ar.sell, 'var(--down)'],
+            ['Vente forte', ar.strongSell, 'var(--down)'],
+          ].filter(([,v]) => Number.isFinite(v));
+          return `
+        <dl>
+          <div class="kv"><dt>Note consensus (sur 5)</dt><dd class="tabular-nums">${Number.isFinite(ar.rating) ? fmt.num(ar.rating, 2) : '—'}</dd></div>
+          <div class="kv"><dt>Objectif de cours (consensus)</dt><dd class="tabular-nums">${Number.isFinite(ar.targetPrice) ? fmt.num(ar.targetPrice, 2) + ' ' + esc(s.curSymbol) : '—'}</dd></div>
+          ${Number.isFinite(f.wallStreetTargetPrice) ? `<div class="kv"><dt>Objectif de cours (Wall Street)</dt><dd class="tabular-nums">${fmt.num(f.wallStreetTargetPrice, 2)} ${esc(s.curSymbol)}</dd></div>` : ''}
+          ${Number.isFinite(f.epsEstimateCurrentYear) ? `<div class="kv"><dt>BPA estimé (année en cours)</dt><dd class="tabular-nums">${fmt.num(f.epsEstimateCurrentYear, 2)}</dd></div>` : ''}
+          ${Number.isFinite(f.epsEstimateNextYear) ? `<div class="kv"><dt>BPA estimé (année suivante)</dt><dd class="tabular-nums">${fmt.num(f.epsEstimateNextYear, 2)}</dd></div>` : ''}
+        </dl>
+        ${total > 0 ? `<div class="rows" style="margin-top:14px">
+          ${repartition.map(([label, v, c]) => `<div class="row" style="padding:7px 0">
+            <span style="display:flex;align-items:center;gap:9px;flex:1;min-width:0">
+              <i style="width:11px;height:11px;border-radius:3px;background:${c};flex:0 0 auto"></i>
+              <span class="row-t" style="font-size:14px">${esc(label)}</span></span>
+            <span class="tabular-nums" style="font-size:13.5px">${v} (${Math.round(v/total*100)} %)</span></div>`).join('')}
+        </div>
+        <p class="tiny" style="margin-top:10px">${total} analyste(s) au total · source ${esc(s.fundamentalsSource || '—')}.</p>` : ''}`;
+        })()
+      : `<div class="notice"><b>Consensus analystes indisponible.</b>
+          Aucune valeur approchée n'est affichée pour cette valeur.</div>`}
+    </div>
+  </section>
+
+  <!-- ACTUALITÉS — chargement à la demande, fournisseur unique aujourd'hui
+       (EODHD), stock/etf uniquement. -->
+  <section class="section">
+    <div class="section-h"><h2 class="h2">Actualités</h2></div>
+    <div class="card">
+      ${(s.newsStatus || 'idle') === 'idle' ? `
+        <div style="text-align:center;padding:24px 0">
+          <p class="small" style="margin-bottom:16px">Les actualités ne sont chargées que si vous le demandez.</p>
+          <button class="btn btn-a" data-show-news="${esc(s.id)}">Voir les actualités</button>
+        </div>`
+      : s.newsStatus === 'loading' ? `
+        <p class="small" style="padding:24px 0;text-align:center">Chargement des actualités…</p>`
+      : (Array.isArray(s.news) && s.news.length) ? `
+        <div class="rows">
+          ${s.news.map(a => `<a class="row" href="${esc(a.link)}" target="_blank" rel="noopener noreferrer">
+            <span class="row-main">
+              <span class="row-t">${esc(a.title)}</span>
+              <span class="row-s">${esc(formatDateAffichage(a.date, 'intraday'))}${a.tags && a.tags.length ? ' · ' + esc(a.tags.slice(0,3).join(', ')) : ''}</span>
+            </span>
+            <span style="color:var(--ink-4)">${svg(ICON.arrow,2.4)}</span>
+          </a>`).join('')}
+        </div>
+        <p class="tiny" style="margin-top:14px">Articles de presse externes, non rédigés par NovaBourse
+          · source ${esc(s.newsSource || '—')}.</p>`
+      : `<div class="notice"><b>Actualités indisponibles.</b>
+          Aucun article n'a pu être obtenu pour cette valeur pour le moment.</div>`}
+    </div>
+  </section>
+
   <!-- ANALYSE IA -->
   <section class="section">
     <div class="card">
@@ -2957,12 +3565,56 @@ function formatDateAffichage(date, kind){
     : d.toLocaleDateString('fr-FR', { day:'2-digit', month:'2-digit', year:'numeric' });
 }
 
+/* Statistiques réelles de LA PÉRIODE ACTUELLEMENT AFFICHÉE (pts = entry.data
+   de cette période précise, jamais l'historique complet HIST) — recalculées
+   entièrement à chaque changement de période via CHART_PERIODS, jamais
+   réutilisées d'une période à l'autre. Formules retenues, explicites :
+ *   moyenne du cours   = somme des clôtures de la période / nombre de clôtures ;
+ *   volume moyen       = somme des volumes connus / nombre de barres à volume connu ;
+ *   volatilité période = écart-type (non biaisé) des rendements barre-à-barre
+ *     (clôture[i]/clôture[i-1] - 1), exprimé en %, NON annualisé — distinct de
+ *     volatiliteAnnualisee() ci-dessus, qui porte sur l'historique quotidien
+ *     complet (~1 an) et annualise par ×√252 : les deux mesurent des choses
+ *     différentes et ne doivent jamais être confondues dans l'affichage ;
+ *   séances +/-         = nombre de barres dont la clôture est strictement
+ *     supérieure/inférieure à la clôture de la barre précédente (égalité :
+ *     ne compte dans aucun des deux, jamais arrondie vers l'un ou l'autre).
+ * Renvoie null pour toute métrique dont les données réelles sont insuffisantes
+ * — jamais une estimation ni un zéro qui laisserait croire à une vraie mesure. */
+function statsPeriode(pts){
+  const closes = pts.map(p => p.close).filter(Number.isFinite);
+  const volumes = pts.map(p => p.volume).filter(v => Number.isFinite(v) && v >= 0);
+
+  const average = closes.length ? closes.reduce((a, b) => a + b, 0) / closes.length : null;
+  const avgVolume = volumes.length ? volumes.reduce((a, b) => a + b, 0) / volumes.length : null;
+
+  const rendements = [];
+  let positives = 0, negatives = 0;
+  for (let i = 1; i < pts.length; i++){
+    const prev = pts[i - 1].close, cur = pts[i].close;
+    if (!Number.isFinite(prev) || !Number.isFinite(cur) || prev <= 0) continue;
+    rendements.push(cur / prev - 1);
+    if (cur > prev) positives++;
+    else if (cur < prev) negatives++;
+  }
+
+  let volatility = null;
+  if (rendements.length >= 2){
+    const m = rendements.reduce((a, b) => a + b, 0) / rendements.length;
+    const variance = rendements.reduce((a, b) => a + (b - m) ** 2, 0) / (rendements.length - 1);
+    volatility = Math.sqrt(variance) * 100;
+  }
+
+  return { average, avgVolume, volatility, positives, negatives, sessions: rendements.length };
+}
+
 /* Coquille HTML du graphique : barre d'info (prix/variation, mise à jour en
    direct par le crosshair via mountChartPro), bascule courbe/chandeliers
    (seulement si l'OHLC complet est réellement disponible — jamais affichée
    pour forcer un mode que la donnée ne permet pas), conteneur du graphique
    lui-même (rempli par Lightweight Charts, pas par ce template), puis les
-   statistiques réelles de la période (haut/bas/ouverture/clôture/volume). */
+   statistiques réelles de la période (haut/bas/ouverture/clôture/volume/
+   moyenne/volatilité/séances +/-, voir statsPeriode ci-dessus). */
 function chartProShell(stock, period, entry){
   const pts = entry.data;
   const first = pts[0], last = pts[pts.length - 1];
@@ -2974,6 +3626,15 @@ function chartProShell(stock, period, entry){
   const hasOHLC = pts.every(p => Number.isFinite(p.open) && Number.isFinite(p.high) && Number.isFinite(p.low));
   const hasVolume = pts.some(p => Number.isFinite(p.volume) && p.volume > 0);
   const volTotal = pts.reduce((s, p) => s + (Number.isFinite(p.volume) ? p.volume : 0), 0);
+  const closesValides = pts.map(p => p.close).filter(Number.isFinite);
+  /* Repli sur les clôtures quand haut/bas intra-barre n'existent pas (ex.
+     CoinGecko, qui ne fournit qu'un prix ponctuel par horodatage, jamais
+     d'OHLC) : le plus haut/bas des CLÔTURES réellement reçues reste une
+     donnée réelle, jamais une estimation — seulement moins précis qu'un
+     vrai haut/bas intra-séance. */
+  const plusHaut = highs.length ? Math.max(...highs) : (closesValides.length ? Math.max(...closesValides) : null);
+  const plusBas = lows.length ? Math.min(...lows) : (closesValides.length ? Math.min(...closesValides) : null);
+  const st = statsPeriode(pts);
 
   return `
     <div class="chart-toolbar">
@@ -2992,10 +3653,14 @@ function chartProShell(stock, period, entry){
       data-hausse="${hausse ? '1' : '0'}"></div>
     <div class="chart-stats">
       <div><span class="tiny">Ouverture</span><b class="tabular-nums">${fmt.num(Number.isFinite(first.open) ? first.open : first.close, 2)}</b></div>
-      <div><span class="tiny">Plus haut</span><b class="tabular-nums">${highs.length ? fmt.num(Math.max(...highs), 2) : '—'}</b></div>
-      <div><span class="tiny">Plus bas</span><b class="tabular-nums">${lows.length ? fmt.num(Math.min(...lows), 2) : '—'}</b></div>
+      <div><span class="tiny">Plus haut</span><b class="tabular-nums">${plusHaut !== null ? fmt.num(plusHaut, 2) : '—'}</b></div>
+      <div><span class="tiny">Plus bas</span><b class="tabular-nums">${plusBas !== null ? fmt.num(plusBas, 2) : '—'}</b></div>
       <div><span class="tiny">Clôture</span><b class="tabular-nums">${fmt.num(last.close, 2)}</b></div>
       ${hasVolume ? `<div><span class="tiny">Volume</span><b class="tabular-nums">${fmt.int(volTotal)}</b></div>` : ''}
+      <div><span class="tiny">Moyenne période</span><b class="tabular-nums">${st.average !== null ? fmt.num(st.average, 2) : '—'}</b></div>
+      ${hasVolume ? `<div><span class="tiny">Volume moyen</span><b class="tabular-nums">${st.avgVolume !== null ? fmt.int(st.avgVolume) : '—'}</b></div>` : ''}
+      <div><span class="tiny">Volatilité période</span><b class="tabular-nums">${st.volatility !== null ? fmt.num(st.volatility, 2) + ' %' : '—'}</b></div>
+      <div><span class="tiny">${entry.kind === 'intraday' ? 'Barres' : 'Séances'} +/−</span><b class="tabular-nums"><span class="up-t">${st.positives}</span> / <span class="down-t">${st.negatives}</span></b></div>
     </div>
     <p class="tiny" style="margin-top:10px;color:var(--ink-4)">${pts.length} ${entry.kind === 'intraday' ? 'barres' : 'séances'} réelles
       · ${entry.kind === 'intraday' ? 'intraday ' + esc(entry.interval || '') : 'quotidien'} · source ${esc(entry.source || '—')}</p>`;
@@ -3143,12 +3808,42 @@ PAGES.watchlist = () => {
 };
 
 /* ---------- PORTEFEUILLE ---------- */
+/* Périodes de la courbe portefeuille — bornées par une durée réelle en
+   millisecondes (pas des "séances" comme pour un titre coté : le
+   portefeuille peut avoir des relevés les week-ends/jours fériés). */
+const PF_PERIODS = ['1J','1S','1M','3M','6M','1A','MAX'];
+const PF_PERIOD_MS = { '1J':86400000, '1S':7*86400000, '1M':30*86400000,
+  '3M':90*86400000, '6M':180*86400000, '1A':365*86400000, MAX:Infinity };
+
+/* Sous-ensemble RÉEL de walletHistory pour la période demandée — jamais un
+   point interpolé/fabriqué. `Infinity` (MAX) renvoie tout l'historique tel
+   quel : s'il commence aujourd'hui, la courbe MAX commence aujourd'hui. */
+function walletHistoryPourPeriode(period){
+  const ms = PF_PERIOD_MS[period] ?? PF_PERIOD_MS['1A'];
+  if (!Number.isFinite(ms)) return state.walletHistory;
+  const cutoff = Date.now() - ms;
+  return state.walletHistory.filter(p => p.t >= cutoff);
+}
+
 PAGES.portfolio = () => {
   const pf = portfolioValue();
   const palette = ['#00a651','#0071e3','#e0407a','#c47f0a','#5b4ae0','#0891b2'];
   const bySector = {}; pf.lines.forEach(l => { if (l.priceAvailable && l.stock) bySector[l.stock.sector] = (bySector[l.stock.sector]||0)+l.value; });
   const byCur = {}; pf.lines.forEach(l => { if (l.priceAvailable && l.stock) byCur[l.cur] = (byCur[l.cur]||0)+l.value; });
   const parts = o => Object.entries(o).sort((a,b)=>b[1]-a[1]).map(([k2,v],i)=>({k:k2,v,c:palette[i%palette.length]}));
+
+  const pfPeriod = PF_PERIODS.includes(state.ui.pfPeriod) ? state.ui.pfPeriod : '1A';
+  const histPts = walletHistoryPourPeriode(pfPeriod);
+  const first = histPts[0], last = histPts[histPts.length - 1];
+  /* Gain/perte et performance AFFICHÉS DANS LE SÉLECTEUR DE PÉRIODE portent
+     sur LA PÉRIODE choisie (comme le graphique de cours d'un titre : voir
+     chartProShell) — first/last DE CETTE PÉRIODE, pas depuis l'ouverture du
+     portefeuille. Le badge du bloc "Valeur totale" ci-dessus, lui, reste le
+     gain latent total depuis l'ouverture (pf.gain), toujours visible quelle
+     que soit la période choisie ci-dessous — deux informations différentes,
+     jamais confondues. */
+  const periodeGain = (first && last) ? last.totalValue - first.totalValue : null;
+  const periodePct = (first && last && first.totalValue) ? (periodeGain / first.totalValue) * 100 : null;
 
   return `<div class="page-in">
     <p class="eyebrow">Simulation</p>
@@ -3160,12 +3855,38 @@ PAGES.portfolio = () => {
       <p class="price" style="font-size:clamp(34px,7vw,52px);margin-top:4px">${fmt.eur(pf.total)}</p>
       <span class="tag ${pf.gain>=0?'tag-up':'tag-down'}" style="margin-top:10px">
         ${trendTxt(pf.gainPct)} · ${fmt.eur(pf.gain)}</span>
+      <p class="tiny" style="margin-top:10px">Gain latent depuis l'ouverture du portefeuille
+        (positions actuellement détenues, hors ventes déjà réalisées).</p>
+      ${pf.realizedPnL ? `<p class="small" style="margin-top:10px">
+        Gain/perte <b>réalisé</b> (positions déjà vendues) :
+        <b class="${pf.realizedPnL>=0?'up-t':'down-t'}">${pf.realizedPnL>=0?'+':''}${fmt.eur(pf.realizedPnL)}</b></p>` : ''}
       ${pf.unresolvedCount ? `<p class="tiny" style="margin-top:10px;color:var(--warn)">
         ${pf.unresolvedCount} position(s) non reconnue(s) n'entrent pas dans ce total.</p>` : ''}
-      <p class="tiny" style="margin-top:18px">Historique du portefeuille en cours de constitution :
-        il faudra enregistrer la valeur réelle de chaque position jour après jour avant de pouvoir
-        tracer une vraie courbe.</p>
     </div>
+
+    <section class="section">
+      <div class="section-h"><h2 class="h2">Évolution</h2>
+        <div class="seg">${PF_PERIODS.map(p=>`<button data-pf-period="${p}"
+          aria-pressed="${pfPeriod===p}">${p}</button>`).join('')}</div>
+      </div>
+      <div class="card" style="margin-top:14px">
+        ${histPts.length >= 2 ? `
+          ${areaChart(histPts.map(p=>p.totalValue), { color: periodeGain>=0 ? 'var(--up)' : 'var(--down)', id:'pf' })}
+          <div class="chart-stats" style="margin-top:14px">
+            <div><span class="tiny">Valeur du portefeuille</span><b class="tabular-nums">${fmt.eur(last.totalValue)}</b></div>
+            <div><span class="tiny">Capital net apporté</span><b class="tabular-nums">${Number.isFinite(last.netDeposits) ? fmt.eur(last.netDeposits) : '—'}</b></div>
+            <div><span class="tiny">Gain/perte (période)</span><b class="tabular-nums ${periodeGain>=0?'up-t':'down-t'}">${periodeGain>=0?'+':''}${fmt.eur(periodeGain)}</b></div>
+            <div><span class="tiny">Performance (période)</span><b class="tabular-nums ${periodePct>=0?'up-t':'down-t'}">${periodePct===null?'—':(periodePct>=0?'+':'')+fmt.num(periodePct,2)+' %'}</b></div>
+          </div>
+          <p class="tiny" style="margin-top:10px;color:var(--ink-4)">${histPts.length} relevé(s) réel(s) sur cette période
+            · premier relevé le ${new Date(state.walletHistory[0].t).toLocaleDateString('fr-FR')}</p>`
+        : `<p class="small" style="padding:16px 0;text-align:center">
+            ${state.walletHistory.length ? `Pas encore assez d'historique réel sur ${pfPeriod} : le portefeuille
+              n'a commencé à être enregistré que le ${new Date(state.walletHistory[0].t).toLocaleDateString('fr-FR')}.`
+            : `L'historique se constitue à partir de maintenant : achetez ou vendez une position, ou revenez
+              plus tard, pour voir apparaître une première courbe.`}</p>`}
+      </div>
+    </section>
 
     <section class="section">
       <h2 class="h2">Positions</h2>
@@ -3183,12 +3904,14 @@ PAGES.portfolio = () => {
               data-stock="${esc(l.stock.id)}">
               ${avatar(l.stock)}
               <span class="row-main"><span class="row-t">${esc(l.stock.name)}</span>
-                <span class="row-s">${fmt.num(l.qty,4)} × ${l.priceAvailable ? fmt.cur(l.localValue/l.qty, l.cur) : 'cours indisponible'}</span></span>
+                <span class="row-s">${fmt.num(l.qty,4)} × PRU ${fmt.cur(l.avg, l.cur)}${l.priceAvailable ? ` → cours ${fmt.cur(l.localValue/l.qty, l.cur)}` : ''}</span>
+                <span class="row-s tabular-nums">Capital investi : ${fmt.eur(l.costBasis)}</span></span>
             </button>
             <span class="row-end">
               ${l.priceAvailable ? `
-                <div class="tabular-nums" style="font-weight:650">${fmt.eur(l.value)}</div>
-                <div class="tabular-nums ${l.gain>=0?'up-t':'down-t'}" style="font-size:13px;margin-top:2px">${trendTxt(l.gainPct)}</div>
+                <div class="tabular-nums" style="font-weight:650">${fmt.eur(l.marketValue)}</div>
+                <div class="tabular-nums ${l.unrealizedPnL>=0?'up-t':'down-t'}" style="font-size:13px;margin-top:2px">
+                  ${l.unrealizedPnL>=0?'+':''}${fmt.eur(l.unrealizedPnL)} · ${trendTxt(l.unrealizedPnLPercent)}</div>
               ` : `<div class="tiny" style="color:var(--ink-4)">cours indisponible</div>`}
             </span>
           </div>`;
@@ -3816,9 +4539,14 @@ async function refreshAccount(){
 
 function setCapital(amount){
   const v = Math.max(100, Math.min(10000000, Math.round(amount)));
-  state.wallet = { cash:v, invested:v, positions:[] };
+  state.wallet = { cash:v, invested:v, positions:[], realizedPnL:0 };
+  /* Un nouveau portefeuille repart d'un historique VIDE, jamais celui d'un
+     portefeuille précédent : la période "MAX" de la courbe recommence
+     honnêtement à cet instant précis (voir snapshotPortfolio). */
+  state.walletHistory = [];
   state.onboarding.capital = v;
   state.onboarding.step = 4;
+  snapshotPortfolio('open');
   flushSaveState();
   renderGate();
   toast(`Portefeuille ouvert avec ${fmt.eur(v)}`);
@@ -4130,6 +4858,10 @@ function render(navigated = false){
   }
   if (route.page === 'radar')   document.getElementById('radarOut').innerHTML = radarResults();
   if (route.page === 'explore') document.getElementById('exploreOut').innerHTML = exploreRows();
+  /* Pose/complète le relevé du jour à chaque visite réelle de la page
+     Portefeuille — jamais un minuteur en tâche de fond (voir
+     assurerRelevéQuotidien). */
+  if (route.page === 'portfolio') assurerRelevéQuotidien();
 
   /* Rafraîchissement vivant — uniquement les instruments réellement
      visibles sur la page courante, jamais tout le catalogue. Une page
@@ -4512,6 +5244,13 @@ document.addEventListener('click', e => {
   const md = q('[data-mode]');
   if (md){ state.settings.mode = md.dataset.mode; saveState(); render(); return; }
 
+  /* Sélecteur de période de la courbe Portefeuille — purement local
+     (walletHistoryPourPeriode filtre l'historique déjà en mémoire), jamais
+     de requête réseau : contrairement au graphique d'un titre, aucune
+     donnée supplémentaire à charger à la demande ici. */
+  const pfp = q('[data-pf-period]');
+  if (pfp){ state.ui.pfPeriod = pfp.dataset.pfPeriod; saveState(); render(); return; }
+
   /* Sélecteur de période du graphique professionnel (fiche instrument).
      chargerGraphiquePeriode() ne relance une requête que si cette période
      n'est pas déjà en cache pour cet instrument — sinon render() seul
@@ -4540,10 +5279,23 @@ document.addEventListener('click', e => {
   if (marketsPlus){
     /* +20 seulement — jamais tout le reste d'un coup, même si l'utilisateur
        clique plusieurs fois de suite ("Voir plus" progressif, pas une
-       bascule "tout charger"). */
+       bascule "tout charger"). render() relance PAGES.markets(), qui
+       redéclenche garantirCatalogueMarkets() avec le nouveau seuil : si le
+       catalogue local est insuffisant, une page catalogue supplémentaire
+       est chargée automatiquement. */
     state.filters.marketsVisibles = (state.filters.marketsVisibles || 20) + 20;
     saveState();
     render();
+    return;
+  }
+
+  const explorePlus = q('[data-explore-plus]');
+  if (explorePlus){
+    state.filters.exploreVisibles = (state.filters.exploreVisibles || 20) + 20;
+    saveState();
+    const out = document.getElementById('exploreOut');
+    if (out) out.innerHTML = exploreRows();
+    garantirCatalogueExplore();
     return;
   }
 
@@ -4557,6 +5309,11 @@ document.addEventListener('click', e => {
     if (flt.dataset.filter === 'marketsCategory' || flt.dataset.filter === 'marketsRegion'){
       state.filters.marketsVisibles = 20;
     }
+    /* Changer de secteur = nouvelle liste filtrée = pagination Explorer
+       repartie de zéro, même raisonnement que Marchés ci-dessus. */
+    if (flt.dataset.filter === 'exploreSector'){
+      state.filters.exploreVisibles = 20;
+    }
     saveState();
     /* marketsCategory change la MISE EN PAGE (les puces de région
        n'apparaissent que pour la catégorie "Actions") : un simple
@@ -4566,7 +5323,13 @@ document.addEventListener('click', e => {
     document.querySelectorAll(`[data-filter="${flt.dataset.filter}"]`).forEach(b=>
       b.setAttribute('aria-pressed', String(b.dataset.val === flt.dataset.val)));
     if (route.page === 'radar') document.getElementById('radarOut').innerHTML = radarResults();
-    if (route.page === 'explore') document.getElementById('exploreOut').innerHTML = exploreRows();
+    if (route.page === 'explore'){
+      document.getElementById('exploreOut').innerHTML = exploreRows();
+      /* Un changement de secteur peut révéler un manque local (le
+         catalogue chargé jusqu'ici n'a pas encore rencontré ce secteur) :
+         tente de compléter en tâche de fond, comme au premier affichage. */
+      garantirCatalogueExplore();
+    }
     if (route.page === 'markets') render();   // pagination + éventuels nouveaux instruments à charger
     return;
   }
@@ -4655,6 +5418,12 @@ document.addEventListener('click', e => {
   if (showFund){
     const st = byId[showFund.dataset.showFundamentals];
     if (st){ chargerFondamentaux(st); render(); }
+    return;
+  }
+  const showNews = q('[data-show-news]');
+  if (showNews){
+    const st = byId[showNews.dataset.showNews];
+    if (st){ chargerActualites(st); render(); }
     return;
   }
 

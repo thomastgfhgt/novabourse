@@ -42,12 +42,13 @@ const essai = async (fn, args) => {
   }
 };
 
-function parametreValide(value, maxLength) {
+function parametreValide(value, maxLength, autoriserSlash = false) {
+  const motif = autoriserSlash ? /^[A-Z0-9._/-]+$/i : /^[A-Z0-9._-]+$/i;
   return (
     typeof value === 'string' &&
     value.length > 0 &&
     value.length <= maxLength &&
-    /^[A-Z0-9._-]+$/i.test(value)
+    motif.test(value)
   );
 }
 
@@ -109,17 +110,32 @@ module.exports = async (req, res) => {
     .trim()
     .toUpperCase();
 
-  const exchange = String(req.query?.exchange || 'NASDAQ')
+  /* `req.query?.exchange !== undefined` (pas `||`) : permet de tester
+     explicitement crypto/forex/index/commodity avec exchange="" (place
+     vide), qui ne doit JAMAIS retomber silencieusement sur 'NASDAQ'. */
+  const exchange = String(
+    req.query?.exchange !== undefined ? req.query.exchange : 'NASDAQ'
+  )
     .trim()
     .toUpperCase();
 
-  if (!parametreValide(ticker, 30)) {
+  /* Ajouté lors du correctif routage multi-actifs : nécessaire pour
+     diagnostiquer crypto/forex/index/commodity, dont le symbole
+     fournisseur dépend du type (voir eodhdSymbolPourType). */
+  const type = String(req.query?.type || 'stock').trim().toLowerCase();
+
+  /* "/" ajouté (audit multi-actifs, même correctif que search.js/
+     quotes.js/company.js) : sans lui, un ticker crypto/forex ("BTC/USD")
+     était rejeté par ce diagnostic AVANT même le premier appel réseau. */
+  if (!parametreValide(ticker, 30, true)) {
     return res.status(400).json({
       error: 'ticker_invalide',
     });
   }
 
-  if (!parametreValide(exchange, 40)) {
+  /* Place vide autorisée (crypto/forex/index/commodity n'ont pas de place
+     boursière) — seule une place NON vide est validée par le format. */
+  if (exchange && !parametreValide(exchange, 40)) {
     return res.status(400).json({
       error: 'exchange_invalide',
     });
@@ -138,12 +154,17 @@ module.exports = async (req, res) => {
 
     ticker,
     exchange,
+    type,
 
     tests: {},
   };
 
+  /* `type` ajouté en dernière position avant la clé pour quote/history —
+     voir _providers.js (les tables QUOTE et HISTORY attendent désormais
+     type juste avant key). FUNDAMENTALS/SEARCH n'ont pas cette signature
+     (jamais appelées avec un type différent de 'stock' en pratique). */
   const blocs = [
-    ['quote', QUOTE, [ticker, exchange]],
+    ['quote', QUOTE, [ticker, exchange, type]],
 
     ['fundamentals', FUNDAMENTALS, [
       ticker,
@@ -154,6 +175,7 @@ module.exports = async (req, res) => {
       ticker,
       exchange,
       30,
+      type,
     ]],
 
     ['search', SEARCH, [

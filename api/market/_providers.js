@@ -35,6 +35,19 @@ const KEYS = () => ({
     process.env.FINNHUB_API_KEY
     || process.env.MARKET_API_KEY
     || null,
+
+  /* CoinGecko "Public API" (api.coingecko.com) : aucune clé requise, ne
+     nécessite aucun compte. `coingecko: true` est donc une valeur
+     SENTINELLE (pas un vrai secret) — cascade()/BATCH ci-dessous
+     n'appellent un fournisseur que si keys[nom] est vérité, ce placeholder
+     leur permet de traiter CoinGecko exactement comme les fournisseurs à
+     clé sans dupliquer leur logique. COINGECKO_DISABLED="1" permet de le
+     couper explicitement en production (ex. abus constaté sur son IP
+     partagée) sans toucher au code. */
+  coingecko:
+    process.env.COINGECKO_DISABLED === '1'
+      ? null
+      : true,
 });
 
 /* ============================================================
@@ -246,6 +259,131 @@ const eodhdSymbol = (
   }`;
 };
 
+/* ============================================================
+   SYMBOLES EODHD — CRYPTO / FOREX (audit multi-actifs)
+   ============================================================
+   Root cause confirmée en production (voir rapport) : les cotations
+   crypto/forex reposaient à 100% sur Twelve Data, sans repli fonctionnel,
+   car eodhdSymbol() ci-dessus construit un symbole "action" (ex.
+   "BTC/USD.US") qui n'a aucun sens pour EODHD et échoue toujours (404).
+   Résultat : la moindre panne/quota Twelve Data (confirmé : HTTP 429 en
+   production au moment de l'audit) rend TOUTE la classe d'actif
+   indisponible d'un coup — c'est le vrai bug architectural, pas un
+   problème par symbole.
+
+   Conventions ci-dessous vérifiées EMPIRIQUEMENT (pas depuis la seule
+   documentation) via l'endpoint réel EODHD avec le token public "demo" :
+     GET https://eodhd.com/api/real-time/BTC-USD.CC?api_token=demo
+       -> vraies données retournées (close ≈ 76014, etc.)
+     GET https://eodhd.com/api/real-time/EURUSD.FOREX?api_token=demo
+       -> vraies données retournées (close ≈ 1.1545)
+   Le token demo est limité à quelques symboles de démonstration (ALGO-USD.CC
+   et ATOM-USD.CC renvoient "Forbidden" avec ce token précis) : ceci ne
+   remet pas en cause le FORMAT (confirmé sur BTC/EUR), seulement la
+   couverture exacte de la clé de démonstration — à confirmer en production
+   avec la vraie clé NovaBourse (voir résultats de test joints au rapport). */
+
+/**
+ * "BASE/QUOTE" (ex. "BTC/USD") -> "BASE-QUOTE.CC" (ex. "BTC-USD.CC").
+ * Retourne null si le ticker n'a pas exactement cette forme — jamais un
+ * symbole partiellement construit à partir d'un ticker inattendu.
+ */
+function eodhdCryptoSymbol(ticker) {
+  const m = /^([A-Z0-9]+)\/([A-Z0-9]+)$/.exec(String(ticker || '').toUpperCase());
+  return m ? `${m[1]}-${m[2]}.CC` : null;
+}
+
+/**
+ * "BASE/QUOTE" (ex. "EUR/USD") -> "BASEQUOTE.FOREX" (ex. "EURUSD.FOREX").
+ */
+function eodhdForexSymbol(ticker) {
+  const m = /^([A-Z0-9]+)\/([A-Z0-9]+)$/.exec(String(ticker || '').toUpperCase());
+  return m ? `${m[1]}${m[2]}.FOREX` : null;
+}
+
+/**
+ * Point d'entrée UNIQUE pour obtenir un symbole EODHD, quel que soit le
+ * type d'instrument. 'index'/'commodity' renvoient explicitement null :
+ * aucune convention EODHD n'a pu être vérifiée pour ces deux types (voir
+ * rapport précédent) — mieux vaut ne pas appeler EODHD du tout que
+ * d'envoyer un symbole non vérifié.
+ */
+function eodhdSymbolPourType(ticker, exchange, type) {
+  if (type === 'crypto') return eodhdCryptoSymbol(ticker);
+  if (type === 'forex') return eodhdForexSymbol(ticker);
+  if (type === 'index' || type === 'commodity') return null;
+  return eodhdSymbol(ticker, exchange);
+}
+
+/* ============================================================
+   COINGECKO — SOURCE CRYPTO GRATUITE SANS CLÉ (audit sources supplémentaires)
+   ============================================================
+   api.coingecko.com/api/v3 ("Public API") ne nécessite aucune clé ni
+   compte. Vérifié empiriquement en direct au moment de l'intégration :
+     GET /simple/price?ids=algorand,cosmos&vs_currencies=usd
+     GET /coins/markets?vs_currency=usd&ids=algorand,cosmos
+     GET /coins/algorand/market_chart?vs_currency=usd&days=30
+   -> réponses réelles et exploitables pour les deux instruments qui
+   posaient problème en production (ALGO, ATOM). C'est un fournisseur
+   RÉEL et INDÉPENDANT des trois payants (EODHD/Twelve Data/Finnhub) : il
+   ne dépend d'aucun de leurs quotas, et couvre nativement des centaines
+   de cryptomonnaies que ni EODHD ni Twelve Data ne référencent forcément.
+   Mise en garde documentée par CoinGecko : ce point d'accès public est
+   soumis à une limite de débit partagée, sans garantie de disponibilité
+   contractuelle — d'où sa position de PREMIER essai pour crypto (préserve
+   le quota payant) mais jamais seul fournisseur exclusif (repli sur
+   Twelve Data/EODHD toujours conservé dans la cascade appelante).
+
+   Correspondance ticker NovaBourse -> identifiant CoinGecko : NE JAMAIS
+   deviner un id depuis le symbole (ex. "atom" fonctionne mais de nombreux
+   symboles CoinGecko sont ambigus - plusieurs pièces partagent le même
+   symbole). Seule cette table, vérifiée manuellement contre /coins/list,
+   fait foi ; un ticker absent de cette table n'a simplement pas de
+   correspondance CoinGecko (comportement identique à exchangeCode manquant
+   ailleurs dans ce fichier : jamais une devinette silencieuse). */
+const CRYPTO_ID_COINGECKO = {
+  BTC: 'bitcoin',
+  ETH: 'ethereum',
+  XRP: 'ripple',
+  LTC: 'litecoin',
+  BCH: 'bitcoin-cash',
+  ADA: 'cardano',
+  DOGE: 'dogecoin',
+  SOL: 'solana',
+  DOT: 'polkadot',
+  MATIC: 'matic-network',
+  AVAX: 'avalanche-2',
+  LINK: 'chainlink',
+  XLM: 'stellar',
+  TRX: 'tron',
+  ATOM: 'cosmos',
+  ETC: 'ethereum-classic',
+  XMR: 'monero',
+  ALGO: 'algorand',
+  VET: 'vechain',
+  FIL: 'filecoin',
+};
+
+/* Devises de règlement acceptées par `vs_currencies`/`vs_currency` que
+   CoinGecko documente et que NovaBourse utilise réellement (voir FX dans
+   index.html) — liste fermée plutôt qu'un passe-plat de n'importe quelle
+   chaîne vers l'URL du fournisseur. */
+const COINGECKO_VS_CURRENCIES = new Set(['usd', 'eur', 'gbp', 'chf', 'jpy', 'cad', 'aud']);
+
+/**
+ * "BASE/QUOTE" (ex. "ALGO/USD") -> { id: 'algorand', vs: 'usd' }, ou null
+ * si la base n'a pas de correspondance vérifiée ou si la devise de cotation
+ * n'est pas supportée. Jamais de valeur partiellement construite.
+ */
+function coingeckoRef(ticker) {
+  const m = /^([A-Z0-9]+)\/([A-Z0-9]+)$/.exec(String(ticker || '').toUpperCase());
+  if (!m) return null;
+  const id = CRYPTO_ID_COINGECKO[m[1]];
+  const vs = m[2].toLowerCase();
+  if (!id || !COINGECKO_VS_CURRENCIES.has(vs)) return null;
+  return { id, vs };
+}
+
 const TD_EXCHANGE = {
   NASDAQ: null,
   NYSE: null,
@@ -309,7 +447,16 @@ const US_EXCHANGES =
     'US',
   ]);
 
-function finnhubAutorise(exchange) {
+/* Finnhub /quote n'accepte qu'un ticker brut (ex. "AAPL"), jamais une paire
+   "BASE/QUOTE" ni un symbole EODHD-style : structurellement incompatible
+   avec crypto/forex/index/commodity dans NovaBourse (leur ticker contient
+   un "/" ou n'a pas d'équivalent US direct). Avant cette correction,
+   finnhubAutorise('') renvoyait true pour ces quatre types (exchange vide),
+   déclenchant un appel Finnhub voué à l'échec à chaque fois. */
+const TYPES_INCOMPATIBLES_FINNHUB = new Set(['crypto', 'forex', 'index', 'commodity']);
+
+function finnhubAutorise(exchange, type) {
+  if (TYPES_INCOMPATIBLES_FINNHUB.has(type)) return false;
   return (
     !exchange
     || US_EXCHANGES.has(
@@ -433,6 +580,7 @@ const QUOTE = {
   async twelvedata(
     ticker,
     exchange,
+    type,
     key
   ) {
     const d =
@@ -489,11 +637,21 @@ const QUOTE = {
   async eodhd(
     ticker,
     exchange,
+    type,
     key
   ) {
+    const symbole =
+      eodhdSymbolPourType(ticker, exchange, type);
+
+    if (!symbole) {
+      throw new Error(
+        'type_sans_convention_eodhd'
+      );
+    }
+
     const d =
       await getJSON(
-        `https://eodhd.com/api/real-time/${encodeURIComponent(eodhdSymbol(ticker, exchange))}`
+        `https://eodhd.com/api/real-time/${encodeURIComponent(symbole)}`
         + `?api_token=${key}&fmt=json`
       );
 
@@ -542,10 +700,11 @@ const QUOTE = {
   async finnhub(
     ticker,
     exchange,
+    type,
     key
   ) {
     if (
-      !finnhubAutorise(exchange)
+      !finnhubAutorise(exchange, type)
     ) {
       throw new Error(
         'place_non_supportee_par_finnhub'
@@ -600,6 +759,44 @@ const QUOTE = {
         isoUnix(d.t),
     };
   },
+
+  /* Un seul appel /coins/markets couvre AUSSI le cas batch (voir BATCH.coingecko
+     plus bas) : même endpoint, ids séparés par virgule. Ici ids=1 seul. */
+  async coingecko(ticker, exchange, type, key) {
+    if (type !== 'crypto') throw new Error('type_non_supporte_par_coingecko');
+    const ref = coingeckoRef(ticker);
+    if (!ref) throw new Error('ticker_non_reconnu_par_coingecko');
+
+    const d = await getJSON(
+      `https://api.coingecko.com/api/v3/coins/markets`
+      + `?vs_currency=${ref.vs}&ids=${ref.id}&price_change_percentage=24h`,
+      9000
+    );
+
+    const ligne = Array.isArray(d) ? d[0] : null;
+    if (!ligne || num(ligne.current_price) === null) {
+      throw new Error('vide');
+    }
+
+    return {
+      price: num(ligne.current_price),
+      change: num(ligne.price_change_24h),
+      changePercent: num(ligne.price_change_percentage_24h),
+      /* Dérivé arithmétiquement de deux valeurs réellement reçues
+         (current_price - price_change_24h), jamais une estimation :
+         c'est la même opération que absChange() applique déjà côté
+         frontend à partir de price/changePercent seuls. */
+      previousClose: (num(ligne.current_price) !== null && num(ligne.price_change_24h) !== null)
+        ? num(ligne.current_price) - num(ligne.price_change_24h)
+        : null,
+      open: null,
+      high: num(ligne.high_24h),
+      low: num(ligne.low_24h),
+      volume: num(ligne.total_volume),
+      currency: ref.vs.toUpperCase(),
+      timestamp: txt(ligne.last_updated) ? new Date(ligne.last_updated).toISOString() : null,
+    };
+  },
 };
 
 /* ============================================================
@@ -629,6 +826,10 @@ const FUNDAMENTALS = {
 
     const valuation =
       d?.Valuation
+      || {};
+
+    const analystRatingsBrut =
+      d?.AnalystRatings
       || {};
 
     /**
@@ -943,6 +1144,39 @@ const FUNDAMENTALS = {
             highlights
               .MarketCapitalization
           ),
+
+        /* Analystes (section "Voir les analystes") : déjà présent dans la
+           même réponse EODHD /fundamentals déjà appelée pour "Voir les
+           chiffres" — aucun appel réseau supplémentaire. null si le bloc
+           AnalystRatings est absent (jamais une note inventée). */
+        analystRatings:
+          Object.keys(analystRatingsBrut).length
+            ? {
+                rating: num(analystRatingsBrut.Rating),
+                targetPrice: num(analystRatingsBrut.TargetPrice),
+                strongBuy: num(analystRatingsBrut.StrongBuy),
+                buy: num(analystRatingsBrut.Buy),
+                hold: num(analystRatingsBrut.Hold),
+                sell: num(analystRatingsBrut.Sell),
+                strongSell: num(analystRatingsBrut.StrongSell),
+              }
+            : null,
+
+        /* Consensus de prix cible "Wall Street" (Highlights, distinct de
+           AnalystRatings.TargetPrice ci-dessus — EODHD documente les deux
+           comme des sources/méthodologies différentes ; on renvoie les deux
+           tels quels plutôt que d'en choisir un arbitrairement). */
+        wallStreetTargetPrice:
+          num(highlights.WallStreetTargetPrice),
+
+        epsEstimateCurrentYear:
+          num(highlights.EPSEstimateCurrentYear),
+        epsEstimateNextYear:
+          num(highlights.EPSEstimateNextYear),
+        epsEstimateCurrentQuarter:
+          num(highlights.EPSEstimateCurrentQuarter),
+        epsEstimateNextQuarter:
+          num(highlights.EPSEstimateNextQuarter),
       },
 
       asOf:
@@ -1076,11 +1310,71 @@ const FUNDAMENTALS = {
             metric
               .marketCapitalization
           ),
+
+        /* Finnhub /stock/metric ne fournit aucun consensus analyste sous
+           cette forme (ce serait un endpoint distinct, non branché ici) —
+           null plutôt que deviné, cohérent avec revenueSeries/epsSeries
+           déjà null pour ce même fournisseur un peu plus haut. */
+        analystRatings: null,
+        wallStreetTargetPrice: null,
+        epsEstimateCurrentYear: null,
+        epsEstimateNextYear: null,
+        epsEstimateCurrentQuarter: null,
+        epsEstimateNextQuarter: null,
       },
 
       asOf:
         null,
     };
+  },
+};
+
+/* ============================================================
+   ACTUALITÉS (bouton "Voir les actualités")
+   ============================================================
+   Vérifié empiriquement en direct (token public "demo") avant intégration :
+     GET https://eodhd.com/api/news?s=AAPL.US&limit=3&api_token=demo
+   -> articles réels (titre, contenu, lien, symboles liés, tags, sentiment).
+   Un seul fournisseur pour l'instant (EODHD) : Finnhub propose aussi un
+   /company-news mais nécessite une vraie clé pour être vérifié (le token
+   demo EODHD suffisait à confirmer le format ci-dessus, pas Finnhub) — reste
+   documenté comme extension possible plutôt qu'ajouté sans vérification
+   empirique, conformément au principe de ce fichier. */
+const NEWS = {
+  async eodhd(ticker, exchange, limit, type, key) {
+    if (type !== 'stock' && type !== 'etf') {
+      throw new Error('type_sans_actualites');
+    }
+
+    const symbole = eodhdSymbol(ticker, exchange);
+    const d = await getJSON(
+      `https://eodhd.com/api/news`
+      + `?s=${encodeURIComponent(symbole)}`
+      + `&limit=${Math.max(1, Math.min(50, Math.round(limit) || 10))}`
+      + `&api_token=${key}&fmt=json`,
+      12000
+    );
+
+    if (!Array.isArray(d)) throw new Error(`format_inattendu:${typeof d}`);
+
+    const articles = d
+      .map(a => ({
+        date: txt(a.date),
+        title: txt(a.title),
+        link: txt(a.link),
+        /* content tronqué : un résumé suffit à l'affichage en liste, évite
+           de faire transiter des dizaines de Ko de texte intégral par
+           article vers le frontend pour rien. */
+        summary: txt(a.content) ? String(a.content).slice(0, 400) : null,
+        symbols: Array.isArray(a.symbols) ? a.symbols.filter(s => typeof s === 'string') : [],
+        tags: Array.isArray(a.tags) ? a.tags.filter(t => typeof t === 'string') : [],
+        sentiment: (a.sentiment && Number.isFinite(num(a.sentiment.polarity)))
+          ? num(a.sentiment.polarity) : null,
+      }))
+      .filter(a => a.date && a.title && a.link);
+
+    if (!articles.length) throw new Error('aucune_ligne_exploitable');
+    return articles;
   },
 };
 
@@ -1305,6 +1599,36 @@ function joursHistorique(n) {
   );
 }
 
+/* Partagé par HISTORY.coingecko (quotidien) et INTRADAY.coingecko
+   (infra-journalier) : même endpoint /market_chart, seule la valeur de
+   `days` change la granularité RÉELLE renvoyée par CoinGecko (automatique,
+   non paramétrable sur l'API publique gratuite — vérifié empiriquement :
+   days<=1 -> ~5 min, 2-90 -> ~1 h, >90 -> quotidien). Aucun OHLC construit :
+   uniquement un point prix (open=high=low=close=price) par horodatage
+   RÉEL, jamais de barre inventée. */
+async function coingeckoMarketChart(id, vs, days) {
+  const d = await getJSON(
+    `https://api.coingecko.com/api/v3/coins/${encodeURIComponent(id)}/market_chart`
+    + `?vs_currency=${vs}&days=${Math.max(1, Math.min(Math.round(days), 5000))}`,
+    12000
+  );
+
+  const prix = Array.isArray(d?.prices) ? d.prices : [];
+  const volumes = new Map((Array.isArray(d?.total_volumes) ? d.total_volumes : [])
+    .map(([t, v]) => [t, v]));
+
+  if (!prix.length) throw new Error('vide');
+
+  return prix.map(([t, price]) => ({
+    date: new Date(t).toISOString(),
+    open: null,
+    high: null,
+    low: null,
+    close: num(price),
+    volume: num(volumes.get(t)),
+  }));
+}
+
 /* ============================================================
    HISTORIQUE OHLCV
    ============================================================ */
@@ -1314,6 +1638,7 @@ const HISTORY = {
     ticker,
     exchange,
     n,
+    type,
     key
   ) {
     const jours =
@@ -1331,10 +1656,17 @@ const HISTORY = {
         );
 
     const symbole =
-      eodhdSymbol(
+      eodhdSymbolPourType(
         ticker,
-        exchange
+        exchange,
+        type
       );
+
+    if (!symbole) {
+      throw new Error(
+        'type_sans_convention_eodhd'
+      );
+    }
 
     const url =
       `https://eodhd.com/api/eod/${encodeURIComponent(symbole)}`
@@ -1454,6 +1786,7 @@ const HISTORY = {
     ticker,
     exchange,
     n,
+    type,
     key
   ) {
     const jours =
@@ -1531,6 +1864,26 @@ const HISTORY = {
 
     return lignes;
   },
+
+  async coingecko(ticker, exchange, n, type, key) {
+    if (type !== 'crypto') throw new Error('type_non_supporte_par_coingecko');
+    const ref = coingeckoRef(ticker);
+    if (!ref) throw new Error('ticker_non_reconnu_par_coingecko');
+
+    const jours = joursHistorique(n);
+    const brutes = await coingeckoMarketChart(ref.id, ref.vs, jours);
+    const recues = brutes.length;
+
+    /* normaliserHistorique() dédoublonne par JOUR en gardant le dernier
+       point écrit pour cette date — les points CoinGecko étant déjà
+       chronologiques, cela retient naturellement le dernier prix connu de
+       chaque journée (une clôture réelle, pas approximée). */
+    const lignes = normaliserHistorique(brutes);
+    if (!lignes.length) throw new Error(recues ? 'zero_ligne_apres_normalisation' : 'aucune_ligne_recue');
+
+    lignes.recues = recues;
+    return lignes;
+  },
 };
 
 /* ============================================================
@@ -1543,7 +1896,7 @@ const HISTORY = {
 const INTRADAY = {
   /* Twelve Data accepte nativement 1min/5min/15min/30min/1h comme
      `interval` — aucune conversion nécessaire. */
-  async twelvedata(ticker, exchange, interval, jours, key) {
+  async twelvedata(ticker, exchange, interval, jours, type, key) {
     if (!INTRADAY_MINUTES[interval]) {
       throw new Error('intervalle_non_supporte');
     }
@@ -1595,7 +1948,7 @@ const INTRADAY = {
      récupère la plus fine granularité native disponible et on ré-agrège
      vers la granularité demandée (resampleOHLC — donnée réelle
      réagrégée, jamais inventée). */
-  async eodhd(ticker, exchange, interval, jours, key) {
+  async eodhd(ticker, exchange, interval, jours, type, key) {
     const minutesDemandees = INTRADAY_MINUTES[interval];
     if (!minutesDemandees) {
       throw new Error('intervalle_non_supporte');
@@ -1609,7 +1962,16 @@ const INTRADAY = {
 
     const to = Math.floor(Date.now() / 1000);
     const from = to - Math.round(jours * 86400);
-    const symbole = eodhdSymbol(ticker, exchange);
+    /* eodhdSymbolPourType() gère aussi crypto/forex (conventions "BTC-USD.CC"
+       / "EURUSD.FOREX", vérifiées empiriquement sur ce même endpoint
+       /intraday/) — voir historique de ce fichier pour le détail du
+       correctif. index/commodity restent sans convention vérifiée : null,
+       ce qui fait échouer proprement cet appel plutôt que d'envoyer un
+       symbole inventé. */
+    const symbole = eodhdSymbolPourType(ticker, exchange, type);
+    if (!symbole) {
+      throw new Error('type_sans_convention_eodhd');
+    }
 
     const url = `https://eodhd.com/api/intraday/${encodeURIComponent(symbole)}`
       + `?api_token=${key}&fmt=json&interval=${natif}&from=${from}&to=${to}`;
@@ -1647,6 +2009,28 @@ const INTRADAY = {
     if (natifMinutes < minutesDemandees) {
       lignes = resampleOHLC(lignes, minutesDemandees);
     }
+
+    lignes.recues = recues;
+    return lignes;
+  },
+
+  /* Granularité RÉELLE renvoyée par CoinGecko pour `jours` <= 90 (~5 min si
+     jours<=1, sinon ~1 h) — non paramétrable sur l'API publique gratuite
+     (voir coingeckoMarketChart ci-dessus). `interval` demandé n'est donc
+     qu'indicatif ici : jamais ré-échantillonné vers une granularité plus
+     fine que ce qui a été réellement reçu (resampleOHLC ne fait QUE
+     grossir, jamais l'inverse) — retourné tel quel, la réponse HTTP
+     (voir history.js) indique le vrai `interval` via le journal si besoin. */
+  async coingecko(ticker, exchange, interval, jours, type, key) {
+    if (type !== 'crypto') throw new Error('type_non_supporte_par_coingecko');
+    const ref = coingeckoRef(ticker);
+    if (!ref) throw new Error('ticker_non_reconnu_par_coingecko');
+
+    const brutes = await coingeckoMarketChart(ref.id, ref.vs, jours);
+    const recues = brutes.length;
+
+    const lignes = normaliserIntraday(brutes);
+    if (!lignes.length) throw new Error(recues ? 'zero_ligne_apres_normalisation' : 'aucune_ligne_recue');
 
     lignes.recues = recues;
     return lignes;
@@ -1784,6 +2168,12 @@ const BATCH = {
 
     finnhub:
       10,
+
+    /* /coins/markets accepte jusqu'à 250 `ids` par appel (documenté par
+       CoinGecko) — un seul appel HTTP couvre tout le catalogue crypto
+       NovaBourse actuel (20 paires) en une fois. */
+    coingecko:
+      250,
   },
 
   async twelvedata(
@@ -1922,17 +2312,19 @@ const BATCH = {
     valeurs,
     key
   ) {
+    /* Filtre AVANT construction de la requête : un instrument dont le
+       type n'a aucune convention EODHD vérifiée (index/commodity, voir
+       eodhdSymbolPourType) est simplement exclu de ce lot, jamais envoyé
+       avec un symbole inventé. Il reste éligible aux autres fournisseurs
+       de la cascade (twelvedata). */
     const map =
       new Map(
-        valeurs.map(
-          v => [
-            eodhdSymbol(
-              v.ticker,
-              v.exchange
-            ),
+        valeurs
+          .map(v => [
+            eodhdSymbolPourType(v.ticker, v.exchange, v.type),
             v,
-          ]
-        )
+          ])
+          .filter(([symbole]) => Boolean(symbole))
       );
 
     const symboles =
@@ -2060,7 +2452,8 @@ const BATCH = {
       valeurs.filter(
         v =>
           finnhubAutorise(
-            v.exchange
+            v.exchange,
+            v.type
           )
       );
 
@@ -2143,6 +2536,64 @@ const BATCH = {
 
     return out;
   },
+
+  /* Seuls les éléments type==='crypto' avec un ticker reconnu par
+     CRYPTO_ID_COINGECKO participent — les autres (actions, forex...) sont
+     silencieusement exclus de CE lot, jamais envoyés à CoinGecko avec un
+     id inventé. Ils restent éligibles aux autres fournisseurs de la
+     cascade (voir ORDRE dans quotes.js). Toutes les devises de règlement
+     demandées sont regroupées par vs_currency pour respecter le contrat
+     d'un seul vs_currency par appel /coins/markets — un seul appel HTTP
+     suffit tant que tout le lot cote dans la même devise (cas normal :
+     NovaBourse coté crypto uniquement en USD aujourd'hui). */
+  async coingecko(valeurs, key) {
+    const parGroupe = new Map(); // vs -> Map(id -> valeur)
+    for (const v of valeurs) {
+      if (v.type !== 'crypto') continue;
+      const ref = coingeckoRef(v.ticker);
+      if (!ref) continue;
+      if (!parGroupe.has(ref.vs)) parGroupe.set(ref.vs, new Map());
+      parGroupe.get(ref.vs).set(ref.id, v);
+    }
+
+    if (!parGroupe.size) throw new Error('aucun_symbole');
+
+    const out = new Map();
+
+    for (const [vs, parId] of parGroupe) {
+      const ids = [...parId.keys()];
+      let lignes;
+      try {
+        lignes = await getJSON(
+          `https://api.coingecko.com/api/v3/coins/markets`
+          + `?vs_currency=${vs}&ids=${ids.join(',')}&price_change_percentage=24h`,
+          12000
+        );
+      } catch {
+        continue; // un groupe de devise indisponible ne doit pas faire échouer les autres
+      }
+
+      for (const ligne of (Array.isArray(lignes) ? lignes : [])) {
+        if (num(ligne?.current_price) === null) continue;
+        const src = parId.get(ligne.id);
+        if (!src) continue;
+
+        out.set(idDe(src), {
+          symbol: idDe(src),
+          ticker: src.ticker,
+          exchange: src.exchange,
+          price: num(ligne.current_price),
+          change: num(ligne.price_change_24h),
+          changePercent: num(ligne.price_change_percentage_24h),
+          currency: vs.toUpperCase(),
+          timestamp: txt(ligne.last_updated) ? new Date(ligne.last_updated).toISOString() : null,
+        });
+      }
+    }
+
+    if (!out.size) throw new Error('aucune_ligne_exploitable');
+    return out;
+  },
 };
 
 /* ============================================================
@@ -2156,6 +2607,7 @@ module.exports = {
   HISTORY,
   INTRADAY,
   BATCH,
+  NEWS,
 
   cascade,
 
@@ -2168,7 +2620,12 @@ module.exports = {
   getJSON,
 
   eodhdSymbol,
+  eodhdCryptoSymbol,
+  eodhdForexSymbol,
+  eodhdSymbolPourType,
   tdSymbol,
+  coingeckoRef,
+  CRYPTO_ID_COINGECKO,
 
   idDe,
 

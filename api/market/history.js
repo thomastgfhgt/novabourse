@@ -6,14 +6,34 @@
  * chargement à la demande côté frontend (bouton "Voir le graphique").
  *
  * SANS `period` : comportement STRICTEMENT INCHANGÉ (compatibilité totale
- * avec l'existant — même cascade, même cache, mêmes ~260 points quotidiens).
+ * avec l'existant — même cascade, même cache, mêmes ~260 points quotidiens),
+ * à l'exception de l'ajout PUREMENT ADDITIF de `freshness`/`provenance`
+ * (voir _freshness.js) au corps de la réponse.
  *
- * AVEC `period` : nouveau chemin paramétré multi-période/intraday. Périodes
+ * AVEC `period` : chemin paramétré multi-période/intraday. Périodes
  * disponibles ci-dessous (PERIOD_SPECS) — chacune choisit une granularité
  * réaliste (intraday réel pour les périodes courtes, quotidien pour les
  * longues) sans jamais fabriquer une donnée absente. Un `interval` explicite
  * (1min/5min/15min/30min/1h) peut surcharger la granularité par défaut d'une
  * période intraday.
+ *
+ * CORRECTIF (audit routage multi-actifs — bug de production confirmé) :
+ * crypto/forex utilisent désormais EODHD avec le VRAI symbole de ce
+ * fournisseur pour ces types (voir eodhdSymbolPourType() dans
+ * _providers.js : "BTC-USD.CC", "EURUSD.FOREX" — vérifiés empiriquement en
+ * direct, pas depuis la seule documentation, y compris sur /intraday/).
+ * Avant ce correctif, crypto/forex étaient réduits à Twelve Data SEUL, sans
+ * aucun repli : un simple HTTP 429 (quota) chez Twelve Data rendait alors
+ * TOUTE la classe d'actif indisponible d'un coup. C'est la cause racine du
+ * bug "ALGO/USD cours indisponible" / "ATOM/USD historique indisponible" :
+ * ni l'un ni l'autre n'a de rapport avec le ticker lui-même (vérifié : les
+ * deux existent bien chez Twelve Data), c'est l'absence de repli
+ * fonctionnel qui posait problème.
+ *
+ * 'index'/'commodity' restent sur Twelve Data seul : aucune convention
+ * EODHD n'a pu être vérifiée pour ces deux types, donc EODHD reste
+ * explicitement retiré de leur cascade plutôt que d'envoyer un symbole non
+ * vérifié.
  *
  * Aucune donnée n'est jamais inventée :
  *   - période demandée mais fournisseur incapable => history: null, reason explicite ;
@@ -37,7 +57,32 @@ const MAX_HISTORY_POINTS = 260;
    par joursHistorique() côté _providers.js (max 5000). */
 const MAX_INTRADAY_POINTS = 1500;
 
-const TYPES_SANS_SUFFIXE_EODHD = new Set(['forex', 'crypto']);
+/* Types pour lesquels EODHD n'a AUCUNE convention de symbole vérifiée
+   (voir eodhdSymbolPourType() dans _providers.js) : y envoyer un appel
+   n'a pas de sens, quel que soit le chemin (défaut/quotidien/intraday).
+   crypto/forex EN FONT DÉSORMAIS PARTIE côté couverture (ils ont une
+   convention EODHD vérifiée : "BTC-USD.CC" / "EURUSD.FOREX") — seul
+   index/commodity restent sans repli EODHD. */
+const TYPES_SANS_SUFFIXE_EODHD = new Set(['index', 'commodity']);
+
+/* Ordre de cascade historique/intraday, dépendant du type d'instrument :
+ *   - crypto : CoinGecko (gratuit, sans clé, indépendant des quotas payants
+ *     — voir _providers.js) EN PREMIER, préserve le quota EODHD/Twelve Data
+ *     pour les types qui n'ont pas d'alternative gratuite. EODHD/Twelve Data
+ *     restent en repli réel si CoinGecko ne reconnaît pas ce ticker precis.
+ *   - index/commodity : aucune convention EODHD vérifiée, CoinGecko hors
+ *     sujet (pas des cryptomonnaies) -> Twelve Data seul.
+ *   - tout le reste (stock/etf/forex) : EODHD/Twelve Data, ordre historique
+ *     inchangé (intraday privilégie Twelve Data en tête, daily privilégie
+ *     EODHD en tête — comportement préexistant, non modifié ici).
+ */
+function ordreHistoriquePourType(type, { intraday }) {
+  if (type === 'crypto') {
+    return intraday ? ['coingecko', 'twelvedata', 'eodhd'] : ['coingecko', 'eodhd', 'twelvedata'];
+  }
+  if (TYPES_SANS_SUFFIXE_EODHD.has(type)) return ['twelvedata'];
+  return intraday ? ['twelvedata', 'eodhd'] : ['eodhd', 'twelvedata'];
+}
 
 /**
  * Une période "réellement exploitable" au sens du cahier des charges :
@@ -83,15 +128,16 @@ module.exports = async (req, res) => {
   const periodeBrute = req.query?.period ? String(req.query.period).toLowerCase() : null;
 
   const keys = KEYS();
-  if (!keys.eodhd && !keys.twelvedata && !keys.finnhub) {
+  /* `keys.coingecko` inclus : un déploiement sans AUCUNE clé payante peut
+     tout de même servir l'historique crypto via CoinGecko seul (voir
+     ordreHistoriquePourType) — ne jamais 503 ce cas prématurément ici. */
+  if (!keys.eodhd && !keys.twelvedata && !keys.finnhub && !keys.coingecko) {
     return res.status(503).json({ error: 'aucun_fournisseur_configure' });
   }
 
   /* ================= CHEMIN PAR DÉFAUT (compat stricte) ================= */
   if (!periodeBrute) {
-    const ordre = TYPES_SANS_SUFFIXE_EODHD.has(type)
-      ? ['twelvedata']
-      : ['eodhd', 'twelvedata'];
+    const ordre = ordreHistoriquePourType(type, { intraday: false });
 
     if (!ordre.some(p => keys[p])) {
       return res.status(503).json({ error: 'aucun_fournisseur_configure' });
@@ -102,7 +148,7 @@ module.exports = async (req, res) => {
       nom: 'history',
       table: HISTORY,
       ordre,
-      args: [ticker, exchange, 400],
+      args: [ticker, exchange, 400, type],
       ticker, exchange, frais, journal,
     });
 
@@ -120,6 +166,10 @@ module.exports = async (req, res) => {
       history,
       source: aHistory ? h.source : null,
       asOf: aHistory ? (history.ohlcv[history.ohlcv.length - 1]?.date ?? null) : null,
+      /* Additif (voir api/market/_freshness.js) : un OHLCV quotidien n'est
+         jamais du temps réel, quel que soit le fournisseur. */
+      freshness: aHistory ? h.freshness : null,
+      provenance: aHistory ? { source: h.source, sourceUrl: h.sourceUrl, retrievedAt: h.retrievedAt } : null,
       journal,
     });
   }
@@ -140,13 +190,7 @@ module.exports = async (req, res) => {
       ? String(req.query.interval)
       : spec.interval;
 
-    /* Même restriction que le chemin quotidien : eodhdSymbol() n'a pas
-       de convention de suffixe forex/crypto, donc pas d'appel voué à
-       l'échec envoyé "par accident" (cf. commentaire historique de ce
-       fichier, comportement identique reconduit ici). */
-    const ordre = TYPES_SANS_SUFFIXE_EODHD.has(type)
-      ? ['twelvedata']
-      : ['twelvedata', 'eodhd'];
+    const ordre = ordreHistoriquePourType(type, { intraday: true });
 
     if (!ordre.some(p => keys[p])) {
       return res.status(503).json({ error: 'aucun_fournisseur_configure' });
@@ -157,7 +201,7 @@ module.exports = async (req, res) => {
       nom: 'intraday',
       table: INTRADAY,
       ordre,
-      args: [ticker, exchange, intervalleDemande, jours],
+      args: [ticker, exchange, intervalleDemande, jours, type],
       ticker, exchange, frais, journal,
       cacheParts: [periodeBrute, intervalleDemande],
     });
@@ -182,14 +226,14 @@ module.exports = async (req, res) => {
       source: disponible ? h.source : null,
       asOf: disponible ? (history.ohlcv[history.ohlcv.length - 1]?.date ?? null) : null,
       reason: disponible ? null : 'intraday_indisponible',
+      freshness: disponible ? h.freshness : null,
+      provenance: disponible ? { source: h.source, sourceUrl: h.sourceUrl, retrievedAt: h.retrievedAt } : null,
       journal,
     });
   }
 
   /* spec.kind === 'daily' */
-  const ordre = TYPES_SANS_SUFFIXE_EODHD.has(type)
-    ? ['twelvedata']
-    : ['eodhd', 'twelvedata'];
+  const ordre = ordreHistoriquePourType(type, { intraday: false });
 
   if (!ordre.some(p => keys[p])) {
     return res.status(503).json({ error: 'aucun_fournisseur_configure' });
@@ -200,7 +244,7 @@ module.exports = async (req, res) => {
     nom: 'histp',
     table: HISTORY,
     ordre,
-    args: [ticker, exchange, jours],
+    args: [ticker, exchange, jours, type],
     ticker, exchange, frais, journal,
     cacheParts: [periodeBrute],
   });
@@ -222,6 +266,8 @@ module.exports = async (req, res) => {
     source: disponible ? h.source : null,
     asOf: disponible ? (history.ohlcv[history.ohlcv.length - 1]?.date ?? null) : null,
     reason: disponible ? null : 'historique_indisponible',
+    freshness: disponible ? h.freshness : null,
+    provenance: disponible ? { source: h.source, sourceUrl: h.sourceUrl, retrievedAt: h.retrievedAt } : null,
     journal,
   });
 };
