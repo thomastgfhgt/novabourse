@@ -1266,6 +1266,7 @@ const QUOTE = {
    contre l'endpoint réel Eulerpool avant intégration. */
 const EULERPOOL_TICKER_OVERRIDE = {
   'RO@SW': 'ROG',
+  'SRT3@DE': 'SRT',
 };
 
 const EULERPOOL_ISIN_OVERRIDE = {
