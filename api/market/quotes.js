@@ -1,7 +1,8 @@
-const { BATCH, KEYS, idDe } = require('./_providers.js');
+const { BATCH, HISTORY, KEYS, idDe } = require('./_providers.js');
 const { lire, ecrire, avecVerrou } = require('./_cache.js');
-const { freshnessCotation, SOURCE_URL_PROVIDER } = require('./_freshness.js');
-const { noterResultat } = require('./_router.js');
+const { freshnessCotation, FRESHNESS, SOURCE_URL_PROVIDER } = require('./_freshness.js');
+const { chargerBloc, historiqueValide } = require('./_marketBlock.js');
+const { resolveOrdre, noterResultat } = require('./_router.js');
 
 /* CoinGecko en tête : gratuit, sans clé, et BATCH.coingecko exclut déjà
    lui-même tout ce qui n'est pas type==='crypto' (voir _providers.js) —
@@ -178,6 +179,69 @@ module.exports = async (req, res) => {
         journal.push({ provider: nom, lot: numeroLot, ok: false, demandes: lot.length, reason: error.status ? `HTTP ${error.status}` : error.message });
         break;
       }
+    }
+  }
+
+  /* DERNIER REPLI : dernière clôture connue, dérivée de l'historique
+     quotidien — jamais un cours "temps réel"/"différé" inventé.
+     Diagnostiqué en production (voir rapport) : plusieurs indices
+     régionaux (OSEBX, XU100, RTSI, TA35...) ont un historique quotidien
+     EODHD réel et exploitable (/eod/ répond) mais aucune cotation
+     instantanée chez aucun fournisseur branché (/real-time/ ne couvre pas
+     ces places précises) — l'instrument n'est pas "indisponible", il n'a
+     simplement pas de flux en direct chez nos fournisseurs actuels. Ne
+     JAMAIS confondre "aucun fournisseur de cotation en direct" et "aucune
+     donnée du tout" (cahier des charges, section 4).
+     Fenêtre volontairement courte (5 jours calendaires) : on ne veut que
+     les deux derniers points réels (clôture + clôture précédente, pour la
+     variation) — jamais tout l'historique juste pour une "cotation".
+     Freshness marquée END_OF_DAY, jamais DELAYED : ce n'est PAS un flux
+     avec un délai de quelques minutes, c'est la clôture d'une séance déjà
+     terminée, potentiellement plus ancienne — jamais présenté comme plus
+     frais que ça. Pas de mise en cache directe sous 'quote' (qui
+     recalculerait une fraîcheur DELAYED erronée depuis le seul nom du
+     fournisseur au prochain cache hit) : le cache 'history'/'histp' de
+     chargerBloc suffit à éviter les appels répétés. */
+  if (reste.length) {
+    for (const valeur of reste) {
+      const ordreHistorique = resolveOrdre('history', valeur.ticker, valeur.exchange, valeur.type);
+      if (!ordreHistorique.some(p => keys[p])) continue;
+
+      let h;
+      try {
+        h = await chargerBloc({
+          nom: 'history', table: HISTORY, ordre: ordreHistorique,
+          args: [valeur.ticker, valeur.exchange, 5, valeur.type],
+          ticker: valeur.ticker, exchange: valeur.exchange, frais: false, journal,
+        });
+      } catch {
+        continue;
+      }
+      noterResultat('history', valeur.ticker, valeur.exchange, valeur.type, h.source);
+      if (!historiqueValide(h.data)) continue;
+
+      const dernier = h.data[h.data.length - 1];
+      const precedent = h.data.length >= 2 ? h.data[h.data.length - 2] : null;
+      const change = precedent ? dernier.close - precedent.close : null;
+      const changePercent = (precedent && precedent.close) ? (change / precedent.close) * 100 : null;
+
+      trouve.set(idDe(valeur), {
+        symbol: idDe(valeur),
+        ticker: valeur.ticker,
+        exchange: valeur.exchange,
+        price: dernier.close,
+        change,
+        changePercent,
+        currency: null,
+        timestamp: new Date(dernier.date).toISOString(),
+        source: h.source,
+        cached: false,
+        derivedFromHistory: true,
+        freshness: FRESHNESS.END_OF_DAY,
+        sourceUrl: SOURCE_URL_PROVIDER[h.source] || null,
+        retrievedAt: h.retrievedAt || new Date().toISOString(),
+      });
+      journal.push({ provider: h.source, ok: true, derivedFromHistory: true, ticker: valeur.ticker });
     }
   }
 
