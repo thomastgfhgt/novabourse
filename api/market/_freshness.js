@@ -88,6 +88,13 @@ function freshnessFondamentaux() {
   return FRESHNESS.HISTORICAL;
 }
 
+/* Un article d'actualité est déjà publié au moment où on le reçoit (son
+   propre champ `date` porte l'heure de publication réelle) — jamais une
+   donnée en direct au sens LIVE/DELAYED d'une cotation. */
+function freshnessActualites() {
+  return FRESHNESS.HISTORICAL;
+}
+
 const SOURCE_URL_PROVIDER = {
   eodhd: 'https://eodhd.com/',
   twelvedata: 'https://twelvedata.com/',
@@ -100,5 +107,6 @@ module.exports = {
   freshnessCotation,
   freshnessHistorique,
   freshnessFondamentaux,
+  freshnessActualites,
   SOURCE_URL_PROVIDER,
 };

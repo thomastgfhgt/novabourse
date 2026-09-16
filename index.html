@@ -2775,6 +2775,43 @@ async function chargerFondamentaux(stock){
   }
 }
 
+/* Actualités réelles, chargées uniquement à la demande (bouton "Voir les
+   actualités"). Même modèle à 4 états que chargerFondamentaux ci-dessus :
+   'idle' | 'loading' | 'loaded' | 'error'. Un fournisseur unique aujourd'hui
+   (EODHD, voir NEWS dans _providers.js) — stock/etf uniquement, le backend
+   répond directement articles:null pour les autres types sans appel réseau
+   (déjà géré côté serveur, pas besoin de le reproduire ici). */
+const NEWS_ENCOURS = new Set();
+async function chargerActualites(stock){
+  if (!stock) return;
+  if (stock.newsStatus === 'loaded' || stock.newsStatus === 'loading') return;
+  if (NEWS_ENCOURS.has(stock.id)) return;
+
+  NEWS_ENCOURS.add(stock.id);
+  stock.newsStatus = 'loading';
+  render();
+  try {
+    const exch = stock.exchangeCode || MARKET_CODE[stock.market] || '';
+    const r = await fetch(`/api/market/news?ticker=${encodeURIComponent(stock.ticker)}`
+      + `&exchange=${encodeURIComponent(exch)}&type=${encodeURIComponent(stock.type || 'stock')}&limit=8`);
+    if (!r.ok){
+      stock.news = null;
+      stock.newsStatus = 'error';
+      return;
+    }
+    const d = await r.json();
+    stock.news = Array.isArray(d.articles) ? d.articles : null;
+    stock.newsSource = d.source ?? null;
+    stock.newsStatus = 'loaded';
+  } catch {
+    stock.news = null;
+    stock.newsStatus = 'error';
+  } finally {
+    NEWS_ENCOURS.delete(stock.id);
+    render();
+  }
+}
+
 const PAGES = {};
 
 /* Générateur pseudo-aléatoire PUREMENT DÉCORATIF, local à cette fonction :
@@ -3357,6 +3394,81 @@ PAGES.stock = (id) => {
       : `<div class="notice"><b>Données financières indisponibles.</b>
           Aucune valeur approchée n'est affichée, et les composantes concernées
           sont retirées du score tant qu'elles ne sont pas connues.</div>`}
+    </div>
+  </section>
+
+  <!-- ANALYSTES — même appel réseau que "Les chiffres" (/api/market/fundamentals,
+       déjà mis en cache par chargerFondamentaux) : cette section n'ajoute
+       AUCUNE requête si les chiffres ont déjà été consultés, un clic sur
+       "Voir les analystes" seul en déclenche une comme "Voir les chiffres" le
+       ferait. -->
+  <section class="section">
+    <div class="section-h"><h2 class="h2">Analystes</h2></div>
+    <div class="card">
+      ${s.fundamentalsStatus === 'idle' ? `
+        <div style="text-align:center;padding:24px 0">
+          <p class="small" style="margin-bottom:16px">Le consensus des analystes n'est chargé que si vous le demandez.</p>
+          <button class="btn btn-a" data-show-fundamentals="${esc(s.id)}">Voir les analystes</button>
+        </div>`
+      : s.fundamentalsStatus === 'loading' ? `
+        <p class="small" style="padding:24px 0;text-align:center">Chargement…</p>`
+      : (f && f.analystRatings) ? (() => {
+          const ar = f.analystRatings;
+          const total = [ar.strongBuy, ar.buy, ar.hold, ar.sell, ar.strongSell]
+            .filter(Number.isFinite).reduce((a,b)=>a+b, 0);
+          const repartition = [
+            ['Achat fort', ar.strongBuy, 'var(--up)'], ['Achat', ar.buy, 'var(--up)'],
+            ['Conserver', ar.hold, 'var(--warn)'], ['Vente', ar.sell, 'var(--down)'],
+            ['Vente forte', ar.strongSell, 'var(--down)'],
+          ].filter(([,v]) => Number.isFinite(v));
+          return `
+        <dl>
+          <div class="kv"><dt>Note consensus (sur 5)</dt><dd class="tabular-nums">${Number.isFinite(ar.rating) ? fmt.num(ar.rating, 2) : '—'}</dd></div>
+          <div class="kv"><dt>Objectif de cours (consensus)</dt><dd class="tabular-nums">${Number.isFinite(ar.targetPrice) ? fmt.num(ar.targetPrice, 2) + ' ' + esc(s.curSymbol) : '—'}</dd></div>
+          ${Number.isFinite(f.wallStreetTargetPrice) ? `<div class="kv"><dt>Objectif de cours (Wall Street)</dt><dd class="tabular-nums">${fmt.num(f.wallStreetTargetPrice, 2)} ${esc(s.curSymbol)}</dd></div>` : ''}
+          ${Number.isFinite(f.epsEstimateCurrentYear) ? `<div class="kv"><dt>BPA estimé (année en cours)</dt><dd class="tabular-nums">${fmt.num(f.epsEstimateCurrentYear, 2)}</dd></div>` : ''}
+          ${Number.isFinite(f.epsEstimateNextYear) ? `<div class="kv"><dt>BPA estimé (année suivante)</dt><dd class="tabular-nums">${fmt.num(f.epsEstimateNextYear, 2)}</dd></div>` : ''}
+        </dl>
+        ${total > 0 ? `<div class="rows" style="margin-top:14px">
+          ${repartition.map(([label, v, c]) => `<div class="row" style="padding:7px 0">
+            <span style="display:flex;align-items:center;gap:9px;flex:1;min-width:0">
+              <i style="width:11px;height:11px;border-radius:3px;background:${c};flex:0 0 auto"></i>
+              <span class="row-t" style="font-size:14px">${esc(label)}</span></span>
+            <span class="tabular-nums" style="font-size:13.5px">${v} (${Math.round(v/total*100)} %)</span></div>`).join('')}
+        </div>
+        <p class="tiny" style="margin-top:10px">${total} analyste(s) au total · source ${esc(s.fundamentalsSource || '—')}.</p>` : ''}`;
+        })()
+      : `<div class="notice"><b>Consensus analystes indisponible.</b>
+          Aucune valeur approchée n'est affichée pour cette valeur.</div>`}
+    </div>
+  </section>
+
+  <!-- ACTUALITÉS — chargement à la demande, fournisseur unique aujourd'hui
+       (EODHD), stock/etf uniquement. -->
+  <section class="section">
+    <div class="section-h"><h2 class="h2">Actualités</h2></div>
+    <div class="card">
+      ${(s.newsStatus || 'idle') === 'idle' ? `
+        <div style="text-align:center;padding:24px 0">
+          <p class="small" style="margin-bottom:16px">Les actualités ne sont chargées que si vous le demandez.</p>
+          <button class="btn btn-a" data-show-news="${esc(s.id)}">Voir les actualités</button>
+        </div>`
+      : s.newsStatus === 'loading' ? `
+        <p class="small" style="padding:24px 0;text-align:center">Chargement des actualités…</p>`
+      : (Array.isArray(s.news) && s.news.length) ? `
+        <div class="rows">
+          ${s.news.map(a => `<a class="row" href="${esc(a.link)}" target="_blank" rel="noopener noreferrer">
+            <span class="row-main">
+              <span class="row-t">${esc(a.title)}</span>
+              <span class="row-s">${esc(formatDateAffichage(a.date, 'intraday'))}${a.tags && a.tags.length ? ' · ' + esc(a.tags.slice(0,3).join(', ')) : ''}</span>
+            </span>
+            <span style="color:var(--ink-4)">${svg(ICON.arrow,2.4)}</span>
+          </a>`).join('')}
+        </div>
+        <p class="tiny" style="margin-top:14px">Articles de presse externes, non rédigés par NovaBourse
+          · source ${esc(s.newsSource || '—')}.</p>`
+      : `<div class="notice"><b>Actualités indisponibles.</b>
+          Aucun article n'a pu être obtenu pour cette valeur pour le moment.</div>`}
     </div>
   </section>
 
@@ -5306,6 +5418,12 @@ document.addEventListener('click', e => {
   if (showFund){
     const st = byId[showFund.dataset.showFundamentals];
     if (st){ chargerFondamentaux(st); render(); }
+    return;
+  }
+  const showNews = q('[data-show-news]');
+  if (showNews){
+    const st = byId[showNews.dataset.showNews];
+    if (st){ chargerActualites(st); render(); }
     return;
   }
 

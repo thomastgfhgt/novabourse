@@ -21,6 +21,7 @@ const {
   freshnessCotation,
   freshnessHistorique,
   freshnessFondamentaux,
+  freshnessActualites,
   SOURCE_URL_PROVIDER,
 } = require('./_freshness.js');
 
@@ -43,6 +44,7 @@ function metaBloc(nom, source, auMoment) {
     base === 'quote' ? freshnessCotation(source)
     : (base === 'history' || base === 'histp' || base === 'intraday') ? freshnessHistorique()
     : base === 'fundamentals' ? freshnessFondamentaux()
+    : base === 'news' ? freshnessActualites()
     : null;
 
   return {

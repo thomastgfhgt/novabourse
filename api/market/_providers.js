@@ -828,6 +828,10 @@ const FUNDAMENTALS = {
       d?.Valuation
       || {};
 
+    const analystRatingsBrut =
+      d?.AnalystRatings
+      || {};
+
     /**
      * Dernière période par date réelle.
      */
@@ -1140,6 +1144,39 @@ const FUNDAMENTALS = {
             highlights
               .MarketCapitalization
           ),
+
+        /* Analystes (section "Voir les analystes") : déjà présent dans la
+           même réponse EODHD /fundamentals déjà appelée pour "Voir les
+           chiffres" — aucun appel réseau supplémentaire. null si le bloc
+           AnalystRatings est absent (jamais une note inventée). */
+        analystRatings:
+          Object.keys(analystRatingsBrut).length
+            ? {
+                rating: num(analystRatingsBrut.Rating),
+                targetPrice: num(analystRatingsBrut.TargetPrice),
+                strongBuy: num(analystRatingsBrut.StrongBuy),
+                buy: num(analystRatingsBrut.Buy),
+                hold: num(analystRatingsBrut.Hold),
+                sell: num(analystRatingsBrut.Sell),
+                strongSell: num(analystRatingsBrut.StrongSell),
+              }
+            : null,
+
+        /* Consensus de prix cible "Wall Street" (Highlights, distinct de
+           AnalystRatings.TargetPrice ci-dessus — EODHD documente les deux
+           comme des sources/méthodologies différentes ; on renvoie les deux
+           tels quels plutôt que d'en choisir un arbitrairement). */
+        wallStreetTargetPrice:
+          num(highlights.WallStreetTargetPrice),
+
+        epsEstimateCurrentYear:
+          num(highlights.EPSEstimateCurrentYear),
+        epsEstimateNextYear:
+          num(highlights.EPSEstimateNextYear),
+        epsEstimateCurrentQuarter:
+          num(highlights.EPSEstimateCurrentQuarter),
+        epsEstimateNextQuarter:
+          num(highlights.EPSEstimateNextQuarter),
       },
 
       asOf:
@@ -1273,11 +1310,71 @@ const FUNDAMENTALS = {
             metric
               .marketCapitalization
           ),
+
+        /* Finnhub /stock/metric ne fournit aucun consensus analyste sous
+           cette forme (ce serait un endpoint distinct, non branché ici) —
+           null plutôt que deviné, cohérent avec revenueSeries/epsSeries
+           déjà null pour ce même fournisseur un peu plus haut. */
+        analystRatings: null,
+        wallStreetTargetPrice: null,
+        epsEstimateCurrentYear: null,
+        epsEstimateNextYear: null,
+        epsEstimateCurrentQuarter: null,
+        epsEstimateNextQuarter: null,
       },
 
       asOf:
         null,
     };
+  },
+};
+
+/* ============================================================
+   ACTUALITÉS (bouton "Voir les actualités")
+   ============================================================
+   Vérifié empiriquement en direct (token public "demo") avant intégration :
+     GET https://eodhd.com/api/news?s=AAPL.US&limit=3&api_token=demo
+   -> articles réels (titre, contenu, lien, symboles liés, tags, sentiment).
+   Un seul fournisseur pour l'instant (EODHD) : Finnhub propose aussi un
+   /company-news mais nécessite une vraie clé pour être vérifié (le token
+   demo EODHD suffisait à confirmer le format ci-dessus, pas Finnhub) — reste
+   documenté comme extension possible plutôt qu'ajouté sans vérification
+   empirique, conformément au principe de ce fichier. */
+const NEWS = {
+  async eodhd(ticker, exchange, limit, type, key) {
+    if (type !== 'stock' && type !== 'etf') {
+      throw new Error('type_sans_actualites');
+    }
+
+    const symbole = eodhdSymbol(ticker, exchange);
+    const d = await getJSON(
+      `https://eodhd.com/api/news`
+      + `?s=${encodeURIComponent(symbole)}`
+      + `&limit=${Math.max(1, Math.min(50, Math.round(limit) || 10))}`
+      + `&api_token=${key}&fmt=json`,
+      12000
+    );
+
+    if (!Array.isArray(d)) throw new Error(`format_inattendu:${typeof d}`);
+
+    const articles = d
+      .map(a => ({
+        date: txt(a.date),
+        title: txt(a.title),
+        link: txt(a.link),
+        /* content tronqué : un résumé suffit à l'affichage en liste, évite
+           de faire transiter des dizaines de Ko de texte intégral par
+           article vers le frontend pour rien. */
+        summary: txt(a.content) ? String(a.content).slice(0, 400) : null,
+        symbols: Array.isArray(a.symbols) ? a.symbols.filter(s => typeof s === 'string') : [],
+        tags: Array.isArray(a.tags) ? a.tags.filter(t => typeof t === 'string') : [],
+        sentiment: (a.sentiment && Number.isFinite(num(a.sentiment.polarity)))
+          ? num(a.sentiment.polarity) : null,
+      }))
+      .filter(a => a.date && a.title && a.link);
+
+    if (!articles.length) throw new Error('aucune_ligne_exploitable');
+    return articles;
   },
 };
 
@@ -2510,6 +2607,7 @@ module.exports = {
   HISTORY,
   INTRADAY,
   BATCH,
+  NEWS,
 
   cascade,
 
