@@ -84,12 +84,15 @@ function ordreStatique(dataType, type, opts = {}) {
          Jamais Finnhub (incompatible par construction, voir
          TYPES_INCOMPATIBLES_FINNHUB dans _providers.js). */
       if (type === 'index') return ['twelvedata', 'eodhd'];
-      /* commodity : Eulerpool en DERNIER repli, uniquement pour les 3
-         commodités qu'il couvre réellement (XAU/XAG/WTI — voir
-         eulerpoolCommodityRef dans _providers.js) ; les autres tickers de
-         cette classe (XAU/EUR, XPD/USD, HG1...) restent sur Twelve Data
-         seul, aucune convention vérifiée ailleurs. */
-      if (type === 'commodity') return ['twelvedata', 'eulerpool'];
+      /* commodity : Eulerpool en DERNIER repli, dans l'ordre de fidélité —
+         'eulerpool' (cotation NATIVE en USD, XAU/XAG/WTI uniquement, voir
+         eulerpoolCommodityRef) avant 'eulerpool_fx' (TAUX CROISÉ RÉEL =
+         cette même cotation USD × un taux de change réel Frankfurter/BCE,
+         voir eulerpoolCommodityRefCroise — jamais tenté pour une paire déjà
+         couverte nativement). Les tickers hors de ces deux ensembles
+         (XPD/USD, HG1, XBR/USD...) retombent sur Twelve Data seul, aucune
+         convention vérifiée ailleurs. */
+      if (type === 'commodity') return ['twelvedata', 'eulerpool', 'eulerpool_fx'];
       if (TYPES_SANS_SUFFIXE_EODHD.has(type)) return ['twelvedata'];
       return ['twelvedata', 'eodhd', 'finnhub'];
 
@@ -99,7 +102,7 @@ function ordreStatique(dataType, type, opts = {}) {
       }
       if (type === 'forex') return ['eodhd', 'twelvedata', 'frankfurter'];
       if (type === 'index') return ['eodhd', 'twelvedata'];
-      if (type === 'commodity') return ['twelvedata', 'eulerpool'];
+      if (type === 'commodity') return ['twelvedata', 'eulerpool', 'eulerpool_fx'];
       if (TYPES_SANS_SUFFIXE_EODHD.has(type)) return ['twelvedata'];
       return ['eodhd', 'twelvedata'];
 

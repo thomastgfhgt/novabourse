@@ -536,6 +536,44 @@ function eulerpoolCommodityRef(ticker) {
   return { id, quote: 'USD' };
 }
 
+/**
+ * "XAU/EUR" -> { id: 'XAU', quoteCurrency: 'EUR' } : Eulerpool ne cote ces
+ * commodités qu'en USD (voir eulerpoolCommodityRef ci-dessus) — pour une
+ * autre devise PUBLIÉE PAR LA BCE (voir FRANKFURTER_CURRENCIES), le prix
+ * est un TAUX CROISÉ RÉEL (prix USD réel × taux de change réel), jamais
+ * une estimation : voir QUOTE.eulerpool_fx / HISTORY.eulerpool_fx.
+ * Renvoie null pour USD (cas direct, déjà couvert par eulerpoolCommodityRef)
+ * et pour toute devise que la BCE ne publie pas.
+ */
+function eulerpoolCommodityRefCroise(ticker) {
+  const m = /^([A-Z0-9]+)\/([A-Z]{3})$/.exec(String(ticker || '').toUpperCase());
+  if (!m) return null;
+  const id = EULERPOOL_COMMODITY_ID[m[1]];
+  if (!id || m[2] === 'USD' || !FRANKFURTER_CURRENCIES.has(m[2])) return null;
+  return { id, quoteCurrency: m[2] };
+}
+
+/* Apparie chaque point de prix (déjà trié plus récent -> plus ancien) au
+   taux de change PUBLIÉ LE MÊME JOUR OU LE JOUR OUVRÉ RÉEL LE PLUS PROCHE
+   ANTÉRIEUR (jamais un taux d'une autre date "par défaut" — la BCE ne
+   publie rien le week-end/jours fériés, d'où la recherche du dernier jour
+   ouvré réel) — jamais le taux "d'aujourd'hui" appliqué à un prix ancien
+   (une commodité au flux figé depuis des mois, converti avec le taux du
+   jour, produirait un nombre qui ne correspond à AUCUN instant réel).
+   `tauxParDate` : Map "YYYY-MM-DD" -> taux, construite depuis une série
+   Frankfurter déjà triée par date croissante. */
+function tauxLePlusProcheAvant(tauxParDate, datesTriees, dateCible) {
+  const cle = dateCible.slice(0, 10);
+  if (tauxParDate.has(cle)) return tauxParDate.get(cle);
+  // Recherche du dernier jour ouvré <= dateCible (les dates sont triées croissant).
+  let trouve = null;
+  for (const d of datesTriees) {
+    if (d > cle) break;
+    trouve = d;
+  }
+  return trouve ? tauxParDate.get(trouve) : null;
+}
+
 /* Partagée par QUOTE.eulerpool et HISTORY.eulerpool (commodités) : un seul
    endpoint sert les deux usages (voir commentaire ci-dessus).
    CORRECTIF (bug de production confirmé) : passer `startdate`/`enddate`
@@ -1063,6 +1101,61 @@ const QUOTE = {
       volume: null,
       currency: ref.quote,
       timestamp: dernier.date,
+    };
+  },
+
+  /* Taux croisé RÉEL (prix USD Eulerpool × taux de change Frankfurter/BCE),
+     jamais une estimation — voir eulerpoolCommodityRefCroise. Source
+     distincte ('eulerpool_fx', jamais confondue avec 'eulerpool' seul) :
+     transparence totale sur le fait qu'il s'agit d'une conversion, pas
+     d'une cotation native dans cette devise. */
+  async eulerpool_fx(ticker, exchange, type, key) {
+    if (type !== 'commodity') throw new Error('type_non_supporte_par_eulerpool_fx');
+    const ref = eulerpoolCommodityRefCroise(ticker);
+    if (!ref) throw new Error('commodite_non_reconnue_par_eulerpool_fx');
+
+    const prixUSD = await eulerpoolCommodityQuotesBrutes(ref.id, key);
+    if (!prixUSD.length) throw new Error('vide');
+
+    const dernierPrix = prixUSD[0];
+    const precedentPrix = prixUSD.length >= 2 ? prixUSD[1] : null;
+
+    /* Fenêtre Frankfurter couvrant les deux dates de prix RÉELLEMENT
+       reçues (pas "aujourd'hui" — voir eulerpoolCommodityQuotesBrutes,
+       le flux Eulerpool peut dater de plusieurs mois). */
+    const dateLaPlusAncienne = precedentPrix ? precedentPrix.date : dernierPrix.date;
+    const jours = Math.max(5, Math.ceil((Date.now() - Date.parse(dateLaPlusAncienne)) / 86400000) + 5);
+    const tauxSerie = await frankfurterSeries('USD', ref.quoteCurrency, jours);
+    if (!tauxSerie.length) throw new Error('taux_de_change_indisponible');
+
+    const tauxParDate = new Map(tauxSerie.map(t => [t.date, t.rate]));
+    const datesTriees = tauxSerie.map(t => t.date);
+
+    const tauxDernier = tauxLePlusProcheAvant(tauxParDate, datesTriees, dernierPrix.date);
+    if (tauxDernier === null) throw new Error('taux_de_change_indisponible');
+
+    const prixConverti = dernierPrix.close * tauxDernier;
+    let changePercent = null, change = null;
+    if (precedentPrix) {
+      const tauxPrecedent = tauxLePlusProcheAvant(tauxParDate, datesTriees, precedentPrix.date);
+      if (tauxPrecedent !== null) {
+        const precedentConverti = precedentPrix.close * tauxPrecedent;
+        change = prixConverti - precedentConverti;
+        changePercent = precedentConverti ? (change / precedentConverti) * 100 : null;
+      }
+    }
+
+    return {
+      price: prixConverti,
+      change,
+      changePercent,
+      previousClose: null,
+      open: null,
+      high: null,
+      low: null,
+      volume: null,
+      currency: ref.quoteCurrency,
+      timestamp: dernierPrix.date,
     };
   },
 };
@@ -2214,6 +2307,40 @@ const HISTORY = {
     lignes.recues = recues;
     return lignes;
   },
+
+  /* Série de taux croisés RÉELS (voir QUOTE.eulerpool_fx pour la même
+     logique, appliquée ici point par point plutôt qu'à un seul instant). */
+  async eulerpool_fx(ticker, exchange, n, type, key) {
+    if (type !== 'commodity') throw new Error('type_non_supporte_par_eulerpool_fx');
+    const ref = eulerpoolCommodityRefCroise(ticker);
+    if (!ref) throw new Error('commodite_non_reconnue_par_eulerpool_fx');
+
+    const jours = joursHistorique(n);
+    const triesUSD = await eulerpoolCommodityQuotesBrutes(ref.id, key);
+    const pointsUSD = eulerpoolFenetreJours(triesUSD, jours);
+    const recues = pointsUSD.length;
+    if (!pointsUSD.length) throw new Error('aucune_ligne_recue');
+
+    const dateLaPlusAncienne = pointsUSD[pointsUSD.length - 1].date;
+    const joursCouverture = Math.max(5, Math.ceil((Date.now() - Date.parse(dateLaPlusAncienne)) / 86400000) + 5);
+    const tauxSerie = await frankfurterSeries('USD', ref.quoteCurrency, joursCouverture);
+    if (!tauxSerie.length) throw new Error('taux_de_change_indisponible');
+
+    const tauxParDate = new Map(tauxSerie.map(t => [t.date, t.rate]));
+    const datesTriees = tauxSerie.map(t => t.date);
+
+    const brutes = pointsUSD
+      .map(p => {
+        const taux = tauxLePlusProcheAvant(tauxParDate, datesTriees, p.date);
+        return taux === null ? null : { date: p.date, open: null, high: null, low: null, close: p.close * taux, volume: null };
+      })
+      .filter(Boolean);
+
+    const lignes = normaliserHistorique(brutes);
+    if (!lignes.length) throw new Error(recues ? 'zero_ligne_apres_normalisation' : 'aucune_ligne_recue');
+    lignes.recues = recues;
+    return lignes;
+  },
 };
 
 /* ============================================================
@@ -2519,6 +2646,13 @@ const BATCH = {
        d'instruments qui peuvent réellement répondre. */
     eulerpool:
       3,
+
+    /* Taux croisés (voir eulerpoolCommodityRefCroise) : au plus 2
+       commodités (XAU/XAG — WTI n'a pas de paire croisée au catalogue) ×
+       les devises Frankfurter du catalogue NovaBourse pour ces deux
+       commodités précises, jamais plus. */
+    eulerpool_fx:
+      15,
   },
 
   async twelvedata(
@@ -3035,6 +3169,32 @@ const BATCH = {
     if (!out.size) throw new Error('aucune_ligne_exploitable');
     return out;
   },
+
+  async eulerpool_fx(valeurs, key) {
+    const compatibles = valeurs.filter(v => v.type === 'commodity' && eulerpoolCommodityRefCroise(v.ticker));
+    const out = new Map();
+
+    for (const v of compatibles.slice(0, BATCH.limite.eulerpool_fx)) {
+      try {
+        const q = await QUOTE.eulerpool_fx(v.ticker, v.exchange, 'commodity', key);
+        out.set(idDe(v), {
+          symbol: idDe(v),
+          ticker: v.ticker,
+          exchange: v.exchange,
+          price: q.price,
+          change: q.change,
+          changePercent: q.changePercent,
+          currency: q.currency,
+          timestamp: q.timestamp,
+        });
+      } catch {
+        // Une paire individuelle ne doit pas faire échouer tout le lot.
+      }
+    }
+
+    if (!out.size) throw new Error('aucune_ligne_exploitable');
+    return out;
+  },
 };
 
 /* ============================================================
@@ -3072,6 +3232,7 @@ module.exports = {
   frankfurterRef,
   FRANKFURTER_CURRENCIES,
   eulerpoolCommodityRef,
+  eulerpoolCommodityRefCroise,
   EULERPOOL_COMMODITY_ID,
 
   idDe,

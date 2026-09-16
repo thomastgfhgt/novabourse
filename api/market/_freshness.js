@@ -56,6 +56,10 @@ const DEFAUT_COTATION_PAR_PROVIDER = {
      DELAYED par défaut, même principe que les autres fournisseurs sans
      SLA vérifiable. */
   eulerpool: FRESHNESS.DELAYED,
+  /* Taux croisé (prix Eulerpool × change Frankfurter) : jamais plus frais
+     que le moins frais des deux composants — DELAYED par défaut, cohérent
+     avec eulerpool seul. */
+  eulerpool_fx: FRESHNESS.DELAYED,
 };
 
 const ENV_SURCHARGE_PAR_PROVIDER = {
@@ -115,6 +119,7 @@ const SOURCE_URL_PROVIDER = {
   coingecko: 'https://www.coingecko.com/',
   frankfurter: 'https://frankfurter.dev/',
   eulerpool: 'https://eulerpool.com/',
+  eulerpool_fx: 'https://eulerpool.com/',
 };
 
 module.exports = {

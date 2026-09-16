@@ -12,7 +12,7 @@ const { resolveOrdre, noterResultat } = require('./_router.js');
    qualité/couverture inférieures aux fournisseurs payants pour ce qu'ils
    couvrent déjà (voir leur documentation dans _providers.js), jamais un
    premier choix. */
-const ORDRE = ['coingecko', 'twelvedata', 'eodhd', 'finnhub', 'frankfurter', 'eulerpool'];
+const ORDRE = ['coingecko', 'twelvedata', 'eodhd', 'finnhub', 'frankfurter', 'eulerpool', 'eulerpool_fx'];
 const MAX_SYMBOLES = 120;
 
 /* CORRECTIF (audit routage multi-actifs — bug de production confirmé) :
