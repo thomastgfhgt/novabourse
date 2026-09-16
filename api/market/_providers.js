@@ -1701,6 +1701,23 @@ function joursHistorique(n) {
   );
 }
 
+/* Limite RÉELLE et documentée par CoinGecko elle-même (confirmée en
+   production, pas supposée — voir corps de l'erreur reçue) : "Public API
+   users are limited to querying historical data within the past 365 days"
+   (HTTP 401, error_code 10012). Exportée pour que history.js puisse
+   décider, PAR PÉRIODE, si CoinGecko a une chance réelle de répondre avant
+   même de l'inclure dans la cascade (voir ordreHistoriquePourType) — pour
+   une période longue (2A/5A/10A/MAX), l'inclure serait un appel voué à
+   l'échec à coup sûr, mieux vaut aller directement à EODHD/Twelve Data.
+   Le chemin PAR DÉFAUT (n=400, non paramétré par période) reste, lui,
+   plafonné PROPREMENT à 365 ci-dessous plutôt que rejeté : son propre
+   contrat ne garde de toute façon que les 260 derniers points
+   (MAX_HISTORY_POINTS, voir history.js/company.js), 365 jours réels de
+   CoinGecko les couvre intégralement — ce n'est pas une troncature
+   silencieuse d'une période explicitement choisie par l'utilisateur,
+   c'est le fonctionnement déjà documenté de ce chemin précis. */
+const COINGECKO_JOURS_MAX = 365;
+
 /* Partagé par HISTORY.coingecko (quotidien) et INTRADAY.coingecko
    (infra-journalier) : même endpoint /market_chart, seule la valeur de
    `days` change la granularité RÉELLE renvoyée par CoinGecko (automatique,
@@ -1711,7 +1728,7 @@ function joursHistorique(n) {
 async function coingeckoMarketChart(id, vs, days) {
   const d = await getJSON(
     `https://api.coingecko.com/api/v3/coins/${encodeURIComponent(id)}/market_chart`
-    + `?vs_currency=${vs}&days=${Math.max(1, Math.min(Math.round(days), 5000))}`,
+    + `?vs_currency=${vs}&days=${Math.max(1, Math.min(Math.round(days), COINGECKO_JOURS_MAX))}`,
     12000
   );
 
@@ -2820,6 +2837,7 @@ module.exports = {
   tdSymbol,
   coingeckoRef,
   CRYPTO_ID_COINGECKO,
+  COINGECKO_JOURS_MAX,
   frankfurterRef,
   FRANKFURTER_CURRENCIES,
 

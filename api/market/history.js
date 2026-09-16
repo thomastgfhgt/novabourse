@@ -41,7 +41,7 @@
  *   - intraday jamais reconstruit à partir de clôtures quotidiennes.
  */
 
-const { HISTORY, INTRADAY, INTRADAY_MINUTES, KEYS } = require('./_providers.js');
+const { HISTORY, INTRADAY, INTRADAY_MINUTES, KEYS, COINGECKO_JOURS_MAX } = require('./_providers.js');
 const { chargerBloc, historiqueValide } = require('./_marketBlock.js');
 const { normaliserTicker, normaliserExchange } = require('./company.js');
 
@@ -70,6 +70,18 @@ const TYPES_SANS_SUFFIXE_EODHD = new Set(['index', 'commodity']);
  *     — voir _providers.js) EN PREMIER, préserve le quota EODHD/Twelve Data
  *     pour les types qui n'ont pas d'alternative gratuite. EODHD/Twelve Data
  *     restent en repli réel si CoinGecko ne reconnaît pas ce ticker precis.
+ *     BUG DE PRODUCTION CONFIRMÉ (voir rapport) : CoinGecko rejette (HTTP
+ *     401, error_code 10012) toute requête d'historique au-delà de 365
+ *     jours en API publique gratuite — un fait vérifié en production, pas
+ *     une supposition. `jours` (voir plus bas) permet donc d'exclure
+ *     CoinGecko de la cascade AVANT même l'appel réseau quand la période
+ *     demandée dépasse cette limite (2A/5A/10A/MAX) : un appel qu'on sait
+ *     déjà voué à l'échec ne doit jamais être tenté (coûte une latence et
+ *     un aller-retour pour rien). Le chemin PAR DÉFAUT (n=400, `jours`
+ *     omis ici) reste éligible sans condition : coingeckoMarketChart()
+ *     plafonne alors proprement à 365 jours réels, largement suffisant
+ *     pour les 260 points que ce chemin garde de toute façon
+ *     (MAX_HISTORY_POINTS ci-dessus).
  *   - forex : Frankfurter (gratuit, sans clé) en DERNIER repli seulement,
  *     jamais en tête — contrairement à CoinGecko, ses taux ne sont publiés
  *     qu'une fois par jour (voir _freshness.js), qualité inférieure à
@@ -80,10 +92,17 @@ const TYPES_SANS_SUFFIXE_EODHD = new Set(['index', 'commodity']);
  *   - stock/etf : EODHD/Twelve Data, ordre historique inchangé (intraday
  *     privilégie Twelve Data en tête, daily privilégie EODHD en tête —
  *     comportement préexistant, non modifié ici).
+ *
+ * @param {number|null} [jours] - nombre de jours réellement demandés pour le
+ *   chemin quotidien paramétré (PERIOD_SPECS) ; omis (undefined) pour le
+ *   chemin par défaut, qui n'a pas cette notion de période explicite.
  */
-function ordreHistoriquePourType(type, { intraday }) {
+function ordreHistoriquePourType(type, { intraday, jours } = {}) {
+  const coingeckoEligible = jours === undefined || jours <= COINGECKO_JOURS_MAX;
+
   if (type === 'crypto') {
-    return intraday ? ['coingecko', 'twelvedata', 'eodhd'] : ['coingecko', 'eodhd', 'twelvedata'];
+    if (intraday) return ['coingecko', 'twelvedata', 'eodhd'];
+    return coingeckoEligible ? ['coingecko', 'eodhd', 'twelvedata'] : ['eodhd', 'twelvedata'];
   }
   if (type === 'forex') {
     return intraday ? ['twelvedata', 'eodhd'] : ['eodhd', 'twelvedata', 'frankfurter'];
@@ -242,7 +261,7 @@ module.exports = async (req, res) => {
   }
 
   /* spec.kind === 'daily' */
-  const ordre = ordreHistoriquePourType(type, { intraday: false });
+  const ordre = ordreHistoriquePourType(type, { intraday: false, jours });
 
   if (!ordre.some(p => keys[p])) {
     return res.status(503).json({ error: 'aucun_fournisseur_configure' });
