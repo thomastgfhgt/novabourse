@@ -415,11 +415,34 @@ function eodhdIndexSymbol(ticker) {
  * mieux vaut ne pas appeler EODHD du tout que d'envoyer un symbole non
  * vérifié.
  */
+/* Matières premières couvertes par EODHD via la convention ".FOREX"
+   (comme une paire de change, ex. "XPDUSD.FOREX") — vérifié empiriquement
+   en production (sonde temporaire, endpoint réel /eod/) : XPDUSD.FOREX et
+   XPTUSD.FOREX renvoient un historique quotidien réel et exploitable
+   (~1300 USD/once pour le palladium, ~1780 USD/once pour le platine au
+   16/09/2026 — cohérent avec les cours réels), XBRUSD.FOREX de même pour
+   le Brent (~100-105 USD/baril). Le flux TEMPS RÉEL de ces symboles est
+   systématiquement vide ("NA") chez EODHD : seul /eod/ (historique) est
+   exploitable, jamais /real-time/ — QUOTE.eodhd échoue donc proprement
+   pour ces trois tickers, et quotes.js dérive une cotation depuis la
+   dernière clôture (même mécanisme déjà utilisé pour les indices sans
+   flux temps réel, voir quotes.js). XCUUSD.FOREX (cuivre) a été testé et
+   REJETÉ : dernière donnée vieille de plus de 3 mois et valeur (~1.34)
+   incohérente avec un cours du cuivre réel (~9000-10000 USD/tonne) —
+   très probablement un symbole différent chez ce fournisseur, jamais
+   utilisé sur la seule foi d'une réponse HTTP 200. HG1 (convention
+   futures), URALS/USD et GAU/USD restent sans convention EODHD vérifiée. */
+const EODHD_COMMODITY_FOREX = new Set(['XPD/USD', 'XPT/USD', 'XBR/USD']);
+
 function eodhdSymbolPourType(ticker, exchange, type) {
   if (type === 'crypto') return eodhdCryptoSymbol(ticker);
   if (type === 'forex') return eodhdForexSymbol(ticker);
   if (type === 'index') return eodhdIndexSymbol(ticker);
-  if (type === 'commodity') return null;
+  if (type === 'commodity') {
+    return EODHD_COMMODITY_FOREX.has(String(ticker || '').toUpperCase())
+      ? eodhdForexSymbol(ticker)
+      : null;
+  }
   return eodhdSymbol(ticker, exchange);
 }
 

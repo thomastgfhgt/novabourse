@@ -92,7 +92,14 @@ function ordreStatique(dataType, type, opts = {}) {
          couverte nativement). Les tickers hors de ces deux ensembles
          (XPD/USD, HG1, XBR/USD...) retombent sur Twelve Data seul, aucune
          convention vérifiée ailleurs. */
-      if (type === 'commodity') return ['twelvedata', 'eulerpool', 'eulerpool_fx'];
+      /* eodhd en dernier repli : couvre XPD/USD, XPT/USD, XBR/USD (voir
+         eodhdSymbolPourType/EODHD_COMMODITY_FOREX dans _providers.js) —
+         jamais tenté pour un ticker hors de cet ensemble vérifié (throw
+         propre côté eodhdSymbolPourType, pas un symbole inventé). Son flux
+         temps réel est vide pour ces trois tickers : QUOTE.eodhd échoue
+         systématiquement, mais la dernière clôture est dérivée de
+         l'historique (même mécanisme que les indices, voir quotes.js). */
+      if (type === 'commodity') return ['twelvedata', 'eulerpool', 'eulerpool_fx', 'eodhd'];
       if (TYPES_SANS_SUFFIXE_EODHD.has(type)) return ['twelvedata'];
       return ['twelvedata', 'eodhd', 'finnhub'];
 
@@ -102,7 +109,7 @@ function ordreStatique(dataType, type, opts = {}) {
       }
       if (type === 'forex') return ['eodhd', 'twelvedata', 'frankfurter'];
       if (type === 'index') return ['eodhd', 'twelvedata'];
-      if (type === 'commodity') return ['twelvedata', 'eulerpool', 'eulerpool_fx'];
+      if (type === 'commodity') return ['twelvedata', 'eulerpool', 'eulerpool_fx', 'eodhd'];
       if (TYPES_SANS_SUFFIXE_EODHD.has(type)) return ['twelvedata'];
       return ['eodhd', 'twelvedata'];
 
