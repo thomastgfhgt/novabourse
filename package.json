@@ -2,6 +2,9 @@
   "name": "novabourse",
   "version": "1.0.0",
   "private": true,
+  "scripts": {
+    "import-catalog": "node scripts/import-catalog.js"
+  },
   "dependencies": {
     "stripe": "^16.12.0"
   },

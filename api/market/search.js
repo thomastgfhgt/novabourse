@@ -341,3 +341,7 @@ module.exports = async (req, res) => {
 module.exports.normaliserExchange = normaliserExchange;
 module.exports.normaliserResultat = normaliserResultat;
 module.exports.pertinence = pertinence;
+/* Exposé pour api/market/_exchangeCrosswalk.js : réutilise cette table
+   plutôt que d'en dupliquer une variante. Export additif, aucun changement
+   de comportement de cette route. */
+module.exports.EXCHANGE_ALIASES = EXCHANGE_ALIASES;
