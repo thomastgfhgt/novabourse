@@ -67,6 +67,18 @@ const KEYS = () => ({
   eulerpool:
     process.env.EULERPOOL_API_KEY
     || null,
+
+  /* Même identifiant qu'eulerpool ci-dessus (même compte, même clé) — nom
+     de fournisseur DISTINCT uniquement pour que cascade()/le journal
+     distinguent une cotation native ('eulerpool') d'un taux croisé
+     calculé ('eulerpool_fx', voir eulerpoolCommodityRefCroise). BUG DE
+     PRODUCTION CONFIRMÉ ET CORRIGÉ : sans cette entrée, cascade() ignorait
+     silencieusement 'eulerpool_fx' de tout ordre de cascade (keys['eulerpool_fx']
+     valait undefined, donc toujours faux), aucune ligne de journal, aucune
+     erreur visible — juste un fournisseur qui n'était jamais essayé. */
+  eulerpool_fx:
+    process.env.EULERPOOL_API_KEY
+    || null,
 });
 
 /* ============================================================
