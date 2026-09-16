@@ -1719,11 +1719,30 @@ const FUNDAMENTALS = {
      et casserait tout appel (cascade() passe args+key dans cet ordre). */
   async eulerpool(ticker, exchange, key) {
     const symbole = exchange ? `${ticker}.${exchange}` : ticker;
-    const d = await getJSON(
-      `https://api.eulerpool.com/api/1/equity/metrics/${encodeURIComponent(symbole)}`
-      + `?token=${encodeURIComponent(key)}`,
-      12000
-    );
+
+    /* /equity/metrics (chiffres) ET /equity/profile (identité — name,
+       country, sector, industry : schéma réel vérifié en direct sur AAPL,
+       Hermès (RMS.PA) et SAP (SAP.DE) avant intégration, voir rapport) en
+       parallèle : deux appels, mais
+       jamais plus d'un par bloc réellement chargé (ni l'un ni l'autre
+       n'est redemandé tant que le cache 12h de _cache.js reste valide).
+       /equity/profile peut échouer indépendamment de /equity/metrics
+       (droits de plan potentiellement différents par endpoint) — son
+       échec ne doit jamais faire échouer les CHIFFRES, qui sont
+       l'information principale de ce bloc ; l'identité reste alors
+       simplement null, jamais devinée. */
+    const [d, profil] = await Promise.all([
+      getJSON(
+        `https://api.eulerpool.com/api/1/equity/metrics/${encodeURIComponent(symbole)}`
+        + `?token=${encodeURIComponent(key)}`,
+        12000
+      ),
+      getJSON(
+        `https://api.eulerpool.com/api/1/equity/profile/${encodeURIComponent(symbole)}`
+        + `?token=${encodeURIComponent(key)}`,
+        12000
+      ).catch(() => null),
+    ]);
 
     if (!d || typeof d !== 'object' || !d.valuation) throw new Error('vide');
 
@@ -1758,13 +1777,13 @@ const FUNDAMENTALS = {
 
     return {
       identity: {
-        name: null,
+        name: txt(profil?.name),
         exchange: null,
-        country: null,
+        country: txt(profil?.country),
         currency: txt(d.currency),
-        sector: null,
-        industry: null,
-        isin: txt(d.isin),
+        sector: txt(profil?.sector),
+        industry: txt(profil?.industry),
+        isin: txt(d.isin) || txt(profil?.isin),
       },
 
       fundamentals: {
