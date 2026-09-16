@@ -1903,8 +1903,17 @@ const FUNDAMENTALS = {
       ).catch(() => null),
     ]);
 
-    let [d, profil] = await interroger(symbolePrincipal);
-    if ((!d || typeof d !== 'object' || !d.valuation) && isinRepli) {
+    /* getJSON() (voir plus haut dans ce fichier) LÈVE une exception sur
+       tout statut HTTP non-2xx (404 "Security not found" inclus) — sans
+       ce try/catch, le repli ISIN ci-dessous ne serait JAMAIS atteint :
+       une 404 sur le ticker interromprait la fonction avant même
+       d'arriver au test `!d.valuation`. Piège déjà rencontré une fois
+       dans cette passe (constaté en production avant ce correctif). */
+    let d, profil;
+    try {
+      [d, profil] = await interroger(symbolePrincipal);
+    } catch (erreurTicker) {
+      if (!isinRepli) throw erreurTicker;
       [d, profil] = await interroger(isinRepli);
     }
 
