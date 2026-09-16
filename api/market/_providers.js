@@ -302,18 +302,25 @@ const eodhdSymbol = (
    livres. Sans ce correctif, tout prix/variation absolue affiché pour ces
    valeurs serait 100x trop grand — exactement le type de donnée fausse
    interdit par le cahier des charges.
-   Liste vérifiée via l'endpoint réel EODHD /exchange-symbol-list/LSE
-   (champ Currency="GBX" par ticker, jamais supposé) : quelques valeurs du
-   LSE font exception et cotent déjà dans une devise "normale" (LLOY en
-   GBP directement, CPG et IHG en USD) — exclues ci-dessous, jamais
-   divisées. changePercent n'est PAS affecté (ratio, la division par 100
-   s'annule au numérateur et au dénominateur) : uniquement les montants
-   absolus (price/change/open/high/low/close/previousClose). */
+   Liste vérifiée en DEUX temps, jamais sur la seule metadata statique :
+   l'endpoint /exchange-symbol-list/LSE (champ "Currency" par ticker) a
+   d'abord servi de point de départ, MAIS s'est révélé lui-même incorrect
+   pour LLOY (déclaré "GBP" alors que la cotation réelle est en pence —
+   111,25 brut chez EODHD contre un vrai cours de marché de ~110-111 GBX
+   au 16/09/2026, confirmé par recherche web indépendante ; en GBP cela
+   ferait de Lloyds la valeur la plus chère du FTSE100 par un facteur
+   énorme, impossible). CPG et IHG, eux, confirmés authentiquement cotés
+   en USD par la même vérification croisée (valeurs brutes EODHD 30,91 et
+   153,55 conformes aux cours USD réels trouvés indépendamment) — ce sont
+   donc les deux SEULES exceptions retenues, pas trois. changePercent
+   n'est jamais affecté (ratio, la division par 100 s'annule au
+   numérateur et au dénominateur) : uniquement les montants absolus
+   (price/change/open/high/low/close/previousClose). */
 const LSE_TICKERS_PENCE = new Set([
   'AZN', 'SHEL', 'HSBA', 'ULVR', 'BP', 'GSK', 'DGE', 'RIO', 'BATS', 'RKT',
-  'NG', 'VOD', 'BARC', 'NWG', 'PRU', 'TSCO', 'SBRY', 'BT-A', 'RR', 'AAL',
-  'GLEN', 'AV', 'LGEN', 'STAN', 'NXT', 'ABF', 'EXPN', 'REL', 'LSEG', 'SN',
-  'PSON', 'WTB',
+  'NG', 'VOD', 'BARC', 'LLOY', 'NWG', 'PRU', 'TSCO', 'SBRY', 'BT-A', 'RR',
+  'AAL', 'GLEN', 'AV', 'LGEN', 'STAN', 'NXT', 'ABF', 'EXPN', 'REL', 'LSEG',
+  'SN', 'PSON', 'WTB',
 ]);
 
 function estCotePenceLSE(ticker, exchange) {
