@@ -1630,6 +1630,28 @@ const stocks = [
   { id:'JTOPI', name:'FTSE/JSE Top 40', ticker:'JTOPI', market:'JSE', exchangeCode:'', sector:null, country:'Afrique du Sud', cur:'ZAR', curSymbol:'R', ...BLANK_FIELDS(), type:'index' },
 
   /* --------------------------------------------------------------------
+     INDICES (suite) — ajoutés à cette passe (catalogue précédemment sans
+     AUCUN indice américain, et sans Euro Stoxx 50/SMI malgré le nombre
+     d'actions françaises/allemandes/suisses au catalogue). Chaque ticker
+     vérifié individuellement via l'endpoint réel EODHD
+     /exchange-symbol-list/INDX (nom, pays, devise confirmés par le
+     fournisseur, jamais supposés) avant ajout. */
+  { id:'GSPC', name:'S&P 500 Index', ticker:'GSPC', market:'NYSE', exchangeCode:'', sector:null, country:'États-Unis', cur:'USD', curSymbol:'$', ...BLANK_FIELDS(), type:'index' },
+  { id:'IXIC', name:'NASDAQ Composite', ticker:'IXIC', market:'Nasdaq', exchangeCode:'', sector:null, country:'États-Unis', cur:'USD', curSymbol:'$', ...BLANK_FIELDS(), type:'index' },
+  { id:'NDX', name:'Nasdaq 100', ticker:'NDX', market:'Nasdaq', exchangeCode:'', sector:null, country:'États-Unis', cur:'USD', curSymbol:'$', ...BLANK_FIELDS(), type:'index' },
+  { id:'DJI', name:'Dow Jones Industrial Average', ticker:'DJI', market:'NYSE', exchangeCode:'', sector:null, country:'États-Unis', cur:'USD', curSymbol:'$', ...BLANK_FIELDS(), type:'index' },
+  { id:'STOXX50E', name:'Euro Stoxx 50', ticker:'STOXX50E', market:'Eurex', exchangeCode:'', sector:null, country:'Zone euro', cur:'EUR', curSymbol:'€', ...BLANK_FIELDS(), type:'index' },
+  { id:'SSMI', name:'Swiss Market Index', ticker:'SSMI', market:'SIX', exchangeCode:'', sector:null, country:'Suisse', cur:'CHF', curSymbol:'CHF', ...BLANK_FIELDS(), type:'index' },
+  { id:'BFX', name:'BEL 20', ticker:'BFX', market:'Euronext', exchangeCode:'', sector:null, country:'Belgique', cur:'EUR', curSymbol:'€', ...BLANK_FIELDS(), type:'index' },
+  { id:'WIG20', name:'WIG20', ticker:'WIG20', market:'GPW', exchangeCode:'', sector:null, country:'Pologne', cur:'PLN', curSymbol:'zł', ...BLANK_FIELDS(), type:'index' },
+  { id:'SSEC', name:'Shanghai Composite', ticker:'SSEC', market:'SSE', exchangeCode:'', sector:null, country:'Chine', cur:'CNY', curSymbol:'¥', ...BLANK_FIELDS(), type:'index' },
+  { id:'SZI', name:'SZSE Component', ticker:'SZI', market:'SZSE', exchangeCode:'', sector:null, country:'Chine', cur:'CNY', curSymbol:'¥', ...BLANK_FIELDS(), type:'index' },
+  { id:'TWII', name:'Taiwan Weighted', ticker:'TWII', market:'TWSE', exchangeCode:'', sector:null, country:'Taïwan', cur:'TWD', curSymbol:'NT$', ...BLANK_FIELDS(), type:'index' },
+  { id:'NSEI', name:'NIFTY 50', ticker:'NSEI', market:'NSE', exchangeCode:'', sector:null, country:'Inde', cur:'INR', curSymbol:'₹', ...BLANK_FIELDS(), type:'index' },
+  { id:'VNINDEX', name:'VN Index', ticker:'VNINDEX', market:'HOSE', exchangeCode:'', sector:null, country:'Vietnam', cur:'VND', curSymbol:'₫', ...BLANK_FIELDS(), type:'index' },
+  { id:'TASI', name:'Tadawul All Share', ticker:'TASI', market:'Tadawul', exchangeCode:'', sector:null, country:'Arabie saoudite', cur:'SAR', curSymbol:'﷼', ...BLANK_FIELDS(), type:'index' },
+
+  /* --------------------------------------------------------------------
      MATIÈRES PREMIÈRES — mêmes garanties que les indices ci-dessus :
      chaque symbole vérifié en direct via l'API publique de référence
      Twelve Data (https://api.twelvedata.com/commodities, sans clé).
