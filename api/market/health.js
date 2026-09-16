@@ -18,7 +18,12 @@ const {
   QUOTE,
   FUNDAMENTALS,
   HISTORY,
+  NEWS,
   KEYS,
+  eodhdSymbolPourType,
+  tdSymbol,
+  coingeckoRef,
+  frankfurterRef,
 } = require('./_providers.js');
 
 const essai = async (fn, args) => {
@@ -150,11 +155,30 @@ module.exports = async (req, res) => {
       eodhd: Boolean(keys.eodhd),
       twelvedata: Boolean(keys.twelvedata),
       finnhub: Boolean(keys.finnhub),
+      coingecko: Boolean(keys.coingecko),
+      frankfurter: Boolean(keys.frankfurter),
     },
 
     ticker,
     exchange,
     type,
+
+    /* Identité multi-fournisseur (section "identité multi-provider" du
+       cahier des charges) : le symbole EXACT que chaque fournisseur
+       recevrait pour cet instrument, résolu par les mêmes fonctions que la
+       cascade réelle utilise (eodhdSymbolPourType/tdSymbol/coingeckoRef/
+       frankfurterRef) — jamais recalculé séparément ni deviné pour ce
+       diagnostic. `null` signifie : ce fournisseur n'a aucune convention
+       vérifiée pour ce ticker/type précis, il est donc absent de la
+       cascade réelle pour ce bloc (voir ordreHistoriquePourType côté
+       history.js pour le détail par type). */
+    providerSymbols: {
+      eodhd: eodhdSymbolPourType(ticker, exchange, type),
+      twelvedata: tdSymbol(ticker, exchange),
+      coingecko: (type === 'crypto' && coingeckoRef(ticker)) || null,
+      frankfurter: (type === 'forex' && frankfurterRef(ticker)) || null,
+      finnhub: ticker,
+    },
 
     tests: {},
   };
@@ -175,6 +199,13 @@ module.exports = async (req, res) => {
       ticker,
       exchange,
       30,
+      type,
+    ]],
+
+    ['news', NEWS, [
+      ticker,
+      exchange,
+      5,
       type,
     ]],
 
