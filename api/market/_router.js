@@ -121,8 +121,14 @@ function ordreStatique(dataType, type, opts = {}) {
       /* Aucune cryptomonnaie/paire de devises/indice/matière première n'a
          de bilan d'entreprise — les appelants (fundamentals.js) filtrent
          déjà ces types en amont ; cette règle reste cohérente si jamais
-         appelée directement. */
-      return TYPES_AVEC_FONDAMENTAUX.has(type) ? ['eodhd', 'finnhub'] : [];
+         appelée directement. Eulerpool en DERNIER repli : bug de
+         production confirmé — EODHD refuse (HTTP 403, limite de PLAN, pas
+         de symbole) les fondamentaux de plusieurs actions européennes
+         (Hermès, LVMH, L'Oréal, SAP, Siemens...), et Finnhub ne couvre que
+         les places US (finnhubAutorise) — sans Eulerpool, ces actions
+         n'avaient AUCUN repli fonctionnel pour les fondamentaux, même
+         schéma de défaut que le bug crypto/forex/indices déjà corrigé. */
+      return TYPES_AVEC_FONDAMENTAUX.has(type) ? ['eodhd', 'finnhub', 'eulerpool'] : [];
 
     case 'news':
       return TYPES_AVEC_ACTUALITES.has(type) ? ['eodhd'] : [];

@@ -1700,6 +1700,128 @@ const FUNDAMENTALS = {
         null,
     };
   },
+
+  /* Repli pour les actions dont EODHD refuse les fondamentaux (HTTP 403,
+     "Forbidden" — confirmé en production pour plusieurs actions
+     européennes, ex. RMS.PA/Hermès : limite de PLAN EODHD, pas un problème
+     de symbole ni de code). Schéma RÉEL vérifié en direct (endpoint
+     /equity/metrics/{ticker.exchange}, ex. "RMS.PA" — "RMS" seul renvoie
+     404 "Security not found", confirmé empiriquement) avant d'écrire ce
+     mapping. Champs disponibles très différents d'EODHD : jamais forcés
+     dans un champ qui ne correspond pas exactement (ex. `debt` reste null
+     ici — Eulerpool ne donne qu'un `netDebt` combiné dette-trésorerie,
+     pas les deux séparément comme EODHD ; forcer l'un dans l'autre serait
+     une approximation déguisée). Signature à 3 paramètres avant la clé
+     (ticker, exchange, key) — comme FUNDAMENTALS.eodhd/finnhub ci-dessus,
+     PAS comme QUOTE.eulerpool : ce bloc n'est jamais appelé que pour
+     type==='stock' (filtré en amont par fundamentals.js/_router.js), un
+     paramètre `type` supplémentaire ici décalerait silencieusement `key`
+     et casserait tout appel (cascade() passe args+key dans cet ordre). */
+  async eulerpool(ticker, exchange, key) {
+    const symbole = exchange ? `${ticker}.${exchange}` : ticker;
+    const d = await getJSON(
+      `https://api.eulerpool.com/api/1/equity/metrics/${encodeURIComponent(symbole)}`
+      + `?token=${encodeURIComponent(key)}`,
+      12000
+    );
+
+    if (!d || typeof d !== 'object' || !d.valuation) throw new Error('vide');
+
+    const valuation = d.valuation || {};
+    const profitability = d.profitability || {};
+    const perShare = d.perShare || {};
+    const historique = Array.isArray(d.historical) ? d.historical : [];
+
+    /* Le plus récent exercice réel (le tableau `historical` est déjà trié
+       du plus récent au plus ancien, vérifié empiriquement). */
+    const dernierExercice = historique[0] || {};
+
+    /* Séries (5 exercices, même convention que periodes() côté EODHD
+       ci-dessus) — Eulerpool en fournit jusqu'à 11 ans, plus que EODHD,
+       mais on garde la même profondeur pour rester cohérent partout où
+       ces séries sont consommées (croissanceSerie() côté frontend n'a de
+       toute façon besoin que de 2 exercices consécutifs). */
+    const serie = (champ) => {
+      const lignes = historique
+        .filter(h => h && /^\d{4}-\d{2}-\d{2}$/.test(String(h.period)) && num(h[champ]) !== null)
+        .slice(0, 5)
+        .map(h => ({ date: h.period, annee: num(h.year) ?? Number(String(h.period).slice(0, 4)), valeur: num(h[champ]) }));
+      return lignes.length ? lignes : null;
+    };
+
+    /* `valuation.pe`/`ps`/`pebit` valent exactement 0 quand Eulerpool n'a
+       pas pu calculer le ratio pour ce titre précis (constaté : RMS.PA a
+       pe=0/ps=0/pebit=0 alors que pb=7.65 et marketCap sont, eux, réels —
+       un PER de 0 n'existe pas pour une société bénéficiaire) — traité
+       comme "absent", jamais affiché comme un vrai zéro. */
+    const ratioOuNull = v => (Number.isFinite(v) && v !== 0) ? v : null;
+
+    return {
+      identity: {
+        name: null,
+        exchange: null,
+        country: null,
+        currency: txt(d.currency),
+        sector: null,
+        industry: null,
+        isin: txt(d.isin),
+      },
+
+      fundamentals: {
+        revenue: num(dernierExercice.revenue),
+        netIncome: num(dernierExercice.netIncome),
+        revenueSeries: serie('revenue'),
+        epsSeries: serie('eps'),
+        /* Aucun champ "free cash flow" dans /equity/metrics (existe peut-être
+           via /equity/cashflowstatement, non branché dans cette passe —
+           jamais deviné depuis un autre champ). */
+        fcfSeries: null,
+
+        eps: num(perShare.eps),
+        /* grossMargin/operatingMargin/netMargin sont en POINTS DE
+           POURCENTAGE chez Eulerpool (ex. 28.49 = 28,49 %), confirmé
+           empiriquement — contrairement à EODHD (ratio 0-1). Divisé par
+           100 ici pour respecter la convention ratio déjà utilisée
+           partout ailleurs dans ce fichier (voir measureText() côté
+           frontend, qui applique fmt.pctRatio à ce champ). */
+        profitMargin: num(profitability.netMargin) !== null ? num(profitability.netMargin) / 100 : null,
+        operatingMargin: num(profitability.operatingMargin) !== null ? num(profitability.operatingMargin) / 100 : null,
+        /* roe, lui, est DÉJÀ un ratio 0-1 chez Eulerpool (0.24 = 24 %,
+           confirmé) — cohérent avec EODHD, aucune conversion. */
+        roe: num(profitability.roe),
+
+        /* Eulerpool ne sépare pas dette brute et trésorerie (seulement un
+           `netDebt` combiné) — jamais approximé dans l'un ou l'autre champ. */
+        debt: null,
+        cash: null,
+        freeCashFlow: null,
+
+        pe: ratioOuNull(num(valuation.pe)),
+        forwardPE: null,
+        priceToBook: num(valuation.pb),
+        evToEbitda: num(valuation.evEbitda),
+        dividendYield: num(perShare.dividendYield),
+        /* `valuation.marketCap` est en MILLIONS chez Eulerpool (144217.59
+           pour Hermès ≈ 144,2 Md€, confirmé en comparant à l'ordre de
+           grandeur réel de la société) — ×1e6 pour rejoindre la
+           convention "valeur absolue" déjà utilisée par EODHD ailleurs
+           dans ce fichier (voir capEnMilliards() côté frontend, qui
+           suppose déjà cette convention par défaut). */
+        marketCap: num(valuation.marketCap) !== null ? num(valuation.marketCap) * 1e6 : null,
+
+        /* Consensus analystes : endpoint distinct (/equity/analyst-grades),
+           non branché dans cette passe — jamais deviné depuis /metrics. */
+        analystRatings: null,
+        wallStreetTargetPrice: null,
+        epsEstimateCurrentYear: null,
+        epsEstimateNextYear: null,
+        epsEstimateCurrentQuarter: null,
+        epsEstimateNextQuarter: null,
+      },
+
+      asOf: txt(dernierExercice.period),
+    };
+  },
 };
 
 /* ============================================================
