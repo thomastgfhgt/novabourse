@@ -84,6 +84,12 @@ function ordreStatique(dataType, type, opts = {}) {
          Jamais Finnhub (incompatible par construction, voir
          TYPES_INCOMPATIBLES_FINNHUB dans _providers.js). */
       if (type === 'index') return ['twelvedata', 'eodhd'];
+      /* commodity : Eulerpool en DERNIER repli, uniquement pour les 3
+         commodités qu'il couvre réellement (XAU/XAG/WTI — voir
+         eulerpoolCommodityRef dans _providers.js) ; les autres tickers de
+         cette classe (XAU/EUR, XPD/USD, HG1...) restent sur Twelve Data
+         seul, aucune convention vérifiée ailleurs. */
+      if (type === 'commodity') return ['twelvedata', 'eulerpool'];
       if (TYPES_SANS_SUFFIXE_EODHD.has(type)) return ['twelvedata'];
       return ['twelvedata', 'eodhd', 'finnhub'];
 
@@ -93,13 +99,16 @@ function ordreStatique(dataType, type, opts = {}) {
       }
       if (type === 'forex') return ['eodhd', 'twelvedata', 'frankfurter'];
       if (type === 'index') return ['eodhd', 'twelvedata'];
+      if (type === 'commodity') return ['twelvedata', 'eulerpool'];
       if (TYPES_SANS_SUFFIXE_EODHD.has(type)) return ['twelvedata'];
       return ['eodhd', 'twelvedata'];
 
     case 'intraday':
       if (type === 'crypto') return ['coingecko', 'twelvedata', 'eodhd'];
       /* Frankfurter n'a structurellement aucune donnée intraday (taux BCE
-         quotidiens) — jamais inclus ici, contrairement au chemin history. */
+         quotidiens) — jamais inclus ici, contrairement au chemin history.
+         Eulerpool non plus (commodity/quotes n'a aucune granularité
+         infra-journalière confirmée) — absent du chemin intraday. */
       if (type === 'forex') return ['twelvedata', 'eodhd'];
       if (type === 'index') return ['twelvedata', 'eodhd'];
       if (TYPES_SANS_SUFFIXE_EODHD.has(type)) return ['twelvedata'];

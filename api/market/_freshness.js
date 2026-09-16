@@ -52,6 +52,10 @@ const DEFAUT_COTATION_PAR_PROVIDER = {
   /* Seul cas non-DELAYED de cette table : voir justification en tête de
      fichier, ce n'est pas un oubli. */
   frankfurter: FRESHNESS.END_OF_DAY,
+  /* Eulerpool ne documente aucun délai garanti pour /commodity/quotes —
+     DELAYED par défaut, même principe que les autres fournisseurs sans
+     SLA vérifiable. */
+  eulerpool: FRESHNESS.DELAYED,
 };
 
 const ENV_SURCHARGE_PAR_PROVIDER = {
@@ -60,6 +64,7 @@ const ENV_SURCHARGE_PAR_PROVIDER = {
   finnhub: 'FINNHUB_QUOTE_FRESHNESS',
   coingecko: 'COINGECKO_QUOTE_FRESHNESS',
   frankfurter: 'FRANKFURTER_QUOTE_FRESHNESS',
+  eulerpool: 'EULERPOOL_QUOTE_FRESHNESS',
 };
 
 /**
@@ -109,6 +114,7 @@ const SOURCE_URL_PROVIDER = {
   finnhub: 'https://finnhub.io/',
   coingecko: 'https://www.coingecko.com/',
   frankfurter: 'https://frankfurter.dev/',
+  eulerpool: 'https://eulerpool.com/',
 };
 
 module.exports = {

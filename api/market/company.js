@@ -86,7 +86,7 @@ module.exports = async (req, res) => {
   /* `keys.coingecko`/`keys.frankfurter` inclus : voir history.js pour la
      même garde — un déploiement sans clé payante peut tout de même servir
      crypto via CoinGecko seul, ou forex via Frankfurter seul. */
-  if (!keys.eodhd && !keys.twelvedata && !keys.finnhub && !keys.coingecko && !keys.frankfurter) {
+  if (!keys.eodhd && !keys.twelvedata && !keys.finnhub && !keys.coingecko && !keys.frankfurter && !keys.eulerpool) {
     return res.status(503).json({ error: 'aucun_fournisseur_configure' });
   }
 

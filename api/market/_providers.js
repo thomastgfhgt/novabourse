@@ -57,6 +57,16 @@ const KEYS = () => ({
     process.env.FRANKFURTER_DISABLED === '1'
       ? null
       : true,
+
+  /* Eulerpool : clé RÉELLE requise (pas une sentinelle comme coingecko/
+     frankfurter ci-dessus — service payant, clé personnelle). Testée en
+     direct avant intégration (voir rapport) : équities/ETF/fonds/
+     obligations/commodités/crypto/forex/macro, 400+ endpoints. Couverture
+     réellement branchée ici volontairement restreinte à ce qui a été
+     vérifié champ par champ, jamais au catalogue entier de l'API. */
+  eulerpool:
+    process.env.EULERPOOL_API_KEY
+    || null,
 });
 
 /* ============================================================
@@ -472,6 +482,78 @@ async function frankfurterSeries(base, quote, days) {
     .filter(([date, val]) => /^\d{4}-\d{2}-\d{2}$/.test(date) && num(val?.[quote]) !== null)
     .map(([date, val]) => ({ date, rate: num(val[quote]) }))
     .sort((a, b) => a.date.localeCompare(b.date));
+}
+
+/* ============================================================
+   EULERPOOL — COMMODITÉS (audit sources supplémentaires, section 11)
+   ============================================================
+   api.eulerpool.com : clé RÉELLE requise (EULERPOOL_API_KEY, déjà présente
+   côté Vercel), testée en direct avant intégration — /equity/profile/AAPL
+   répond avec de vraies données (voir rapport). Documentation publique
+   fournie PAR Eulerpool pour cet usage (jamais du scraping HTML,
+   explicitement interdit par ailleurs sur ce site) :
+   https://eulerpool.com/llms-full.txt.
+
+   Couverture VÉRIFIÉE EN DIRECT, pas supposée depuis la doc seule :
+     GET /api/1/commodity/list          -> exactement 3 commodités
+                                            disponibles : Or (XAU), Argent
+                                            (XAG), Pétrole WTI (symbole
+                                            interne "CL1"), toutes cotées
+                                            en USD.
+     GET /api/1/commodity/quotes/XAU    -> 1260 points réels (2021-2026),
+                                            {timestamp, price} par point,
+                                            triés du plus récent au plus
+                                            ancien. Sert À LA FOIS de
+                                            "quote" (premier élément) et
+                                            d'historique (série complète) —
+                                            un seul endpoint pour les deux
+                                            usages, jamais besoin de
+                                            /commodity/prices (testé aussi :
+                                            renvoie [] pour ces mêmes
+                                            symboles, vocabulaire différent
+                                            et non résolu ici, donc pas
+                                            utilisé).
+   Aucune autre paire du catalogue commodités NovaBourse (XAU/EUR, XPD/USD,
+   HG1, XBR/USD, URALS/USD...) n'a de correspondance Eulerpool vérifiée :
+   reste non couverte, jamais devinée. */
+const EULERPOOL_COMMODITY_ID = {
+  XAU: 'XAU',
+  XAG: 'XAG',
+  WTI: 'CL1',
+};
+
+/**
+ * "XAU/USD" -> { id: 'XAU', quote: 'USD' }. Seul USD est vérifié comme
+ * devise de cotation chez Eulerpool pour ces 3 commodités (voir
+ * /commodity/list, "currency":"USD" sur les trois) — toute autre devise
+ * (XAU/EUR, XAU/GBP...) renvoie null plutôt qu'une conversion devinée.
+ */
+function eulerpoolCommodityRef(ticker) {
+  const m = /^([A-Z0-9]+)\/([A-Z]{3})$/.exec(String(ticker || '').toUpperCase());
+  if (!m) return null;
+  const id = EULERPOOL_COMMODITY_ID[m[1]];
+  if (!id || m[2] !== 'USD') return null;
+  return { id, quote: 'USD' };
+}
+
+/* Partagée par QUOTE.eulerpool et HISTORY.eulerpool (commodités) : un seul
+   endpoint sert les deux usages (voir commentaire ci-dessus). `jours`
+   borne la fenêtre demandée via startdate/enddate (paramètres documentés
+   par Eulerpool) — sans ces paramètres, l'endpoint renvoie TOUT
+   l'historique disponible (1260 points/~5 ans constatés pour XAU),
+   inutilement coûteux quand seules quelques semaines sont demandées. */
+async function eulerpoolCommodityQuotes(id, jours, cle) {
+  const fin = Date.now();
+  const debut = fin - Math.max(1, Math.round(jours)) * 86400000;
+  const d = await getJSON(
+    `https://api.eulerpool.com/api/1/commodity/quotes/${encodeURIComponent(id)}`
+    + `?startdate=${debut}&enddate=${fin}&token=${encodeURIComponent(cle)}`,
+    12000
+  );
+  if (!Array.isArray(d)) throw new Error('vide');
+  return d
+    .filter(p => num(p?.timestamp) !== null && num(p?.price) !== null)
+    .map(p => ({ date: new Date(num(p.timestamp)).toISOString(), close: num(p.price) }));
 }
 
 const TD_EXCHANGE = {
@@ -918,6 +1000,42 @@ const QUOTE = {
       volume: null,
       currency: ref.quote,
       timestamp: new Date(`${dernier.date}T16:00:00Z`).toISOString(),
+    };
+  },
+
+  /* Commodités uniquement (XAU/XAG/WTI, voir eulerpoolCommodityRef) — le
+     seul type pour lequel Eulerpool est branché aujourd'hui, cascade
+     appelante toujours en dernier repli (voir _router.js : qualité et
+     fraîcheur non garanties par contrat, jamais un premier choix devant
+     Twelve Data/EODHD). */
+  async eulerpool(ticker, exchange, type, key) {
+    if (type !== 'commodity') throw new Error('type_non_supporte_par_eulerpool');
+    const ref = eulerpoolCommodityRef(ticker);
+    if (!ref) throw new Error('commodite_non_reconnue_par_eulerpool');
+
+    /* 2 jours suffisent pour obtenir le dernier point + un point
+       "précédent" réel pour la variation — jamais besoin des 5 ans
+       complets juste pour une cotation instantanée. */
+    const points = await eulerpoolCommodityQuotes(ref.id, 5, key);
+    if (!points.length) throw new Error('vide');
+
+    const tries = [...points].sort((a, b) => b.date.localeCompare(a.date));
+    const dernier = tries[0];
+    const precedent = tries.length >= 2 ? tries[1] : null;
+    const change = precedent ? dernier.close - precedent.close : null;
+    const changePercent = (precedent && precedent.close) ? (change / precedent.close) * 100 : null;
+
+    return {
+      price: dernier.close,
+      change,
+      changePercent,
+      previousClose: precedent ? precedent.close : null,
+      open: null,
+      high: null,
+      low: null,
+      volume: null,
+      currency: ref.quote,
+      timestamp: dernier.date,
     };
   },
 };
@@ -2042,6 +2160,28 @@ const HISTORY = {
     lignes.recues = recues;
     return lignes;
   },
+
+  async eulerpool(ticker, exchange, n, type, key) {
+    if (type !== 'commodity') throw new Error('type_non_supporte_par_eulerpool');
+    const ref = eulerpoolCommodityRef(ticker);
+    if (!ref) throw new Error('commodite_non_reconnue_par_eulerpool');
+
+    const jours = joursHistorique(n);
+    const points = await eulerpoolCommodityQuotes(ref.id, jours, key);
+    const recues = points.length;
+
+    /* normaliserHistorique() dédoublonne par JOUR — plusieurs points
+       Eulerpool le même jour (rare, non constaté, mais jamais supposé
+       absent) retiennent le dernier écrit, cohérent avec le traitement
+       déjà appliqué à CoinGecko/Frankfurter ci-dessus. */
+    const lignes = normaliserHistorique(points.map(p => ({
+      date: p.date, open: null, high: null, low: null, close: p.close, volume: null,
+    })));
+
+    if (!lignes.length) throw new Error(recues ? 'zero_ligne_apres_normalisation' : 'aucune_ligne_recue');
+    lignes.recues = recues;
+    return lignes;
+  },
 };
 
 /* ============================================================
@@ -2339,6 +2479,14 @@ const BATCH = {
        présentes dans le lot. */
     frankfurter:
       250,
+
+    /* Pas de véritable endpoint batch confirmé chez Eulerpool pour les
+       commodités — un appel par symbole (voir BATCH.eulerpool), comme
+       BATCH.finnhub. Limite = nombre de commodités réellement couvertes
+       (3, voir EULERPOOL_COMMODITY_ID) : jamais plus d'appels que
+       d'instruments qui peuvent réellement répondre. */
+    eulerpool:
+      3,
   },
 
   async twelvedata(
@@ -2826,6 +2974,35 @@ const BATCH = {
     if (!out.size) throw new Error('aucune_ligne_exploitable');
     return out;
   },
+
+  /* Un appel par commodité (voir limite ci-dessus, au plus 3) — même
+     schéma que BATCH.finnhub : pas de vrai endpoint multi-symboles
+     confirmé chez Eulerpool pour /commodity/quotes. */
+  async eulerpool(valeurs, key) {
+    const compatibles = valeurs.filter(v => v.type === 'commodity' && eulerpoolCommodityRef(v.ticker));
+    const out = new Map();
+
+    for (const v of compatibles.slice(0, BATCH.limite.eulerpool)) {
+      try {
+        const q = await QUOTE.eulerpool(v.ticker, v.exchange, 'commodity', key);
+        out.set(idDe(v), {
+          symbol: idDe(v),
+          ticker: v.ticker,
+          exchange: v.exchange,
+          price: q.price,
+          change: q.change,
+          changePercent: q.changePercent,
+          currency: q.currency,
+          timestamp: q.timestamp,
+        });
+      } catch {
+        // Une commodité individuelle ne doit pas faire échouer tout le lot.
+      }
+    }
+
+    if (!out.size) throw new Error('aucune_ligne_exploitable');
+    return out;
+  },
 };
 
 /* ============================================================
@@ -2862,6 +3039,8 @@ module.exports = {
   COINGECKO_JOURS_MAX,
   frankfurterRef,
   FRANKFURTER_CURRENCIES,
+  eulerpoolCommodityRef,
+  EULERPOOL_COMMODITY_ID,
 
   idDe,
 

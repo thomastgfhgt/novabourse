@@ -95,7 +95,7 @@ module.exports = async (req, res) => {
      clé payante peut tout de même servir l'historique crypto via CoinGecko
      seul, ou forex via Frankfurter seul (voir _router.js) — ne jamais 503
      ce cas prématurément ici. */
-  if (!keys.eodhd && !keys.twelvedata && !keys.finnhub && !keys.coingecko && !keys.frankfurter) {
+  if (!keys.eodhd && !keys.twelvedata && !keys.finnhub && !keys.coingecko && !keys.frankfurter && !keys.eulerpool) {
     return res.status(503).json({ error: 'aucun_fournisseur_configure' });
   }
 
