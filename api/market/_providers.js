@@ -254,6 +254,12 @@ const SUFFIX = {
   ST: 'ST',
   CO: 'CO',
   OL: 'OL',
+  /* TO (Toronto) et AU (places australiennes) : vérifiés via l'endpoint
+     réel EODHD /exchange-symbol-list/TO et /exchange-symbol-list/AU (27 et
+     19 tickers testés avec succès, ex. RY.TO, BHP.AU) — le code NovaBourse
+     est ici identique au code EODHD, aucune traduction nécessaire. */
+  TO: 'TO',
+  AU: 'AU',
 };
 
 const eodhdSymbol = (
