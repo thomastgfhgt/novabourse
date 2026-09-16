@@ -70,15 +70,23 @@ const TYPES_SANS_SUFFIXE_EODHD = new Set(['index', 'commodity']);
  *     — voir _providers.js) EN PREMIER, préserve le quota EODHD/Twelve Data
  *     pour les types qui n'ont pas d'alternative gratuite. EODHD/Twelve Data
  *     restent en repli réel si CoinGecko ne reconnaît pas ce ticker precis.
- *   - index/commodity : aucune convention EODHD vérifiée, CoinGecko hors
- *     sujet (pas des cryptomonnaies) -> Twelve Data seul.
- *   - tout le reste (stock/etf/forex) : EODHD/Twelve Data, ordre historique
- *     inchangé (intraday privilégie Twelve Data en tête, daily privilégie
- *     EODHD en tête — comportement préexistant, non modifié ici).
+ *   - forex : Frankfurter (gratuit, sans clé) en DERNIER repli seulement,
+ *     jamais en tête — contrairement à CoinGecko, ses taux ne sont publiés
+ *     qu'une fois par jour (voir _freshness.js), qualité inférieure à
+ *     EODHD/Twelve Data pour tout ce qu'ils couvrent déjà. Absent du chemin
+ *     intraday : Frankfurter n'a structurellement aucune donnée intraday.
+ *   - index/commodity : aucune convention EODHD vérifiée, ni CoinGecko ni
+ *     Frankfurter ne sont des sources pertinentes -> Twelve Data seul.
+ *   - stock/etf : EODHD/Twelve Data, ordre historique inchangé (intraday
+ *     privilégie Twelve Data en tête, daily privilégie EODHD en tête —
+ *     comportement préexistant, non modifié ici).
  */
 function ordreHistoriquePourType(type, { intraday }) {
   if (type === 'crypto') {
     return intraday ? ['coingecko', 'twelvedata', 'eodhd'] : ['coingecko', 'eodhd', 'twelvedata'];
+  }
+  if (type === 'forex') {
+    return intraday ? ['twelvedata', 'eodhd'] : ['eodhd', 'twelvedata', 'frankfurter'];
   }
   if (TYPES_SANS_SUFFIXE_EODHD.has(type)) return ['twelvedata'];
   return intraday ? ['twelvedata', 'eodhd'] : ['eodhd', 'twelvedata'];
@@ -128,10 +136,11 @@ module.exports = async (req, res) => {
   const periodeBrute = req.query?.period ? String(req.query.period).toLowerCase() : null;
 
   const keys = KEYS();
-  /* `keys.coingecko` inclus : un déploiement sans AUCUNE clé payante peut
-     tout de même servir l'historique crypto via CoinGecko seul (voir
-     ordreHistoriquePourType) — ne jamais 503 ce cas prématurément ici. */
-  if (!keys.eodhd && !keys.twelvedata && !keys.finnhub && !keys.coingecko) {
+  /* `keys.coingecko`/`keys.frankfurter` inclus : un déploiement sans AUCUNE
+     clé payante peut tout de même servir l'historique crypto via CoinGecko
+     seul, ou forex via Frankfurter seul (voir ordreHistoriquePourType) —
+     ne jamais 503 ce cas prématurément ici. */
+  if (!keys.eodhd && !keys.twelvedata && !keys.finnhub && !keys.coingecko && !keys.frankfurter) {
     return res.status(503).json({ error: 'aucun_fournisseur_configure' });
   }
 

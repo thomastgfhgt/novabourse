@@ -48,6 +48,15 @@ const KEYS = () => ({
     process.env.COINGECKO_DISABLED === '1'
       ? null
       : true,
+
+  /* Frankfurter (api.frankfurter.dev, ex api.frankfurter.app) : taux de
+     référence BCE, API open-source (MIT), aucune clé requise. Même
+     principe de sentinelle que coingecko ci-dessus. FRANKFURTER_DISABLED
+     permet de le couper sans toucher au code. */
+  frankfurter:
+    process.env.FRANKFURTER_DISABLED === '1'
+      ? null
+      : true,
 });
 
 /* ============================================================
@@ -382,6 +391,66 @@ function coingeckoRef(ticker) {
   const vs = m[2].toLowerCase();
   if (!id || !COINGECKO_VS_CURRENCIES.has(vs)) return null;
   return { id, vs };
+}
+
+/* ============================================================
+   FRANKFURTER — FOREX GRATUIT SANS CLÉ (audit sources supplémentaires)
+   ============================================================
+   api.frankfurter.dev (ex .app) : taux de référence BCE, API open-source
+   (MIT), aucune clé requise. Vérifié empiriquement en direct :
+     GET /v1/latest?base=EUR&symbols=USD                  -> taux réel
+     GET /v1/2026-08-15..2026-09-15?base=EUR&symbols=USD   -> série réelle
+     GET /v1/currencies                                     -> 30 devises BCE
+   Limite RÉELLE et documentée, pas une supposition : taux de RÉFÉRENCE BCE,
+   publiés UNE FOIS PAR JOUR ouvré (~16h CET), jamais intraday, jamais de
+   bid/ask/open/high/low/volume — un point de clôture quotidien par devise.
+   Couvre 30 devises (dont EUR/USD/GBP/JPY/CHF/AUD/CAD/NZD... — 16 des 18
+   paires du catalogue NovaBourse actuel ; absent : CNH, offshore yuan que
+   la BCE ne publie pas). Positionné en DERNIER repli (jamais premier,
+   contrairement à CoinGecko) : EODHD/Twelve Data restent supérieurs en
+   qualité (intraday réel, bid/ask) pour tout ce qu'ils couvrent déjà. */
+const FRANKFURTER_CURRENCIES = new Set([
+  'AUD', 'BRL', 'CAD', 'CHF', 'CNY', 'CZK', 'DKK', 'EUR', 'GBP', 'HKD',
+  'HUF', 'IDR', 'ILS', 'INR', 'ISK', 'JPY', 'KRW', 'MXN', 'MYR', 'NOK',
+  'NZD', 'PHP', 'PLN', 'RON', 'SEK', 'SGD', 'THB', 'TRY', 'USD', 'ZAR',
+]);
+
+/**
+ * "BASE/QUOTE" (ex. "EUR/USD") -> { base: 'EUR', quote: 'USD' }, ou null si
+ * l'une des deux devises n'est pas publiée par la BCE (jamais une paire
+ * partiellement construite).
+ */
+function frankfurterRef(ticker) {
+  const m = /^([A-Z]{3})\/([A-Z]{3})$/.exec(String(ticker || '').toUpperCase());
+  if (!m) return null;
+  if (!FRANKFURTER_CURRENCIES.has(m[1]) || !FRANKFURTER_CURRENCIES.has(m[2])) return null;
+  if (m[1] === m[2]) return null;
+  return { base: m[1], quote: m[2] };
+}
+
+/* Partagée par QUOTE.frankfurter et HISTORY.frankfurter : une série réelle
+   de taux quotidiens BCE, ordonnée chronologiquement. `days` est une fenêtre
+   CALENDAIRE (pas un nombre de séances) — la BCE ne publie rien le week-end
+   ni les jours fériés, la série renvoyée peut donc avoir moins de points que
+   `days` ; c'est attendu, jamais comblé. */
+async function frankfurterSeries(base, quote, days) {
+  const fin = new Date();
+  const debut = new Date(Date.now() - Math.max(1, Math.round(days)) * 86400000);
+  const iso = d => d.toISOString().slice(0, 10);
+
+  const d = await getJSON(
+    `https://api.frankfurter.dev/v1/${iso(debut)}..${iso(fin)}`
+    + `?base=${base}&symbols=${quote}`,
+    9000
+  );
+
+  const rates = d?.rates;
+  if (!rates || typeof rates !== 'object') throw new Error('vide');
+
+  return Object.entries(rates)
+    .filter(([date, val]) => /^\d{4}-\d{2}-\d{2}$/.test(date) && num(val?.[quote]) !== null)
+    .map(([date, val]) => ({ date, rate: num(val[quote]) }))
+    .sort((a, b) => a.date.localeCompare(b.date));
 }
 
 const TD_EXCHANGE = {
@@ -795,6 +864,39 @@ const QUOTE = {
       volume: num(ligne.total_volume),
       currency: ref.vs.toUpperCase(),
       timestamp: txt(ligne.last_updated) ? new Date(ligne.last_updated).toISOString() : null,
+    };
+  },
+
+  /* Frankfurter n'a pas d'endpoint "cotation instantanée" avec variation —
+     seulement des taux quotidiens. On réutilise la série courte (voir
+     frankfurterSeries plus bas, partagée avec HISTORY.frankfurter) : prix =
+     dernier taux réel connu, previousClose = taux réel du jour ouvré
+     précédent, change/changePercent dérivés arithmétiquement des deux —
+     jamais un flux temps réel, jamais fabriqué. */
+  async frankfurter(ticker, exchange, type, key) {
+    if (type !== 'forex') throw new Error('type_non_supporte_par_frankfurter');
+    const ref = frankfurterRef(ticker);
+    if (!ref) throw new Error('paire_non_reconnue_par_frankfurter');
+
+    const serie = await frankfurterSeries(ref.base, ref.quote, 10);
+    if (serie.length < 1) throw new Error('vide');
+
+    const dernier = serie[serie.length - 1];
+    const precedent = serie.length >= 2 ? serie[serie.length - 2] : null;
+    const change = precedent ? dernier.rate - precedent.rate : null;
+    const changePercent = (precedent && precedent.rate) ? (change / precedent.rate) * 100 : null;
+
+    return {
+      price: dernier.rate,
+      change,
+      changePercent,
+      previousClose: precedent ? precedent.rate : null,
+      open: null,
+      high: null,
+      low: null,
+      volume: null,
+      currency: ref.quote,
+      timestamp: new Date(`${dernier.date}T16:00:00Z`).toISOString(),
     };
   },
 };
@@ -1884,6 +1986,24 @@ const HISTORY = {
     lignes.recues = recues;
     return lignes;
   },
+
+  async frankfurter(ticker, exchange, n, type, key) {
+    if (type !== 'forex') throw new Error('type_non_supporte_par_frankfurter');
+    const ref = frankfurterRef(ticker);
+    if (!ref) throw new Error('paire_non_reconnue_par_frankfurter');
+
+    const jours = joursHistorique(n);
+    const serie = await frankfurterSeries(ref.base, ref.quote, jours);
+    const recues = serie.length;
+
+    const lignes = normaliserHistorique(serie.map(p => ({
+      date: p.date, open: null, high: null, low: null, close: p.rate, volume: null,
+    })));
+
+    if (!lignes.length) throw new Error(recues ? 'zero_ligne_apres_normalisation' : 'aucune_ligne_recue');
+    lignes.recues = recues;
+    return lignes;
+  },
 };
 
 /* ============================================================
@@ -2173,6 +2293,13 @@ const BATCH = {
        CoinGecko) — un seul appel HTTP couvre tout le catalogue crypto
        NovaBourse actuel (20 paires) en une fois. */
     coingecko:
+      250,
+
+    /* Une limite haute et arbitraire ici : la vraie contrainte n'est pas
+       une taille de lot (voir BATCH.frankfurter, un appel par devise BASE
+       distincte, jamais par paire) mais le nombre de bases différentes
+       présentes dans le lot. */
+    frankfurter:
       250,
   },
 
@@ -2594,6 +2721,73 @@ const BATCH = {
     if (!out.size) throw new Error('aucune_ligne_exploitable');
     return out;
   },
+
+  /* Regroupe par devise BASE (une paire "EUR/USD" a pour base EUR) : un seul
+     appel /v1/{plage}?base=EUR&symbols=USD,GBP,... couvre toutes les paires
+     du lot qui partagent la même base, jamais un appel par paire. Fenêtre de
+     7 jours (jamais 1 seul jour) pour toujours disposer d'un point
+     "précédent" réel même un lundi (le vendredi précédent) — voir
+     QUOTE.frankfurter/frankfurterSeries pour la même logique. */
+  async frankfurter(valeurs, key) {
+    const parBase = new Map(); // base -> Map(quote -> valeur)
+    for (const v of valeurs) {
+      if (v.type !== 'forex') continue;
+      const ref = frankfurterRef(v.ticker);
+      if (!ref) continue;
+      if (!parBase.has(ref.base)) parBase.set(ref.base, new Map());
+      parBase.get(ref.base).set(ref.quote, v);
+    }
+
+    if (!parBase.size) throw new Error('aucun_symbole');
+
+    const out = new Map();
+    const fin = new Date();
+    const debut = new Date(Date.now() - 7 * 86400000);
+    const iso = d => d.toISOString().slice(0, 10);
+
+    for (const [base, parQuote] of parBase) {
+      const quotes = [...parQuote.keys()];
+      let d;
+      try {
+        d = await getJSON(
+          `https://api.frankfurter.dev/v1/${iso(debut)}..${iso(fin)}`
+          + `?base=${base}&symbols=${quotes.join(',')}`,
+          12000
+        );
+      } catch {
+        continue; // un groupe de devise indisponible ne doit pas faire échouer les autres
+      }
+
+      const dates = Object.keys(d?.rates || {}).sort();
+      if (dates.length < 1) continue;
+      const dateDerniere = dates[dates.length - 1];
+      const datePrecedente = dates.length >= 2 ? dates[dates.length - 2] : null;
+
+      for (const quote of quotes) {
+        const prix = num(d.rates[dateDerniere]?.[quote]);
+        if (prix === null) continue;
+        const src = parQuote.get(quote);
+        if (!src) continue;
+
+        const prixPrecedent = datePrecedente ? num(d.rates[datePrecedente]?.[quote]) : null;
+        const change = prixPrecedent !== null ? prix - prixPrecedent : null;
+
+        out.set(idDe(src), {
+          symbol: idDe(src),
+          ticker: src.ticker,
+          exchange: src.exchange,
+          price: prix,
+          change,
+          changePercent: (change !== null && prixPrecedent) ? (change / prixPrecedent) * 100 : null,
+          currency: quote,
+          timestamp: new Date(`${dateDerniere}T16:00:00Z`).toISOString(),
+        });
+      }
+    }
+
+    if (!out.size) throw new Error('aucune_ligne_exploitable');
+    return out;
+  },
 };
 
 /* ============================================================
@@ -2626,6 +2820,8 @@ module.exports = {
   tdSymbol,
   coingeckoRef,
   CRYPTO_ID_COINGECKO,
+  frankfurterRef,
+  FRANKFURTER_CURRENCIES,
 
   idDe,
 

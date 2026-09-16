@@ -79,6 +79,8 @@ function statut(label, ok, detail) {
 async function testerQuote(instr, keys) {
   const ordre = instr.type === 'crypto'
     ? ['coingecko', 'twelvedata', 'eodhd']
+    : instr.type === 'forex'
+    ? ['twelvedata', 'eodhd', 'frankfurter']
     : ['twelvedata', 'eodhd', 'finnhub'];
   for (const provider of ordre) {
     if (!keys[provider]) continue;
@@ -93,6 +95,8 @@ async function testerQuote(instr, keys) {
 async function testerHistory(instr, keys) {
   const ordre = instr.type === 'crypto'
     ? ['coingecko', 'eodhd', 'twelvedata']
+    : instr.type === 'forex'
+    ? ['eodhd', 'twelvedata', 'frankfurter']
     : (instr.type === 'index' || instr.type === 'commodity') ? ['twelvedata']
     : ['eodhd', 'twelvedata'];
   for (const provider of ordre) {

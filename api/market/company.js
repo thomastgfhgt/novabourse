@@ -82,26 +82,34 @@ module.exports = async (req, res) => {
   const type = String(req.query?.type || 'stock').toLowerCase();
 
   const keys = KEYS();
-  /* `keys.coingecko` inclus : voir history.js pour la même garde — un
-     déploiement sans clé payante peut tout de même servir crypto via
-     CoinGecko seul. */
-  if (!keys.eodhd && !keys.twelvedata && !keys.finnhub && !keys.coingecko) {
+  /* `keys.coingecko`/`keys.frankfurter` inclus : voir history.js pour la
+     même garde — un déploiement sans clé payante peut tout de même servir
+     crypto via CoinGecko seul, ou forex via Frankfurter seul. */
+  if (!keys.eodhd && !keys.twelvedata && !keys.finnhub && !keys.coingecko && !keys.frankfurter) {
     return res.status(503).json({ error: 'aucun_fournisseur_configure' });
   }
 
   const journal = [];
 
-  /* CoinGecko (gratuit, sans clé) en tête pour crypto — préserve le quota
-     payant, cf. history.js/ordreHistoriquePourType pour le même principe.
-     Les fonctions QUOTE.eodhd/HISTORY.eodhd et QUOTE.finnhub se
-     désactivent déjà elles-mêmes pour les types qu'elles ne savent pas
-     traiter (eodhdSymbolPourType/finnhubAutorise) : les inclure sans
-     condition ici ne déclenche donc jamais un appel réseau invalide. */
+  /* CoinGecko/Frankfurter (gratuits, sans clé) en tête ou en repli selon le
+     type — cf. history.js/ordreHistoriquePourType pour le même principe et
+     le même raisonnement (CoinGecko préserve le quota payant pour crypto ;
+     Frankfurter, lui, est un DERNIER repli pour forex — voir sa
+     documentation dans _providers.js : qualité inférieure aux fournisseurs
+     payants, jamais premier choix). Les fonctions QUOTE.eodhd/HISTORY.eodhd
+     et QUOTE.finnhub se désactivent déjà elles-mêmes pour les types qu'elles
+     ne savent pas traiter (eodhdSymbolPourType/finnhubAutorise) : les
+     inclure sans condition ici ne déclenche donc jamais un appel réseau
+     invalide. */
   const ordreQuote = type === 'crypto'
     ? ['coingecko', 'twelvedata', 'eodhd']
+    : type === 'forex'
+    ? ['twelvedata', 'eodhd', 'frankfurter']
     : ['twelvedata', 'eodhd', 'finnhub'];
   const ordreHistory = type === 'crypto'
     ? ['coingecko', 'eodhd', 'twelvedata']
+    : type === 'forex'
+    ? ['eodhd', 'twelvedata', 'frankfurter']
     : ['eodhd', 'twelvedata'];
 
   /* Remplace l'ancienne closure locale `bloc()` par le module partagé

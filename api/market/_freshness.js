@@ -17,6 +17,10 @@
  *     contractuellement pour /coins/markets (rafraîchi en pratique
  *     fréquemment, mais sans SLA) — DELAYED par défaut, comme les autres,
  *     jamais présumé temps réel sans confirmation.
+ *   - Frankfurter republie les taux de référence BCE, qui ne sont eux-mêmes
+ *     publiés qu'UNE FOIS par jour ouvré (~16h CET) — ni LIVE ni "juste
+ *     différé de quelques minutes" : END_OF_DAY est la seule catégorie
+ *     honnête ici, documentée par la BCE elle-même, pas une supposition.
  *
  * Défaut retenu : DELAYED pour toute cotation, quel que soit le
  * fournisseur. C'est le seul choix qui ne risque jamais de sur-estimer la
@@ -45,6 +49,9 @@ const DEFAUT_COTATION_PAR_PROVIDER = {
   twelvedata: FRESHNESS.DELAYED,
   finnhub: FRESHNESS.DELAYED,
   coingecko: FRESHNESS.DELAYED,
+  /* Seul cas non-DELAYED de cette table : voir justification en tête de
+     fichier, ce n'est pas un oubli. */
+  frankfurter: FRESHNESS.END_OF_DAY,
 };
 
 const ENV_SURCHARGE_PAR_PROVIDER = {
@@ -52,6 +59,7 @@ const ENV_SURCHARGE_PAR_PROVIDER = {
   twelvedata: 'TWELVEDATA_QUOTE_FRESHNESS',
   finnhub: 'FINNHUB_QUOTE_FRESHNESS',
   coingecko: 'COINGECKO_QUOTE_FRESHNESS',
+  frankfurter: 'FRANKFURTER_QUOTE_FRESHNESS',
 };
 
 /**
@@ -100,6 +108,7 @@ const SOURCE_URL_PROVIDER = {
   twelvedata: 'https://twelvedata.com/',
   finnhub: 'https://finnhub.io/',
   coingecko: 'https://www.coingecko.com/',
+  frankfurter: 'https://frankfurter.dev/',
 };
 
 module.exports = {

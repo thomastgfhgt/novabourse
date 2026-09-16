@@ -4,8 +4,12 @@ const { freshnessCotation, SOURCE_URL_PROVIDER } = require('./_freshness.js');
 
 /* CoinGecko en tête : gratuit, sans clé, et BATCH.coingecko exclut déjà
    lui-même tout ce qui n'est pas type==='crypto' (voir _providers.js) —
-   l'inclure sans condition ici ne retire donc rien aux autres types. */
-const ORDRE = ['coingecko', 'twelvedata', 'eodhd', 'finnhub'];
+   l'inclure sans condition ici ne retire donc rien aux autres types.
+   Frankfurter en DERNIER (BATCH.frankfurter exclut lui-même tout ce qui
+   n'est pas type==='forex') : qualité inférieure aux fournisseurs payants
+   pour ce qu'ils couvrent déjà (voir sa documentation dans _providers.js),
+   jamais un premier choix. */
+const ORDRE = ['coingecko', 'twelvedata', 'eodhd', 'finnhub', 'frankfurter'];
 const MAX_SYMBOLES = 120;
 
 /* CORRECTIF (audit routage multi-actifs — bug de production confirmé) :
@@ -71,7 +75,7 @@ module.exports = async (req, res) => {
   if (!demandes.length) return res.status(400).json({ error: 'symbols_manquant' });
 
   const keys = KEYS();
-  if (!keys.twelvedata && !keys.eodhd && !keys.finnhub && !keys.coingecko) {
+  if (!keys.twelvedata && !keys.eodhd && !keys.finnhub && !keys.coingecko && !keys.frankfurter) {
     return res.status(200).json({
       quotes: [], connected: false, source: null, sources: [], partial: true,
       missing: demandes.map(idDe), reason: 'aucun_fournisseur_configure', journal: [],
