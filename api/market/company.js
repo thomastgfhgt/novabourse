@@ -82,22 +82,38 @@ module.exports = async (req, res) => {
   const type = String(req.query?.type || 'stock').toLowerCase();
 
   const keys = KEYS();
-  if (!keys.eodhd && !keys.twelvedata && !keys.finnhub) {
+  /* `keys.coingecko` inclus : voir history.js pour la même garde — un
+     déploiement sans clé payante peut tout de même servir crypto via
+     CoinGecko seul. */
+  if (!keys.eodhd && !keys.twelvedata && !keys.finnhub && !keys.coingecko) {
     return res.status(503).json({ error: 'aucun_fournisseur_configure' });
   }
 
   const journal = [];
+
+  /* CoinGecko (gratuit, sans clé) en tête pour crypto — préserve le quota
+     payant, cf. history.js/ordreHistoriquePourType pour le même principe.
+     Les fonctions QUOTE.eodhd/HISTORY.eodhd et QUOTE.finnhub se
+     désactivent déjà elles-mêmes pour les types qu'elles ne savent pas
+     traiter (eodhdSymbolPourType/finnhubAutorise) : les inclure sans
+     condition ici ne déclenche donc jamais un appel réseau invalide. */
+  const ordreQuote = type === 'crypto'
+    ? ['coingecko', 'twelvedata', 'eodhd']
+    : ['twelvedata', 'eodhd', 'finnhub'];
+  const ordreHistory = type === 'crypto'
+    ? ['coingecko', 'eodhd', 'twelvedata']
+    : ['eodhd', 'twelvedata'];
 
   /* Remplace l'ancienne closure locale `bloc()` par le module partagé
      _marketBlock.js — comportement strictement identique (même lecture
      cache, même cascade, même écriture cache, même journal), juste
      factorisé pour être réutilisable par history.js et fundamentals.js. */
   const [q, f, h] = await Promise.all([
-    chargerBloc({ nom:'quote', table:QUOTE, ordre:['twelvedata', 'eodhd', 'finnhub'],
+    chargerBloc({ nom:'quote', table:QUOTE, ordre:ordreQuote,
       args:[ticker, exchange, type], ticker, exchange, frais, journal }),
     chargerBloc({ nom:'fundamentals', table:FUNDAMENTALS, ordre:['eodhd', 'finnhub'],
       args:[ticker, exchange], ticker, exchange, frais, journal }),
-    chargerBloc({ nom:'history', table:HISTORY, ordre:['eodhd', 'twelvedata'],
+    chargerBloc({ nom:'history', table:HISTORY, ordre:ordreHistory,
       args:[ticker, exchange, 400, type], ticker, exchange, frais, journal }),
   ]);
 

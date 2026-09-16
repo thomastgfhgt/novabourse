@@ -65,6 +65,25 @@ const MAX_INTRADAY_POINTS = 1500;
    index/commodity restent sans repli EODHD. */
 const TYPES_SANS_SUFFIXE_EODHD = new Set(['index', 'commodity']);
 
+/* Ordre de cascade historique/intraday, dépendant du type d'instrument :
+ *   - crypto : CoinGecko (gratuit, sans clé, indépendant des quotas payants
+ *     — voir _providers.js) EN PREMIER, préserve le quota EODHD/Twelve Data
+ *     pour les types qui n'ont pas d'alternative gratuite. EODHD/Twelve Data
+ *     restent en repli réel si CoinGecko ne reconnaît pas ce ticker precis.
+ *   - index/commodity : aucune convention EODHD vérifiée, CoinGecko hors
+ *     sujet (pas des cryptomonnaies) -> Twelve Data seul.
+ *   - tout le reste (stock/etf/forex) : EODHD/Twelve Data, ordre historique
+ *     inchangé (intraday privilégie Twelve Data en tête, daily privilégie
+ *     EODHD en tête — comportement préexistant, non modifié ici).
+ */
+function ordreHistoriquePourType(type, { intraday }) {
+  if (type === 'crypto') {
+    return intraday ? ['coingecko', 'twelvedata', 'eodhd'] : ['coingecko', 'eodhd', 'twelvedata'];
+  }
+  if (TYPES_SANS_SUFFIXE_EODHD.has(type)) return ['twelvedata'];
+  return intraday ? ['twelvedata', 'eodhd'] : ['eodhd', 'twelvedata'];
+}
+
 /**
  * Une période "réellement exploitable" au sens du cahier des charges :
  * granularité choisie pour rester représentative de la période (jamais
@@ -109,15 +128,16 @@ module.exports = async (req, res) => {
   const periodeBrute = req.query?.period ? String(req.query.period).toLowerCase() : null;
 
   const keys = KEYS();
-  if (!keys.eodhd && !keys.twelvedata && !keys.finnhub) {
+  /* `keys.coingecko` inclus : un déploiement sans AUCUNE clé payante peut
+     tout de même servir l'historique crypto via CoinGecko seul (voir
+     ordreHistoriquePourType) — ne jamais 503 ce cas prématurément ici. */
+  if (!keys.eodhd && !keys.twelvedata && !keys.finnhub && !keys.coingecko) {
     return res.status(503).json({ error: 'aucun_fournisseur_configure' });
   }
 
   /* ================= CHEMIN PAR DÉFAUT (compat stricte) ================= */
   if (!periodeBrute) {
-    const ordre = TYPES_SANS_SUFFIXE_EODHD.has(type)
-      ? ['twelvedata']
-      : ['eodhd', 'twelvedata'];
+    const ordre = ordreHistoriquePourType(type, { intraday: false });
 
     if (!ordre.some(p => keys[p])) {
       return res.status(503).json({ error: 'aucun_fournisseur_configure' });
@@ -170,13 +190,7 @@ module.exports = async (req, res) => {
       ? String(req.query.interval)
       : spec.interval;
 
-    /* Twelve Data d'abord (primaire historique pour l'intraday), EODHD en
-       repli réel désormais que sa convention crypto/forex est vérifiée
-       (voir commentaire d'en-tête) — sauf index/commodity, toujours sans
-       convention EODHD connue. */
-    const ordre = TYPES_SANS_SUFFIXE_EODHD.has(type)
-      ? ['twelvedata']
-      : ['twelvedata', 'eodhd'];
+    const ordre = ordreHistoriquePourType(type, { intraday: true });
 
     if (!ordre.some(p => keys[p])) {
       return res.status(503).json({ error: 'aucun_fournisseur_configure' });
@@ -219,9 +233,7 @@ module.exports = async (req, res) => {
   }
 
   /* spec.kind === 'daily' */
-  const ordre = TYPES_SANS_SUFFIXE_EODHD.has(type)
-    ? ['twelvedata']
-    : ['eodhd', 'twelvedata'];
+  const ordre = ordreHistoriquePourType(type, { intraday: false });
 
   if (!ordre.some(p => keys[p])) {
     return res.status(503).json({ error: 'aucun_fournisseur_configure' });

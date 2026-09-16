@@ -35,6 +35,19 @@ const KEYS = () => ({
     process.env.FINNHUB_API_KEY
     || process.env.MARKET_API_KEY
     || null,
+
+  /* CoinGecko "Public API" (api.coingecko.com) : aucune clé requise, ne
+     nécessite aucun compte. `coingecko: true` est donc une valeur
+     SENTINELLE (pas un vrai secret) — cascade()/BATCH ci-dessous
+     n'appellent un fournisseur que si keys[nom] est vérité, ce placeholder
+     leur permet de traiter CoinGecko exactement comme les fournisseurs à
+     clé sans dupliquer leur logique. COINGECKO_DISABLED="1" permet de le
+     couper explicitement en production (ex. abus constaté sur son IP
+     partagée) sans toucher au code. */
+  coingecko:
+    process.env.COINGECKO_DISABLED === '1'
+      ? null
+      : true,
 });
 
 /* ============================================================
@@ -300,6 +313,75 @@ function eodhdSymbolPourType(ticker, exchange, type) {
   if (type === 'forex') return eodhdForexSymbol(ticker);
   if (type === 'index' || type === 'commodity') return null;
   return eodhdSymbol(ticker, exchange);
+}
+
+/* ============================================================
+   COINGECKO — SOURCE CRYPTO GRATUITE SANS CLÉ (audit sources supplémentaires)
+   ============================================================
+   api.coingecko.com/api/v3 ("Public API") ne nécessite aucune clé ni
+   compte. Vérifié empiriquement en direct au moment de l'intégration :
+     GET /simple/price?ids=algorand,cosmos&vs_currencies=usd
+     GET /coins/markets?vs_currency=usd&ids=algorand,cosmos
+     GET /coins/algorand/market_chart?vs_currency=usd&days=30
+   -> réponses réelles et exploitables pour les deux instruments qui
+   posaient problème en production (ALGO, ATOM). C'est un fournisseur
+   RÉEL et INDÉPENDANT des trois payants (EODHD/Twelve Data/Finnhub) : il
+   ne dépend d'aucun de leurs quotas, et couvre nativement des centaines
+   de cryptomonnaies que ni EODHD ni Twelve Data ne référencent forcément.
+   Mise en garde documentée par CoinGecko : ce point d'accès public est
+   soumis à une limite de débit partagée, sans garantie de disponibilité
+   contractuelle — d'où sa position de PREMIER essai pour crypto (préserve
+   le quota payant) mais jamais seul fournisseur exclusif (repli sur
+   Twelve Data/EODHD toujours conservé dans la cascade appelante).
+
+   Correspondance ticker NovaBourse -> identifiant CoinGecko : NE JAMAIS
+   deviner un id depuis le symbole (ex. "atom" fonctionne mais de nombreux
+   symboles CoinGecko sont ambigus - plusieurs pièces partagent le même
+   symbole). Seule cette table, vérifiée manuellement contre /coins/list,
+   fait foi ; un ticker absent de cette table n'a simplement pas de
+   correspondance CoinGecko (comportement identique à exchangeCode manquant
+   ailleurs dans ce fichier : jamais une devinette silencieuse). */
+const CRYPTO_ID_COINGECKO = {
+  BTC: 'bitcoin',
+  ETH: 'ethereum',
+  XRP: 'ripple',
+  LTC: 'litecoin',
+  BCH: 'bitcoin-cash',
+  ADA: 'cardano',
+  DOGE: 'dogecoin',
+  SOL: 'solana',
+  DOT: 'polkadot',
+  MATIC: 'matic-network',
+  AVAX: 'avalanche-2',
+  LINK: 'chainlink',
+  XLM: 'stellar',
+  TRX: 'tron',
+  ATOM: 'cosmos',
+  ETC: 'ethereum-classic',
+  XMR: 'monero',
+  ALGO: 'algorand',
+  VET: 'vechain',
+  FIL: 'filecoin',
+};
+
+/* Devises de règlement acceptées par `vs_currencies`/`vs_currency` que
+   CoinGecko documente et que NovaBourse utilise réellement (voir FX dans
+   index.html) — liste fermée plutôt qu'un passe-plat de n'importe quelle
+   chaîne vers l'URL du fournisseur. */
+const COINGECKO_VS_CURRENCIES = new Set(['usd', 'eur', 'gbp', 'chf', 'jpy', 'cad', 'aud']);
+
+/**
+ * "BASE/QUOTE" (ex. "ALGO/USD") -> { id: 'algorand', vs: 'usd' }, ou null
+ * si la base n'a pas de correspondance vérifiée ou si la devise de cotation
+ * n'est pas supportée. Jamais de valeur partiellement construite.
+ */
+function coingeckoRef(ticker) {
+  const m = /^([A-Z0-9]+)\/([A-Z0-9]+)$/.exec(String(ticker || '').toUpperCase());
+  if (!m) return null;
+  const id = CRYPTO_ID_COINGECKO[m[1]];
+  const vs = m[2].toLowerCase();
+  if (!id || !COINGECKO_VS_CURRENCIES.has(vs)) return null;
+  return { id, vs };
 }
 
 const TD_EXCHANGE = {
@@ -675,6 +757,44 @@ const QUOTE = {
 
       timestamp:
         isoUnix(d.t),
+    };
+  },
+
+  /* Un seul appel /coins/markets couvre AUSSI le cas batch (voir BATCH.coingecko
+     plus bas) : même endpoint, ids séparés par virgule. Ici ids=1 seul. */
+  async coingecko(ticker, exchange, type, key) {
+    if (type !== 'crypto') throw new Error('type_non_supporte_par_coingecko');
+    const ref = coingeckoRef(ticker);
+    if (!ref) throw new Error('ticker_non_reconnu_par_coingecko');
+
+    const d = await getJSON(
+      `https://api.coingecko.com/api/v3/coins/markets`
+      + `?vs_currency=${ref.vs}&ids=${ref.id}&price_change_percentage=24h`,
+      9000
+    );
+
+    const ligne = Array.isArray(d) ? d[0] : null;
+    if (!ligne || num(ligne.current_price) === null) {
+      throw new Error('vide');
+    }
+
+    return {
+      price: num(ligne.current_price),
+      change: num(ligne.price_change_24h),
+      changePercent: num(ligne.price_change_percentage_24h),
+      /* Dérivé arithmétiquement de deux valeurs réellement reçues
+         (current_price - price_change_24h), jamais une estimation :
+         c'est la même opération que absChange() applique déjà côté
+         frontend à partir de price/changePercent seuls. */
+      previousClose: (num(ligne.current_price) !== null && num(ligne.price_change_24h) !== null)
+        ? num(ligne.current_price) - num(ligne.price_change_24h)
+        : null,
+      open: null,
+      high: num(ligne.high_24h),
+      low: num(ligne.low_24h),
+      volume: num(ligne.total_volume),
+      currency: ref.vs.toUpperCase(),
+      timestamp: txt(ligne.last_updated) ? new Date(ligne.last_updated).toISOString() : null,
     };
   },
 };
@@ -1382,6 +1502,36 @@ function joursHistorique(n) {
   );
 }
 
+/* Partagé par HISTORY.coingecko (quotidien) et INTRADAY.coingecko
+   (infra-journalier) : même endpoint /market_chart, seule la valeur de
+   `days` change la granularité RÉELLE renvoyée par CoinGecko (automatique,
+   non paramétrable sur l'API publique gratuite — vérifié empiriquement :
+   days<=1 -> ~5 min, 2-90 -> ~1 h, >90 -> quotidien). Aucun OHLC construit :
+   uniquement un point prix (open=high=low=close=price) par horodatage
+   RÉEL, jamais de barre inventée. */
+async function coingeckoMarketChart(id, vs, days) {
+  const d = await getJSON(
+    `https://api.coingecko.com/api/v3/coins/${encodeURIComponent(id)}/market_chart`
+    + `?vs_currency=${vs}&days=${Math.max(1, Math.min(Math.round(days), 5000))}`,
+    12000
+  );
+
+  const prix = Array.isArray(d?.prices) ? d.prices : [];
+  const volumes = new Map((Array.isArray(d?.total_volumes) ? d.total_volumes : [])
+    .map(([t, v]) => [t, v]));
+
+  if (!prix.length) throw new Error('vide');
+
+  return prix.map(([t, price]) => ({
+    date: new Date(t).toISOString(),
+    open: null,
+    high: null,
+    low: null,
+    close: num(price),
+    volume: num(volumes.get(t)),
+  }));
+}
+
 /* ============================================================
    HISTORIQUE OHLCV
    ============================================================ */
@@ -1617,6 +1767,26 @@ const HISTORY = {
 
     return lignes;
   },
+
+  async coingecko(ticker, exchange, n, type, key) {
+    if (type !== 'crypto') throw new Error('type_non_supporte_par_coingecko');
+    const ref = coingeckoRef(ticker);
+    if (!ref) throw new Error('ticker_non_reconnu_par_coingecko');
+
+    const jours = joursHistorique(n);
+    const brutes = await coingeckoMarketChart(ref.id, ref.vs, jours);
+    const recues = brutes.length;
+
+    /* normaliserHistorique() dédoublonne par JOUR en gardant le dernier
+       point écrit pour cette date — les points CoinGecko étant déjà
+       chronologiques, cela retient naturellement le dernier prix connu de
+       chaque journée (une clôture réelle, pas approximée). */
+    const lignes = normaliserHistorique(brutes);
+    if (!lignes.length) throw new Error(recues ? 'zero_ligne_apres_normalisation' : 'aucune_ligne_recue');
+
+    lignes.recues = recues;
+    return lignes;
+  },
 };
 
 /* ============================================================
@@ -1742,6 +1912,28 @@ const INTRADAY = {
     if (natifMinutes < minutesDemandees) {
       lignes = resampleOHLC(lignes, minutesDemandees);
     }
+
+    lignes.recues = recues;
+    return lignes;
+  },
+
+  /* Granularité RÉELLE renvoyée par CoinGecko pour `jours` <= 90 (~5 min si
+     jours<=1, sinon ~1 h) — non paramétrable sur l'API publique gratuite
+     (voir coingeckoMarketChart ci-dessus). `interval` demandé n'est donc
+     qu'indicatif ici : jamais ré-échantillonné vers une granularité plus
+     fine que ce qui a été réellement reçu (resampleOHLC ne fait QUE
+     grossir, jamais l'inverse) — retourné tel quel, la réponse HTTP
+     (voir history.js) indique le vrai `interval` via le journal si besoin. */
+  async coingecko(ticker, exchange, interval, jours, type, key) {
+    if (type !== 'crypto') throw new Error('type_non_supporte_par_coingecko');
+    const ref = coingeckoRef(ticker);
+    if (!ref) throw new Error('ticker_non_reconnu_par_coingecko');
+
+    const brutes = await coingeckoMarketChart(ref.id, ref.vs, jours);
+    const recues = brutes.length;
+
+    const lignes = normaliserIntraday(brutes);
+    if (!lignes.length) throw new Error(recues ? 'zero_ligne_apres_normalisation' : 'aucune_ligne_recue');
 
     lignes.recues = recues;
     return lignes;
@@ -1879,6 +2071,12 @@ const BATCH = {
 
     finnhub:
       10,
+
+    /* /coins/markets accepte jusqu'à 250 `ids` par appel (documenté par
+       CoinGecko) — un seul appel HTTP couvre tout le catalogue crypto
+       NovaBourse actuel (20 paires) en une fois. */
+    coingecko:
+      250,
   },
 
   async twelvedata(
@@ -2241,6 +2439,64 @@ const BATCH = {
 
     return out;
   },
+
+  /* Seuls les éléments type==='crypto' avec un ticker reconnu par
+     CRYPTO_ID_COINGECKO participent — les autres (actions, forex...) sont
+     silencieusement exclus de CE lot, jamais envoyés à CoinGecko avec un
+     id inventé. Ils restent éligibles aux autres fournisseurs de la
+     cascade (voir ORDRE dans quotes.js). Toutes les devises de règlement
+     demandées sont regroupées par vs_currency pour respecter le contrat
+     d'un seul vs_currency par appel /coins/markets — un seul appel HTTP
+     suffit tant que tout le lot cote dans la même devise (cas normal :
+     NovaBourse coté crypto uniquement en USD aujourd'hui). */
+  async coingecko(valeurs, key) {
+    const parGroupe = new Map(); // vs -> Map(id -> valeur)
+    for (const v of valeurs) {
+      if (v.type !== 'crypto') continue;
+      const ref = coingeckoRef(v.ticker);
+      if (!ref) continue;
+      if (!parGroupe.has(ref.vs)) parGroupe.set(ref.vs, new Map());
+      parGroupe.get(ref.vs).set(ref.id, v);
+    }
+
+    if (!parGroupe.size) throw new Error('aucun_symbole');
+
+    const out = new Map();
+
+    for (const [vs, parId] of parGroupe) {
+      const ids = [...parId.keys()];
+      let lignes;
+      try {
+        lignes = await getJSON(
+          `https://api.coingecko.com/api/v3/coins/markets`
+          + `?vs_currency=${vs}&ids=${ids.join(',')}&price_change_percentage=24h`,
+          12000
+        );
+      } catch {
+        continue; // un groupe de devise indisponible ne doit pas faire échouer les autres
+      }
+
+      for (const ligne of (Array.isArray(lignes) ? lignes : [])) {
+        if (num(ligne?.current_price) === null) continue;
+        const src = parId.get(ligne.id);
+        if (!src) continue;
+
+        out.set(idDe(src), {
+          symbol: idDe(src),
+          ticker: src.ticker,
+          exchange: src.exchange,
+          price: num(ligne.current_price),
+          change: num(ligne.price_change_24h),
+          changePercent: num(ligne.price_change_percentage_24h),
+          currency: vs.toUpperCase(),
+          timestamp: txt(ligne.last_updated) ? new Date(ligne.last_updated).toISOString() : null,
+        });
+      }
+    }
+
+    if (!out.size) throw new Error('aucune_ligne_exploitable');
+    return out;
+  },
 };
 
 /* ============================================================
@@ -2270,6 +2526,8 @@ module.exports = {
   eodhdForexSymbol,
   eodhdSymbolPourType,
   tdSymbol,
+  coingeckoRef,
+  CRYPTO_ID_COINGECKO,
 
   idDe,
 

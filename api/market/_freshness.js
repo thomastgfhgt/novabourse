@@ -13,6 +13,10 @@
  *     vérifiable de façon générique : cela dépend de l'abonnement
  *     réellement souscrit par NovaBourse, que ce code ne peut pas
  *     connaître.
+ *   - CoinGecko (API publique gratuite) ne documente pas de délai garanti
+ *     contractuellement pour /coins/markets (rafraîchi en pratique
+ *     fréquemment, mais sans SLA) — DELAYED par défaut, comme les autres,
+ *     jamais présumé temps réel sans confirmation.
  *
  * Défaut retenu : DELAYED pour toute cotation, quel que soit le
  * fournisseur. C'est le seul choix qui ne risque jamais de sur-estimer la
@@ -40,12 +44,14 @@ const DEFAUT_COTATION_PAR_PROVIDER = {
   eodhd: FRESHNESS.DELAYED,
   twelvedata: FRESHNESS.DELAYED,
   finnhub: FRESHNESS.DELAYED,
+  coingecko: FRESHNESS.DELAYED,
 };
 
 const ENV_SURCHARGE_PAR_PROVIDER = {
   eodhd: 'EODHD_QUOTE_FRESHNESS',
   twelvedata: 'TWELVEDATA_QUOTE_FRESHNESS',
   finnhub: 'FINNHUB_QUOTE_FRESHNESS',
+  coingecko: 'COINGECKO_QUOTE_FRESHNESS',
 };
 
 /**
@@ -86,6 +92,7 @@ const SOURCE_URL_PROVIDER = {
   eodhd: 'https://eodhd.com/',
   twelvedata: 'https://twelvedata.com/',
   finnhub: 'https://finnhub.io/',
+  coingecko: 'https://www.coingecko.com/',
 };
 
 module.exports = {
