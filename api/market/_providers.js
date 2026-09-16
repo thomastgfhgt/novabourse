@@ -537,23 +537,48 @@ function eulerpoolCommodityRef(ticker) {
 }
 
 /* Partagée par QUOTE.eulerpool et HISTORY.eulerpool (commodités) : un seul
-   endpoint sert les deux usages (voir commentaire ci-dessus). `jours`
-   borne la fenêtre demandée via startdate/enddate (paramètres documentés
-   par Eulerpool) — sans ces paramètres, l'endpoint renvoie TOUT
-   l'historique disponible (1260 points/~5 ans constatés pour XAU),
-   inutilement coûteux quand seules quelques semaines sont demandées. */
-async function eulerpoolCommodityQuotes(id, jours, cle) {
-  const fin = Date.now();
-  const debut = fin - Math.max(1, Math.round(jours)) * 86400000;
+   endpoint sert les deux usages (voir commentaire ci-dessus).
+   CORRECTIF (bug de production confirmé) : passer `startdate`/`enddate`
+   avec `enddate` fixé à `Date.now()` fait échouer l'appel avec 404
+   "Commodity not found" pour XAG/CL1 (jamais pour XAU) — leur flux
+   Eulerpool s'arrête visiblement plus tôt que celui de l'Or (constaté :
+   leurs derniers points lors du diagnostic initial dataient de plusieurs
+   mois), et une fenêtre qui dépasse le dernier point réellement publié
+   fait échouer la requête côté Eulerpool plutôt que de renvoyer un tableau
+   vide. Plutôt que de deviner une date de fin sûre par symbole (fragile,
+   se périmerait différemment pour chaque commodité), l'appel se fait
+   TOUJOURS sans filtre de date (comportement confirmé fonctionner pour
+   les 3 symboles lors du diagnostic) ; le filtrage sur `jours` — quand il
+   a un sens — se fait ici côté serveur NovaBourse, sur les points
+   réellement reçus. Retourne les points BRUTS, triés du plus récent au
+   plus ancien (ordre déjà observé chez Eulerpool) : à l'appelant de
+   décider s'il veut le plus récent tel quel (quote, potentiellement
+   périmé mais réel) ou une fenêtre bornée (history). */
+async function eulerpoolCommodityQuotesBrutes(id, cle) {
   const d = await getJSON(
     `https://api.eulerpool.com/api/1/commodity/quotes/${encodeURIComponent(id)}`
-    + `?startdate=${debut}&enddate=${fin}&token=${encodeURIComponent(cle)}`,
+    + `?token=${encodeURIComponent(cle)}`,
     12000
   );
   if (!Array.isArray(d)) throw new Error('vide');
+
   return d
     .filter(p => num(p?.timestamp) !== null && num(p?.price) !== null)
-    .map(p => ({ date: new Date(num(p.timestamp)).toISOString(), close: num(p.price) }));
+    .map(p => ({ date: new Date(num(p.timestamp)).toISOString(), close: num(p.price) }))
+    .sort((a, b) => b.date.localeCompare(a.date));
+}
+
+/* Fenêtre des `jours` derniers jours RÉELLEMENT reçus (pas relative à
+   `Date.now()` — voir eulerpoolCommodityQuotesBrutes : une commodité dont
+   le flux s'est arrêté plusieurs mois avant "aujourd'hui" ne doit pas se
+   retrouver avec un historique vide juste parce que la fenêtre est ancrée
+   sur la date du jour). Utilisée par HISTORY.eulerpool uniquement —
+   QUOTE.eulerpool prend directement points[0] de la série brute. */
+function eulerpoolFenetreJours(pointsTries, jours) {
+  if (!pointsTries.length) return [];
+  const plusRecent = Date.parse(pointsTries[0].date);
+  const seuil = plusRecent - Math.max(1, Math.round(jours)) * 86400000;
+  return pointsTries.filter(p => Date.parse(p.date) >= seuil);
 }
 
 const TD_EXCHANGE = {
@@ -1013,13 +1038,15 @@ const QUOTE = {
     const ref = eulerpoolCommodityRef(ticker);
     if (!ref) throw new Error('commodite_non_reconnue_par_eulerpool');
 
-    /* 2 jours suffisent pour obtenir le dernier point + un point
-       "précédent" réel pour la variation — jamais besoin des 5 ans
-       complets juste pour une cotation instantanée. */
-    const points = await eulerpoolCommodityQuotes(ref.id, 5, key);
-    if (!points.length) throw new Error('vide');
+    /* Toujours les points 0 et 1 de la série (déjà triée du plus récent au
+       plus ancien) — le dernier point réel disponible et celui juste
+       avant, quelle que soit leur ancienneté par rapport à aujourd'hui
+       (voir eulerpoolCommodityQuotesBrutes : jamais de fenêtre ancrée sur
+       Date.now() qui ferait échouer XAG/CL1). Un point réel mais ancien
+       reste honnête (timestamp réel renvoyé tel quel) — jamais masqué. */
+    const tries = await eulerpoolCommodityQuotesBrutes(ref.id, key);
+    if (!tries.length) throw new Error('vide');
 
-    const tries = [...points].sort((a, b) => b.date.localeCompare(a.date));
     const dernier = tries[0];
     const precedent = tries.length >= 2 ? tries[1] : null;
     const change = precedent ? dernier.close - precedent.close : null;
@@ -2167,7 +2194,12 @@ const HISTORY = {
     if (!ref) throw new Error('commodite_non_reconnue_par_eulerpool');
 
     const jours = joursHistorique(n);
-    const points = await eulerpoolCommodityQuotes(ref.id, jours, key);
+    const tries = await eulerpoolCommodityQuotesBrutes(ref.id, key);
+    /* Fenêtre ancrée sur le point le plus récent RÉELLEMENT reçu, jamais
+       sur Date.now() (voir eulerpoolFenetreJours) — un flux resté figé
+       depuis plusieurs mois reste consultable avec un historique réel au
+       lieu de systématiquement paraître vide. */
+    const points = eulerpoolFenetreJours(tries, jours);
     const recues = points.length;
 
     /* normaliserHistorique() dédoublonne par JOUR — plusieurs points
