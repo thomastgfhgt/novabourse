@@ -23,7 +23,13 @@ const { deviseDe, SOURCE_NAME, SOURCE_URL } = require('../../scripts/lib/catalog
 const MAX_RESULTS = 50;
 const DEFAULT_RESULTS = 20;
 const MAX_QUERY_LENGTH = 100;
-const TTL = 10 * 60 * 1000; // 10 min : donnée de référence, change rarement
+/* Identité/catalogue (ticker, nom, ISIN, place) — parmi les données les
+   plus stables de tout le backend : un ticker ne change quasiment jamais.
+   24h (comme TTL.constituents dans _cache.js) plutôt que 10 min : aucune
+   raison de retélécharger la même page de catalogue plusieurs fois par
+   heure (voir cahier des charges, "cache adapté à la donnée" : identity/
+   catalogue = long). */
+const TTL = 24 * 60 * 60 * 1000; // 24 h
 
 const CACHE = new Map();
 

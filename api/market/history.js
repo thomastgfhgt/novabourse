@@ -15,25 +15,14 @@
  * réaliste (intraday réel pour les périodes courtes, quotidien pour les
  * longues) sans jamais fabriquer une donnée absente. Un `interval` explicite
  * (1min/5min/15min/30min/1h) peut surcharger la granularité par défaut d'une
- * période intraday.
+ * période intraday. Ne télécharge jamais plus que la période demandée : 1M
+ * ne déclenche pas un appel dimensionné pour MAX.
  *
- * CORRECTIF (audit routage multi-actifs — bug de production confirmé) :
- * crypto/forex utilisent désormais EODHD avec le VRAI symbole de ce
- * fournisseur pour ces types (voir eodhdSymbolPourType() dans
- * _providers.js : "BTC-USD.CC", "EURUSD.FOREX" — vérifiés empiriquement en
- * direct, pas depuis la seule documentation, y compris sur /intraday/).
- * Avant ce correctif, crypto/forex étaient réduits à Twelve Data SEUL, sans
- * aucun repli : un simple HTTP 429 (quota) chez Twelve Data rendait alors
- * TOUTE la classe d'actif indisponible d'un coup. C'est la cause racine du
- * bug "ALGO/USD cours indisponible" / "ATOM/USD historique indisponible" :
- * ni l'un ni l'autre n'a de rapport avec le ticker lui-même (vérifié : les
- * deux existent bien chez Twelve Data), c'est l'absence de repli
- * fonctionnel qui posait problème.
- *
- * 'index'/'commodity' restent sur Twelve Data seul : aucune convention
- * EODHD n'a pu être vérifiée pour ces deux types, donc EODHD reste
- * explicitement retiré de leur cascade plutôt que d'envoyer un symbole non
- * vérifié.
+ * ORDRE DE CASCADE : décidé par _router.js (resolveOrdre), source unique
+ * partagée avec company.js/quotes.js/fundamentals.js/news.js — voir ce
+ * fichier pour le détail par assetType (crypto/forex/index/commodity/stock)
+ * et la mémoire de routage (dernier fournisseur qui a fonctionné pour CET
+ * instrument précis, essayé en premier).
  *
  * Aucune donnée n'est jamais inventée :
  *   - période demandée mais fournisseur incapable => history: null, reason explicite ;
@@ -41,9 +30,10 @@
  *   - intraday jamais reconstruit à partir de clôtures quotidiennes.
  */
 
-const { HISTORY, INTRADAY, INTRADAY_MINUTES, KEYS, COINGECKO_JOURS_MAX } = require('./_providers.js');
+const { HISTORY, INTRADAY, INTRADAY_MINUTES, KEYS } = require('./_providers.js');
 const { chargerBloc, historiqueValide } = require('./_marketBlock.js');
 const { normaliserTicker, normaliserExchange } = require('./company.js');
+const { resolveOrdre, noterResultat } = require('./_router.js');
 
 /* Identique à company.js : ~260 séances = un peu plus d'un an de
    cotations quotidiennes. S'applique UNIQUEMENT au chemin par défaut
@@ -56,60 +46,6 @@ const MAX_HISTORY_POINTS = 260;
    ici : leur taille est déjà bornée par `jours` (voir PERIOD_SPECS) et
    par joursHistorique() côté _providers.js (max 5000). */
 const MAX_INTRADAY_POINTS = 1500;
-
-/* Types pour lesquels EODHD n'a AUCUNE convention de symbole vérifiée
-   (voir eodhdSymbolPourType() dans _providers.js) : y envoyer un appel
-   n'a pas de sens, quel que soit le chemin (défaut/quotidien/intraday).
-   crypto/forex EN FONT DÉSORMAIS PARTIE côté couverture (ils ont une
-   convention EODHD vérifiée : "BTC-USD.CC" / "EURUSD.FOREX") — seul
-   index/commodity restent sans repli EODHD. */
-const TYPES_SANS_SUFFIXE_EODHD = new Set(['index', 'commodity']);
-
-/* Ordre de cascade historique/intraday, dépendant du type d'instrument :
- *   - crypto : CoinGecko (gratuit, sans clé, indépendant des quotas payants
- *     — voir _providers.js) EN PREMIER, préserve le quota EODHD/Twelve Data
- *     pour les types qui n'ont pas d'alternative gratuite. EODHD/Twelve Data
- *     restent en repli réel si CoinGecko ne reconnaît pas ce ticker precis.
- *     BUG DE PRODUCTION CONFIRMÉ (voir rapport) : CoinGecko rejette (HTTP
- *     401, error_code 10012) toute requête d'historique au-delà de 365
- *     jours en API publique gratuite — un fait vérifié en production, pas
- *     une supposition. `jours` (voir plus bas) permet donc d'exclure
- *     CoinGecko de la cascade AVANT même l'appel réseau quand la période
- *     demandée dépasse cette limite (2A/5A/10A/MAX) : un appel qu'on sait
- *     déjà voué à l'échec ne doit jamais être tenté (coûte une latence et
- *     un aller-retour pour rien). Le chemin PAR DÉFAUT (n=400, `jours`
- *     omis ici) reste éligible sans condition : coingeckoMarketChart()
- *     plafonne alors proprement à 365 jours réels, largement suffisant
- *     pour les 260 points que ce chemin garde de toute façon
- *     (MAX_HISTORY_POINTS ci-dessus).
- *   - forex : Frankfurter (gratuit, sans clé) en DERNIER repli seulement,
- *     jamais en tête — contrairement à CoinGecko, ses taux ne sont publiés
- *     qu'une fois par jour (voir _freshness.js), qualité inférieure à
- *     EODHD/Twelve Data pour tout ce qu'ils couvrent déjà. Absent du chemin
- *     intraday : Frankfurter n'a structurellement aucune donnée intraday.
- *   - index/commodity : aucune convention EODHD vérifiée, ni CoinGecko ni
- *     Frankfurter ne sont des sources pertinentes -> Twelve Data seul.
- *   - stock/etf : EODHD/Twelve Data, ordre historique inchangé (intraday
- *     privilégie Twelve Data en tête, daily privilégie EODHD en tête —
- *     comportement préexistant, non modifié ici).
- *
- * @param {number|null} [jours] - nombre de jours réellement demandés pour le
- *   chemin quotidien paramétré (PERIOD_SPECS) ; omis (undefined) pour le
- *   chemin par défaut, qui n'a pas cette notion de période explicite.
- */
-function ordreHistoriquePourType(type, { intraday, jours } = {}) {
-  const coingeckoEligible = jours === undefined || jours <= COINGECKO_JOURS_MAX;
-
-  if (type === 'crypto') {
-    if (intraday) return ['coingecko', 'twelvedata', 'eodhd'];
-    return coingeckoEligible ? ['coingecko', 'eodhd', 'twelvedata'] : ['eodhd', 'twelvedata'];
-  }
-  if (type === 'forex') {
-    return intraday ? ['twelvedata', 'eodhd'] : ['eodhd', 'twelvedata', 'frankfurter'];
-  }
-  if (TYPES_SANS_SUFFIXE_EODHD.has(type)) return ['twelvedata'];
-  return intraday ? ['twelvedata', 'eodhd'] : ['eodhd', 'twelvedata'];
-}
 
 /**
  * Une période "réellement exploitable" au sens du cahier des charges :
@@ -157,15 +93,15 @@ module.exports = async (req, res) => {
   const keys = KEYS();
   /* `keys.coingecko`/`keys.frankfurter` inclus : un déploiement sans AUCUNE
      clé payante peut tout de même servir l'historique crypto via CoinGecko
-     seul, ou forex via Frankfurter seul (voir ordreHistoriquePourType) —
-     ne jamais 503 ce cas prématurément ici. */
+     seul, ou forex via Frankfurter seul (voir _router.js) — ne jamais 503
+     ce cas prématurément ici. */
   if (!keys.eodhd && !keys.twelvedata && !keys.finnhub && !keys.coingecko && !keys.frankfurter) {
     return res.status(503).json({ error: 'aucun_fournisseur_configure' });
   }
 
   /* ================= CHEMIN PAR DÉFAUT (compat stricte) ================= */
   if (!periodeBrute) {
-    const ordre = ordreHistoriquePourType(type, { intraday: false });
+    const ordre = resolveOrdre('history', ticker, exchange, type);
 
     if (!ordre.some(p => keys[p])) {
       return res.status(503).json({ error: 'aucun_fournisseur_configure' });
@@ -179,6 +115,7 @@ module.exports = async (req, res) => {
       args: [ticker, exchange, 400, type],
       ticker, exchange, frais, journal,
     });
+    noterResultat('history', ticker, exchange, type, h.source);
 
     const aHistory = historiqueValide(h.data);
 
@@ -218,7 +155,7 @@ module.exports = async (req, res) => {
       ? String(req.query.interval)
       : spec.interval;
 
-    const ordre = ordreHistoriquePourType(type, { intraday: true });
+    const ordre = resolveOrdre('intraday', ticker, exchange, type);
 
     if (!ordre.some(p => keys[p])) {
       return res.status(503).json({ error: 'aucun_fournisseur_configure' });
@@ -233,6 +170,7 @@ module.exports = async (req, res) => {
       ticker, exchange, frais, journal,
       cacheParts: [periodeBrute, intervalleDemande],
     });
+    noterResultat('intraday', ticker, exchange, type, h.source);
 
     const disponible = historiqueValide(h.data);
 
@@ -261,7 +199,7 @@ module.exports = async (req, res) => {
   }
 
   /* spec.kind === 'daily' */
-  const ordre = ordreHistoriquePourType(type, { intraday: false, jours });
+  const ordre = resolveOrdre('history', ticker, exchange, type, { jours });
 
   if (!ordre.some(p => keys[p])) {
     return res.status(503).json({ error: 'aucun_fournisseur_configure' });
@@ -276,6 +214,7 @@ module.exports = async (req, res) => {
     ticker, exchange, frais, journal,
     cacheParts: [periodeBrute],
   });
+  noterResultat('history', ticker, exchange, type, h.source);
 
   const disponible = historiqueValide(h.data);
 

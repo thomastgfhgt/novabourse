@@ -3307,6 +3307,8 @@ PAGES.stock = (id) => {
       ${canBuy ? '' : 'disabled aria-disabled="true"'}>Acheter</button>
     ${pos ? `<button class="btn btn-s btn-lg" data-sell="${esc(s.id)}">Vendre</button>` : ''}
   </div>
+  ${!canBuy ? `<p class="tiny" style="margin-top:8px;color:var(--ink-4)">
+    Cours temporairement indisponible pour cette valeur : achat désactivé tant qu'aucun prix vérifié n'est reçu.</p>` : ''}
   <div class="stk-more">
     ${s.type === 'stock' ? `<button data-nova="${esc(s.id)}">${svg(ICON.spark,2)} Analyse</button>` : ''}
     <button data-cmp="${esc(s.id)}" aria-pressed="${state.compare.includes(s.id)}">

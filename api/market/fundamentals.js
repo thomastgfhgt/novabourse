@@ -24,6 +24,7 @@
 const { FUNDAMENTALS, KEYS } = require('./_providers.js');
 const { chargerBloc } = require('./_marketBlock.js');
 const { normaliserTicker, normaliserExchange } = require('./company.js');
+const { resolveOrdre, noterResultat } = require('./_router.js');
 
 const TYPES_SANS_FONDAMENTAUX = new Set(['forex', 'crypto', 'index', 'commodity']);
 
@@ -62,10 +63,11 @@ module.exports = async (req, res) => {
   const f = await chargerBloc({
     nom: 'fundamentals',
     table: FUNDAMENTALS,
-    ordre: ['eodhd', 'finnhub'],
+    ordre: resolveOrdre('fundamentals', ticker, exchange, type),
     args: [ticker, exchange],
     ticker, exchange, frais, journal,
   });
+  noterResultat('fundamentals', ticker, exchange, type, f.source);
 
   const aFundamentals = fondamentauxValides(f.data);
 

@@ -15,8 +15,8 @@
 const { NEWS, KEYS } = require('./_providers.js');
 const { chargerBloc, historiqueValide } = require('./_marketBlock.js');
 const { normaliserTicker, normaliserExchange } = require('./company.js');
+const { resolveOrdre, noterResultat, TYPES_AVEC_ACTUALITES } = require('./_router.js');
 
-const TYPES_AVEC_ACTUALITES = new Set(['stock', 'etf']);
 const MAX_LIMIT = 30;
 const DEFAULT_LIMIT = 10;
 
@@ -52,11 +52,12 @@ module.exports = async (req, res) => {
   const n = await chargerBloc({
     nom: 'news',
     table: NEWS,
-    ordre: ['eodhd'],
+    ordre: resolveOrdre('news', ticker, exchange, type),
     args: [ticker, exchange, limit, type],
     ticker, exchange, frais, journal,
     cacheParts: [String(limit)],
   });
+  noterResultat('news', ticker, exchange, type, n.source);
 
   const disponible = historiqueValide(n.data);
 

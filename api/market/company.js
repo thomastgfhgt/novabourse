@@ -28,6 +28,7 @@ const {
 } = require('./_providers.js');
 
 const { chargerBloc, historiqueValide } = require('./_marketBlock.js');
+const { resolveOrdre, noterResultat } = require('./_router.js');
 
 const MAX_HISTORY_POINTS = 260;
 
@@ -91,26 +92,15 @@ module.exports = async (req, res) => {
 
   const journal = [];
 
-  /* CoinGecko/Frankfurter (gratuits, sans clé) en tête ou en repli selon le
-     type — cf. history.js/ordreHistoriquePourType pour le même principe et
-     le même raisonnement (CoinGecko préserve le quota payant pour crypto ;
-     Frankfurter, lui, est un DERNIER repli pour forex — voir sa
-     documentation dans _providers.js : qualité inférieure aux fournisseurs
-     payants, jamais premier choix). Les fonctions QUOTE.eodhd/HISTORY.eodhd
-     et QUOTE.finnhub se désactivent déjà elles-mêmes pour les types qu'elles
-     ne savent pas traiter (eodhdSymbolPourType/finnhubAutorise) : les
-     inclure sans condition ici ne déclenche donc jamais un appel réseau
-     invalide. */
-  const ordreQuote = type === 'crypto'
-    ? ['coingecko', 'twelvedata', 'eodhd']
-    : type === 'forex'
-    ? ['twelvedata', 'eodhd', 'frankfurter']
-    : ['twelvedata', 'eodhd', 'finnhub'];
-  const ordreHistory = type === 'crypto'
-    ? ['coingecko', 'eodhd', 'twelvedata']
-    : type === 'forex'
-    ? ['eodhd', 'twelvedata', 'frankfurter']
-    : ['eodhd', 'twelvedata'];
+  /* Ordre de cascade désormais décidé par _router.js (resolveOrdre) — même
+     règle par assetType que history.js/quotes.js/fundamentals.js/news.js
+     (source unique, plus de copie locale susceptible de diverger) plus la
+     mémoire de routage (essaie d'abord le fournisseur qui a fonctionné
+     récemment pour CET instrument précis). Le chemin par défaut (n=400,
+     `jours` omis) reste toujours éligible à CoinGecko côté crypto. */
+  const ordreQuote = resolveOrdre('quote', ticker, exchange, type);
+  const ordreFundamentals = resolveOrdre('fundamentals', ticker, exchange, 'stock');
+  const ordreHistory = resolveOrdre('history', ticker, exchange, type);
 
   /* Remplace l'ancienne closure locale `bloc()` par le module partagé
      _marketBlock.js — comportement strictement identique (même lecture
@@ -119,11 +109,15 @@ module.exports = async (req, res) => {
   const [q, f, h] = await Promise.all([
     chargerBloc({ nom:'quote', table:QUOTE, ordre:ordreQuote,
       args:[ticker, exchange, type], ticker, exchange, frais, journal }),
-    chargerBloc({ nom:'fundamentals', table:FUNDAMENTALS, ordre:['eodhd', 'finnhub'],
+    chargerBloc({ nom:'fundamentals', table:FUNDAMENTALS, ordre:ordreFundamentals,
       args:[ticker, exchange], ticker, exchange, frais, journal }),
     chargerBloc({ nom:'history', table:HISTORY, ordre:ordreHistory,
       args:[ticker, exchange, 400, type], ticker, exchange, frais, journal }),
   ]);
+
+  noterResultat('quote', ticker, exchange, type, q.source);
+  noterResultat('fundamentals', ticker, exchange, 'stock', f.source);
+  noterResultat('history', ticker, exchange, type, h.source);
 
   const aMarket = quoteValide(q.data);
   const aFundamentals = fondamentauxValides(f.data);

@@ -1,6 +1,7 @@
 const { BATCH, KEYS, idDe } = require('./_providers.js');
-const { lire, ecrire } = require('./_cache.js');
+const { lire, ecrire, avecVerrou } = require('./_cache.js');
 const { freshnessCotation, SOURCE_URL_PROVIDER } = require('./_freshness.js');
+const { noterResultat } = require('./_router.js');
 
 /* CoinGecko en tête : gratuit, sans clé, et BATCH.coingecko exclut déjà
    lui-même tout ce qui n'est pas type==='crypto' (voir _providers.js) —
@@ -130,9 +131,25 @@ module.exports = async (req, res) => {
       if (!lot.length) break;
 
       try {
-        const map = await BATCH[nom](lot, keys[nom]);
+        /* Verrou anti-rafale (section "quotes : batch avant tout" du
+           cahier des charges) : si une autre invocation demande EXACTEMENT
+           le même lot pour le même fournisseur pendant que celui-ci est
+           déjà en vol (ex. deux utilisateurs ouvrant Marchés au même
+           instant, cache encore froid), une seule requête externe part
+           réellement — la seconde attend et réutilise le résultat. Même
+           mécanisme que _marketBlock.js (avecVerrou), appliqué ici au
+           lot batch plutôt qu'à un bloc individuel. Clé = fournisseur +
+           identifiants du lot triés (ordre stable, jamais dépendant de
+           l'ordre d'arrivée des deux requêtes concurrentes). */
+        const idsLotTries = lot.map(idDe).sort();
+        const { value: map, followed } = await avecVerrou(
+          'quoteBatch', [nom, ...idsLotTries], () => BATCH[nom](lot, keys[nom])
+        );
         const idsLot = new Set(lot.map(idDe));
         const auMoment = Date.now();
+        if (followed) {
+          journal.push({ provider: nom, lot: numeroLot, ok: true, demandes: lot.length, dedupe: true });
+        }
         for (const [id, quote] of map) {
           if (!idsLot.has(id)) continue;
           trouve.set(id, {
@@ -167,6 +184,16 @@ module.exports = async (req, res) => {
   const quotes = ids.filter(id => trouve.has(id)).map(id => trouve.get(id));
   const missing = ids.filter(id => !trouve.has(id));
   const sources = [...new Set(quotes.map(quote => quote.source).filter(Boolean))];
+
+  /* Alimente la même mémoire de routage que company.js/history.js/
+     fundamentals.js/news.js (voir _router.js) : un fournisseur qui vient
+     de répondre ici pour un instrument précis sera essayé en premier la
+     prochaine fois que CET instrument est demandé via les routes
+     unitaires — même quand la découverte a eu lieu ici, en lot. */
+  for (const valeur of demandes) {
+    const trouvee = trouve.get(idDe(valeur));
+    if (trouvee?.source) noterResultat('quote', valeur.ticker, valeur.exchange, valeur.type, trouvee.source);
+  }
 
   return res.status(200).json({
     quotes,
