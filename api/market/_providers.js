@@ -1256,6 +1256,62 @@ const QUOTE = {
 };
 
 /* ============================================================
+   FONDAMENTAUX — REPLIS DE SYMBOLE EULERPOOL (clé "TICKER@EXCHANGE",
+   même convention que instrumentKey() dans _router.js)
+   ============================================================
+   Aucune valeur ci-dessous n'est devinée : ROG vérifié en direct (voir
+   commentaire dans FUNDAMENTALS.eulerpool) ; chaque ISIN vient de la
+   réponse réelle d'EODHD /exchange-symbol-list pour l'exchange exact de
+   ce ticker (jamais recalculé/fabriqué), et a été testé avec succès
+   contre l'endpoint réel Eulerpool avant intégration. */
+const EULERPOOL_TICKER_OVERRIDE = {
+  'RO@SW': 'ROG',
+};
+
+const EULERPOOL_ISIN_OVERRIDE = {
+  'STLAP@PA': 'NL00150001Q9',
+  'QIA@DE': 'NL0015002SN0',
+  'BT-A@L': 'GB0030913577',
+  'DSFIR@AS': 'CH1216478797',
+  'RAND@AS': 'NL0000379121',
+  'KPN@AS': 'NL0000009082',
+  'NN@AS': 'NL0010773842',
+  'ASM@AS': 'NL0000334118',
+  'AKZA@AS': 'NL0013267909',
+  'MT@AS': 'LU1598757687',
+  'IBE@MC': 'ES0144580Y14',
+  'SAN@MC': 'ES0113900J37',
+  'BBVA@MC': 'ES0113211835',
+  'ITX@MC': 'ES0148396007',
+  'REP@MC': 'ES0173516115',
+  'TEF@MC': 'ES0178430E18',
+  'CABK@MC': 'ES0140609019',
+  'AMS@MC': 'ES0109067019',
+  'FER@MC': 'NL0015001FS8',
+  'NTGY@MC': 'ES0116870314',
+  'ELE@MC': 'ES0130670112',
+  'AENA@MC': 'ES0105046017',
+  'INVE-B@ST': 'SE0015811963',
+  'ATCO-A@ST': 'SE0017486889',
+  'VOLV-B@ST': 'SE0000115446',
+  'ERIC-B@ST': 'SE0000108656',
+  'HM-B@ST': 'SE0000106270',
+  'HEXA-B@ST': 'SE0015961909',
+  'SEB-A@ST': 'SE0000148884',
+  'SWED-A@ST': 'SE0000242455',
+  'ASSA-B@ST': 'SE0007100581',
+  'ESSITY-B@ST': 'SE0009922164',
+  'SKA-B@ST': 'SE0000113250',
+  'SKF-B@ST': 'SE0000108227',
+  'EPI-A@ST': 'SE0015658109',
+  'NOVO-B@CO': 'DK0062498333',
+  'MAERSK-B@CO': 'DK0010244508',
+  'CARL-B@CO': 'DK0010181759',
+  'COLO-B@CO': 'DK0060448595',
+  'NSIS-B@CO': 'DK0060336014',
+};
+
+/* ============================================================
    FONDAMENTAUX
    ============================================================ */
 
@@ -1801,7 +1857,27 @@ const FUNDAMENTALS = {
      paramètre `type` supplémentaire ici décalerait silencieusement `key`
      et casserait tout appel (cascade() passe args+key dans cet ordre). */
   async eulerpool(ticker, exchange, key) {
-    const symbole = exchange ? `${ticker}.${exchange}` : ticker;
+    /* CORRECTIF (audit couverture fondamentaux européens) : le symbole
+       "TICKER.EXCHANGE" (convention EODHD) ne correspond PAS toujours au
+       symbole interne d'Eulerpool — confirmé en production : Roche
+       (ticker NovaBourse "RO", place "SW") n'existe chez Eulerpool que
+       sous "ROG.SW", jamais "RO.SW". EULERPOOL_TICKER_OVERRIDE corrige
+       ce cas précis (jamais deviné — "ROG.SW" vérifié en direct avant
+       intégration).
+       Plus généralement, 40 valeurs néerlandaises/espagnoles/suédoises/
+       danoises échouaient TOUTES avec "TICKER.EXCHANGE" alors qu'elles
+       existent réellement chez Eulerpool — leurs docs (equity/*) donnent
+       eux-mêmes un ISIN en exemple d'identifiant, jamais un ticker.
+       Testé et confirmé en direct : interroger Eulerpool par ISIN RÉEL
+       (récupéré depuis EODHD /exchange-symbol-list, jamais fabriqué)
+       fonctionne pour 40/42 valeurs qui échouaient par ticker — d'où le
+       repli ISIN ci-dessous, tenté UNIQUEMENT si le ticker échoue
+       d'abord (préserve le chemin existant, déjà fonctionnel, pour
+       toutes les valeurs qui n'ont jamais eu besoin de ce repli). */
+    const cleInstrument = `${String(ticker || '').toUpperCase()}@${String(exchange || '').toUpperCase()}`;
+    const tickerEulerpool = EULERPOOL_TICKER_OVERRIDE[cleInstrument] || ticker;
+    const symbolePrincipal = exchange ? `${tickerEulerpool}.${exchange}` : tickerEulerpool;
+    const isinRepli = EULERPOOL_ISIN_OVERRIDE[cleInstrument] || null;
 
     /* /equity/metrics (chiffres) ET /equity/profile (identité — name,
        country, sector, industry : schéma réel vérifié en direct sur AAPL,
@@ -1814,7 +1890,7 @@ const FUNDAMENTALS = {
        échec ne doit jamais faire échouer les CHIFFRES, qui sont
        l'information principale de ce bloc ; l'identité reste alors
        simplement null, jamais devinée. */
-    const [d, profil] = await Promise.all([
+    const interroger = async (symbole) => Promise.all([
       getJSON(
         `https://api.eulerpool.com/api/1/equity/metrics/${encodeURIComponent(symbole)}`
         + `?token=${encodeURIComponent(key)}`,
@@ -1826,6 +1902,11 @@ const FUNDAMENTALS = {
         12000
       ).catch(() => null),
     ]);
+
+    let [d, profil] = await interroger(symbolePrincipal);
+    if ((!d || typeof d !== 'object' || !d.valuation) && isinRepli) {
+      [d, profil] = await interroger(isinRepli);
+    }
 
     if (!d || typeof d !== 'object' || !d.valuation) throw new Error('vide');
 
