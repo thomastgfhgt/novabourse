@@ -106,6 +106,10 @@ module.exports = async (req, res) => {
     currency: f.data?.identity?.currency || q.data?.currency || null,
     sector: f.data?.identity?.sector || null,
     industry: f.data?.identity?.industry || null,
+    /* Déjà présent dans la réponse fondamentaux EODHD (aucun coût
+       supplémentaire) — null si le fournisseur qui a répondu ne le
+       fournit pas (ex. Finnhub), jamais deviné. */
+    isin: f.data?.identity?.isin || null,
   };
 
   const market = aMarket ? {

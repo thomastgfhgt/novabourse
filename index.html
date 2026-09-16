@@ -14,7 +14,7 @@
   href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap">
 <noscript><link rel="stylesheet"
   href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap"></noscript>
-  <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script><style>
+  <script src="https://unpkg.com/lightweight-charts@5.2.1/dist/lightweight-charts.standalone.production.js"></script><style>
 :root{
   color-scheme:light;
   --bg:#ffffff;
@@ -780,6 +780,19 @@ table.t td:last-child,table.t th:last-child{text-align:right;padding-right:0}
   .ring-v{font-size:36px}
   .stat-v{font-size:23px}
 }
+/* --- graphique professionnel (Lightweight Charts) --- */
+.chart-toolbar{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:10px}
+.chart-info{display:flex;flex-direction:column;gap:2px;min-width:0}
+.cp-price{font-size:24px;font-weight:700;letter-spacing:-.02em}
+.cp-var{font-size:14px;font-weight:600}
+.cp-date{margin-top:1px}
+.chart-pro{width:100%;height:320px;touch-action:pan-y}
+.chart-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(84px,1fr));gap:10px;margin-top:14px}
+.chart-stats>div{padding:10px 12px;border-radius:var(--r-s);background:var(--bg-2)}
+.chart-stats .tiny{display:block;color:var(--ink-4)}
+.chart-stats b{display:block;margin-top:2px;font-size:14.5px}
+.chart-skel{width:100%;height:320px;border-radius:var(--r-m)}
+@media (max-width:430px){ .chart-pro{height:260px} .chart-skel{height:260px} .cp-price{font-size:21px} }
 </style>
 </head>
 <body>
@@ -964,7 +977,9 @@ const DEFAULT_STATE = {
 
   ui:{
     period:'1M',
-    pfPeriod:'1A'
+    pfPeriod:'1A',
+    chartPeriod:'3m',
+    chartMode:'line',
   },
 };
 
@@ -1368,6 +1383,28 @@ const isExpert = () => state.settings.mode === 'expert';
    simuler de l'intraday à partir de clôtures journalières. */
 const PERIODS_DISPO = ['1S','1M','3M','6M','AAJ','1A'];
 const PERIODS = PERIODS_DISPO.map(id => ({ id, label:id }));
+
+/* Périodes du graphique professionnel de la fiche instrument (distinctes de
+   PERIODS_DISPO ci-dessus, encore utilisé par Comparer/Réglages/Portefeuille
+   sur l'ancien graphique SVG — non touché dans cette refonte). `api` est la
+   valeur exacte attendue par /api/market/history?period=, résolue et bornée
+   côté serveur (voir PERIOD_SPECS dans api/market/history.js) : chaque
+   période n'est proposée que si le backend a une vraie stratégie pour elle,
+   jamais une période "décorative" sans données réelles derrière. */
+const CHART_PERIODS = [
+  { api:'1j',  label:'1J'  },
+  { api:'5j',  label:'5J'  },
+  { api:'1s',  label:'1S'  },
+  { api:'1m',  label:'1M'  },
+  { api:'3m',  label:'3M'  },
+  { api:'6m',  label:'6M'  },
+  { api:'ytd', label:'AAJ' },
+  { api:'1a',  label:'1A'  },
+  { api:'2a',  label:'2A'  },
+  { api:'5a',  label:'5A'  },
+  { api:'10a', label:'10A' },
+  { api:'max', label:'MAX' },
+];
 
 const INDICES = [
   { id:'spx',  name:'S&P 500',   place:'New York',  cur:'USD', tz:'America/New_York', open:[13,30], close:[20,0],  value:5487.2,  chg:0.42 },
@@ -1925,7 +1962,7 @@ function stockRow(s, opts = {}){
 const QUOTES = new Map();
 /* HIST stocke un état explicite par société :
      { status:'loading' | 'ready' | 'empty' | 'error', data:[{date,close}] }
-   'loading'  -> requête en cours ou pas encore lancée (chartBloc distingue via HIST.has)
+   'loading'  -> requête en cours ou pas encore lancée
    'ready'    -> data contient au moins 2 points réels, datés
    'empty'    -> le serveur a répondu mais sans historique exploitable
    'error'    -> la requête a échoué (réseau/HTTP) ; on retente au prochain appel */
@@ -2211,6 +2248,55 @@ async function chargerGraphique(stock){
     HIST.set(stock.id, { status:'error', data:[] });
   } finally {
     HIST_ENCOURS.delete(stock.id);
+    render();
+  }
+}
+
+/* ============================================================
+   GRAPHIQUE PROFESSIONNEL — historique paramétré par période
+   ============================================================
+   Distinct de HIST/chargerGraphique ci-dessus (qui reste utilisé tel quel
+   par Comparer/le score de volatilité/les sparklines de ligne). Cache
+   client par COUPLE instrument+période — ouvrir 1M puis 5A charge deux
+   séries différentes, indépendamment mises en cache ; rouvrir 1M ensuite
+   ne redéclenche aucune requête tant que l'entrée est déjà 'ready'.
+   OHLCV complet conservé (pas seulement `close`) pour permettre chandeliers,
+   volume et statistiques réelles de période. */
+const HISTP = new Map();          // clé "stockId::period" -> {status,kind,interval,source,data}
+const HISTP_ENCOURS = new Set();
+
+function cleHISTP(stockId, period){ return `${stockId}::${period}`; }
+
+async function chargerGraphiquePeriode(stock, period){
+  if (!stock || !period) return;
+  const cle = cleHISTP(stock.id, period);
+  const existing = HISTP.get(cle);
+  if (existing && existing.status !== 'error') return;   // déjà chargé ou en cours
+  if (HISTP_ENCOURS.has(cle)) return;
+
+  HISTP_ENCOURS.add(cle);
+  HISTP.set(cle, { status:'loading', data:[] });
+  render();
+  try {
+    const exch = stock.exchangeCode || MARKET_CODE[stock.market] || '';
+    const r = await fetch(`/api/market/history?ticker=${encodeURIComponent(stock.ticker)}`
+      + `&exchange=${encodeURIComponent(exch)}&type=${encodeURIComponent(stock.type || 'stock')}`
+      + `&period=${encodeURIComponent(period)}`);
+    if (!r.ok){
+      HISTP.set(cle, { status:'error', data:[] });
+      return;
+    }
+    const d = await r.json();
+    const points = (d.history?.ohlcv || [])
+      .filter(x => x && typeof x.date === 'string' && Number.isFinite(x.close) && x.close > 0)
+      .map(x => ({ date:x.date, open:x.open, high:x.high, low:x.low, close:x.close, volume:x.volume }));
+    HISTP.set(cle, points.length >= 2
+      ? { status:'ready', kind:d.kind || 'daily', interval:d.interval || null, source:d.source || null, data:points }
+      : { status:'empty', data:[] });
+  } catch {
+    HISTP.set(cle, { status:'error', data:[] });
+  } finally {
+    HISTP_ENCOURS.delete(cle);
     render();
   }
 }
@@ -2697,33 +2783,30 @@ PAGES.stock = (id) => {
   ${state.compare.length >= 2 ? `<button class="btn btn-ghost btn-sm" style="margin-top:10px" data-go="compare">
     Voir la comparaison (${state.compare.length})</button>` : ''}
 
-  <!-- COURS ET MOYENNES — chargement à la demande, état explicite à 4
-       valeurs (symétrique à fundamentalsStatus) : jamais une simple
-       vérification de présence/absence dans HIST, qui pourrait être
-       ambiguë pendant un fetch en cours (entrée présente mais vide). -->
+  <!-- COURS — graphique professionnel, chargement à la demande par période.
+       État explicite à 5 valeurs : idle / loading / ready / empty / error. -->
   ${(() => {
-    const histEntry = HIST.get(s.id);
-    const histStatus = !histEntry ? 'idle'
-      : histEntry.status === 'loading' ? 'loading'
-      : histEntry.status === 'error' ? 'error'
-      : 'loaded';   // 'ready' ou 'empty' -> la requête a abouti, chartBloc distingue ensuite données/vide
+    const period = CHART_PERIODS.some(p => p.api === state.ui.chartPeriod) ? state.ui.chartPeriod : '3m';
+    const entry = HISTP.get(cleHISTP(s.id, period));
+    const status = entry ? entry.status : 'idle';
     return `
   <section class="section">
     <div class="section-h"><h2 class="h2">Cours</h2>
-      ${histStatus === 'loaded' ? `<div class="seg">${PERIODS_DISPO.map(x=>`<button data-period="${x}"
-        aria-pressed="${state.ui.period===x}">${x}</button>`).join('')}</div>` : ''}</div>
+      ${status !== 'idle' ? `<div class="seg">${CHART_PERIODS.map(p=>`<button data-chart-period="${p.api}"
+        aria-pressed="${period===p.api}">${p.label}</button>`).join('')}</div>` : ''}</div>
     <div class="card">
-      ${histStatus === 'idle' ? `
+      ${status === 'idle' ? `
         <div style="text-align:center;padding:24px 0">
           <p class="small" style="margin-bottom:16px">L'historique n'est chargé que si vous le demandez.</p>
           <button class="btn btn-a" data-show-chart="${esc(s.id)}">Voir le graphique</button>
         </div>`
-      : histStatus === 'loading' ? `
-        <p class="small" style="padding:24px 0;text-align:center">Chargement du graphique…</p>`
-      : histStatus === 'error' ? `
-        <p class="small" style="padding:24px 0;text-align:center">Historique indisponible.</p>`
-      : `<div id="chart">${chartBloc(s, state.ui.period)}</div>
-         <div id="avgs">${averagesBlock(s, state.ui.period)}</div>`}
+      : status === 'loading' ? chartSkeleton()
+      : status === 'error' ? `
+        <p class="small" style="padding:24px 0;text-align:center">Impossible de charger les données pour le moment.</p>
+        <div style="text-align:center;padding-top:4px"><button class="btn btn-ghost btn-sm" data-retry-chart="${esc(s.id)}">Réessayer</button></div>`
+      : status === 'empty' ? `
+        <p class="small" style="padding:24px 0;text-align:center">Données historiques indisponibles pour cet instrument.</p>`
+      : chartProShell(s, period, entry)}
     </div>
   </section>`;
   })()}
@@ -2857,46 +2940,191 @@ function pourcentageMoisHausse(points){
   return total >= 2 ? (hausses / total) * 100 : null;
 }
 
-function chartBloc(stock, periodId){
-  const entry = HIST.get(stock.id);
-  if (!entry || entry.status === 'loading')
-    return `<p class="small" style="padding:28px 0;text-align:center">Chargement de l'historique…</p>`;
-  if (entry.status === 'error')
-    return `<p class="small" style="padding:28px 0;text-align:center">Impossible de charger l'historique pour le moment.</p>`;
-  if (entry.status === 'empty' || !entry.data.length)
-    return `<p class="small" style="padding:28px 0;text-align:center">Données historiques indisponibles.</p>`;
+/* ============================================================
+   GRAPHIQUE PROFESSIONNEL — rendu (Lightweight Charts)
+   ============================================================ */
 
-  const pts = histPeriode(stock.id, periodId);
-  if (!pts) return `<p class="small" style="padding:28px 0;text-align:center">
-    Historique insuffisant pour la période ${esc(periodId)}.</p>`;
-
-  const v = pts.map(x => x.close);
-  const hausse = v[v.length - 1] >= v[0];
-  return areaChart(v, { id:'px', color: hausse ? 'var(--up)' : 'var(--down)' });
+function chartSkeleton(){
+  return `<div class="sk chart-skel" aria-hidden="true"></div>
+    <p class="small" style="text-align:center;margin-top:14px;color:var(--ink-4)">Chargement des cours…</p>`;
 }
 
-function averagesBlock(stock, periodId){
-  const pts = histPeriode(stock.id, periodId);
-  if (!pts) return `<p class="small" style="margin-top:14px">Données insuffisantes pour
-    calculer les moyennes sur cette période.</p>`;
+function formatDateAffichage(date, kind){
+  const d = new Date(date);
+  if (!Number.isFinite(d.getTime())) return date;
+  return kind === 'intraday'
+    ? d.toLocaleString('fr-FR', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' })
+    : d.toLocaleDateString('fr-FR', { day:'2-digit', month:'2-digit', year:'numeric' });
+}
 
-  const v = pts.map(x => x.close);
-  const n = v.length;
-  const total = (v[n-1] / v[0] - 1) * 100;
-  const perDay = (Math.pow(v[n-1] / v[0], 1 / Math.max(1, n - 1)) - 1) * 100;
-  const rows = [
-    ['Sur la période', total],
-    ['Moyenne par séance', perDay],
-  ];
-  return `<div class="avgs">
-    ${rows.map(([k, val]) => `
-      <div class="avg">
-        <span class="avg-k">${esc(k)}</span>
-        <span class="avg-v tabular-nums ${val >= 0 ? 'up-t' : 'down-t'}">${trendTxt(val, Math.abs(val) < 1 ? 2 : 1)}</span>
-      </div>`).join('')}
-  </div>
-  <p class="tiny" style="margin-top:10px">${n} séances réelles ·
-    du ${esc(pts[0].date)} au ${esc(pts[n-1].date)}</p>`;
+/* Coquille HTML du graphique : barre d'info (prix/variation, mise à jour en
+   direct par le crosshair via mountChartPro), bascule courbe/chandeliers
+   (seulement si l'OHLC complet est réellement disponible — jamais affichée
+   pour forcer un mode que la donnée ne permet pas), conteneur du graphique
+   lui-même (rempli par Lightweight Charts, pas par ce template), puis les
+   statistiques réelles de la période (haut/bas/ouverture/clôture/volume). */
+function chartProShell(stock, period, entry){
+  const pts = entry.data;
+  const first = pts[0], last = pts[pts.length - 1];
+  const hausse = last.close >= first.close;
+  const varAbs = last.close - first.close;
+  const varPct = first.close ? (varAbs / first.close) * 100 : null;
+  const highs = pts.map(p => p.high).filter(Number.isFinite);
+  const lows = pts.map(p => p.low).filter(Number.isFinite);
+  const hasOHLC = pts.every(p => Number.isFinite(p.open) && Number.isFinite(p.high) && Number.isFinite(p.low));
+  const hasVolume = pts.some(p => Number.isFinite(p.volume) && p.volume > 0);
+  const volTotal = pts.reduce((s, p) => s + (Number.isFinite(p.volume) ? p.volume : 0), 0);
+
+  return `
+    <div class="chart-toolbar">
+      <div class="chart-info" id="cpInfo">
+        <span class="cp-price tabular-nums">${fmt.num(last.close, 2)} ${esc(stock.curSymbol || '')}</span>
+        <span class="cp-var tabular-nums ${hausse ? 'up-t' : 'down-t'}">${varAbs >= 0 ? '+' : ''}${fmt.num(varAbs, 2)}
+          (${varPct === null ? '—' : (varPct >= 0 ? '+' : '') + fmt.num(varPct, 2) + ' %'})</span>
+        <span class="cp-date tiny">${esc(formatDateAffichage(last.date, entry.kind))}</span>
+      </div>
+      ${hasOHLC ? `<div class="seg chart-mode">
+        <button data-chart-mode="line" aria-pressed="${state.ui.chartMode !== 'candle'}">Courbe</button>
+        <button data-chart-mode="candle" aria-pressed="${state.ui.chartMode === 'candle'}">Chandeliers</button>
+      </div>` : ''}
+    </div>
+    <div id="chart-pro" class="chart-pro" data-key="${esc(cleHISTP(stock.id, period))}"
+      data-hausse="${hausse ? '1' : '0'}"></div>
+    <div class="chart-stats">
+      <div><span class="tiny">Ouverture</span><b class="tabular-nums">${fmt.num(Number.isFinite(first.open) ? first.open : first.close, 2)}</b></div>
+      <div><span class="tiny">Plus haut</span><b class="tabular-nums">${highs.length ? fmt.num(Math.max(...highs), 2) : '—'}</b></div>
+      <div><span class="tiny">Plus bas</span><b class="tabular-nums">${lows.length ? fmt.num(Math.min(...lows), 2) : '—'}</b></div>
+      <div><span class="tiny">Clôture</span><b class="tabular-nums">${fmt.num(last.close, 2)}</b></div>
+      ${hasVolume ? `<div><span class="tiny">Volume</span><b class="tabular-nums">${fmt.int(volTotal)}</b></div>` : ''}
+    </div>
+    <p class="tiny" style="margin-top:10px;color:var(--ink-4)">${pts.length} ${entry.kind === 'intraday' ? 'barres' : 'séances'} réelles
+      · ${entry.kind === 'intraday' ? 'intraday ' + esc(entry.interval || '') : 'quotidien'} · source ${esc(entry.source || '—')}</p>`;
+}
+
+/* --- cycle de vie du graphique (canvas, pas du HTML string) ---
+   view.innerHTML est remplacé à CHAQUE render() (navigation, tick vivant
+   toutes les 8s, etc.) : le conteneur #chart-pro est donc un NOUVEAU noeud
+   DOM à chaque fois. On détruit proprement l'instance précédente puis on
+   en recrée une, en restaurant le zoom/scroll (visibleLogicalRange)
+   uniquement quand il s'agit du même instrument+période qu'avant (un vrai
+   changement de période/instrument repart, lui, sur la vue complète). */
+let chartPro = null; // { chart, series, volumeSeries, key }
+
+function chartTheme(){
+  const cs = getComputedStyle(document.documentElement);
+  const v = (name, repli) => { const val = cs.getPropertyValue(name); return val ? val.trim() : repli; };
+  return {
+    text: v('--ink-3', '#8d95a4'),
+    grid: v('--line-2', '#1b2028'),
+    up: v('--up', '#3ecf7f'),
+    down: v('--down', '#f87171'),
+  };
+}
+
+function detruireChartPro(){
+  if (chartPro){
+    try { chartPro.chart.remove(); } catch {}
+    chartPro = null;
+  }
+}
+
+function mountChartPro(){
+  const el = document.getElementById('chart-pro');
+  if (!el || typeof LightweightCharts === 'undefined'){ detruireChartPro(); return; }
+
+  const key = el.dataset.key;
+  const entry = HISTP.get(key);
+  if (!entry || entry.status !== 'ready' || entry.data.length < 2){ detruireChartPro(); return; }
+
+  let rangeAConserver = null;
+  if (chartPro && chartPro.key === key){
+    try { rangeAConserver = chartPro.chart.timeScale().getVisibleLogicalRange(); } catch {}
+  }
+  detruireChartPro();
+
+  const theme = chartTheme();
+  const hausse = el.dataset.hausse === '1';
+  const couleur = hausse ? theme.up : theme.down;
+  const candle = state.ui.chartMode === 'candle'
+    && entry.data.every(p => Number.isFinite(p.open) && Number.isFinite(p.high) && Number.isFinite(p.low));
+  const hasVolume = entry.data.some(p => Number.isFinite(p.volume) && p.volume > 0);
+
+  let chart;
+  try {
+    chart = LightweightCharts.createChart(el, {
+      layout: { background:{ color:'transparent' }, textColor: theme.text,
+        fontFamily: getComputedStyle(document.body).fontFamily },
+      grid: { vertLines:{ color: theme.grid }, horzLines:{ color: theme.grid } },
+      rightPriceScale: { borderColor: theme.grid },
+      timeScale: { borderColor: theme.grid, timeVisible: entry.kind === 'intraday', secondsVisible:false },
+      crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
+      autoSize: true,
+    });
+  } catch { return; } // bibliothèque indisponible (ex. CDN bloqué) : pas de graphique plutôt qu'un plantage
+
+  const timeDe = p => entry.kind === 'intraday'
+    ? Math.floor(new Date(p.date).getTime() / 1000)
+    : p.date.slice(0, 10);
+
+  let series;
+  if (candle){
+    series = chart.addSeries(LightweightCharts.CandlestickSeries, {
+      upColor: theme.up, downColor: theme.down, borderVisible:false,
+      wickUpColor: theme.up, wickDownColor: theme.down,
+    });
+    series.setData(entry.data.map(p => ({ time:timeDe(p), open:p.open, high:p.high, low:p.low, close:p.close })));
+  } else {
+    series = chart.addSeries(LightweightCharts.AreaSeries, {
+      lineColor: couleur, topColor: couleur + '33', bottomColor: couleur + '00', lineWidth:2,
+    });
+    series.setData(entry.data.map(p => ({ time:timeDe(p), value:p.close })));
+  }
+
+  let volumeSeries = null;
+  if (hasVolume){
+    volumeSeries = chart.addSeries(LightweightCharts.HistogramSeries, {
+      priceFormat:{ type:'volume' }, priceScaleId:'volume', color: couleur + '55',
+    });
+    try { chart.priceScale('volume').applyOptions({ scaleMargins:{ top:.82, bottom:0 } }); } catch {}
+    volumeSeries.setData(entry.data.filter(p => Number.isFinite(p.volume))
+      .map(p => ({ time:timeDe(p), value:p.volume,
+        color: (Number.isFinite(p.open) ? p.close >= p.open : true) ? theme.up + '66' : theme.down + '66' })));
+  }
+
+  chart.timeScale().fitContent();
+  if (rangeAConserver){ try { chart.timeScale().setVisibleLogicalRange(rangeAConserver); } catch {} }
+
+  const info = document.getElementById('cpInfo');
+  const premier = entry.data[0].close;
+  chart.subscribeCrosshairMove(param => {
+    if (!info) return;
+    const prixEl = info.querySelector('.cp-price'), varEl = info.querySelector('.cp-var'), dateEl = info.querySelector('.cp-date');
+    if (!param || param.time === undefined || !param.seriesData || !param.seriesData.has(series)){
+      const dernier = entry.data[entry.data.length - 1];
+      const vAbs = dernier.close - premier, vPct = premier ? (vAbs / premier) * 100 : null;
+      prixEl.textContent = `${fmt.num(dernier.close, 2)} `; prixEl.style.color = '';
+      varEl.textContent = `${vAbs >= 0 ? '+' : ''}${fmt.num(vAbs, 2)} (${vPct === null ? '—' : (vPct >= 0 ? '+' : '') + fmt.num(vPct, 2) + ' %'})`;
+      varEl.className = 'cp-var tabular-nums ' + (vAbs >= 0 ? 'up-t' : 'down-t');
+      dateEl.textContent = formatDateAffichage(dernier.date, entry.kind);
+      return;
+    }
+    const d = param.seriesData.get(series);
+    const prix = candle ? d.close : d.value;
+    if (!Number.isFinite(prix)) return;
+    const vAbs = prix - premier, vPct = premier ? (vAbs / premier) * 100 : null;
+    const vol = volumeSeries && param.seriesData.has(volumeSeries) ? param.seriesData.get(volumeSeries).value : null;
+    const dateAff = typeof param.time === 'number'
+      ? new Date(param.time * 1000).toLocaleString('fr-FR', entry.kind === 'intraday'
+          ? { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' }
+          : { day:'2-digit', month:'2-digit', year:'numeric' })
+      : String(param.time);
+    prixEl.textContent = fmt.num(prix, 2) + ' ';
+    varEl.textContent = `${vAbs >= 0 ? '+' : ''}${fmt.num(vAbs, 2)} (${vPct === null ? '—' : (vPct >= 0 ? '+' : '') + fmt.num(vPct, 2) + ' %'})`;
+    varEl.className = 'cp-var tabular-nums ' + (vAbs >= 0 ? 'up-t' : 'down-t');
+    dateEl.textContent = dateAff + (vol != null ? ' · vol. ' + fmt.int(vol) : '');
+  });
+
+  chartPro = { chart, series, volumeSeries, key };
 }
 
 /* ---------- LISTE DE SUIVI ---------- */
@@ -3941,6 +4169,14 @@ function render(navigated = false){
   if (idsVisibles.length) demarrerRafraichissementVivant(idsVisibles);
   else arreterRafraichissementVivant();
 
+  /* view.innerHTML vient de remplacer tout le DOM : #chart-pro (s'il existe
+     dans la page courante) est un nouveau noeud, l'éventuelle instance
+     Lightweight Charts précédente est donc déjà orpheline. requestAnimationFrame
+     laisse le navigateur terminer la mise en page avant de mesurer le
+     conteneur (nécessaire à `autoSize`). mountChartPro() se charge elle-même
+     de détruire proprement toute instance ancienne. */
+  requestAnimationFrame(() => mountChartPro());
+
   animate();
 }
 function animate(){
@@ -4262,6 +4498,13 @@ document.addEventListener('click', e => {
     const order = ['light','dark','auto'];
     state.settings.theme = order[(order.indexOf(state.settings.theme) + 1) % 3];
     saveState(); applySettings(); paintNav();
+    /* applySettings() ne repasse pas par render() (bascule volontairement
+       légère, sans reconstruire toute la page) : le graphique professionnel,
+       lui, dessine sur un canvas avec des couleurs déjà résolues au moment
+       de sa création — il ne suivrait donc pas le changement de thème tout
+       seul comme le fait le CSS. Remonté explicitement ici, sans passer par
+       un render() complet. */
+    mountChartPro();
     toast({ light:'Thème clair', dark:'Thème sombre', auto:'Thème système' }[state.settings.theme]);
     return;
   }
@@ -4269,23 +4512,27 @@ document.addEventListener('click', e => {
   const md = q('[data-mode]');
   if (md){ state.settings.mode = md.dataset.mode; saveState(); render(); return; }
 
-  /* Sélecteur de période sur une fiche action : ne redessine QUE le
-     graphique et les moyennes, à partir du même HIST réel que le premier
-     rendu (chartBloc/averagesBlock). L'ancienne version appelait ici une
-     fonction de génération synthétique déjà retirée par ailleurs et
-     provoquait une ReferenceError au clic — corrigé. */
-  const per = q('[data-period]');
-  if (per){
-    state.ui.period = per.dataset.period; saveState();
-    document.querySelectorAll('[data-period]').forEach(b=>
-      b.setAttribute('aria-pressed', String(b.dataset.period === state.ui.period)));
+  /* Sélecteur de période du graphique professionnel (fiche instrument).
+     chargerGraphiquePeriode() ne relance une requête que si cette période
+     n'est pas déjà en cache pour cet instrument — sinon render() seul
+     suffit à l'afficher instantanément. */
+  const cp = q('[data-chart-period]');
+  if (cp){
+    const period = cp.dataset.chartPeriod;
+    state.ui.chartPeriod = period; saveState();
     const s2 = byId[route.arg];
-    if (s2){
-      const chartEl = document.getElementById('chart');
-      if (chartEl) chartEl.innerHTML = chartBloc(s2, state.ui.period);
-      const av = document.getElementById('avgs');
-      if (av) av.innerHTML = averagesBlock(s2, state.ui.period);
-    }
+    if (s2) chargerGraphiquePeriode(s2, period);
+    render();
+    return;
+  }
+  const cm = q('[data-chart-mode]');
+  if (cm){ state.ui.chartMode = cm.dataset.chartMode; saveState(); render(); return; }
+
+  const retryChart = q('[data-retry-chart]');
+  if (retryChart){
+    const s2 = byId[retryChart.dataset.retryChart];
+    const period = CHART_PERIODS.some(p => p.api === state.ui.chartPeriod) ? state.ui.chartPeriod : '3m';
+    if (s2) chargerGraphiquePeriode(s2, period);
     return;
   }
 
@@ -4390,7 +4637,18 @@ document.addEventListener('click', e => {
   const showChart = q('[data-show-chart]');
   if (showChart){
     const st = byId[showChart.dataset.showChart];
-    if (st){ chargerGraphique(st); render(); }
+    if (st){
+      /* Deux chargements distincts et complémentaires : chargerGraphique()
+         (historique quotidien ~260 séances, inchangé) alimente encore
+         Comparer/la volatilité/les sparklines de ligne ; chargerGraphiquePeriode()
+         alimente le nouveau graphique professionnel à la période actuellement
+         sélectionnée. Chacun a son propre cache et ne redemande jamais ce
+         qu'il a déjà. */
+      chargerGraphique(st);
+      const period = CHART_PERIODS.some(p => p.api === state.ui.chartPeriod) ? state.ui.chartPeriod : '3m';
+      chargerGraphiquePeriode(st, period);
+      render();
+    }
     return;
   }
   const showFund = q('[data-show-fundamentals]');

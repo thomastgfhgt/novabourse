@@ -16,7 +16,7 @@
  */
 
 const { cascade } = require('./_providers.js');
-const { lire, ecrire } = require('./_cache.js');
+const { lire, ecrire, avecVerrou } = require('./_cache.js');
 
 /* Dupliquée intentionnellement en une ligne plutôt qu'importée de
    company.js : c'est une règle de validation générique du bloc "history"
@@ -41,29 +41,44 @@ function historiqueValide(data){
  * @param {string|null} p.exchange
  * @param {boolean} p.frais - true = contourne le cache en lecture
  * @param {object[]} p.journal - tableau partagé, alimenté par cascade()
+ * @param {any[]} [p.cacheParts] - segments de clé de cache additionnels
+ *   (ex: [période, intervalle] pour un historique paramétré) — vide par
+ *   défaut, donc AUCUN changement de clé pour les appels existants
+ *   (company.js, fundamentals.js, l'historique par défaut de history.js).
  * @returns {Promise<{data: any, source: string|null}>}
  */
-async function chargerBloc({ nom, table, ordre, args, ticker, exchange, frais, journal }){
+async function chargerBloc({ nom, table, ordre, args, ticker, exchange, frais, journal, cacheParts = [] }){
+  const parts = [ticker, exchange, ...cacheParts];
+
+  /* Un tableau vide (historique/intraday sans aucune ligne exploitable)
+     ne doit jamais être resservi comme s'il s'agissait d'une vraie
+     série — qu'il vienne du cache ou d'un appel frais. Détection par
+     forme de la donnée plutôt que par nom de bloc : couvre 'history'
+     comme les nouveaux blocs 'histp'/'intraday' sans les énumérer. */
+  const valide = data => Array.isArray(data) ? historiqueValide(data) : Boolean(data);
+
   if (!frais){
-    const hit = lire(nom, ticker, exchange);
-    if (hit){
-      /* Ne pas réutiliser un historique vide comme s'il s'agissait d'un
-         vrai historique — comportement identique à l'ancien company.js. */
-      if (nom !== 'history' || historiqueValide(hit.valeur)){
-        journal.push({ bloc: nom, provider: hit.source, ok: true, cache: true });
-        return { data: hit.valeur, source: hit.source };
-      }
+    const hit = lire(nom, ...parts);
+    if (hit && valide(hit.valeur)){
+      journal.push({ bloc: nom, provider: hit.source, ok: true, cache: true });
+      return { data: hit.valeur, source: hit.source };
     }
   }
 
-  const resultat = await cascade(table, ordre, args, journal, nom);
+  /* Verrou anti-rafale : si une requête identique est déjà en vol pour
+     cette même clé, on attend son résultat plutôt que de relancer un
+     appel fournisseur redondant. cascade() n'alimente alors QUE le
+     journal du tout premier appelant (fermeture sur sa référence) : on
+     complète ici le journal des appelants suivants avec une entrée de
+     diagnostic explicite (`followed`, jamais déduit par heuristique),
+     pour ne jamais laisser croire qu'aucun appel n'a eu lieu. */
+  const { value: resultat, followed } = await avecVerrou(nom, parts, () => cascade(table, ordre, args, journal, nom));
+  if (followed){
+    journal.push({ bloc: nom, provider: resultat.source, ok: Boolean(resultat.data), dedupe: true });
+  }
 
-  /* On ne met pas un historique vide en cache, pour permettre à une
-     requête ultérieure de retenter un fournisseur plutôt que de rester
-     bloquée sur []. Comportement identique à l'ancien company.js. */
-  const peutEcrire = nom === 'history' ? historiqueValide(resultat.data) : Boolean(resultat.data);
-  if (peutEcrire){
-    ecrire(nom, [ticker, exchange], resultat.data, resultat.source);
+  if (valide(resultat.data)){
+    ecrire(nom, parts, resultat.data, resultat.source);
   }
 
   return resultat;

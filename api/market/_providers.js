@@ -857,6 +857,12 @@ const FUNDAMENTALS = {
 
         industry:
           txt(general.Industry),
+
+        /* Déjà inclus dans la réponse fondamentaux EODHD — aucun appel
+           ni coût supplémentaire. FIGI/MIC non fournis par ce plan :
+           restent null plutôt que devinés. */
+        isin:
+          txt(general.ISIN),
       },
 
       fundamentals: {
@@ -1183,6 +1189,101 @@ function normaliserHistorique(
   );
 }
 
+/* ============================================================
+   NORMALISATION INTRADAY
+   ============================================================
+   Contrairement à normaliserHistorique() (une ligne par JOUR,
+   volontairement conçue pour le quotidien), l'intraday a besoin d'une
+   ligne par HORODATAGE exact — dédoublonnage par timestamp complet,
+   jamais par date seule, sinon deux barres de la même séance
+   s'écraseraient l'une l'autre. */
+function normaliserIntraday(lignes) {
+  if (!Array.isArray(lignes)) return [];
+
+  const map = new Map();
+
+  for (const ligne of lignes) {
+    const brut = txt(ligne?.date);
+    if (!brut) continue;
+
+    const timestamp = Date.parse(brut);
+    if (!Number.isFinite(timestamp)) continue;
+
+    const close = num(ligne?.close);
+    if (close === null || close <= 0) continue;
+
+    map.set(timestamp, {
+      date: new Date(timestamp).toISOString(),
+      open: num(ligne?.open),
+      high: num(ligne?.high),
+      low: num(ligne?.low),
+      close,
+      volume: num(ligne?.volume),
+    });
+  }
+
+  return [...map.values()].sort((a, b) => a.date.localeCompare(b.date));
+}
+
+/**
+ * Ré-agrège des barres RÉELLEMENT reçues vers une granularité plus
+ * grossière (ex : des barres natives 1 minute vers des barres 15
+ * minutes). Ce n'est PAS de la fabrication de donnée : chaque barre en
+ * sortie est construite exclusivement à partir de barres réellement
+ * reçues qui tombent dans le même intervalle de temps (open = première
+ * barre du seau, close = dernière, high/low = extrêmes réels, volume =
+ * somme réelle). Une pratique standard de tout moteur de graphique
+ * financier. N'invente jamais un seau vide : un seau sans aucune barre
+ * source n'apparaît simplement pas en sortie.
+ */
+function resampleOHLC(bars, minutesParBarre) {
+  if (!Array.isArray(bars) || !bars.length || !minutesParBarre) {
+    return bars || [];
+  }
+
+  const tailleMs = minutesParBarre * 60000;
+  const groupes = new Map();
+
+  for (const b of bars) {
+    const t = Date.parse(b.date);
+    if (!Number.isFinite(t)) continue;
+
+    const cle = Math.floor(t / tailleMs) * tailleMs;
+    const existant = groupes.get(cle);
+
+    if (!existant) {
+      groupes.set(cle, {
+        date: new Date(cle).toISOString(),
+        open: b.open,
+        high: b.high,
+        low: b.low,
+        close: b.close,
+        volume: num(b.volume) || 0,
+      });
+    } else {
+      if (b.high != null && (existant.high == null || b.high > existant.high)) existant.high = b.high;
+      if (b.low != null && (existant.low == null || b.low < existant.low)) existant.low = b.low;
+      existant.close = b.close;
+      existant.volume = (existant.volume || 0) + (num(b.volume) || 0);
+    }
+  }
+
+  return [...groupes.values()].sort((a, b) => a.date.localeCompare(b.date));
+}
+
+/* Intervalles intraday supportés par ce backend (clé partagée par
+   INTRADAY ci-dessous et par la validation du paramètre `interval` côté
+   endpoint history.js) et leur durée en minutes. */
+const INTRADAY_MINUTES = {
+  '1min': 1,
+  '5min': 5,
+  '15min': 15,
+  '30min': 30,
+  '1h': 60,
+};
+
+const INTRADAY_INTERVALS = Object.keys(INTRADAY_MINUTES);
+
 function joursHistorique(n) {
   const valeur =
     Math.trunc(
@@ -1428,6 +1529,126 @@ const HISTORY = {
     lignes.recues =
       recues;
 
+    return lignes;
+  },
+};
+
+/* ============================================================
+   INTRADAY
+   ============================================================
+   Barres réellement infra-journalières. Jamais construites à partir de
+   clôtures quotidiennes — soit le fournisseur renvoie de vraies barres
+   intraday, soit ce bloc échoue et la cascade retombe sur le fournisseur
+   suivant (ou remonte "intraday indisponible" si aucun n'a de données). */
+const INTRADAY = {
+  /* Twelve Data accepte nativement 1min/5min/15min/30min/1h comme
+     `interval` — aucune conversion nécessaire. */
+  async twelvedata(ticker, exchange, interval, jours, key) {
+    if (!INTRADAY_MINUTES[interval]) {
+      throw new Error('intervalle_non_supporte');
+    }
+
+    const barresParJour = {
+      '1min': 390, '5min': 78, '15min': 26, '30min': 13, '1h': 7,
+    };
+
+    const outputsize = Math.max(
+      30,
+      Math.min(5000, Math.round((barresParJour[interval] || 20) * jours * 1.2))
+    );
+
+    const d = await getJSON(
+      `https://api.twelvedata.com/time_series`
+      + `?symbol=${encodeURIComponent(tdSymbol(ticker, exchange))}`
+      + `&interval=${interval}`
+      + `&outputsize=${outputsize}`
+      + `&apikey=${key}`,
+      12000
+    );
+
+    if (!d?.values?.length) {
+      throw new Error(d?.message || 'vide');
+    }
+
+    const recues = d.values.length;
+
+    const lignes = normaliserIntraday(
+      d.values.map(ligne => ({
+        date: txt(ligne.datetime),
+        open: num(ligne.open),
+        high: num(ligne.high),
+        low: num(ligne.low),
+        close: num(ligne.close),
+        volume: num(ligne.volume),
+      }))
+    );
+
+    if (!lignes.length) {
+      throw new Error('zero_ligne_apres_normalisation');
+    }
+
+    lignes.recues = recues;
+    return lignes;
+  },
+
+  /* EODHD ne propose nativement que 1m / 5m / 1h. Pour 15min/30min on
+     récupère la plus fine granularité native disponible et on ré-agrège
+     vers la granularité demandée (resampleOHLC — donnée réelle
+     réagrégée, jamais inventée). */
+  async eodhd(ticker, exchange, interval, jours, key) {
+    const minutesDemandees = INTRADAY_MINUTES[interval];
+    if (!minutesDemandees) {
+      throw new Error('intervalle_non_supporte');
+    }
+
+    const NATIF_MINUTES = { '1m': 1, '5m': 5, '1h': 60 };
+    const candidats = Object.entries(NATIF_MINUTES)
+      .filter(([, m]) => m <= minutesDemandees)
+      .sort((a, b) => b[1] - a[1]);
+    const [natif, natifMinutes] = candidats.length ? candidats[0] : ['1m', 1];
+
+    const to = Math.floor(Date.now() / 1000);
+    const from = to - Math.round(jours * 86400);
+    const symbole = eodhdSymbol(ticker, exchange);
+
+    const url = `https://eodhd.com/api/intraday/${encodeURIComponent(symbole)}`
+      + `?api_token=${key}&fmt=json&interval=${natif}&from=${from}&to=${to}`;
+
+    const d = await getJSON(url, 12000);
+
+    if (!Array.isArray(d)) {
+      const error = new Error(`format_inattendu:${typeof d}`);
+      error.url = urlSansCle(url);
+      error.symbole = symbole;
+      throw error;
+    }
+
+    const recues = d.length;
+
+    const brutes = d.map(ligne => ({
+      date: isoUnix(ligne.timestamp),
+      open: num(ligne.open),
+      high: num(ligne.high),
+      low: num(ligne.low),
+      close: num(ligne.close),
+      volume: num(ligne.volume),
+    }));
+
+    let lignes = normaliserIntraday(brutes);
+
+    if (!lignes.length) {
+      const error = new Error(recues ? `zero_ligne_apres_normalisation (recues:${recues})` : 'aucune_ligne_recue');
+      error.url = urlSansCle(url);
+      error.symbole = symbole;
+      error.recues = recues;
+      throw error;
+    }
+
+    if (natifMinutes < minutesDemandees) {
+      lignes = resampleOHLC(lignes, minutesDemandees);
+    }
+
+    lignes.recues = recues;
     return lignes;
   },
 };
@@ -1933,6 +2154,7 @@ module.exports = {
   QUOTE,
   FUNDAMENTALS,
   HISTORY,
+  INTRADAY,
   BATCH,
 
   cascade,
@@ -1954,5 +2176,11 @@ module.exports = {
   TD_EXCHANGE,
 
   normaliserHistorique,
+  normaliserIntraday,
+  resampleOHLC,
+  joursHistorique,
   finnhubAutorise,
+
+  INTRADAY_MINUTES,
+  INTRADAY_INTERVALS,
 };
