@@ -371,6 +371,10 @@ const CRYPTO_ID_COINGECKO = {
   ALGO: 'algorand',
   VET: 'vechain',
   FIL: 'filecoin',
+  BNB: 'binancecoin',
+  UNI: 'uniswap',
+  AAVE: 'aave',
+  NEAR: 'near',
 };
 
 /* Devises de règlement acceptées par `vs_currencies`/`vs_currency` que
