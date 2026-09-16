@@ -311,16 +311,33 @@ function eodhdForexSymbol(ticker) {
 }
 
 /**
+ * Convention EODHD documentée pour les indices (ex. "GSPC.INDX" pour le
+ * S&P 500, "GDAXI.INDX" pour le DAX) — un simple suffixe .INDX sur le code
+ * d'indice déjà utilisé par le catalogue NovaBourse (ces codes, comme
+ * GDAXI/FCHI/N225/HSI/BSESN, SONT déjà la nomenclature EODHD ; c'est ce qui
+ * a motivé leur choix dans le catalogue à l'origine). Non testable avec le
+ * token "demo" (403 sur tous les indices essayés, y compris GSPC.INDX —
+ * la couverture du token demo, pas le format, voir eodhdCryptoSymbol
+ * ci-dessus pour la même distinction). À VÉRIFIER EMPIRIQUEMENT avec la
+ * vraie clé de production avant de considérer la couverture confirmée —
+ * voir rapport de couverture joint. */
+function eodhdIndexSymbol(ticker) {
+  const t = String(ticker || '').trim().toUpperCase();
+  return /^[A-Z0-9]+$/.test(t) ? `${t}.INDX` : null;
+}
+
+/**
  * Point d'entrée UNIQUE pour obtenir un symbole EODHD, quel que soit le
- * type d'instrument. 'index'/'commodity' renvoient explicitement null :
- * aucune convention EODHD n'a pu être vérifiée pour ces deux types (voir
- * rapport précédent) — mieux vaut ne pas appeler EODHD du tout que
- * d'envoyer un symbole non vérifié.
+ * type d'instrument. 'commodity' renvoie explicitement null : aucune
+ * convention EODHD n'a pu être vérifiée pour ce type (voir rapport) —
+ * mieux vaut ne pas appeler EODHD du tout que d'envoyer un symbole non
+ * vérifié.
  */
 function eodhdSymbolPourType(ticker, exchange, type) {
   if (type === 'crypto') return eodhdCryptoSymbol(ticker);
   if (type === 'forex') return eodhdForexSymbol(ticker);
-  if (type === 'index' || type === 'commodity') return null;
+  if (type === 'index') return eodhdIndexSymbol(ticker);
+  if (type === 'commodity') return null;
   return eodhdSymbol(ticker, exchange);
 }
 
@@ -2837,6 +2854,7 @@ module.exports = {
   eodhdSymbol,
   eodhdCryptoSymbol,
   eodhdForexSymbol,
+  eodhdIndexSymbol,
   eodhdSymbolPourType,
   tdSymbol,
   coingeckoRef,

@@ -29,9 +29,13 @@
 
 const { COINGECKO_JOURS_MAX } = require('./_providers.js');
 
-/* Aucune convention EODHD vérifiée pour ces deux types (voir _providers.js,
-   eodhdSymbolPourType) — cohérent avec history.js/company.js. */
-const TYPES_SANS_SUFFIXE_EODHD = new Set(['index', 'commodity']);
+/* Aucune convention EODHD vérifiée pour ce type (voir _providers.js,
+   eodhdSymbolPourType) — cohérent avec history.js/company.js. 'index' n'en
+   fait plus partie : eodhdIndexSymbol() (".INDX", convention EODHD
+   documentée) a été ajouté — restait auparavant exclusivement dépendant de
+   Twelve Data, exactement le même défaut architectural qui causait le bug
+   crypto/forex d'origine (un seul fournisseur, aucun repli). */
+const TYPES_SANS_SUFFIXE_EODHD = new Set(['commodity']);
 const TYPES_AVEC_FONDAMENTAUX = new Set(['stock', 'etf']);
 const TYPES_AVEC_ACTUALITES = new Set(['stock', 'etf']);
 
@@ -74,6 +78,12 @@ function ordreStatique(dataType, type, opts = {}) {
     case 'quote':
       if (type === 'crypto') return ['coingecko', 'twelvedata', 'eodhd'];
       if (type === 'forex') return ['twelvedata', 'eodhd', 'frankfurter'];
+      /* index : eodhdIndexSymbol() (".INDX") ajouté — plus un seul point de
+         défaillance sur Twelve Data (voir _providers.js pour la
+         justification et l'avertissement "à vérifier empiriquement").
+         Jamais Finnhub (incompatible par construction, voir
+         TYPES_INCOMPATIBLES_FINNHUB dans _providers.js). */
+      if (type === 'index') return ['twelvedata', 'eodhd'];
       if (TYPES_SANS_SUFFIXE_EODHD.has(type)) return ['twelvedata'];
       return ['twelvedata', 'eodhd', 'finnhub'];
 
@@ -82,6 +92,7 @@ function ordreStatique(dataType, type, opts = {}) {
         return coingeckoEligibleHistorique ? ['coingecko', 'eodhd', 'twelvedata'] : ['eodhd', 'twelvedata'];
       }
       if (type === 'forex') return ['eodhd', 'twelvedata', 'frankfurter'];
+      if (type === 'index') return ['eodhd', 'twelvedata'];
       if (TYPES_SANS_SUFFIXE_EODHD.has(type)) return ['twelvedata'];
       return ['eodhd', 'twelvedata'];
 
@@ -90,6 +101,7 @@ function ordreStatique(dataType, type, opts = {}) {
       /* Frankfurter n'a structurellement aucune donnée intraday (taux BCE
          quotidiens) — jamais inclus ici, contrairement au chemin history. */
       if (type === 'forex') return ['twelvedata', 'eodhd'];
+      if (type === 'index') return ['twelvedata', 'eodhd'];
       if (TYPES_SANS_SUFFIXE_EODHD.has(type)) return ['twelvedata'];
       return ['twelvedata', 'eodhd'];
 
