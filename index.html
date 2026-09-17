@@ -16336,10 +16336,10 @@ function gateScreen(){
         <span class="brand-mark">${svg(ICON.brand)}</span>
       </span>
       <h1 class="display" style="font-size:clamp(30px,5.4vw,44px);margin-top:22px">
-        Plusieurs IA analysent.<br>Une seule réponse claire.</h1>
+        Trois IA analysent les marchés.<br>Vous décidez.</h1>
       <p class="lead" style="margin-top:16px">
-        Créez votre compte pour retrouver vos analyses, votre liste de suivi et votre portefeuille
-        sur tous vos appareils.</p>
+        Des données vérifiées, un score expliqué, jamais un conseil déguisé. Créez votre compte
+        pour retrouver vos analyses et votre portefeuille sur tous vos appareils.</p>
 
       ${AUTH_ERROR ? `<div class="notice" style="margin-top:20px;text-align:left">
         <b>La connexion n'a pas abouti.</b><br>${esc(AUTH_ERROR)}</div>` : ''}
@@ -16347,9 +16347,9 @@ function gateScreen(){
       <p class="tiny" style="margin-top:14px">Connexion sécurisée par Google.</p>
 
       <div class="gate-pts">
-        ${[['Analyse IA','Une IA explique les chiffres réels de chaque entreprise.'],
-           ['Nova Score décomposé','Huit critères, chacun expliqué et pondéré.'],
-           ['Portefeuille virtuel','Investissez de l\'argent fictif, sans aucun risque.']]
+        ${[['Analyse croisée','Trois modèles d\'IA confrontent leur lecture de chaque entreprise.'],
+           ['Nova Score transparent','Huit critères réels, chacun expliqué et pondéré — jamais une boîte noire.'],
+           ['Portefeuille sans risque','Entraînez-vous avec de l\'argent fictif avant d\'investir pour de vrai.']]
           .map(([t2,d])=>`<div class="gate-pt">
             <span class="gate-i">${svg(ICON.check,2.6)}</span>
             <span><b>${t2}</b><span>${d}</span></span></div>`).join('')}
