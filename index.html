@@ -365,6 +365,10 @@ button:active{transform:scale(.97)}
   color:var(--ink-3);min-height:38px;display:inline-flex;align-items:center;gap:6px}
 .chip:hover{background:var(--bg-3);color:var(--ink)}
 .chip[aria-pressed="true"]{background:var(--ink);color:var(--bg)}
+.check-box{width:22px;height:22px;border-radius:50%;border:1.5px solid var(--line-2);
+  display:flex;align-items:center;justify-content:center;flex:0 0 auto;color:var(--bg);margin-left:auto}
+.check-box svg{width:13px;height:13px}
+.check-box[aria-pressed="true"]{background:var(--accent);border-color:var(--accent)}
 .empty{text-align:center;padding:var(--sp-4) var(--sp-2)}
 .empty-i{width:56px;height:56px;border-radius:18px;background:var(--bg-2);display:flex;align-items:center;justify-content:center;
   margin:0 auto var(--sp-2);color:var(--ink-4)}
@@ -927,6 +931,13 @@ const DEFAULT_STATE = {
   recent:[],
   compare:[],
 
+  /* Listes organisées (§9 du PRD) : DISTINCTES de `watchlist` ci-dessus
+     (l'étoile rapide, comportement inchangé) — un dossier nommé/coloré
+     dans lequel ranger des valeurs, plusieurs par société possibles.
+     `items` = tableau d'id de `stocks`, jamais de doublon (contrôlé par
+     toggleItemListe, jamais construit à la main ailleurs). */
+  lists:[],
+
   wallet:{
     cash:15480,
     invested:110000,
@@ -1043,6 +1054,19 @@ function loadState(){
           realizedPnL: Number.isFinite(saved.wallet?.realizedPnL) ? saved.wallet.realizedPnL : DEFAULT_STATE.wallet.realizedPnL,
         },
         walletHistory: Array.isArray(saved.walletHistory) ? saved.walletHistory : DEFAULT_STATE.walletHistory,
+        /* Validation stricte élément par élément : un stockage corrompu/ancien
+           (avant l'ajout de cette fonctionnalité) ne doit jamais produire une
+           liste avec un id/name absent en aval (rendu, toggleItemListe). Un
+           élément invalide est retiré silencieusement, jamais tout le tableau. */
+        lists: Array.isArray(saved.lists)
+          ? saved.lists.filter(l => l && typeof l.id === 'string' && typeof l.name === 'string')
+            .map(l => ({
+              id: l.id, name: l.name,
+              color: typeof l.color === 'string' ? l.color : '#3557f6',
+              icon: typeof l.icon === 'string' ? l.icon : 'star',
+              items: Array.isArray(l.items) ? [...new Set(l.items.filter(x => typeof x === 'string'))] : [],
+            }))
+          : [],
         runtimeCatalog: (saved.runtimeCatalog && typeof saved.runtimeCatalog === 'object' && !Array.isArray(saved.runtimeCatalog))
           ? saved.runtimeCatalog : {},
         onboarding:{ ...DEFAULT_STATE.onboarding, ...(saved.onboarding || {}) },
@@ -1080,6 +1104,7 @@ function writeStateNow(){
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify({
       watchlist:state.watchlist,
+      lists:state.lists,
       recent:state.recent,
       compare:state.compare,
       settings:state.settings,
@@ -13045,6 +13070,61 @@ function toggleWatch(id){
 }
 const inWatch = (id) => state.watchlist.includes(id);
 
+/* ============================================================
+   LISTES ORGANISÉES (§9) — distinctes de watchlist/inWatch ci-dessus.
+   ============================================================ */
+const LIST_COLORS = ['#3557f6','#00a651','#e0407a','#c47f0a','#5b4ae0','#0891b2','#dc2626','#64748b'];
+/* Réutilise des icônes déjà existantes dans ICON (voir plus bas) plutôt que
+   d'en dessiner de nouvelles — aucun nouvel asset SVG pour cette passe. */
+const LIST_ICONS = ['star','shield','chart','wallet','list','book'];
+
+function creerListe(nom, color, icon){
+  const nomPropre = String(nom || '').trim().slice(0, 60);
+  if (!nomPropre) return null;
+  const id = 'l' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  const liste = {
+    id, name: nomPropre,
+    color: LIST_COLORS.includes(color) ? color : LIST_COLORS[state.lists.length % LIST_COLORS.length],
+    icon: LIST_ICONS.includes(icon) ? icon : 'star',
+    items: [],
+  };
+  state.lists.push(liste);
+  saveState();
+  return liste;
+}
+function renommerListe(id, nom){
+  const l = state.lists.find(x => x.id === id);
+  if (!l) return;
+  const nomPropre = String(nom || '').trim().slice(0, 60);
+  if (nomPropre) l.name = nomPropre;
+  saveState();
+}
+function recolorerListe(id, color, icon){
+  const l = state.lists.find(x => x.id === id);
+  if (!l) return;
+  if (LIST_COLORS.includes(color)) l.color = color;
+  if (LIST_ICONS.includes(icon)) l.icon = icon;
+  saveState();
+}
+function supprimerListe(id){
+  const i = state.lists.findIndex(x => x.id === id);
+  if (i < 0) return;
+  state.lists.splice(i, 1);
+  saveState();
+}
+function toggleItemListe(listeId, stockId){
+  const l = state.lists.find(x => x.id === listeId);
+  if (!l) return;
+  const i = l.items.indexOf(stockId);
+  if (i >= 0) l.items.splice(i, 1);
+  else l.items.push(stockId);
+  saveState();
+}
+/* Listes contenant CE stock précis — utilisé par le sélecteur "Ajouter à
+   une liste" sur la fiche pour cocher les cases déjà vraies, jamais
+   recalculé à la main ailleurs. */
+const listesAvec = (stockId) => state.lists.filter(l => l.items.includes(stockId));
+
 function pushRecent(label){
   state.recent = [label, ...state.recent.filter(x => x !== label)].slice(0, 5);
   saveState();
@@ -14139,6 +14219,8 @@ PAGES.home = () => {
         ${suivies.length
           ? `<div class="rows">${suivies.slice(0, 3).map(x => stockRow(x)).join('')}</div>`
           : `<p class="small">Touchez l'étoile sur une entreprise pour la suivre.</p>`}
+        <button class="btn btn-ghost btn-sm" style="margin-top:12px" data-go="lists">
+          ${svg(ICON.list,2)} Mes listes${state.lists.length ? ` (${state.lists.length})` : ''}</button>
       </article>
     </div>
   </section>
@@ -14537,6 +14619,8 @@ PAGES.stock = (id) => {
     ${s.type === 'stock' ? `<button data-nova="${esc(s.id)}">${svg(ICON.spark,2)} Analyse</button>` : ''}
     <button data-cmp="${esc(s.id)}" aria-pressed="${state.compare.includes(s.id)}">
       ${state.compare.includes(s.id) ? '✓ Ajoutée à la comparaison' : 'Comparer'}</button>
+    <button data-add-to-list="${esc(s.id)}">${svg(ICON.list,2)}
+      ${listesAvec(s.id).length ? `Dans ${listesAvec(s.id).length} liste${listesAvec(s.id).length>1?'s':''}` : 'Ajouter à une liste'}</button>
     ${starBtn(s.id)}
   </div>
   ${state.compare.length >= 2 ? `<button class="btn btn-ghost btn-sm" style="margin-top:10px" data-go="compare">
@@ -15048,6 +15132,51 @@ PAGES.watchlist = () => {
             'Touchez l’étoile pour suivre une valeur. Sa note et son évolution vous attendront ici.',
             { go:'radar', label:'Parcourir le Radar' })}
     </div></div>`;
+};
+
+/* ---------- LISTES ORGANISÉES (§9) ---------- */
+PAGES.lists = () => {
+  const lists = state.lists;
+  return `<div class="page-in">
+    <div class="section-h" style="margin-bottom:20px">
+      <div><p class="eyebrow">Organisation</p>
+        <h1 class="title">Mes listes</h1>
+        <p class="lead measure-l" style="margin-top:10px">Rangez vos valeurs par thème — dividendes, à surveiller, technologie…</p></div>
+    </div>
+    <button class="btn btn-a" style="margin-bottom:18px" data-new-list>${svg(ICON.plus,2)} Nouvelle liste</button>
+    ${lists.length ? `<div class="rows">${lists.map(l => `
+      <button class="row" data-go="listDetail" data-arg="${esc(l.id)}">
+        <span class="av" style="background:${esc(l.color)}">${svg(ICON[l.icon] || ICON.star, 1.8)}</span>
+        <span class="row-main"><span class="row-t">${esc(l.name)}</span>
+          <span class="row-s">${l.items.length} valeur${l.items.length > 1 ? 's' : ''}</span></span>
+      </button>`).join('')}</div>`
+      : emptyState('Aucune liste pour l’instant',
+          'Créez une première liste pour regrouper les valeurs qui vous intéressent par thème.', null)}
+  </div>`;
+};
+
+PAGES.listDetail = (listId) => {
+  const l = state.lists.find(x => x.id === listId);
+  if (!l) return emptyState('Liste introuvable', 'Cette liste a peut-être été supprimée.', { go:'lists', label:'Retour à mes listes' });
+  const items = l.items.map(id => byId[id]).filter(Boolean);
+  return `<div class="page-in">
+    <div class="section-h" style="margin-bottom:20px">
+      <div><span class="av" style="background:${esc(l.color)}">${svg(ICON[l.icon] || ICON.star, 1.8)}</span>
+        <h1 class="title" style="margin-top:10px">${esc(l.name)}</h1>
+        <p class="lead" style="margin-top:6px">${items.length} valeur${items.length > 1 ? 's' : ''}</p></div>
+    </div>
+    <div class="btns" style="margin-bottom:18px">
+      <button class="btn btn-s btn-sm" data-rename-list="${esc(l.id)}">Renommer</button>
+      <button class="btn btn-s btn-sm" data-recolor-list="${esc(l.id)}">Couleur/icône</button>
+      <button class="btn btn-s btn-sm" data-delete-list="${esc(l.id)}">Supprimer</button>
+    </div>
+    <div class="card">
+      ${items.length ? `<div class="rows">${items.map(x => stockRow(x)).join('')}</div>`
+        : emptyState('Cette liste est vide',
+            'Ouvrez une fiche action et utilisez « Ajouter à une liste » pour la remplir.',
+            { go:'explore', label:'Explorer les entreprises' })}
+    </div>
+  </div>`;
 };
 
 /* ---------- PORTEFEUILLE ---------- */
@@ -16064,7 +16193,9 @@ function render(navigated = false){
   const view = document.getElementById('view');
   let html;
   try {
-    html = route.page === 'stock' ? PAGES.stock(route.arg) : (PAGES[route.page] || PAGES.home)();
+    html = route.page === 'stock' ? PAGES.stock(route.arg)
+      : route.page === 'listDetail' ? PAGES.listDetail(route.arg)
+      : (PAGES[route.page] || PAGES.home)();
   } catch (err){
     console.error('[NovaBourse]', err);
     html = `<div class="card">${emptyState('Cette section n’a pas pu s’afficher',
@@ -16421,7 +16552,7 @@ document.addEventListener('click', e => {
     saveState(); renderGate(); return;
   }
 
-  const nav = q('[data-go]'); if (nav){ e.preventDefault(); go(nav.dataset.go); return; }
+  const nav = q('[data-go]'); if (nav){ e.preventDefault(); go(nav.dataset.go, nav.dataset.arg); return; }
   if (q('[data-back]')){ back(); return; }
   if (q('[data-close]')){ closeSheet(); return; }
   if (q('[data-search]')){ openSearch(); return; }
@@ -16680,6 +16811,140 @@ document.addEventListener('click', e => {
   const rec = q('[data-recent]');
   if (rec){ const i = document.getElementById('sq'); i.value = rec.dataset.recent; paintSearch(i.value); return; }
   if (q('[data-clear-recent]')){ state.recent = []; saveState(); paintSearch(''); return; }
+
+  const newList = q('[data-new-list]');
+  if (newList){
+    openSheet(`<h3 id="sheetTitle">Nouvelle liste</h3>
+      <input class="field" id="listName" type="text" placeholder="Ex. Dividendes, Technologie…" maxlength="60" style="margin-top:16px">
+      <div class="chips" style="margin-top:14px">${LIST_COLORS.map((c,i)=>`
+        <button class="chip" data-pick-color="${esc(c)}" aria-pressed="${i===0}"
+          style="background:${esc(c)};width:28px;height:28px;padding:0;border-radius:50%"></button>`).join('')}</div>
+      <div class="btns" style="margin-top:22px">
+        <button class="btn btn-s" data-close style="flex:1">Annuler</button>
+        <button class="btn btn-a" data-create-list-ok style="flex:1">Créer</button></div>`);
+    const input = document.getElementById('listName');
+    if (input) input.focus();
+    return;
+  }
+  const pickColor = q('[data-pick-color]');
+  if (pickColor){
+    document.querySelectorAll('[data-pick-color]').forEach(b => b.setAttribute('aria-pressed', String(b === pickColor)));
+    return;
+  }
+  if (q('[data-create-list-ok]')){
+    const nom = document.getElementById('listName')?.value || '';
+    const couleurBtn = document.querySelector('[data-pick-color][aria-pressed="true"]');
+    const l = creerListe(nom, couleurBtn?.dataset.pickColor);
+    if (!l){ toast('Donnez un nom à votre liste.'); return; }
+    closeSheet(); toast(`Liste « ${l.name} » créée`);
+    go('listDetail', l.id);
+    return;
+  }
+
+  const renameList = q('[data-rename-list]');
+  if (renameList){
+    const l = state.lists.find(x => x.id === renameList.dataset.renameList);
+    if (!l) return;
+    openSheet(`<h3 id="sheetTitle">Renommer la liste</h3>
+      <input class="field" id="listRename" type="text" value="${esc(l.name)}" maxlength="60" style="margin-top:16px">
+      <div class="btns" style="margin-top:22px">
+        <button class="btn btn-s" data-close style="flex:1">Annuler</button>
+        <button class="btn btn-a" data-rename-list-ok="${esc(l.id)}" style="flex:1">Enregistrer</button></div>`);
+    return;
+  }
+  const renameOk = q('[data-rename-list-ok]');
+  if (renameOk){
+    renommerListe(renameOk.dataset.renameListOk, document.getElementById('listRename')?.value || '');
+    closeSheet(); render();
+    return;
+  }
+
+  const recolorList = q('[data-recolor-list]');
+  if (recolorList){
+    const l = state.lists.find(x => x.id === recolorList.dataset.recolorList);
+    if (!l) return;
+    openSheet(`<h3 id="sheetTitle">Couleur et icône</h3>
+      <p class="small" style="margin-top:6px">Couleur</p>
+      <div class="chips" style="margin-top:8px">${LIST_COLORS.map(c=>`
+        <button class="chip" data-set-color="${esc(c)}" aria-pressed="${c===l.color}"
+          style="background:${esc(c)};width:28px;height:28px;padding:0;border-radius:50%"></button>`).join('')}</div>
+      <p class="small" style="margin-top:16px">Icône</p>
+      <div class="chips" style="margin-top:8px">${LIST_ICONS.map(ic=>`
+        <button class="chip" data-set-icon="${esc(ic)}" aria-pressed="${ic===l.icon}">${svg(ICON[ic]||ICON.star,1.8)}</button>`).join('')}</div>
+      <div class="btns" style="margin-top:22px">
+        <button class="btn btn-a" data-recolor-list-ok="${esc(l.id)}" style="flex:1">Fermer</button></div>`);
+    return;
+  }
+  const setColor = q('[data-set-color]');
+  if (setColor){
+    document.querySelectorAll('[data-set-color]').forEach(b => b.setAttribute('aria-pressed', String(b === setColor)));
+    const l = state.lists.find(x => x.id === q('[data-recolor-list-ok]')?.dataset.recolorListOk);
+    if (l) recolorerListe(l.id, setColor.dataset.setColor, l.icon);
+    return;
+  }
+  const setIcon = q('[data-set-icon]');
+  if (setIcon){
+    document.querySelectorAll('[data-set-icon]').forEach(b => b.setAttribute('aria-pressed', String(b === setIcon)));
+    const l = state.lists.find(x => x.id === q('[data-recolor-list-ok]')?.dataset.recolorListOk);
+    if (l) recolorerListe(l.id, l.color, setIcon.dataset.setIcon);
+    return;
+  }
+  if (q('[data-recolor-list-ok]')){ closeSheet(); render(); return; }
+
+  const deleteList = q('[data-delete-list]');
+  if (deleteList){
+    const l = state.lists.find(x => x.id === deleteList.dataset.deleteList);
+    if (!l) return;
+    openSheet(`<h3 id="sheetTitle">Supprimer « ${esc(l.name)} » ?</h3>
+      <p>Les ${l.items.length} valeur${l.items.length>1?'s':''} qu'elle contient ne seront pas suivies ailleurs.</p>
+      <div class="btns" style="margin-top:22px">
+        <button class="btn btn-s" data-close style="flex:1">Annuler</button>
+        <button class="btn btn-a" data-delete-list-ok="${esc(l.id)}" style="flex:1">Supprimer</button></div>`);
+    return;
+  }
+  if (q('[data-delete-list-ok]')){
+    supprimerListe(q('[data-delete-list-ok]').dataset.deleteListOk);
+    closeSheet(); go('lists');
+    return;
+  }
+
+  const addToList = q('[data-add-to-list]');
+  if (addToList){
+    const stockId = addToList.dataset.addToList;
+    const st = byId[stockId];
+    if (!st) return;
+    const paint = () => `<h3 id="sheetTitle">Ajouter « ${esc(st.name)} » à une liste</h3>
+      ${state.lists.length ? `<div class="rows" style="margin-top:14px">${state.lists.map(l => `
+        <button class="row" data-toggle-in-list="${esc(l.id)}" data-toggle-stock="${esc(stockId)}">
+          <span class="av" style="background:${esc(l.color)}">${svg(ICON[l.icon]||ICON.star,1.8)}</span>
+          <span class="row-main"><span class="row-t">${esc(l.name)}</span></span>
+          <span class="check-box" aria-pressed="${l.items.includes(stockId)}">${l.items.includes(stockId)?svg(ICON.check,2):''}</span>
+        </button>`).join('')}</div>`
+        : `<p class="small" style="margin-top:14px">Vous n'avez pas encore de liste.</p>`}
+      <button class="btn btn-ghost btn-sm" style="width:100%;margin-top:14px" data-new-list-from-sheet>
+        ${svg(ICON.plus,2)} Nouvelle liste</button>`;
+    openSheet(paint());
+    return;
+  }
+  const toggleInList = q('[data-toggle-in-list]');
+  if (toggleInList){
+    toggleItemListe(toggleInList.dataset.toggleInList, toggleInList.dataset.toggleStock);
+    const stockId = toggleInList.dataset.toggleStock;
+    const st = byId[stockId];
+    document.getElementById('sheetTitle')?.parentElement?.querySelectorAll('[data-toggle-in-list]').forEach(btn => {
+      const l = state.lists.find(x => x.id === btn.dataset.toggleInList);
+      const box = btn.querySelector('.check-box');
+      if (l && box){ const on = l.items.includes(stockId); box.setAttribute('aria-pressed', String(on)); box.innerHTML = on ? svg(ICON.check,2) : ''; }
+    });
+    render();
+    return;
+  }
+  if (q('[data-new-list-from-sheet]')){
+    const l = creerListe('Nouvelle liste ' + (state.lists.length + 1));
+    if (l) toast(`Liste « ${l.name} » créée — renommez-la depuis « Mes listes »`);
+    closeSheet();
+    return;
+  }
 
   if (q('[data-reset]')){
     openSheet(`<h3 id="sheetTitle">Effacer les données locales ?</h3>
