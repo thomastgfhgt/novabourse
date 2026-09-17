@@ -12,7 +12,8 @@
     "test-radar-filter": "node scripts/test-radar-filter.js",
     "test-compare-fields": "node scripts/test-compare-fields.js",
     "test-region-map": "node scripts/test-region-map.js",
-    "test-radar-sort": "node scripts/test-radar-sort.js"
+    "test-radar-sort": "node scripts/test-radar-sort.js",
+    "test-portfolio-breakdown": "node scripts/test-portfolio-breakdown.js"
   },
   "dependencies": {
     "stripe": "^16.12.0"

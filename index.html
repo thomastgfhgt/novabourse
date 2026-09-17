@@ -15293,6 +15293,18 @@ PAGES.portfolio = () => {
   const palette = ['#00a651','#0071e3','#e0407a','#c47f0a','#5b4ae0','#0891b2'];
   const bySector = {}; pf.lines.forEach(l => { if (l.priceAvailable && l.stock) bySector[l.stock.sector] = (bySector[l.stock.sector]||0)+l.value; });
   const byCur = {}; pf.lines.forEach(l => { if (l.priceAvailable && l.stock) byCur[l.cur] = (byCur[l.cur]||0)+l.value; });
+  /* Ajout (audit "Portfolio DNA partiel", 2026-09-17, §12 du PRD) : seules
+     secteur/devise étaient ventilés jusqu'ici, alors que pays et type
+     d'actif sont déjà présents sur chaque ligne (l.stock.country,
+     l.stock.type) — aucune donnée nouvelle, seulement deux répartitions
+     de plus construites de la même façon que celles déjà en place.
+     MARKET_CATEGORIES fournit déjà le libellé français de chaque type
+     (voir plus haut) — jamais un second dictionnaire de traduction. */
+  const byCountry = {}; pf.lines.forEach(l => { if (l.priceAvailable && l.stock && l.stock.country) byCountry[l.stock.country] = (byCountry[l.stock.country]||0)+l.value; });
+  const byType = {}; pf.lines.forEach(l => { if (l.priceAvailable && l.stock){
+    const label = MARKET_CATEGORIES.find(c => c.id === l.stock.type)?.label || l.stock.type;
+    byType[label] = (byType[label]||0)+l.value;
+  } });
   const parts = o => Object.entries(o).sort((a,b)=>b[1]-a[1]).map(([k2,v],i)=>({k:k2,v,c:palette[i%palette.length]}));
 
   const pfPeriod = PF_PERIODS.includes(state.ui.pfPeriod) ? state.ui.pfPeriod : '1A';
@@ -15389,7 +15401,8 @@ PAGES.portfolio = () => {
 
     ${pf.value > 0 ? `<section class="section">
       <div class="grid g-2">
-        ${[['Par secteur',parts(bySector)],['Par devise',parts(byCur)]].map(([t2,ps])=>`
+        ${[['Par secteur',parts(bySector)],['Par devise',parts(byCur)],['Par pays',parts(byCountry)],['Par type d\'actif',parts(byType)]]
+          .filter(([,ps])=>ps.length).map(([t2,ps])=>`
           <div class="card"><h3 class="h3" style="margin-bottom:14px">${t2}</h3>
             <div style="display:flex;justify-content:center">${donut(ps)}</div>
             <div class="rows" style="margin-top:14px">
