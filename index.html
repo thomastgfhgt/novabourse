@@ -996,6 +996,15 @@ const DEFAULT_STATE = {
     sparklines:true,
     showCoverage:true,
     fontSize:'normal',
+    /* CONNU, VOLONTAIREMENT NON câblé (audit "réglage sans effet",
+       2026-09-17) : ce réglage existe dans Réglages > Langue et région
+       mais aucun formatage réel ne le lit — fmt.num/fmt.cur/fmt.pct
+       utilisent 'fr-FR' en dur (9 occurrences). Le corriger toucherait
+       l'objet `fmt`, utilisé partout où un prix/pourcentage s'affiche
+       dans l'application entière — un risque de régression visuelle
+       large que je ne peux pas vérifier sans navigateur dans cette
+       session. Laissé en l'état plutôt que risqué à l'aveugle ou
+       supprimé sans certitude que ce soit la bonne décision produit. */
     numFormat:'fr',
     notifScore:false,
     notifPrice:false,
@@ -15783,7 +15792,15 @@ PAGES.compare = () => {
   const ready = series.filter(s => s.status === 'ready');
   const notReady = series.filter(s => s.status !== 'ready');
 
-  const body = CMP_ROWS.map(row => {
+  /* CORRECTIF (audit "réglage sans effet", 2026-09-17) : state.settings.
+     showCoverage existait (bascule dans Réglages > Affichage des données)
+     mais n'était lu nulle part — activer/désactiver "Afficher la
+     couverture" ne changeait jamais rien à l'écran. Seul affichage réel
+     d'une couverture aujourd'hui : cette ligne du comparateur. */
+  const lignesVisibles = state.settings.showCoverage === false
+    ? CMP_ROWS.filter(row => row.label !== 'Couverture')
+    : CMP_ROWS;
+  const body = lignesVisibles.map(row => {
     const vals = picked.map(row.get);
     const valid = vals.filter(v => v !== null && v !== undefined && Number.isFinite(v));
     const best  = valid.length > 1 ? (row.higher ? Math.max(...valid) : Math.min(...valid)) : null;
