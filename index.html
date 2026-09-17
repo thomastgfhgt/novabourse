@@ -555,6 +555,19 @@ button:active{transform:scale(.97)}
 .row-var.na{color:var(--ink-4)}
 .row-spark{flex:0 0 auto;width:72px;height:26px;overflow:hidden;margin-right:14px}
 @media (max-width:430px){ .row-spark{display:none} .row-end{min-width:80px} }
+/* Ajout (audit desktop, 2026-09-17) : sur grand écran, une liste de
+   valeurs (.rows-grid, réservé aux listes de stockRow() — Marché,
+   Radar, Explorer, Marchés, Suivi) devient une grille de fiches au lieu
+   d'une colonne unique bordée de vide. Volontairement PAS appliqué à
+   .rows générique (menus Réglages, Mes listes) : une liste d'actions
+   reste plus lisible en une seule colonne. */
+@media (min-width:860px){
+  .rows-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+  .rows-grid .row{border-bottom:none;border-radius:var(--r-m);padding:14px 16px;margin:0;
+    background:var(--bg-2);transition:background var(--fast) ease}
+  .rows-grid .row:hover{margin:0;padding-left:16px;padding-right:16px;background:var(--bg-3)}
+}
+@media (min-width:1260px){ .rows-grid{grid-template-columns:repeat(3,minmax(0,1fr))} }
 .nsc{padding:18px;border-radius:14px;background:var(--bg-2);margin-bottom:20px}
 .nsc-head{display:flex;align-items:center;gap:16px}
 .nsc-val{font-size:44px;font-weight:700;letter-spacing:-.05em;line-height:1}
@@ -14432,7 +14445,7 @@ PAGES.home = () => {
       <h2 class="h2">Marché</h2>
       <button class="btn btn-ghost btn-sm" data-go="explore">Tout voir</button>
     </div>
-    <div class="card"><div class="rows">${marche.map(x => stockRow(x)).join('')}</div></div>
+    <div class="card"><div class="rows rows-grid">${marche.map(x => stockRow(x)).join('')}</div></div>
   </section>
 
   ${pricingBlock(true)}`;
@@ -14614,7 +14627,7 @@ function radarResults(){
   return `
     <p class="small" style="margin-bottom:12px">${list.length} entreprise${list.length>1?'s':''} ·
       ${cotees} cotation${cotees>1?'s':''} disponible${cotees>1?'s':''}</p>
-    <div class="card"><div class="rows">
+    <div class="card"><div class="rows rows-grid">
       ${list.slice(0, 40).map(s => stockRow(s)).join('')}
     </div></div>`;
 }
@@ -14646,7 +14659,7 @@ PAGES.explore = () => {
       .map(c=>`<button class="chip" data-filter="exploreCountry" data-val="${esc(c)}"
         aria-pressed="${String(state.filters.exploreCountry||'tous')===c}">${c==='tous'?'Tous les pays':esc(c)}</button>`).join('')}
   </div>
-  <div class="card" style="margin-top:18px"><div class="rows" id="exploreOut">${exploreRows()}</div></div>
+  <div class="card" style="margin-top:18px"><div class="rows rows-grid" id="exploreOut">${exploreRows()}</div></div>
 </div>`;
 };
 function exploreListeFiltree(){
@@ -14744,7 +14757,7 @@ PAGES.markets = () => {
       ${REGIONS.map(r=>`<button class="chip" data-filter="marketsRegion" data-val="${esc(r)}"
         aria-pressed="${region===r}">${esc(r)}</button>`).join('')}
     </div>` : ''}
-    <div class="card" style="margin-top:18px"><div class="rows" id="marketsOut">${marketsRows()}</div></div>
+    <div class="card" style="margin-top:18px"><div class="rows rows-grid" id="marketsOut">${marketsRows()}</div></div>
   </div>`;
 };
 function marketsListeFiltree(){
@@ -15400,7 +15413,7 @@ PAGES.watchlist = () => {
     <h1 class="title">Ma liste</h1>
     <p class="lead" style="margin-top:10px">${list.length} entreprise${list.length>1?'s':''} suivie${list.length>1?'s':''}.</p>
     <div class="card" style="margin-top:22px">
-      ${list.length ? `<div class="rows">${list.map(x=>stockRow(x)).join('')}</div>`
+      ${list.length ? `<div class="rows rows-grid">${list.map(x=>stockRow(x)).join('')}</div>`
         : emptyState('Votre liste est vide',
             'Touchez l’étoile pour suivre une valeur. Sa note et son évolution vous attendront ici.',
             { go:'radar', label:'Parcourir le Radar' })}
@@ -15444,7 +15457,7 @@ PAGES.listDetail = (listId) => {
       <button class="btn btn-s btn-sm" data-delete-list="${esc(l.id)}">Supprimer</button>
     </div>
     <div class="card">
-      ${items.length ? `<div class="rows">${items.map(x => stockRow(x)).join('')}</div>`
+      ${items.length ? `<div class="rows rows-grid">${items.map(x => stockRow(x)).join('')}</div>`
         : emptyState('Cette liste est vide',
             'Ouvrez une fiche action et utilisez « Ajouter à une liste » pour la remplir.',
             { go:'explore', label:'Explorer les entreprises' })}
