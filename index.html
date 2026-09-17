@@ -1026,7 +1026,6 @@ const DEFAULT_STATE = {
   },
 
   ui:{
-    period:'1M',
     pfPeriod:'1A',
     chartPeriod:'3m',
     chartMode:'line',
@@ -12898,7 +12897,6 @@ const isExpert = () => state.settings.mode === 'expert';
    intraday n'est branchée dans ce fichier, et il est hors de question de
    simuler de l'intraday à partir de clôtures journalières. */
 const PERIODS_DISPO = ['1S','1M','3M','6M','AAJ','1A'];
-const PERIODS = PERIODS_DISPO.map(id => ({ id, label:id }));
 
 /* Périodes du graphique professionnel de la fiche instrument (distinctes de
    PERIODS_DISPO ci-dessus, encore utilisé par Comparer/Réglages/Portefeuille
@@ -15535,8 +15533,6 @@ PAGES.settings = () => {
           switchControl('sparklines', st.sparklines !== false))}
         ${settingRow('Afficher la couverture', 'Le pourcentage de données disponibles.',
           switchControl('showCoverage', st.showCoverage !== false))}
-        ${settingRow('Période par défaut', null,
-          segControl('period', PERIODS.map(p=>({id:p.id,label:p.id})), state.ui.period))}
       </div>
     </section>
 
@@ -16677,8 +16673,7 @@ document.addEventListener('click', e => {
   if (setBtn){
     const key = setBtn.dataset.set, val = setBtn.dataset.val;
     if (setBtn.dataset.soon){ toast('Cette langue arrive bientôt'); return; }
-    if (key === 'period'){ state.ui.period = val; }
-    else state.settings[key] = val;
+    state.settings[key] = val;
     saveState(); applySettings(); render(); return;
   }
   const swBtn = q('[data-toggle-set]');
