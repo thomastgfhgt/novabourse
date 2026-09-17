@@ -449,6 +449,20 @@ button:active{transform:scale(.97)}
 .page-in>*:nth-child(3){animation-delay:.1s}  .page-in>*:nth-child(4){animation-delay:.14s}
 .page-in>*:nth-child(5){animation-delay:.18s} .page-in>*:nth-child(6){animation-delay:.22s}
 @keyframes stagger{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+/* CORRECTIF (bug visuel réel et grave, audit complet 2026-09-17) : sous
+   prefers-reduced-motion, la règle générique plus haut ("*{animation-
+   duration:.001ms!important}") réduisait la durée à presque zéro mais
+   NE TOUCHAIT PAS animation-delay ni le fill-mode "backwards" de cette
+   règle — combinaison qui, vérifiée en direct (navigateur avec réduction
+   de mouvement activée), laissait le contenu de CHAQUE page (tout enfant
+   direct de .page-in, donc le titre et tout le corps) bloqué à
+   opacity:0, page entière invisible bien après la fin théorique de
+   l'animation. Désactivée franchement ici, comme .aurora-bg plus haut :
+   jamais de durée quasi nulle sur une animation "backwards", toujours
+   animation:none. */
+@media (prefers-reduced-motion:reduce){
+  .page-in,.page-in>*{animation:none}
+}
 .chart-line{stroke-dasharray:2400;stroke-dashoffset:2400;animation:draw 1.3s var(--spring) forwards}
 @keyframes draw{to{stroke-dashoffset:0}}
 .build{display:inline-flex;align-items:center;padding:4px 8px;border-radius:100px;flex:0 0 auto;
