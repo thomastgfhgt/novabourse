@@ -38,6 +38,17 @@ const ALIAS_CATALOGUE = {
   HEL: 'HE',   // Nasdaq Helsinki
   OSL: 'OL',   // Oslo Børs (déjà alias direct côté search.js, dupliqué ici par clarté)
   'NYSE ARCA': 'NYSE ARCA',
+  /* TSX/ASX : mêmes places réelles que TO/AU (déjà vérifiées empiriquement
+     via l'endpoint EODHD /exchange-symbol-list, voir SUFFIX dans
+     _providers.js) — le dataset catalogue leur donne juste un nom
+     différent ("Toronto Stock Exchange" / "Australian Securities
+     Exchange"). Pas une nouvelle place non testée : un simple alias
+     manquant, responsable à lui seul de 4262 titres (2010 TSX + 2252 ASX)
+     comptés comme "non mappés" alors que le fournisseur les couvre déjà.
+     TSXV (TSX Venture) volontairement EXCLU : marché distinct, dont la
+     convention de symbole EODHD n'a jamais été vérifiée — resterait NULL. */
+  TSX: 'TO',
+  ASX: 'AU',
 };
 
 /* "Euronext" est un label générique dans ce dataset qui recouvre plusieurs
