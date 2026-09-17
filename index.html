@@ -427,6 +427,15 @@ button:active{transform:scale(.97)}
 .chips{display:flex;gap:7px;flex-wrap:wrap}
 .chip{padding:9px 15px;border-radius:100px;background:var(--bg-2);font-size:13.5px;font-weight:550;
   color:var(--ink-3);min-height:38px;display:inline-flex;align-items:center;gap:6px}
+/* CORRECTIF (bug visuel réel et grave, audit complet 2026-09-17) : un
+   <svg> nu n'a AUCUNE taille par défaut dans un navigateur (taille de
+   remplacement 300×150px) — chaque icône du site a jusqu'ici toujours
+   sa taille fixée via un sélecteur dédié (.icon-btn svg, .btn svg…),
+   sauf .chip, jamais utilisé avec une icône avant les suggestions du
+   Radar ("Une grande entreprise américaine solide", etc.). Résultat
+   vérifié en direct : un bouton normalement haut de 38px gonflait à la
+   taille de l'icône géante et devenait un cercle énorme. */
+.chip svg{width:15px;height:15px;flex:0 0 auto}
 .chip:hover{background:var(--bg-3);color:var(--ink)}
 .chip[aria-pressed="true"]{background:var(--ink);color:var(--bg)}
 .check-box{width:22px;height:22px;border-radius:50%;border:1.5px solid var(--line-2);
