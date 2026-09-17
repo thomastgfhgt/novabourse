@@ -145,7 +145,6 @@ body{
 button,input,select{font:inherit;color:inherit}
 button{border:none;background:none;cursor:pointer;transition:all .2s var(--spring)}
 button:active{transform:scale(.97)}
-:focus-visible{outline:2.5px solid var(--accent);outline-offset:3px;border-radius:10px}
 .mono,.tabular-nums{font-variant-numeric:tabular-nums;letter-spacing:-.02em;
   font-feature-settings:'tnum' 1,'cv01' 1}
 .mono{font-family:var(--mono)}
@@ -561,13 +560,15 @@ button:active{transform:scale(.97)}
    d'une colonne unique bordée de vide. Volontairement PAS appliqué à
    .rows générique (menus Réglages, Mes listes) : une liste d'actions
    reste plus lisible en une seule colonne. */
-@media (min-width:860px){
-  .rows-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+@media (min-width:640px){
+  /* auto-fit,minmax(...) : même convention que .g-2/.g-3 déjà présents
+     dans ce fichier pour les grilles de cartes — colonnes fluides selon
+     la largeur réelle, jamais un nombre de colonnes figé par palier. */
+  .rows-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:10px}
   .rows-grid .row{border-bottom:none;border-radius:var(--r-m);padding:14px 16px;margin:0;
     background:var(--bg-2);transition:background var(--fast) ease}
   .rows-grid .row:hover{margin:0;padding-left:16px;padding-right:16px;background:var(--bg-3)}
 }
-@media (min-width:1260px){ .rows-grid{grid-template-columns:repeat(3,minmax(0,1fr))} }
 .nsc{padding:18px;border-radius:14px;background:var(--bg-2);margin-bottom:20px}
 .nsc-head{display:flex;align-items:center;gap:16px}
 .nsc-val{font-size:44px;font-weight:700;letter-spacing:-.05em;line-height:1}
