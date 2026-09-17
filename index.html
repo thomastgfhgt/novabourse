@@ -217,11 +217,23 @@ button:active{transform:scale(.97)}
     padding:7px;gap:2px;box-shadow:var(--shadow-3);max-width:calc(100vw - 24px)
   }
   [data-theme="dark"] .dock{background:rgba(28,31,35,.88);border-color:rgba(255,255,255,.09)}
+  /* CORRECTIF (bug visuel réel, signalé par l'utilisateur : "les cases
+     sont mal mises") : min-width:60px × 6 boutons + gaps + padding =
+     ~384px minimum, mais .dock est plafonné à calc(100vw - 24px) — sur
+     un téléphone de moins de 408px de large (la quasi-totalité des
+     téléphones réels), le contenu ne pouvait matériellement pas tenir.
+     "Portefeuille", le libellé le plus long, passait alors sur deux
+     lignes dans son bouton pendant que les 5 autres restaient sur une,
+     rendant les cases visiblement de hauteurs différentes. flex:1 fait
+     que les 6 boutons se partagent TOUJOURS exactement la largeur
+     disponible (jamais de dépassement), et l'ellipse empêche tout
+     retour à la ligne. */
   .dock button{
     display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
-    min-width:60px;padding:8px 6px 7px;border-radius:100px;color:var(--ink-3);
+    flex:1 1 0;min-width:0;padding:8px 4px 7px;border-radius:100px;color:var(--ink-3);
     font-size:10.5px;font-weight:600;letter-spacing:-.01em
   }
+  .dock button span{display:block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .dock button svg{width:22px;height:22px}
   .dock button[aria-current]{background:var(--bg);color:var(--accent);box-shadow:var(--shadow-1)}
   [data-theme="dark"] .dock button[aria-current]{background:rgba(255,255,255,.1);color:var(--accent-2)}
@@ -517,6 +529,19 @@ button:active{transform:scale(.97)}
   .logo span:last-child{font-size:16px}
 }
 @media (max-width:400px){ .top-act .btn{padding:7px 13px;font-size:13px} }
+.cta-short{display:none}
+/* CORRECTIF (bug visuel réel, signalé par l'utilisateur : "on ne voit
+   plus les offres") : sur un vrai téléphone, le total logo + badge +
+   icônes + bouton "Voir les offres" dépasse la largeur disponible dès
+   qu'on descend sous ~424px (vérifié par calcul : rien dans .top-in ne
+   rétrécit, body a overflow-x:hidden, donc le dernier élément — ce
+   bouton, le plus important pour la conversion — sortait simplement de
+   l'écran, invisible et inaccessible). Le texte raccourci libère assez
+   de place pour que le bouton reste toujours visible. */
+@media (max-width:480px){
+  .cta-full{display:none}
+  .cta-short{display:inline}
+}
 /* CORRECTIF (bug visuel réel, audit complet 2026-09-17) : ce second
    .logo-m orphelin (jamais utilisé par aucun balisage — .brand-mark a
    son propre style ci-dessous) écrasait silencieusement le badge sombre
@@ -975,7 +1000,8 @@ table.t td:last-child,table.t th:last-child{text-align:right;padding-right:0}
       <span id="srcBadge"></span>
       <button class="icon-btn" data-search aria-label="Rechercher"></button>
       <button class="icon-btn" data-theme-toggle aria-label="Changer de thème"></button>
-      <button class="btn btn-a btn-sm" data-go="pricing">Voir les offres</button>
+      <button class="btn btn-a btn-sm cta-offres" data-go="pricing">
+        <span class="cta-full">Voir les offres</span><span class="cta-short">Offres</span></button>
     </div>
   </div>
 </header>
