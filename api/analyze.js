@@ -172,7 +172,14 @@ module.exports = async (req, res) => {
     return screenerAnalyse(req, res, { user, plan, dispo });
   }
 
-  const { ticker, exchange, name, country, sector, industry, currency } = req.body || {};
+  const { ticker, exchange, name, country, sector, industry, currency, mode } = req.body || {};
+  /* Niveau de langage (§45 du PRD) : ajuste UNIQUEMENT le ton/vocabulaire
+     demandé au modèle, jamais le schéma JSON ni les règles anti-
+     hallucination (identiques quel que soit le niveau) — validé par le
+     même code que le mode "normal", aucune exception de schéma ici. */
+  const niveauLangage = mode === 'expert'
+    ? "Le lecteur est un investisseur expérimenté : utilise les termes financiers usuels (PER, marge, ROE...) sans les redéfinir."
+    : "Le lecteur découvre la Bourse : évite le jargon financier non expliqué, ou explique-le en quelques mots simples dans la même phrase.";
   // Aucune entreprise par défaut : sans identification, aucun appel ne part.
   if (!ticker) return res.status(400).json({ error: 'entreprise_non_identifiee' });
 
@@ -304,6 +311,8 @@ module.exports = async (req, res) => {
   const key = process.env[p.env];
   const modele = typeof p.model === 'function' ? p.model() : p.model;
   const prompt = `${CONSIGNE}
+
+${niveauLangage}
 
 Entreprise : ${company} (${ticker})
 Données disponibles :

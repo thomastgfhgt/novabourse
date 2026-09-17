@@ -17169,6 +17169,10 @@ async function runAnalysis(stockId){
         sector: (st.sector && st.sector !== 'Non classé') ? st.sector : null,
         industry: st.industry || null,
         currency: st.cur || null,
+        /* Niveau de langage (§45) : ajuste le ton de la réponse IA au mode
+           actuel de l'utilisateur — jamais un second appel, jamais un
+           champ financier supplémentaire. */
+        mode: isExpert() ? 'expert' : 'debutant',
       }) });
     d = await r.json();
     if (!r.ok) throw Object.assign(new Error(d.error || d.code || 'erreur'), { data:d });
