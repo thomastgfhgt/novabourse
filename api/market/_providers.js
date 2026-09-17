@@ -2214,6 +2214,28 @@ function normaliserHistorique(
           10
         );
 
+    let high = num(ligne.high);
+    let low = num(ligne.low);
+    /* Rupture OHLC physiquement impossible (section 21 : "détecte les
+       ruptures absurdes... ne corrige jamais silencieusement") : si
+       high < low, AUCUN des deux n'est fiable individuellement — on ne
+       devine pas lequel des deux champs est en faute, les deux repassent
+       à null. `close` (déjà validé > 0 ci-dessus) et `open` restent
+       inchangés : le point garde sa valeur la plus sûre plutôt que d'être
+       rejeté en bloc pour une anomalie sur deux champs annexes. Le
+       frontend gère déjà ce cas (repli sur les clôtures quand haut/bas
+       manquent, voir chartProShell dans index.html). */
+    if (high !== null && low !== null && high < low) {
+      high = null;
+      low = null;
+    }
+
+    let volume = num(ligne.volume);
+    /* Un volume négatif n'a aucun sens réel (jamais un nombre d'actions
+       négatif) : traité comme une valeur absente plutôt que conservé tel
+       quel ou deviné à 0. */
+    if (volume !== null && volume < 0) volume = null;
+
     map.set(
       cle,
       {
@@ -2224,22 +2246,13 @@ function normaliserHistorique(
             ligne.open
           ),
 
-        high:
-          num(
-            ligne.high
-          ),
+        high,
 
-        low:
-          num(
-            ligne.low
-          ),
+        low,
 
         close,
 
-        volume:
-          num(
-            ligne.volume
-          ),
+        volume,
       }
     );
   }
@@ -2277,13 +2290,22 @@ function normaliserIntraday(lignes) {
     const close = num(ligne?.close);
     if (close === null || close <= 0) continue;
 
+    /* Mêmes garde-fous que normaliserHistorique() ci-dessus (section 21) :
+       high < low => les deux repassent à null plutôt qu'une valeur
+       devinée ; volume négatif => null plutôt que conservé tel quel. */
+    let high = num(ligne?.high);
+    let low = num(ligne?.low);
+    if (high !== null && low !== null && high < low) { high = null; low = null; }
+    let volume = num(ligne?.volume);
+    if (volume !== null && volume < 0) volume = null;
+
     map.set(timestamp, {
       date: new Date(timestamp).toISOString(),
       open: num(ligne?.open),
-      high: num(ligne?.high),
-      low: num(ligne?.low),
+      high,
+      low,
       close,
-      volume: num(ligne?.volume),
+      volume,
     });
   }
 
