@@ -15414,7 +15414,52 @@ PAGES.portfolio = () => {
             </div>
             <p class="tiny" style="margin-top:10px">Hors liquidités.</p></div>`).join('')}
       </div>
-    </section>` : ''}</div>`;
+    </section>` : ''}
+
+    ${pf.value > 0 ? (() => {
+      /* Ajout (audit "Portfolio Health absent", 2026-09-17, §47 du PRD) :
+         AUCUN score composite unique ici — plusieurs métriques réelles
+         affichées séparément, chacune calculée directement depuis
+         pf.lines/pf.value (aucune donnée nouvelle, rien de fabriqué).
+         Volontairement PAS de note globale sur 100 : un blend pondéré de
+         ces facteurs serait une méthodologie que je n'ai ni conçue ni
+         validée avec le même soin que NovaScore (_novascore.js, ses
+         seuils documentés empiriquement) — préférer des chiffres bruts
+         honnêtes à un score composite qui semblerait plus rigoureux qu'il
+         ne l'est. Corrélation et volatilité du portefeuille dans son
+         ensemble restent hors de portée : nécessiteraient l'historique de
+         PRIX de chaque position, jamais chargé en bloc (coût API), donc
+         non affichées plutôt que devinées. */
+      const positionsValides = pf.lines.filter(l => l.priceAvailable && l.value > 0);
+      const maxPosition = positionsValides.reduce((max, l) => Math.max(max, l.value), 0);
+      const maxPositionPct = pf.value ? Math.round(maxPosition / pf.value * 100) : 0;
+      const secteursDistincts = Object.keys(bySector).length;
+      const cashPct = pf.total ? Math.round(pf.cash / pf.total * 100) : 0;
+      const maxDevise = Object.values(byCur).reduce((max, v) => Math.max(max, v), 0);
+      const maxDevisePct = pf.value ? Math.round(maxDevise / pf.value * 100) : 0;
+
+      const metrics = [
+        { label: 'Position la plus importante', value: `${maxPositionPct} %`,
+          note: maxPositionPct >= 30 ? 'Concentrée sur une seule valeur' : 'Raisonnablement répartie' },
+        { label: 'Secteurs représentés', value: String(secteursDistincts),
+          note: secteursDistincts <= 1 && positionsValides.length > 1 ? 'Un seul secteur pour plusieurs positions' : `${positionsValides.length} position${positionsValides.length>1?'s':''} au total` },
+        { label: 'Liquidités', value: `${cashPct} %`, note: 'Part du portefeuille non investie' },
+        { label: 'Devise dominante', value: `${maxDevisePct} %`,
+          note: maxDevisePct >= 70 ? 'Faible diversification de change' : 'Exposition change répartie' },
+      ];
+
+      return `<section class="section">
+        <div class="section-h"><h2 class="h2">Diversification</h2></div>
+        <div class="card">
+          <dl>
+            ${metrics.map(m => `<div class="kv"><dt>${esc(m.label)}</dt><dd class="tabular-nums" style="text-align:right">
+              ${esc(m.value)}<br><span class="tiny" style="color:var(--ink-4);font-weight:400">${esc(m.note)}</span></dd></div>`).join('')}
+          </dl>
+          <p class="tiny" style="margin-top:14px;color:var(--ink-4)">Volatilité et corrélation du portefeuille ne sont pas encore calculées : elles demanderaient l'historique de prix de chaque position.</p>
+        </div>
+      </section>`;
+    })() : ''}
+    </div>`;
 };
 
 /* ---------- COMPTE ---------- */
