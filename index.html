@@ -16899,6 +16899,38 @@ function openBuyReview(st, amount){
   </div>`);
 }
 
+/* CORRECTIF (incohérence UX réelle, audit complet 2026-09-17) : "Vendre"
+   liquidait la position ENTIÈRE instantanément au clic (voir le handler
+   [data-sell] plus bas, avant ce correctif) — sans montant à choisir, sans
+   récapitulatif, sans possibilité d'annuler — alors qu'"Acheter" passe
+   par deux écrans réfléchis (montant puis vérification). Un simulateur
+   reste un simulateur, mais l'asymétrie restait un vrai risque de clic
+   accidentel. Ajoute l'écran de vérification manquant, symétrique à
+   openBuyReview, avant tout appel réel à sellStock(). */
+function openSellReview(st){
+  const pos = positionOf(st.id);
+  if (!pos){ toast('Aucune position sur cette valeur'); return; }
+  const prix = prixDe(st);
+  if (prix === null){ toast('Cours indisponible : vente impossible.'); return; }
+  const proceeds = toEUR(prix * pos.qty, st.cur);
+  const costBasis = toEUR(pos.avg * pos.qty, st.cur);
+  const gain = proceeds - costBasis;
+  openSheet(`<div class="buy">
+    <p class="buy-co">${esc(st.name)}</p>
+    <h3 id="sheetTitle" class="buy-title">Vérifiez votre vente</h3>
+    <dl class="buy-rows">
+      <div><dt>Type d'ordre</dt><dd>Vente au marché</dd></div>
+      <div><dt>Nombre d'actions</dt><dd>${fmt.num(pos.qty, 4)} (position entière)</dd></div>
+      <div><dt>Cours</dt><dd>${fmt.cur(prix, st.cur)}</dd></div>
+      <div><dt>Gain/perte réalisé estimé</dt><dd class="${gain>=0?'up-t':'down-t'}">${gain>=0?'+':''}${fmt.eur(gain)}</dd></div>
+      <div class="buy-total"><dt>Vous recevrez</dt><dd>${fmt.eur(proceeds)}</dd></div>
+    </dl>
+    <p class="buy-note">Portefeuille virtuel.</p>
+    <button class="btn btn-s btn-lg buy-cta" data-sell-ok="${esc(st.id)}">Confirmer la vente</button>
+    <button class="btn btn-g" style="width:100%;margin-top:10px" data-close>Annuler</button>
+  </div>`);
+}
+
 /* ---------- événements ---------- */
 document.addEventListener('click', e => {
   const q = sel => e.target.closest(sel);
@@ -17234,7 +17266,19 @@ document.addEventListener('click', e => {
     openBuyAmount(st); return; }
 
   const sell = q('[data-sell]');
-  if (sell){ const r = sellStock(sell.dataset.sell); toast(r.msg); if (r.ok) render(); return; }
+  if (sell){ const st = byId[sell.dataset.sell];
+    if (!st) { toast('Entreprise introuvable.'); return; }
+    openSellReview(st); return; }
+
+  const sellOk = q('[data-sell-ok]');
+  if (sellOk){
+    if (sellOk.disabled) return;
+    sellOk.disabled = true;
+    const r = sellStock(sellOk.dataset.sellOk);
+    toast(r.msg);
+    if (r.ok){ closeSheet(); render(); } else { sellOk.disabled = false; }
+    return;
+  }
 
   const nova = q('[data-nova]');
   if (nova){
