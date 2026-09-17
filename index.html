@@ -235,7 +235,6 @@ button:active{transform:scale(.97)}
 .btn-p{background:var(--ink);color:var(--bg)}
 .btn-p:hover{opacity:.88}
 .btn-sm{min-height:38px;padding:9px 18px;font-size:var(--t-small)}
-.btn-lg{min-height:54px;padding:16px 32px;font-size:16.5px}
 .btns{display:flex;gap:10px;flex-wrap:wrap}
 /* CORRECTIF DESIGN (2026-09-17) : vérifié en direct sur www.novabourse.site
    avant d'être intégré — depuis l'ajout du fond animé (.aurora-bg), une
@@ -276,12 +275,10 @@ button:active{transform:scale(.97)}
   transition:background var(--fast) ease,color var(--fast) ease}
 .seg button[aria-pressed="true"]{background:var(--bg);color:var(--ink);font-weight:600;
   box-shadow:var(--shadow-2)}
-.sw{width:50px;height:30px;border-radius:var(--r-pill);background:var(--bg-4);
-  position:relative;flex:0 0 auto;transition:background var(--slow) var(--ease)}
-.sw i{position:absolute;top:3px;left:3px;width:24px;height:24px;border-radius:50%;
-  background:#fff;box-shadow:var(--shadow-2);transition:transform var(--slow) var(--ease)}
-.sw[aria-checked="true"]{background:var(--accent)}
-.sw[aria-checked="true"] i{transform:translateX(20px)}
+/* CORRECTIF (audit complet 2026-09-17) : .sw avait une première
+   définition ici, entièrement écrasée par la seconde plus bas dans ce
+   fichier (aucun balisage n'a de sélecteur plus spécifique) — code
+   mort supprimé pour ne garder qu'une seule source de vérité. */
 .divider{height:1px;background:var(--line-2);margin:var(--space-5) 0;border:none}
 .sk{background:linear-gradient(90deg,var(--bg-2) 25%,var(--bg-3) 50%,var(--bg-2) 75%);
   background-size:200% 100%;animation:sk 1.4s linear infinite;border-radius:var(--r-s);display:block}
@@ -336,9 +333,12 @@ button:active{transform:scale(.97)}
    Total Stock Market Index Fund ETF Shares" se tronque bien en "…" après
    ce correctif, plus de défilement horizontal). */
 .row-t{display:block;font-size:15px;font-weight:600;letter-spacing:-.02em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.row-s{font-size:12.5px;color:var(--ink-4);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.row-end{flex:0 0 auto;text-align:right;display:flex;align-items:center;gap:10px;min-width:0}
-.row-spark{flex:0 0 auto;width:78px;height:26px;overflow:hidden;display:block}
+/* CORRECTIF (audit complet 2026-09-17) : .row-s/.row-end/.row-spark
+   avaient chacun une PREMIÈRE définition ici (mise en ligne, sans
+   troncature, min-width:0) qui ne correspondait à AUCUN balisage réel
+   (prix + variation empilés verticalement) — la vraie définition,
+   celle réellement utilisée, est plus bas dans ce fichier. Supprimées
+   pour ne garder qu'une seule source de vérité par classe. */
 .row-spark svg{display:block;width:100%;height:100%}
 @media (max-width:560px){ .row-spark{display:none} }
 .score-hero{display:flex;align-items:center;gap:var(--sp-4);flex-wrap:wrap}
@@ -469,8 +469,13 @@ button:active{transform:scale(.97)}
   .logo span:last-child{font-size:16px}
 }
 @media (max-width:400px){ .top-act .btn{padding:7px 13px;font-size:13px} }
-.logo-m{width:30px;height:30px;background:none;color:var(--ink);box-shadow:none;border-radius:0}
-.logo-m svg{width:26px;height:26px}
+/* CORRECTIF (bug visuel réel, audit complet 2026-09-17) : ce second
+   .logo-m orphelin (jamais utilisé par aucun balisage — .brand-mark a
+   son propre style ci-dessous) écrasait silencieusement le badge sombre
+   du logo d'en-tête (28px, fond --ink, coins arrondis) partout sur le
+   site, le remplaçant par une icône nue 30px sans fond ni arrondi.
+   Supprimé : la vraie définition est celle plus haut, ".logo-m{...
+   background:var(--ink);border-radius:8px...}". */
 .brand-orbit{position:relative;display:flex;align-items:center;justify-content:center;
   width:140px;height:140px;margin:0 auto}
 .brand-ring{position:absolute;inset:0;width:100%;height:100%;color:var(--ink-4);opacity:.4;
