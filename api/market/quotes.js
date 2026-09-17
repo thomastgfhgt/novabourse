@@ -3,6 +3,7 @@ const { lire, ecrire, avecVerrou } = require('./_cache.js');
 const { freshnessCotation, FRESHNESS, SOURCE_URL_PROVIDER } = require('./_freshness.js');
 const { chargerBloc, historiqueValide } = require('./_marketBlock.js');
 const { resolveOrdre, noterResultat } = require('./_router.js');
+const { statutMarche } = require('./_marketHours.js');
 
 /* CoinGecko en tête : gratuit, sans clé, et BATCH.coingecko exclut déjà
    lui-même tout ce qui n'est pas type==='crypto' (voir _providers.js) —
@@ -108,6 +109,11 @@ module.exports = async (req, res) => {
           freshness: freshnessCotation(hit.source),
           sourceUrl: SOURCE_URL_PROVIDER[hit.source] || null,
           retrievedAt: new Date(hit.at).toISOString(),
+          /* Indice contextuel additif (section 23) : "cette place est
+             probablement en séance maintenant", jamais un remplacement de
+             `freshness` ci-dessus qui reste la seule source de vérité sur
+             la fraîcheur réelle de CETTE cotation précise. */
+          marketStatus: statutMarche(valeur.exchange, valeur.type).status,
         });
       } else {
         aChercher.push(valeur);
@@ -152,6 +158,7 @@ module.exports = async (req, res) => {
           'quoteBatch', [nom, ...idsLotTries], () => BATCH[nom](lot, keys[nom])
         );
         const idsLot = new Set(lot.map(idDe));
+        const typeParId = new Map(lot.map(valeur => [idDe(valeur), valeur.type]));
         const auMoment = Date.now();
         if (followed) {
           journal.push({ provider: nom, lot: numeroLot, ok: true, demandes: lot.length, dedupe: true });
@@ -163,6 +170,7 @@ module.exports = async (req, res) => {
             freshness: freshnessCotation(nom),
             sourceUrl: SOURCE_URL_PROVIDER[nom] || null,
             retrievedAt: new Date(auMoment).toISOString(),
+            marketStatus: statutMarche(quote.exchange, typeParId.get(id)).status,
           });
           ecrire('quote', [quote.ticker, quote.exchange], quote, nom, auMoment);
         }
@@ -244,6 +252,7 @@ module.exports = async (req, res) => {
         freshness: FRESHNESS.END_OF_DAY,
         sourceUrl: SOURCE_URL_PROVIDER[h.source] || null,
         retrievedAt: h.retrievedAt || new Date().toISOString(),
+        marketStatus: statutMarche(valeur.exchange, valeur.type).status,
       }));
       journal.push({ provider: h.source, ok: true, derivedFromHistory: true, ticker: valeur.ticker });
     }

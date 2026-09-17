@@ -31,6 +31,7 @@ const {
 
 const { chargerBloc, historiqueValide } = require('./_marketBlock.js');
 const { resolveOrdre, noterResultat } = require('./_router.js');
+const { statutMarche } = require('./_marketHours.js');
 
 const MAX_HISTORY_POINTS = 260;
 
@@ -160,6 +161,10 @@ module.exports = async (req, res) => {
        justification (EODHD confirme un délai documenté de 15-20 min ;
        Twelve Data/Finnhub non garantis génériquement temps réel). */
     freshness: q.freshness ?? null,
+    /* Indice contextuel (voir _marketHours.js) : jamais un remplacement de
+       `freshness` ci-dessus, seulement "cette place est probablement en
+       séance maintenant" — aucun calendrier de jours fériés. */
+    marketStatus: statutMarche(exchange, type).status,
   } : null;
 
   let history = null;
