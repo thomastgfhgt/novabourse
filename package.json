@@ -8,7 +8,8 @@
     "test-period-stats": "node scripts/test-period-stats.js",
     "test-market-hours": "node scripts/test-market-hours.js",
     "test-ohlc-validation": "node scripts/test-ohlc-validation.js",
-    "test-lists-logic": "node scripts/test-lists-logic.js"
+    "test-lists-logic": "node scripts/test-lists-logic.js",
+    "test-radar-filter": "node scripts/test-radar-filter.js"
   },
   "dependencies": {
     "stripe": "^16.12.0"

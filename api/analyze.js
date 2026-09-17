@@ -23,6 +23,30 @@ const PROVIDERS = {
 };
 const actif = () => Object.entries(PROVIDERS).filter(([, p]) => process.env[p.env]);
 
+/* DOIT RESTER IDENTIQUE à la liste SECTORS d'index.html (recherche "const
+   SECTORS =") : sert à valider qu'un secteur renvoyé par le modèle pour le
+   screener (voir screenerAnalyse ci-dessous) correspond à une valeur RÉELLE
+   du filtre existant, jamais une catégorie inventée que le frontend ne
+   saurait pas appliquer. */
+const SECTORS = ['Technologie','Finance','Santé','Industrie','Énergie','Consommation',
+  'Automobile','Luxe','Télécommunications','Matériaux','Immobilier','Services publics'];
+
+const CONSIGNE_SCREENER = `Tu transformes une recherche en langage naturel en filtres
+structurés pour un écran de sélection d'entreprises. Réponds en JSON strict :
+{"sector":"tous|${SECTORS.join('|')}","country":"tous|<nom de pays en français>",
+"scoreMin":0,"explanation":"..."}
+Règles :
+- "sector" doit être EXACTEMENT une des valeurs listées ci-dessus, ou "tous".
+- "country" est un nom de pays en français (ex. "États-Unis", "France"), ou "tous"
+  si aucun pays n'est mentionné. N'invente pas un pays qui n'est pas raisonnablement
+  déduit de la requête.
+- "scoreMin" : 0 par défaut. Mets 70 si l'utilisateur cherche une entreprise
+  manifestement "solide"/"de qualité"/"rentable", 60 pour "en croissance". Sinon 0.
+- "explanation" : une phrase en français résumant les filtres appliqués, pour que
+  l'utilisateur puisse vérifier avant de lancer la recherche.
+- N'invente aucun autre champ. Si la requête ne permet de déduire aucun filtre
+  pertinent, réponds {"sector":"tous","country":"tous","scoreMin":0,"explanation":"Aucun filtre déduit."}`;
+
 const CONSIGNE = `Tu analyses une entreprise cotée à partir des seuls chiffres fournis.
 Réponds en JSON strict : {"whatItDoes":"...","verdict":"positif|neutre|negatif|insuffisant","uncertainty":"faible|moyenne|elevee","summary":"...","positive":["..."],"negative":["..."]}
 "whatItDoes" : 1 à 2 phrases expliquant simplement ce que fait l'entreprise et
@@ -34,6 +58,90 @@ Règles absolues :
 - Ne produis aucun objectif de cours, aucune probabilité, aucun pourcentage de réussite.
 - Ne recommande jamais d'acheter ou de vendre.
 - Si les données manquent, réponds "insuffisant".`;
+
+/**
+ * Mode "screener" (§37 du PRD) : remplace le parsing par expressions
+ * régulières côté frontend (parseNaturalQuery) par une interprétation
+ * réelle du modèle, pour une requête qu'une regex ne peut pas couvrir.
+ * Réutilise EXACTEMENT le même mécanisme de quota/réservation que l'analyse
+ * d'entreprise ci-dessus (même compteur mensuel) — délibéré : un appel
+ * modèle coûte la même chose, quel que soit son objet, et créer un second
+ * compteur séparé aurait demandé une nouvelle table Supabase pour un
+ * bénéfice pas évident. Le frontend garde le parsing local par regex comme
+ * geste instantané/gratuit pour les requêtes simples ; ce mode sert aux
+ * requêtes que la regex ne couvre pas.
+ */
+async function screenerAnalyse(req, res, { user, plan, dispo }){
+  const requete = typeof req.body?.query === 'string' ? req.body.query.trim().slice(0, 300) : '';
+  if (!requete) return res.status(400).json({ error: 'requete_vide' });
+
+  const [id, p] = dispo[0];
+  const key = process.env[p.env];
+  const modele = typeof p.model === 'function' ? p.model() : p.model;
+  const prompt = `${CONSIGNE_SCREENER}\n\nRequête utilisateur : "${requete}"`;
+
+  const resa = await reserver(sb, user.id, plan);
+  if (!resa.ok){
+    if (resa.reason === 'quota_exceeded'){
+      const q = quotaBlock(plan, resa.used ?? limiteDe(plan));
+      return res.status(429).json({ error:'quota_exceeded',
+        message:`Vous avez utilisé vos ${limiteDe(plan)} analyses incluses ce mois-ci.`, ...q });
+    }
+    if (resa.reason === 'rate_limited'){
+      return res.status(429).json({ error:'rate_limited',
+        message:"Trop de requêtes lancées en peu de temps. Réessayez dans quelques minutes.", plan });
+    }
+    return res.status(503).json({ error:'quota_indisponible',
+      message:"Le compteur d'analyses est momentanément indisponible. Réessayez." });
+  }
+  const reservation = resa.reservationId;
+  const utilise = resa.used;
+  const annuler = statut => cloturer(sb, reservation, statut || 'cancelled');
+
+  let parsed = null;
+  try {
+    const body = { model: modele, max_tokens: 300, messages: [{ role:'user', content: prompt }] };
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 20000);
+    const r = await fetch(p.url, { method:'POST', signal: ctrl.signal,
+      headers: { 'Content-Type':'application/json', ...p.auth(key) }, body: JSON.stringify(body) });
+    clearTimeout(t);
+    const d = await r.json();
+    if (!r.ok){
+      await annuler('cancelled');
+      return res.status(502).json({ error: 'fournisseur_en_erreur', provider: id, status: r.status });
+    }
+    const brut = id === 'anthropic' ? (d.content?.[0]?.text || '') : (d.choices?.[0]?.message?.content || '');
+    parsed = JSON.parse(brut.replace(/```json|```/g, '').trim());
+
+    /* Même principe que le schéma de l'analyse d'entreprise : rejet strict
+       plutôt que coercition silencieuse. "sector" DOIT être une valeur
+       réelle de SECTORS (ou "tous") — jamais une catégorie inventée que le
+       frontend ne saurait pas appliquer à state.filters.radarSector. */
+    if (
+      !parsed || typeof parsed !== 'object' || Array.isArray(parsed)
+      || (parsed.sector !== 'tous' && !SECTORS.includes(parsed.sector))
+      || typeof parsed.country !== 'string'
+      || !Number.isFinite(Number(parsed.scoreMin))
+      || typeof parsed.explanation !== 'string'
+    ){
+      throw new Error('schema_screener_invalide');
+    }
+    parsed = {
+      sector: parsed.sector,
+      country: parsed.country.slice(0, 60),
+      scoreMin: [0, 50, 60, 70].includes(Number(parsed.scoreMin)) ? Number(parsed.scoreMin) : 0,
+      explanation: parsed.explanation.slice(0, 200),
+    };
+  } catch (e){
+    await annuler('cancelled');
+    return res.status(502).json({ error: e.name === 'AbortError' ? 'delai_depasse' : 'reponse_illisible', detail: e.message });
+  }
+
+  await cloturer(sb, reservation, 'ok', { provider:id, model:modele });
+  res.setHeader('Cache-Control', 'no-store');
+  return res.status(200).json({ filters: parsed, provider: id, model: modele, quota: quotaBlock(plan, utilise) });
+}
 
 module.exports = async (req, res) => {
   if (req.method === 'GET'){
@@ -59,6 +167,10 @@ module.exports = async (req, res) => {
      Lu dans Supabase. Un plan inconnu, absent ou dont l'abonnement n'est plus
      actif retombe sur free — jamais sur pro ni elite. */
   const { plan } = await planReel(sb, user.id);
+
+  if (req.body?.mode === 'screener'){
+    return screenerAnalyse(req, res, { user, plan, dispo });
+  }
 
   const { ticker, exchange, name, country, sector, industry, currency } = req.body || {};
   // Aucune entreprise par défaut : sans identification, aucun appel ne part.

@@ -1006,7 +1006,6 @@ const DEFAULT_STATE = {
     radarSort:'score',
     radarSector:'tous',
     radarQ:'',
-    radarRisk:'tous',
     radarMin:0,
     radarCountry:'tous',
     exploreQ:'',
@@ -14316,14 +14315,23 @@ PAGES.radar = () => {
   </div>
 
   <div class="card" style="margin-bottom:18px">
-    <button class="search-btn" style="margin:0 0 16px;max-width:100%" data-search>
-      ${svg(ICON.search)}<span>${f.radarQ ? esc(f.radarQ) : 'Ou décrivez ce que vous cherchez…'}</span></button>
+    <!-- CORRECTIF (audit "recherche sans effet", 2026-09-17) : ce bouton
+         ouvrait auparavant la recherche universelle (data-search -> openSearch,
+         navigation vers une fiche), sans aucun rapport avec les filtres
+         ci-dessous malgré le texte "décrivez ce que vous cherchez" - une
+         requête tapée là n'affectait jamais radarQ ni aucun filtre. Remplacé
+         par une vraie saisie de requête, avec interprétation locale instantanée
+         (parseNaturalQuery) et, en option, une interprétation par IA réelle
+         (/api/analyze, mode screener) pour les requêtes que la regex ne couvre pas. -->
+    <button class="search-btn" style="margin:0 0 16px;max-width:100%" data-describe-search>
+      ${svg(ICON.search)}<span>${f.radarQ ? esc(f.radarQ) : 'Décrire ce que vous cherchez…'}</span></button>
     <div class="chips" style="margin-bottom:10px">
       ${['Une grande entreprise américaine solide','Peu risqué et rentable','Croissance forte']
         .map(q=>`<button class="chip" data-nl="${esc(q)}">${svg(ICON.spark,2)}${esc(q)}</button>`).join('')}
     </div>
     <div class="divider"></div>
-    ${filterRow('Risque', 'radarRisk', [['tous','Tous'],['Faible','Faible'],['Modéré','Modéré'],['Élevé','Élevé']])}
+    ${filterRow('Nova Score minimum', 'radarMin', [['0','Tous'],['50','50+'],['60','60+'],['70','70+']])}
+    ${f.radarMin > 0 ? `<p class="tiny" style="margin-top:6px;color:var(--ink-4)">Ne porte que sur les valeurs déjà analysées (bouton « Analyse » sur une fiche) — les autres n'ont pas encore de Nova Score.</p>` : ''}
     ${filterRow('Pays', 'radarCountry', [['tous','Tous'],...[...new Set(stocks.map(x=>x.country))].map(c=>[c,c])])}
     ${filterRow('Secteur', 'radarSector', [['tous','Tous'],...SECTORS.map(x=>[x,x])])}
   </div>
@@ -14340,10 +14348,13 @@ function filterRow(label, key, options){
   </div>`;
 }
 function parseNaturalQuery(q){
-  const t = q.toLowerCase(), f = { radarRisk:'tous', radarMin:0, radarCountry:'tous', radarSector:'tous' };
+  const t = q.toLowerCase(), f = { radarMin:0, radarCountry:'tous', radarSector:'tous' };
   const applied = [];
-  if (/peu risqu|pas trop risqu|s[ée]curis|prudent|stable/.test(t)){ f.radarRisk='Faible'; applied.push('risque faible'); }
-  if (/tr[èe]s risqu|volatil|dynamique/.test(t)){ f.radarRisk='Élevé'; applied.push('risque élevé'); }
+  /* "Risque" retiré (audit "screener sans effet", 2026-09-17) : aucune
+     métrique de risque n'est réellement calculée nulle part dans NovaBourse
+     à ce jour (s.volRisk n'est jamais assigné) — le filtre correspondant a
+     été retiré de l'UI pour la même raison. Ne pas en réintroduire un ici
+     sans construire d'abord le calcul réel derrière. */
   if (/solide|s[ûu]r|qualit[ée]|rentable/.test(t)){ f.radarMin=70; applied.push('Nova Score de 70 et plus'); }
   if (/croissance|qui grandit|en forte hausse/.test(t)){ f.radarMin=Math.max(f.radarMin,60); applied.push('croissance recherchée'); }
   if (/am[ée]ricain|[ée]tats-unis|usa/.test(t)){ f.radarCountry='États-Unis'; applied.push('États-Unis'); }
@@ -14360,6 +14371,13 @@ function radarResults(){
   if (f.radarSector !== 'tous')  list = list.filter(s => s.sector === f.radarSector);
   if (f.radarQ){ const q = f.radarQ.toLowerCase();
     list = list.filter(s => (s.name + ' ' + s.ticker + ' ' + s.sector).toLowerCase().includes(q)); }
+  /* CORRECTIF (audit "screener sans effet", 2026-09-17) : ce filtre existait
+     dans state.filters et dans le sélecteur ci-dessus mais n'était encore
+     appliqué nulle part ici — activer "60+" ne changeait donc jamais la
+     liste. Ne porte QUE sur les valeurs ayant un score RÉELLEMENT calculé
+     (Number.isFinite) : jamais un score à 0/deviné pour une valeur jamais
+     analysée, qui serait simplement exclue plutôt que faussement notée. */
+  if (f.radarMin > 0) list = list.filter(s => Number.isFinite(s.score) && s.score >= f.radarMin);
 
   const varDe = s => { const q = QUOTES.get(s.id);
     return q && Number.isFinite(q.changePercent) ? q.changePercent : null; };
@@ -16716,6 +16734,66 @@ document.addEventListener('click', e => {
     return;
   }
 
+  if (q('[data-describe-search]')){
+    openSheet(`<h3 id="sheetTitle">Décrire ce que vous cherchez</h3>
+      <input class="field" id="radarNlInput" type="text" maxlength="300"
+        placeholder="Ex. entreprises européennes rentables et peu endettées" style="margin-top:16px">
+      <p class="tiny" style="margin-top:10px;color:var(--ink-4)">
+        L'interprétation locale est instantanée mais reconnaît peu de formulations.
+        « Interpréter avec l'IA » comprend des requêtes plus complexes (compte dans vos analyses mensuelles).</p>
+      <div id="radarNlOut"></div>
+      <div class="btns" style="margin-top:18px">
+        <button class="btn btn-s" data-apply-nl-local style="flex:1">Interprétation locale</button>
+        <button class="btn btn-a" data-apply-nl-ai style="flex:1">${svg(ICON.spark,2)} Interpréter avec l'IA</button>
+      </div>`);
+    document.getElementById('radarNlInput')?.focus();
+    return;
+  }
+  if (q('[data-apply-nl-local]')){
+    const texte = document.getElementById('radarNlInput')?.value || '';
+    const r = parseNaturalQuery(texte);
+    Object.assign(state.filters, r.filters, { radarBig:r.big, radarQ:texte.trim() });
+    closeSheet(); saveState(); render();
+    toast(r.applied.length ? 'Filtres appliqués : ' + r.applied.join(', ') : 'Aucun filtre local reconnu — essayez l’IA.');
+    return;
+  }
+  const nlAi = q('[data-apply-nl-ai]');
+  if (nlAi){
+    if (nlAi.disabled) return;
+    const texte = document.getElementById('radarNlInput')?.value || '';
+    if (!texte.trim()){ toast('Décrivez d’abord ce que vous cherchez.'); return; }
+    if (state.auth.status !== 'authenticated'){ toast('Connectez-vous pour utiliser l’IA.'); return; }
+    nlAi.disabled = true;
+    const out = document.getElementById('radarNlOut');
+    if (out) out.innerHTML = `<p class="small" style="margin-top:12px">Interprétation en cours…</p>`;
+    (async () => {
+      try {
+        const r = await authFetch('/api/analyze', { method:'POST', body: JSON.stringify({ mode:'screener', query: texte }) });
+        const d = await r.json();
+        if (!r.ok) throw Object.assign(new Error(d.error || 'erreur'), { data:d });
+        if (d.quota && state.account) Object.assign(state.account, d.quota);
+        const fl = d.filters || {};
+        state.filters.radarSector = fl.sector || 'tous';
+        state.filters.radarCountry = fl.country || 'tous';
+        state.filters.radarMin = [0,50,60,70].includes(fl.scoreMin) ? fl.scoreMin : 0;
+        state.filters.radarQ = texte.trim();
+        closeSheet(); saveState(); render();
+        toast(fl.explanation || 'Filtres appliqués.');
+      } catch (e){
+        const err = e.data || {};
+        const msg = { quota_exceeded: err.message || 'Quota mensuel atteint.',
+          non_connecte:'Votre session a expiré. Reconnectez-vous.',
+          aucun_modele_configure:"Aucun modèle n'est configuré sur le serveur." }[err.error]
+          || "L'interprétation n'a pas abouti — essayez l'interprétation locale.";
+        const out2 = document.getElementById('radarNlOut');
+        if (out2) out2.innerHTML = `<div class="notice" style="margin-top:10px"><b>${esc(msg)}</b></div>`;
+      } finally {
+        nlAi.disabled = false;
+      }
+    })();
+    return;
+  }
+
   const term = q('[data-term]');
   if (term){
     const g = GLOSSARY[term.dataset.term] || { court:'Aucune explication disponible.' };
@@ -17111,6 +17189,19 @@ async function runAnalysis(stockId){
   }
 
   if (d.quota && state.account) Object.assign(state.account, d.quota);
+  /* CORRECTIF (audit "screener sans effet", 2026-09-17) : le NovaScore
+     calculé par /api/analyze n'était jusqu'ici affiché QUE dans ce panneau,
+     jamais reporté sur st.score/st.scores — si bien que toute fonction
+     s'appuyant sur ces champs (le filtre "Nova Score minimum" du Radar,
+     notamment) restait aveugle même pour une valeur qu'on vient d'analyser.
+     Écrit ici, immédiatement après l'analyse, jamais ailleurs deviné. */
+  if (st && d.novascore){
+    st.score = Number.isFinite(d.novascore.score) ? d.novascore.score : null;
+    st.scores = Object.fromEntries(Object.entries(d.novascore.families || {})
+      .map(([k, v]) => [k, v.score]));
+    st.coverage = Number.isFinite(d.novascore.coverage) ? d.novascore.coverage : 0;
+    st.partial = !d.novascore.comparable;
+  }
   const a = d.analysis || {};
   const out = document.getElementById('aiOut');
   if (!out) return;
