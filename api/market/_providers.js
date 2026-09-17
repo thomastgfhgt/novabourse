@@ -1706,6 +1706,26 @@ const FUNDAMENTALS = {
             highlights.DividendYield
           ),
 
+        /* Ajout (audit "calendrier financier", 2026-09-17) : bloc
+           SplitsDividends déjà présent dans CETTE MÊME réponse EODHD,
+           jamais extrait jusqu'ici. NON VÉRIFIÉ EN DIRECT (même réserve
+           que week52High/beta/description plus haut) — null sans
+           régression possible si un nom de champ est faux. */
+        dividendPerShare:
+          num(highlights.DividendShare),
+        payoutRatio:
+          num((d?.SplitsDividends || {}).PayoutRatio),
+        exDividendDate:
+          txt((d?.SplitsDividends || {}).ExDividendDate),
+        nextDividendDate:
+          txt((d?.SplitsDividends || {}).DividendDate),
+        /* Confiance plus faible que les champs ci-dessus : la forme exacte
+           du bloc "Earnings" d'EODHD (Trend/History/Annual, pas forcément
+           un champ plat "Next") n'a pas pu être confirmée sans clé réelle.
+           Reste null si absent — jamais une date devinée. */
+        nextEarningsDate:
+          txt((d?.Earnings || {}).Next),
+
         marketCap:
           num(
             highlights

@@ -14732,7 +14732,16 @@ PAGES.stock = (id) => {
               const m = pourcentageMoisHausse(h.data);
               return m !== null ? fmt.num(m, 0) + ' %' : '—';
             })()}</dd></div>
-            <div class="kv"><dt>Dividende ${infoBtn('Dividende')}</dt><dd>${fmt.num(f.dividendYield, 2)} %</dd></div>`:''}
+            <div class="kv"><dt>Dividende ${infoBtn('Dividende')}</dt><dd>${fmt.num(f.dividendYield, 2)} %</dd></div>
+            ${Number.isFinite(f.dividendPerShare) ? `<div class="kv"><dt>Dividende / action</dt><dd class="tabular-nums">${fmt.num(f.dividendPerShare, 2)} ${esc(s.curSymbol)}</dd></div>` : ''}
+            <!-- payoutRatio volontairement PAS affiché : convention d'échelle
+                 EODHD (déjà en % vs ratio décimal 0-1) non vérifiable sans clé
+                 réelle. L'afficher avec la mauvaise conversion produirait un
+                 nombre confiant mais faux — pire qu'une absence. Champ gardé
+                 dans le modèle de données pour un futur affichage une fois
+                 vérifié (voir f.payoutRatio), jamais formaté à l'aveugle ici. -->
+            ${f.exDividendDate ? `<div class="kv"><dt>Date ex-dividende</dt><dd>${esc(f.exDividendDate)}</dd></div>` : ''}
+            ${f.nextEarningsDate ? `<div class="kv"><dt>Prochains résultats</dt><dd>${esc(f.nextEarningsDate)}</dd></div>` : ''}`:''}
         </dl>
         ${plainFundamentals(s) ? `<div class="notice" style="margin-top:16px;background:var(--bg-2);color:var(--ink-2)">
           <b style="color:var(--ink)">En clair.</b> ${plainFundamentals(s)}</div>` : ''}`
