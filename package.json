@@ -15,7 +15,8 @@
     "test-radar-sort": "node scripts/test-radar-sort.js",
     "test-portfolio-breakdown": "node scripts/test-portfolio-breakdown.js",
     "test-portfolio-diversification": "node scripts/test-portfolio-diversification.js",
-    "test-what-if": "node scripts/test-what-if.js"
+    "test-what-if": "node scripts/test-what-if.js",
+    "test-nova-memory": "node scripts/test-nova-memory.js"
   },
   "dependencies": {
     "stripe": "^16.12.0"

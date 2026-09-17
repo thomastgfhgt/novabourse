@@ -13483,7 +13483,11 @@ function enregistrerTransaction(entree){
     date: new Date().toISOString(), ...entree });
 }
 
-function buyStock(id, amountEUR){
+/* `these` (Nova Memory, §27, optionnel) : { reason, horizon } tel que saisi
+   dans openBuyReview, ou null si l'utilisateur n'a rien renseigné. Jamais
+   requis par cette fonction — un appel existant sans 3e argument continue
+   de fonctionner exactement comme avant. */
+function buyStock(id, amountEUR, these){
   const st = byId[id];
   if (!st) return { ok:false, msg:'Entreprise inconnue' };
   if (!(amountEUR > 0)) return { ok:false, msg:'Montant invalide' };
@@ -13505,7 +13509,8 @@ function buyStock(id, amountEUR){
   state.wallet.cash -= amountEUR;
   snapshotPortfolio('buy');
   enregistrerTransaction({ stockId: id, ticker: st.ticker, name: st.name, type: 'buy',
-    qty, priceLocal: prix, currency: st.cur, amountEUR });
+    qty, priceLocal: prix, currency: st.cur, amountEUR,
+    thesisReason: these?.reason || null, thesisHorizon: these?.horizon || null });
   /* Écriture immédiate (pas la version debouncée) : un achat ne doit jamais
      dépendre d'un setTimeout qui n'a pas eu le temps de se déclencher si
      l'utilisateur ferme l'app juste après — c'est la cause la plus probable
@@ -14763,6 +14768,22 @@ PAGES.stock = (id) => {
   </div>
   ${!canBuy ? `<p class="tiny" style="margin-top:8px;color:var(--ink-4)">
     Cours temporairement indisponible pour cette valeur : achat désactivé tant qu'aucun prix vérifié n'est reçu.</p>` : ''}
+  ${(() => {
+    /* Nova Memory (§27) : ne rappelle QUE si une raison a été saisie au
+       moment de l'achat (openBuyReview, "Pourquoi cet achat ?") — jamais
+       un texte générique pour une position sans thèse enregistrée.
+       Cherche le dernier ACHAT de ce titre précis avec thesisReason
+       renseigné, le plus récent d'abord (state.transactions est ajouté
+       chronologiquement). */
+    if (!pos) return '';
+    const derniereThese = [...state.transactions].reverse()
+      .find(t => t.type === 'buy' && t.stockId === s.id && t.thesisReason);
+    if (!derniereThese) return '';
+    return `<div class="notice" style="margin-top:14px;background:var(--bg-2);color:var(--ink-2)">
+      <b style="color:var(--ink)">Pourquoi vous aviez acheté.</b> ${esc(derniereThese.thesisReason)}
+      <p class="tiny" style="margin-top:6px;color:var(--ink-4)">Est-ce toujours vrai ?</p>
+    </div>`;
+  })()}
   <div class="stk-more">
     ${s.type === 'stock' ? `<button data-nova="${esc(s.id)}">${svg(ICON.spark,2)} Analyse</button>` : ''}
     <button data-cmp="${esc(s.id)}" aria-pressed="${state.compare.includes(s.id)}">
@@ -16734,6 +16755,20 @@ function openBuyReview(st, amount){
       <div class="buy-total"><dt>Total</dt><dd>${fmt.eur(amount)}</dd></div>
     </dl>
     <p class="buy-note">Portefeuille virtuel.</p>
+    <!-- Nova Memory (§27 du PRD, ajouté 2026-09-17) : entièrement optionnel,
+         jamais un champ requis pour confirmer — la friction irait à
+         l'encontre du principe "rien n'est obligatoire à configurer". Ce
+         qui est saisi ici est ce que Nova Review pourra un jour comparer
+         au comportement réel, au lieu de juger uniquement le résultat. -->
+    <details style="margin-top:14px">
+      <summary class="small" style="cursor:pointer;color:var(--ink-3)">Pourquoi cet achat ? (optionnel)</summary>
+      <textarea id="buyThesis" class="field" rows="2" maxlength="240" style="margin-top:10px;width:100%"
+        placeholder="Ex. croissance solide, valorisation raisonnable après la baisse récente…"></textarea>
+      <div class="chips" style="margin-top:10px">
+        ${[['court','Court terme'],['moyen','Moyen terme'],['long','Long terme']].map(([v,l])=>`
+          <button type="button" class="chip" data-thesis-horizon="${v}" aria-pressed="false">${l}</button>`).join('')}
+      </div>
+    </details>
     <button class="btn btn-a btn-lg buy-cta" data-buy-ok="${esc(st.id)}" data-value="${amount}">
       Confirmer l'achat</button>
     <button class="btn btn-g" style="width:100%;margin-top:10px"
@@ -16761,11 +16796,25 @@ document.addEventListener('click', e => {
   if (backBtn){ const st = byId[backBtn.dataset.buyBack];
     if (st) openBuyAmount(st, +backBtn.dataset.value || 0); return; }
 
+  const thesisHorizon = q('[data-thesis-horizon]');
+  if (thesisHorizon){
+    document.querySelectorAll('[data-thesis-horizon]').forEach(b =>
+      b.setAttribute('aria-pressed', String(b === thesisHorizon && b.getAttribute('aria-pressed') !== 'true')));
+    return;
+  }
+
   const okBuy = q('[data-buy-ok]');
   if (okBuy){
     if (okBuy.disabled) return;
     okBuy.disabled = true;
-    const r = buyStock(okBuy.dataset.buyOk, +okBuy.dataset.value);
+    /* Nova Memory : lu ici, jamais avant confirmation (l'utilisateur peut
+       changer d'avis sur le texte jusqu'au dernier moment). Chaîne vide/
+       horizon non choisi -> undefined, jamais une valeur par défaut
+       inventée dans le journal. */
+    const texteThese = document.getElementById('buyThesis')?.value.trim() || null;
+    const horizonBtn = document.querySelector('[data-thesis-horizon][aria-pressed="true"]');
+    const these = (texteThese || horizonBtn) ? { reason: texteThese, horizon: horizonBtn?.dataset.thesisHorizon || null } : null;
+    const r = buyStock(okBuy.dataset.buyOk, +okBuy.dataset.value, these);
     toast(r.msg);
     if (r.ok){ closeSheet(); render(); } else { okBuy.disabled = false; }
     return;
