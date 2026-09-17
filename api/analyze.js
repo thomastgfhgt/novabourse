@@ -24,7 +24,11 @@ const PROVIDERS = {
 const actif = () => Object.entries(PROVIDERS).filter(([, p]) => process.env[p.env]);
 
 const CONSIGNE = `Tu analyses une entreprise cotée à partir des seuls chiffres fournis.
-Réponds en JSON strict : {"verdict":"positif|neutre|negatif|insuffisant","uncertainty":"faible|moyenne|elevee","summary":"...","positive":["..."],"negative":["..."]}
+Réponds en JSON strict : {"whatItDoes":"...","verdict":"positif|neutre|negatif|insuffisant","uncertainty":"faible|moyenne|elevee","summary":"...","positive":["..."],"negative":["..."]}
+"whatItDoes" : 1 à 2 phrases expliquant simplement ce que fait l'entreprise et
+comment elle gagne son argent, en te basant UNIQUEMENT sur son secteur/
+industrie/description déjà fournis dans le contexte — jamais un détail
+(produit, chiffre, part de marché) qui n'y figure pas explicitement.
 Règles absolues :
 - N'invente aucun chiffre. Ne cite que ceux du contexte.
 - Ne produis aucun objectif de cours, aucune probabilité, aucun pourcentage de réussite.
@@ -279,6 +283,12 @@ jamais et ne modifies jamais de note.`;
       .slice(0, maxItems)
       .map(x => x.slice(0, maxLen));
     parsed = {
+      /* Optionnel plutôt que rejeté si absent (contrairement à
+         verdict/uncertainty/summary/positive/negative ci-dessus) : c'est un
+         nouveau champ, un modèle qui l'omettrait de temps en temps ne doit
+         pas transformer une analyse par ailleurs valide en échec facturé au
+         quota. Chaîne vide affichée comme "non fournie", jamais devinée. */
+      whatItDoes: typeof parsed.whatItDoes === 'string' ? parsed.whatItDoes.slice(0, 300) : '',
       verdict: parsed.verdict,               // déjà validé dans l'énumération ci-dessus
       uncertainty: parsed.uncertainty,       // déjà validé dans l'énumération ci-dessus
       summary: parsed.summary.slice(0, 600),
@@ -351,6 +361,7 @@ jamais et ne modifies jamais de note.`;
       return '[donnée non vérifiée]';
     });
   }
+  if (typeof parsed.whatItDoes === 'string') parsed.whatItDoes = assainirTexte(parsed.whatItDoes);
   if (typeof parsed.summary === 'string') parsed.summary = assainirTexte(parsed.summary);
   if (Array.isArray(parsed.positive)) parsed.positive = parsed.positive.map(assainirTexte);
   if (Array.isArray(parsed.negative)) parsed.negative = parsed.negative.map(assainirTexte);

@@ -16855,11 +16855,12 @@ async function runAnalysis(stockId){
       <b>Validation technique.</b> Aucun fournisseur de données de marché n'est encore
       connecté : cette réponse sert à vérifier la chaîne, elle ne constitue pas une analyse financière.
     </div>` : ''}
+    ${a.whatItDoes ? `<p class="small" style="color:var(--ink-3)">${esc(a.whatItDoes)}</p>` : ''}
     <p class="small" style="margin-top:14px">${esc(a.summary || '')}</p>
     ${(a.positive || []).length ? `<p class="nova-t">Forces</p><ul class="pts good">
-      ${a.positive.slice(0,4).map(x => `<li><i>+</i><span>${esc(x)}</span></li>`).join('')}</ul>` : ''}
+      ${a.positive.slice(0,3).map(x => `<li><i>+</i><span>${esc(x)}</span></li>`).join('')}</ul>` : ''}
     ${(a.negative || []).length ? `<p class="nova-t">Risques</p><ul class="pts bad">
-      ${a.negative.slice(0,4).map(x => `<li><i>−</i><span>${esc(x)}</span></li>`).join('')}</ul>` : ''}
+      ${a.negative.slice(0,3).map(x => `<li><i>−</i><span>${esc(x)}</span></li>`).join('')}</ul>` : ''}
     <p class="tiny" style="margin-top:8px">Modèle ${esc(d.model || '')} ·
       ${d.quota && !d.quota.unlimited ? `${d.quota.used}/${d.quota.limit} analyses ce mois` : ''}</p>
     <div class="notice" style="margin-top:16px">Aucun objectif de cours, aucune probabilité.
