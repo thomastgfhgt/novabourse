@@ -1452,6 +1452,34 @@ const REGION_OF_COUNTRY = {
 };
 const REGIONS = ['Monde','France','Europe','Amériques','Asie/Pacifique','Moyen-Orient','Afrique'];
 
+/* CORRECTIF (bug réel de filtrage, audit complet 2026-09-17) : le filtre
+   "Pays" (Radar et Explorer) construisait sa liste de puces directement
+   depuis stock.country BRUT, sans aucune normalisation — vérifié en
+   direct sur le catalogue déployé : "USA" (1 valeur isolée, à côté de
+   "États-Unis" pour 4115 sociétés), "New Zealand", "Peru", "Cyprus",
+   "Bermuda", "Cayman Islands", "British Virgin Islands", "Faroe Islands"
+   restaient en anglais, et 1047 sociétés portaient la CHAÎNE "null"
+   comme pays, affichée comme une puce "null" cliquable au milieu des
+   vrais pays. Au-delà du visuel : choisir "États-Unis" ratait aussi la
+   société tagguée "USA", un vrai bug de résultats manquants, pas
+   seulement d'affichage. paysAffiche() renvoie null pour toute valeur
+   inexploitable (pays réellement inconnu pour cette société, jamais
+   une puce factice), sinon le libellé français canonique. */
+const COUNTRY_ALIASES = {
+  'USA':'États-Unis', 'United States':'États-Unis', 'Germany':'Allemagne',
+  'New Zealand':'Nouvelle-Zélande', 'Peru':'Pérou', 'Cyprus':'Chypre',
+  'Bermuda':'Bermudes', 'Cayman Islands':'Îles Caïmans',
+  'British Virgin Islands':'Îles Vierges britanniques', 'Faroe Islands':'Îles Féroé',
+  'Netherlands':'Pays-Bas', 'Belgium':'Belgique', 'Switzerland':'Suisse',
+  'United Kingdom':'Royaume-Uni', 'Spain':'Espagne', 'Italy':'Italie',
+  'Sweden':'Suède', 'Denmark':'Danemark', 'Finland':'Finlande', 'Norway':'Norvège',
+  'Austria':'Autriche', 'Brazil':'Brésil', 'China':'Chine', 'Mexico':'Mexique',
+};
+function paysAffiche(raw){
+  if (!raw || raw === '—' || raw === 'null') return null;
+  return COUNTRY_ALIASES[raw] || raw;
+}
+
 const BLANK_FIELDS = () => ({
   /* Explicitement null/false plutôt qu'absents : le reste du fichier (tests,
      strengths/weaknesses, radar) distingue "donnée absente" (null) de
@@ -14573,7 +14601,8 @@ PAGES.radar = () => {
     ${filterRow('Trier par', 'radarSort', [['perf','Performance du jour'],['score','Nova Score'],['name','Nom']])}
     ${filterRow('Nova Score minimum', 'radarMin', [['0','Tous'],['50','50+'],['60','60+'],['70','70+']])}
     ${f.radarMin > 0 ? `<p class="tiny" style="margin-top:6px;color:var(--ink-4)">Ne porte que sur les valeurs déjà analysées (bouton « Analyse » sur une fiche) — les autres n'ont pas encore de Nova Score.</p>` : ''}
-    ${filterRow('Pays', 'radarCountry', [['tous','Tous'],...[...new Set(stocks.map(x=>x.country))].map(c=>[c,c])])}
+    ${filterRow('Pays', 'radarCountry', [['tous','Tous'],
+      ...[...new Set(stocks.map(x=>paysAffiche(x.country)).filter(Boolean))].map(c=>[c,c])])}
     ${filterRow('Secteur', 'radarSector', [['tous','Tous'],...SECTORS.map(x=>[x,x])])}
   </div>
 
@@ -14608,7 +14637,7 @@ function parseNaturalQuery(q){
 function radarResults(){
   const f = state.filters;
   let list = [...stocks];
-  if (f.radarCountry !== 'tous') list = list.filter(s => s.country === f.radarCountry);
+  if (f.radarCountry !== 'tous') list = list.filter(s => paysAffiche(s.country) === f.radarCountry);
   if (f.radarSector !== 'tous')  list = list.filter(s => s.sector === f.radarSector);
   if (f.radarQ){ const q = f.radarQ.toLowerCase();
     list = list.filter(s => (s.name + ' ' + s.ticker + ' ' + s.sector).toLowerCase().includes(q)); }
@@ -14679,7 +14708,7 @@ PAGES.explore = () => {
        cette passe. Même motif que 'Pays' côté Radar (filterRow), pour rester
        cohérent avec un pattern déjà éprouvé pour une longue liste de puces. -->
   <div class="chips" style="margin-top:10px">
-    ${['tous',...[...new Set(stocks.filter(s=>s.type==='stock').map(x=>x.country))].filter(Boolean).sort((a,b)=>a.localeCompare(b,'fr'))]
+    ${['tous',...[...new Set(stocks.filter(s=>s.type==='stock').map(x=>paysAffiche(x.country)))].filter(Boolean).sort((a,b)=>a.localeCompare(b,'fr'))]
       .map(c=>`<button class="chip" data-filter="exploreCountry" data-val="${esc(c)}"
         aria-pressed="${String(state.filters.exploreCountry||'tous')===c}">${c==='tous'?'Tous les pays':esc(c)}</button>`).join('')}
   </div>
@@ -14696,7 +14725,7 @@ function exploreListeFiltree(){
   const sec = state.filters.exploreSector || 'tous';
   if (sec !== 'tous') list = list.filter(s => s.sector === sec);
   const pays = state.filters.exploreCountry || 'tous';
-  if (pays !== 'tous') list = list.filter(s => s.country === pays);
+  if (pays !== 'tous') list = list.filter(s => paysAffiche(s.country) === pays);
   if (state.filters.exploreQ){ const q = state.filters.exploreQ.toLowerCase();
     list = list.filter(s => (s.name+' '+s.ticker).toLowerCase().includes(q)); }
   list.sort((a,b)=>a.name.localeCompare(b.name,'fr'));
@@ -15519,7 +15548,9 @@ PAGES.portfolio = () => {
      de plus construites de la même façon que celles déjà en place.
      MARKET_CATEGORIES fournit déjà le libellé français de chaque type
      (voir plus haut) — jamais un second dictionnaire de traduction. */
-  const byCountry = {}; pf.lines.forEach(l => { if (l.priceAvailable && l.stock && l.stock.country) byCountry[l.stock.country] = (byCountry[l.stock.country]||0)+l.value; });
+  const byCountry = {}; pf.lines.forEach(l => { if (l.priceAvailable && l.stock){
+    const pays = paysAffiche(l.stock.country); if (pays) byCountry[pays] = (byCountry[pays]||0)+l.value;
+  } });
   const byType = {}; pf.lines.forEach(l => { if (l.priceAvailable && l.stock){
     const label = MARKET_CATEGORIES.find(c => c.id === l.stock.type)?.label || l.stock.type;
     byType[label] = (byType[label]||0)+l.value;
