@@ -74,6 +74,51 @@ function joursYTD(){
   return Math.max(1, Math.ceil((Date.now() - debutAnnee) / 86400000) + 1);
 }
 
+/**
+ * Statistiques de période — calculées EXACTEMENT sur le tableau `ohlcv`
+ * renvoyé dans la même réponse, jamais sur une fenêtre différente : le
+ * graphique et ces chiffres ne peuvent donc jamais se contredire (cahier
+ * des charges, section 26). Moyenne = moyenne simple des clôtures des
+ * points réellement présents dans la période — jamais une moyenne mobile
+ * (SMA) ni un VWAP, qui seraient des indicateurs distincts et nommés comme
+ * tels s'ils étaient ajoutés un jour.
+ * Retourne null si moins de 2 points exploitables (une "variation" ou une
+ * "moyenne" sur 0-1 point n'aurait pas de sens réel).
+ */
+function calculerPeriodStats(ohlcv, period, interval){
+  const points = Array.isArray(ohlcv)
+    ? ohlcv.filter(p => p && typeof p.date === 'string' && Number.isFinite(p.close))
+    : [];
+  if (points.length < 2) return null;
+
+  const closes = points.map(p => p.close);
+  const highs = points.map(p => Number.isFinite(p.high) ? p.high : p.close);
+  const lows = points.map(p => Number.isFinite(p.low) ? p.low : p.close);
+  const volumes = points.map(p => p.volume).filter(v => Number.isFinite(v) && v >= 0);
+
+  const first = closes[0];
+  const last = closes[closes.length - 1];
+  const absoluteChange = last - first;
+  const percentChange = first ? (absoluteChange / first) * 100 : null;
+  const averageClose = closes.reduce((a, b) => a + b, 0) / closes.length;
+
+  return {
+    period,
+    interval: interval || null,
+    from: points[0].date,
+    to: points[points.length - 1].date,
+    first,
+    last,
+    averageClose,
+    high: Math.max(...highs),
+    low: Math.min(...lows),
+    absoluteChange,
+    percentChange,
+    averageVolume: volumes.length ? volumes.reduce((a, b) => a + b, 0) / volumes.length : null,
+    pointCount: points.length,
+  };
+}
+
 module.exports = async (req, res) => {
   res.setHeader('Cache-Control', 'no-store');
 
@@ -194,6 +239,10 @@ module.exports = async (req, res) => {
       kind: 'intraday',
       interval: intervalleDemande,
       history,
+      /* Calculée sur `history.ohlcv` ci-dessus, jamais sur une autre
+         fenêtre (section 26 du cahier des charges) — null si le graphique
+         lui-même est indisponible ou n'a qu'un point. */
+      periodStats: disponible ? calculerPeriodStats(history.ohlcv, periodeBrute, intervalleDemande) : null,
       source: disponible ? h.source : null,
       asOf: disponible ? (history.ohlcv[history.ohlcv.length - 1]?.date ?? null) : null,
       reason: disponible ? null : 'intraday_indisponible',
@@ -236,6 +285,7 @@ module.exports = async (req, res) => {
     kind: 'daily',
     interval: null,
     history,
+    periodStats: disponible ? calculerPeriodStats(history.ohlcv, periodeBrute, null) : null,
     source: disponible ? h.source : null,
     asOf: disponible ? (history.ohlcv[history.ohlcv.length - 1]?.date ?? null) : null,
     reason: disponible ? null : 'historique_indisponible',
@@ -244,3 +294,8 @@ module.exports = async (req, res) => {
     journal,
   });
 };
+
+/* Exposé pour scripts/test-coverage.js et pour les tests unitaires : pure
+   fonction, aucun appel réseau, testable sans clé provider. */
+module.exports.calculerPeriodStats = calculerPeriodStats;
+module.exports.PERIOD_SPECS = PERIOD_SPECS;

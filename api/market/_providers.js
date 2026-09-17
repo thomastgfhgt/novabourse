@@ -1371,6 +1371,19 @@ const FUNDAMENTALS = {
       d?.AnalystRatings
       || {};
 
+    /* NON VÉRIFIÉ EN DIRECT dans cette passe (clé EODHD indisponible en
+       sandbox) : ce bloc et les champs ci-dessous existent dans la
+       documentation publique EODHD (/fundamentals, section "Technicals"),
+       mais n'ont jamais été confrontés à une vraie réponse comme le reste
+       de ce fichier l'exige d'habitude. Risque nul en cas d'erreur de nom
+       de champ : num()/txt() renvoient alors simplement null, exactement
+       le même "Indisponible" qu'aujourd'hui — jamais une valeur inventée.
+       À confirmer avec une vraie clé (voir scripts/test-coverage.js) avant
+       de considérer ces champs comme fiables. */
+    const technicals =
+      d?.Technicals
+      || {};
+
     /**
      * Dernière période par date réelle.
      */
@@ -1716,6 +1729,50 @@ const FUNDAMENTALS = {
           num(highlights.EPSEstimateCurrentQuarter),
         epsEstimateNextQuarter:
           num(highlights.EPSEstimateNextQuarter),
+
+        /* Ajout (audit "actions" 2026-09-17) : champs déjà ATTENDUS par le
+           frontend (index.html, section "chiffres" détaillés) mais jamais
+           remplis jusqu'ici — restaient silencieusement à "—". NON VÉRIFIÉ
+           EN DIRECT (voir commentaire sur `technicals` ci-dessus) :
+           num(undefined) => null => "—" inchangé si un nom de champ est
+           faux, aucune régression possible. */
+        week52High:
+          num(technicals['52WeekHigh']),
+        week52Low:
+          num(technicals['52WeekLow']),
+        beta:
+          num(technicals.Beta),
+        /* EODHD documente AverageVolume/AverageVolume10days sous Technicals
+           (nombre d'actions, pas en millions) — jamais sous Highlights. */
+        avgVolume3M:
+          num(technicals.AverageVolume),
+
+        /* Marge brute : DÉRIVÉE de deux champs numériques déjà réels
+           (GrossProfitTTM / RevenueTTM), jamais un champ "GrossMarginTTM"
+           deviné qui n'existe pas forcément chez ce fournisseur. null si
+           l'un des deux manque ou si RevenueTTM vaut 0 — jamais une
+           division par zéro silencieuse. */
+        grossMargin: (() => {
+          const gp = num(highlights.GrossProfitTTM);
+          const rev = num(highlights.RevenueTTM);
+          return (gp !== null && rev) ? gp / rev : null;
+        })(),
+
+        /* Ratio de liquidité générale : DÉRIVÉ du bilan trimestriel déjà
+           chargé ci-dessus (balanceSheet), jamais un champ EODHD direct
+           supposé. */
+        currentRatio: (() => {
+          const actifs = num(balanceSheet.totalCurrentAssets);
+          const passifs = num(balanceSheet.totalCurrentLiabilities);
+          return (actifs !== null && passifs) ? actifs / passifs : null;
+        })(),
+
+        /* PriceSalesTTM est un champ standard du bloc Valuation EODHD
+           (comme ForwardPE/PriceBookMRQ juste au-dessus, déjà vérifiés) —
+           confiance plus haute que week52High/beta/avgVolume3M, mais reste
+           marqué non testé en direct dans CETTE passe par prudence. */
+        priceToSales:
+          num(valuation.PriceSalesTTM),
       },
 
       asOf:

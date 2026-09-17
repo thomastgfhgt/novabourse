@@ -4,7 +4,8 @@
   "private": true,
   "scripts": {
     "import-catalog": "node scripts/import-catalog.js",
-    "test-coverage": "node scripts/test-coverage.js"
+    "test-coverage": "node scripts/test-coverage.js",
+    "test-period-stats": "node scripts/test-period-stats.js"
   },
   "dependencies": {
     "stripe": "^16.12.0"
