@@ -116,10 +116,21 @@ body{
    c'est un fond d'ambiance, pas un habillage qui prend le pas sur le
    contenu. prefers-reduced-motion coupe l'animation, jamais l'effet
    entier (le dégradé reste visible, simplement figé). */
-.aurora-bg{position:fixed;inset:0;z-index:0;overflow:hidden;pointer-events:none;
-  animation:auroraHue 60s linear infinite;will-change:filter}
+.aurora-bg{position:fixed;inset:0;z-index:0;overflow:hidden;pointer-events:none}
+/* CORRECTIF (bug visuel réel et grave, signalé par l'utilisateur — la
+   barre de navigation du bas "décrochait" de sa position fixe pendant
+   le défilement) : la rotation de teinte était animée sur .aurora-bg
+   lui-même, un calque position:fixed;inset:0 couvrant TOUT le viewport
+   — animer `filter` sur un calque fixe aussi grand crée une charge de
+   composition énorme, connue pour perturber le rendu d'AUTRES éléments
+   position:fixed sur la même page (notamment combinés à backdrop-filter,
+   comme le dock). Déplacée sur chaque tache (déjà floutée, bien plus
+   petite) : même effet visuel de "fond qui change de couleur", sans
+   jamais animer `filter` sur l'intégralité du viewport. */
 .aurora-bg::before,.aurora-bg::after,.aurora-bg .aurora-3{content:"";position:absolute;border-radius:50%;
-  filter:blur(110px);opacity:.32;animation:auroraDrift 26s ease-in-out infinite;will-change:transform}
+  filter:blur(110px);opacity:.32;
+  animation:auroraDrift 26s ease-in-out infinite, auroraHue 60s linear infinite;
+  will-change:transform}
 .aurora-bg::before{width:55vw;height:55vw;top:-18vw;left:-12vw;
   background:radial-gradient(circle,#8b7bff 0%,#5b7cff 45%,transparent 72%)}
 .aurora-bg::after{width:50vw;height:50vw;bottom:-22vw;right:-14vw;animation-delay:-13s;
@@ -137,9 +148,11 @@ body{
    littéralement "un fond qui change de couleur" (PRD §2), vérifié en
    direct : le cycle de 60s reste imperceptible seconde par seconde mais
    franchement visible en comparant deux captures à 20s d'écart. */
-@keyframes auroraHue{ from{filter:hue-rotate(0deg)} to{filter:hue-rotate(360deg)} }
+@keyframes auroraHue{
+  from{filter:blur(110px) hue-rotate(0deg)}
+  to{filter:blur(110px) hue-rotate(360deg)}
+}
 @media (prefers-reduced-motion:reduce){
-  .aurora-bg{animation:none}
   .aurora-bg::before,.aurora-bg::after,.aurora-bg .aurora-3{animation:none}
 }
 button,input,select{font:inherit;color:inherit}
