@@ -1003,7 +1003,15 @@ const DEFAULT_STATE = {
   },
 
   filters:{
-    radarSort:'score',
+    /* CORRECTIF (audit "tri Radar", 2026-09-17) : valait 'score' par défaut
+       depuis le début, mais radarSort n'était lu nulle part — le tri réel
+       était toujours "variation du jour". Mis à jour vers cette même valeur
+       ('perf') pour que le comportement par défaut ne change PAS au moment
+       où ce champ devient enfin réellement utilisé (voir radarResults) —
+       un changement de tri par défaut n'est pas anodin pour un utilisateur
+       déjà habitué à l'ordre actuel. 'score' reste un choix explicite
+       disponible via le sélecteur, jamais imposé. */
+    radarSort:'perf',
     radarSector:'tous',
     radarQ:'',
     radarMin:0,
@@ -14352,6 +14360,7 @@ PAGES.radar = () => {
         .map(q=>`<button class="chip" data-nl="${esc(q)}">${svg(ICON.spark,2)}${esc(q)}</button>`).join('')}
     </div>
     <div class="divider"></div>
+    ${filterRow('Trier par', 'radarSort', [['perf','Performance du jour'],['score','Nova Score'],['name','Nom']])}
     ${filterRow('Nova Score minimum', 'radarMin', [['0','Tous'],['50','50+'],['60','60+'],['70','70+']])}
     ${f.radarMin > 0 ? `<p class="tiny" style="margin-top:6px;color:var(--ink-4)">Ne porte que sur les valeurs déjà analysées (bouton « Analyse » sur une fiche) — les autres n'ont pas encore de Nova Score.</p>` : ''}
     ${filterRow('Pays', 'radarCountry', [['tous','Tous'],...[...new Set(stocks.map(x=>x.country))].map(c=>[c,c])])}
@@ -14401,9 +14410,23 @@ function radarResults(){
      analysée, qui serait simplement exclue plutôt que faussement notée. */
   if (f.radarMin > 0) list = list.filter(s => Number.isFinite(s.score) && s.score >= f.radarMin);
 
+  /* CORRECTIF (audit "tri Radar", 2026-09-17) : radarSort existait dans
+     state.filters (valeur par défaut 'score') depuis le début, sans aucun
+     contrôle UI ni lecture ici — le tri était TOUJOURS par variation du
+     jour, quelle que soit sa valeur. Ajout d'un vrai sélecteur (voir
+     filterRow ci-dessous dans PAGES.radar) + application réelle ici. */
   const varDe = s => { const q = QUOTES.get(s.id);
     return q && Number.isFinite(q.changePercent) ? q.changePercent : null; };
+  const sortKey = f.radarSort || 'perf';
   list.sort((a, b) => {
+    if (sortKey === 'score') {
+      const sa = Number.isFinite(a.score) ? a.score : null, sb = Number.isFinite(b.score) ? b.score : null;
+      if (sa === null && sb === null) return a.name.localeCompare(b.name, 'fr');
+      if (sa === null) return 1;
+      if (sb === null) return -1;
+      return sb - sa;
+    }
+    if (sortKey === 'name') return a.name.localeCompare(b.name, 'fr');
     const va = varDe(a), vb = varDe(b);
     if (va === null && vb === null) return a.name.localeCompare(b.name, 'fr');
     if (va === null) return 1;
