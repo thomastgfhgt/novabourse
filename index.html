@@ -94,11 +94,41 @@ html{background:var(--bg)}
     radial-gradient(70% 50% at 8% 60%, rgba(140,120,255,.035), transparent 70%);
 }
 body{
-  background:var(--bg);color:var(--ink);max-width:100vw;
+  /* CORRECTIF DESIGN (2026-09-17) : transparent plutôt que var(--bg) — le
+     fond réel de la page est désormais .aurora-bg (voir plus bas), un
+     calque fixe positionné SOUS le contenu. Chaque surface qui doit
+     rester pleinement opaque (cartes, feuilles, nav) porte déjà sa propre
+     couleur explicite (--bg/--bg-2/--bg-3) : rien ne dépendait du fond
+     uni de body pour son opacité, vérifié avant ce changement. */
+  background:transparent;color:var(--ink);max-width:100vw;
   forced-color-adjust:none;font-family:var(--font);font-size:16px;line-height:1.5;
   -webkit-font-smoothing:antialiased;overflow-x:hidden;letter-spacing:-.011em;
   transition:background .3s var(--spring),color .3s var(--spring);
 }
+/* Fond animé (§2 du PRD : "un fond qui change de couleur, de belles
+   transitions") — vérifié en direct sur www.novabourse.site, en clair ET
+   en sombre, avant d'être intégré ici : les mêmes teintes fonctionnent
+   dans les deux thèmes sans variante séparée. Fixe (jamais affecté par le
+   scroll), z-index:0 : tout le contenu réel (nav, cartes, feuilles) reste
+   au-dessus car aucun n'a de z-index négatif. Flou et opacité volontai-
+   rement faibles : visible dans les espaces vides entre les éléments,
+   jamais au point de nuire à la lisibilité d'une donnée financière —
+   c'est un fond d'ambiance, pas un habillage qui prend le pas sur le
+   contenu. prefers-reduced-motion coupe l'animation, jamais l'effet
+   entier (le dégradé reste visible, simplement figé). */
+.aurora-bg{position:fixed;inset:0;z-index:0;overflow:hidden;pointer-events:none}
+.aurora-bg::before,.aurora-bg::after{content:"";position:absolute;border-radius:50%;
+  filter:blur(110px);opacity:.32;animation:auroraDrift 26s ease-in-out infinite;will-change:transform}
+.aurora-bg::before{width:55vw;height:55vw;top:-18vw;left:-12vw;
+  background:radial-gradient(circle,#8b7bff 0%,#5b7cff 45%,transparent 72%)}
+.aurora-bg::after{width:50vw;height:50vw;bottom:-22vw;right:-14vw;animation-delay:-13s;
+  background:radial-gradient(circle,#ff8bd6 0%,#ff5b9c 40%,transparent 72%)}
+@keyframes auroraDrift{
+  0%,100%{transform:translate(0,0) scale(1)}
+  33%{transform:translate(5vw,3vw) scale(1.06)}
+  66%{transform:translate(-3vw,5vw) scale(.97)}
+}
+@media (prefers-reduced-motion:reduce){ .aurora-bg::before,.aurora-bg::after{animation:none} }
 button,input,select{font:inherit;color:inherit}
 button{border:none;background:none;cursor:pointer;transition:all .2s var(--spring)}
 button:active{transform:scale(.97)}
@@ -828,6 +858,8 @@ table.t td:last-child,table.t th:last-child{text-align:right;padding-right:0}
 </style>
 </head>
 <body>
+
+<div class="aurora-bg" aria-hidden="true"></div>
 
 <header class="top">
   <div class="top-in">
