@@ -15595,15 +15595,33 @@ PAGES.trust = () => `<div class="page-in">
   </div></div>`;
 
 /* ---------- COMPARATEUR ---------- */
+/* CORRECTIF (audit "comparateur", 2026-09-17) : la quasi-totalité de ces
+   lignes lisait des noms de champs qui n'existent PAS dans l'objet réel
+   renvoyé par /api/market/fundamentals (voir _providers.js) — .per au lieu
+   de .pe, .margin au lieu de .profitMargin/.operatingMargin, .debtEquity/
+   .revenueGrowth/.volatility qui n'existent nulle part. Résultat en
+   pratique : toutes ces colonnes affichaient systématiquement
+   "indisponible", pour CHAQUE société, même totalement analysée. ROE
+   utilisait en plus fmt.num au lieu de fmt.pctRatio — un ratio décimal
+   (0.20 = 20 %) affiché tel quel serait resté "0.2 %" au lieu de "20,0 %".
+   Corrigés en réutilisant les vrais champs et les mêmes fonctions déjà
+   éprouvées ailleurs dans ce fichier (croissanceSerie pour la fiche
+   action, volatiliteAnnualisee pour "Les chiffres" détaillés) — jamais un
+   second calcul divergent. */
 const CMP_ROWS = [
   { label:'Nova Score',        get:s => s.score,                  fmt:v => v + ' / 100', higher:true },
   { label:'Couverture',        get:s => s.coverage,               fmt:v => v + ' %',     higher:true },
-  { label:'PER',               get:s => s.fundamentals && s.fundamentals.per,       fmt:v => fmt.num(v,1) + ' ×', higher:false },
-  { label:'Rentabilité (ROE)', get:s => s.fundamentals && s.fundamentals.roe,       fmt:v => fmt.num(v,1) + ' %', higher:true },
-  { label:'Marge',             get:s => s.fundamentals && s.fundamentals.margin,    fmt:v => fmt.num(v,1) + ' %', higher:true },
-  { label:'Dette / fonds propres', get:s => s.fundamentals && s.fundamentals.debtEquity, fmt:v => v + ' %', higher:false },
-  { label:'Croissance du CA',  get:s => s.fundamentals && s.fundamentals.revenueGrowth, fmt:v => trendTxt(v,1), higher:true },
-  { label:'Volatilité',        get:s => s.fundamentals && s.fundamentals.volatility, fmt:v => v + ' %',    higher:false },
+  { label:'PER',               get:s => s.fundamentals?.pe,       fmt:v => fmt.num(v,1) + ' ×', higher:false },
+  { label:'Rentabilité (ROE)', get:s => s.fundamentals?.roe,      fmt:v => fmt.pctRatio(v), higher:true },
+  { label:'Marge',             get:s => Number.isFinite(s.fundamentals?.profitMargin) ? s.fundamentals.profitMargin : s.fundamentals?.operatingMargin,
+    fmt:v => fmt.pctRatio(v), higher:true },
+  { label:'Croissance du CA',  get:s => croissanceSerie(s.fundamentals?.revenueSeries), fmt:v => trendTxt(v,1), higher:true },
+  /* Réutilise le MÊME historique que le graphique base-100 ci-dessous
+     (HIST, déjà chargé par PAGES.compare pour cette même page — jamais un
+     second appel réseau). null tant que l'historique n'est pas 'ready',
+     géré nativement par volatiliteAnnualisee (renvoie null si <10 points). */
+  { label:'Volatilité',        get:s => volatiliteAnnualisee(HIST.get(s.id)?.status === 'ready' ? HIST.get(s.id).data : null),
+    fmt:v => fmt.num(v,1) + ' %', higher:false },
 ];
 
 const CMP_PALETTE = ['#3557f6','#00a651','#e0407a','#c47f0a'];
