@@ -1909,6 +1909,28 @@ const stocks = [
   { id:'XBR/USD', name:'Pétrole Brent', ticker:'XBR/USD', market:'Commodity', exchangeCode:'', sector:null, country:null, cur:'USD', curSymbol:'$', ...BLANK_FIELDS(), type:'commodity' },
   { id:'URALS/USD', name:'Pétrole Urals', ticker:'URALS/USD', market:'Commodity', exchangeCode:'', sector:null, country:null, cur:'USD', curSymbol:'$', ...BLANK_FIELDS(), type:'commodity' },
   { id:'GAU/USD', name:'Or au gramme (Gold Gram)', ticker:'GAU/USD', market:'Commodity', exchangeCode:'', sector:null, country:null, cur:'USD', curSymbol:'$', ...BLANK_FIELDS(), type:'commodity' },
+  /* Complète la couverture Twelve Data /commodities (32 symboles au total,
+     liste officielle vérifiée en direct le 2026-09-17, sans clé) : les 4
+     paires ci-dessous existaient chez le fournisseur mais manquaient au
+     catalogue NovaBourse. Même format "MÉTAL/DEVISE" que les paires
+     déjà en place ci-dessus, aucune convention nouvelle.
+     VOLONTAIREMENT NON ajoutés malgré leur présence dans cette même liste :
+       - XAU/XAG (ratio or/argent, sans devise fiat) : le champ `cur`/
+         `curSymbol` de cette entrée sert aussi à la conversion de
+         portefeuille (via Frankfurter), qui suppose une devise réelle.
+       - XAGg/USD, XAGg/EUR, XAGg/TRY (argent au gramme) : leur symbole
+         Twelve Data a un "g" MINUSCULE significatif, mais
+         normaliserSymbole() dans quotes.js met tout ticker en majuscules
+         avant l'appel fournisseur (ligne ~41) — "XAGg/EUR" y devient
+         "XAGG/EUR", que Twelve Data ne reconnaît pas. Les ajouter tels
+         quels aurait recréé exactement le bug ciblé ici (case affichée
+         sans donnée/graphique). Nécessite d'abord un correctif dédié de
+         cette normalisation (impact transverse à tous les types
+         d'actifs, donc hors périmètre d'un simple ajout de catalogue). */
+  { id:'GAU/EUR', name:'Or au gramme / Euro', ticker:'GAU/EUR', market:'Commodity', exchangeCode:'', sector:null, country:null, cur:'EUR', curSymbol:'€', ...BLANK_FIELDS(), type:'commodity' },
+  { id:'GAU/GBP', name:'Or au gramme / Livre sterling', ticker:'GAU/GBP', market:'Commodity', exchangeCode:'', sector:null, country:null, cur:'GBP', curSymbol:'£', ...BLANK_FIELDS(), type:'commodity' },
+  { id:'GAU/TRY', name:'Or au gramme / Livre turque', ticker:'GAU/TRY', market:'Commodity', exchangeCode:'', sector:null, country:null, cur:'TRY', curSymbol:'₺', ...BLANK_FIELDS(), type:'commodity' },
+  { id:'GAU/IDR', name:'Or au gramme / Roupie indonésienne', ticker:'GAU/IDR', market:'Commodity', exchangeCode:'', sector:null, country:null, cur:'IDR', curSymbol:'Rp', ...BLANK_FIELDS(), type:'commodity' },
 ];
 const byId = Object.fromEntries(stocks.map(s => [s.id, s]));
 
@@ -2902,7 +2924,25 @@ async function liveTick(){
     let misAJour = false;
     for (const q of d.quotes || []){
       const s = parId.get(q.symbol);
-      if (s && Number.isFinite(q.price) && q.price > 0){ QUOTES.set(s.id, q); misAJour = true; }
+      if (!s || !Number.isFinite(q.price) || q.price <= 0) continue;
+      /* CORRECTIF (page qui "recharge" toutes les 8s) : recevoir une
+         réponse HTTP valide ne signifie pas que la donnée a changé — un
+         cours différé/EOD reste souvent identique d'un cycle à l'autre.
+         Avant ce correctif, misAJour passait à true dès qu'UN SEUL cycle
+         réussissait, quel que soit son contenu, ce qui déclenchait un
+         render() complet (view.innerHTML remplacé en entier) toutes les
+         8 secondes même sans aucun changement réel — exactement le
+         symptôme "la page se recharge toutes les quelques secondes"
+         rapporté. Le render() complet n'a plus de raison d'être appelé
+         que lorsqu'au moins une valeur RÉELLEMENT affichée diffère. */
+      const ancien = QUOTES.get(s.id);
+      const aChange = !ancien
+        || ancien.price !== q.price
+        || ancien.changePercent !== q.changePercent
+        || ancien.change !== q.change
+        || ancien.timestamp !== q.timestamp;
+      QUOTES.set(s.id, q);
+      if (aChange) misAJour = true;
     }
     if (misAJour){ state.ui.liveAt = Date.now(); render(); }
   } catch { /* un cycle raté n'interrompt pas les suivants, le prochain tick réessaiera */ }
