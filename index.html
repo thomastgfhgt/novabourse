@@ -13378,6 +13378,22 @@ const GLOSSARY = {
     long:"En dessous de 40 %, aucun score n'est publié. Entre 40 et 70 %, le score est marqué partiel : il n'est pas comparable à un score complet." },
   'Nova Score':{ court:"Un indice de 0 à 100 qui résume la solidité financière et le risque mesurés.",
     long:"Il additionne huit composantes pondérées, calculées à partir de données observables. Il ne prédit pas l'évolution du cours : une note élevée signifie « solide sur les critères mesurés », pas « action qui va monter »." },
+  /* Ajout (audit "glossaire incomplet", 2026-09-17) : ces 5 termes ont un
+     bouton "?" (infoBtn) sur la fiche action depuis l'ajout des champs
+     week52High/beta/avgVolume3M/currentRatio/priceToSales plus tôt cette
+     session, mais aucune entrée correspondante n'existait ici — cliquer
+     dessus affichait "Aucune explication disponible", contraire au §45
+     du PRD (le mode débutant doit pouvoir tout expliquer). */
+  '52 semaines':{ court:"Le plus haut et le plus bas atteints par le cours au cours des douze derniers mois.",
+    long:"Un cours proche de son plus haut annuel peut signaler une dynamique forte ou une valorisation tendue selon le contexte ; proche de son plus bas, l'inverse. Ni l'un ni l'autre ne prédit la suite." },
+  'Bêta':{ court:"Le bêta mesure la sensibilité du cours aux mouvements du marché dans son ensemble.",
+    long:"Un bêta de 1 signifie que le titre bouge en moyenne comme le marché. Au-dessus de 1, il amplifie les mouvements (à la hausse comme à la baisse) ; en dessous, il les atténue. C'est une mesure historique, pas une garantie de comportement futur." },
+  'Volume':{ court:"Le volume, c'est le nombre d'actions échangées sur une période donnée.",
+    long:"Un volume élevé signifie que beaucoup d'acheteurs et de vendeurs sont actifs sur le titre : les ordres s'exécutent plus facilement, à un prix plus proche du cours affiché. Un volume très faible peut rendre l'achat ou la vente plus difficile sans faire bouger le cours." },
+  'Liquidité':{ court:"Le ratio de liquidité générale compare ce que l'entreprise possède à court terme à ce qu'elle doit à court terme.",
+    long:"Un ratio supérieur à 1 signifie que l'entreprise peut a priori couvrir ses dettes à moins d'un an avec ses actifs les plus rapidement mobilisables. En dessous de 1, elle pourrait avoir besoin de financement supplémentaire pour y faire face." },
+  'PSR':{ court:"Le PSR (prix / chiffre d'affaires) indique combien vous payez pour 1 € de ventes annuelles de l'entreprise.",
+    long:"Utile pour comparer des entreprises qui ne sont pas encore rentables (où le PER n'a pas de sens). Un PSR élevé suppose des attentes fortes sur la capacité future à transformer ces ventes en bénéfices." },
 };
 
 /* Diagnostic manuel (console : runNovaTests()). Les anciennes assertions
