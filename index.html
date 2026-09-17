@@ -958,6 +958,15 @@ const DEFAULT_STATE = {
      jamais une courbe antidatée. */
   walletHistory:[],
 
+  /* Journal des transactions (§22-33/§30 du PRD, ajouté 2026-09-17) :
+     une ligne par achat/vente réel, jamais reconstituée depuis
+     walletHistory (qui ne garde que la VALEUR totale du portefeuille à
+     un instant donné, pas le détail par titre). Fondation nécessaire à
+     Nova Review et à "Et si je n'avais rien fait ?" — aucune des deux
+     n'est possible sans savoir QUEL titre a été acheté/vendu, QUAND et
+     à QUEL prix précisément. */
+  transactions:[],
+
   /* Métadonnées (jamais de prix/score/fondamentaux) des sociétés créées à la
      volée par /api/market/search, pour pouvoir les rematérialiser via
      ensureRuntimeStock() après un rechargement — sans quoi une position ou
@@ -1069,6 +1078,13 @@ function loadState(){
           realizedPnL: Number.isFinite(saved.wallet?.realizedPnL) ? saved.wallet.realizedPnL : DEFAULT_STATE.wallet.realizedPnL,
         },
         walletHistory: Array.isArray(saved.walletHistory) ? saved.walletHistory : DEFAULT_STATE.walletHistory,
+        /* Même garde-fou élément par élément que `lists` plus haut : une
+           entrée corrompue/incomplète est retirée individuellement, jamais
+           tout le journal. */
+        transactions: Array.isArray(saved.transactions)
+          ? saved.transactions.filter(t => t && typeof t.id === 'string' && (t.type === 'buy' || t.type === 'sell')
+              && Number.isFinite(t.qty) && Number.isFinite(t.amountEUR) && typeof t.date === 'string')
+          : [],
         /* Validation stricte élément par élément : un stockage corrompu/ancien
            (avant l'ajout de cette fonctionnalité) ne doit jamais produire une
            liste avec un id/name absent en aval (rendu, toggleItemListe). Un
@@ -1137,6 +1153,8 @@ function writeStateNow(){
          raisonnement que wallet ci-dessus — état utilisateur, pas donnée de
          marché, légitime à conserver localement. */
       walletHistory:state.walletHistory,
+      /* Journal des transactions — même raisonnement, voir DEFAULT_STATE. */
+      transactions:state.transactions,
     }));
   } catch {}
 }
@@ -13457,6 +13475,14 @@ function prixDe(st){
   return q && Number.isFinite(q.price) && q.price > 0 ? q.price : null;
 }
 
+/* Identifiant local simple (jamais envoyé à aucun serveur, aucune collision
+   nécessaire au-delà de cette session/cet appareil) — même schéma que
+   creerListe() plus haut. */
+function enregistrerTransaction(entree){
+  state.transactions.push({ id: 'tx' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+    date: new Date().toISOString(), ...entree });
+}
+
 function buyStock(id, amountEUR){
   const st = byId[id];
   if (!st) return { ok:false, msg:'Entreprise inconnue' };
@@ -13478,6 +13504,8 @@ function buyStock(id, amountEUR){
   }
   state.wallet.cash -= amountEUR;
   snapshotPortfolio('buy');
+  enregistrerTransaction({ stockId: id, ticker: st.ticker, name: st.name, type: 'buy',
+    qty, priceLocal: prix, currency: st.cur, amountEUR });
   /* Écriture immédiate (pas la version debouncée) : un achat ne doit jamais
      dépendre d'un setTimeout qui n'a pas eu le temps de se déclencher si
      l'utilisateur ferme l'app juste après — c'est la cause la plus probable
@@ -13506,12 +13534,34 @@ function sellStock(id, part = 1){
   state.wallet.cash += proceeds;
   state.wallet.realizedPnL = (Number.isFinite(state.wallet.realizedPnL) ? state.wallet.realizedPnL : 0) + realizedGain;
   snapshotPortfolio('sell');
+  enregistrerTransaction({ stockId: id, ticker: st.ticker, name: st.name, type: 'sell',
+    qty, priceLocal: prix, currency: st.cur, amountEUR: proceeds, realizedGain });
   flushSaveState();
   return { ok:true, msg:`Vente de ${fmt.num(qty,2)} titre(s) · ${fmt.eur(proceeds)} récupérés `
     + `· ${realizedGain >= 0 ? 'gain réalisé de ' + fmt.eur(realizedGain) : 'perte réalisée de ' + fmt.eur(Math.abs(realizedGain))}`,
     realizedGain };
 }
 const positionOf = (id) => state.wallet.positions.find(p => p.id === id) || null;
+
+/* "Et si je n'avais rien fait ?" (§30 du PRD) : pour une transaction de
+   VENTE réelle, compare ce qui a été effectivement récupéré (tx.amountEUR,
+   déjà réalisé) à ce que vaudraient aujourd'hui les mêmes titres au cours
+   ACTUEL, s'ils avaient été conservés. Renvoie null si le cours actuel de
+   ce titre n'est plus disponible — jamais une estimation depuis un
+   dernier prix connu périmé ou une extrapolation. Achats non concernés :
+   la position existe toujours, "et si je n'avais rien fait" n'a de sens
+   que pour un titre qu'on ne détient plus. */
+function queSiRienFait(tx){
+  if (!tx || tx.type !== 'sell') return null;
+  const st = byId[tx.stockId];
+  if (!st) return null;
+  const prixActuel = prixDe(st);
+  if (prixActuel === null) return null;
+  const valeurAujourdhui = toEUR(prixActuel * tx.qty, st.cur);
+  const difference = valeurAujourdhui - tx.amountEUR;
+  return { valeurAujourdhui, montantRecu: tx.amountEUR, difference,
+    differencePct: tx.amountEUR ? (difference / tx.amountEUR) * 100 : null };
+}
 
 const ICON = {
   brand:'<path fill="currentColor" stroke="none" d="M 770,180 L 781,283 L 781,293 L 783,303 L 784,324 L 802,500 L 803,521 L 808,559 L 808,569 L 810,583 L 815,594 L 828,607 L 1028,718 L 1125,770 L 949,475 Z"/><path fill="currentColor" stroke="none" d="M 758,181 L 616,414 L 402,770 L 410,766 L 510,699 L 615,626 L 741,535 L 754,520 L 758,508 Z"/><path fill="currentColor" stroke="none" d="M 410,774 L 1120,774 L 861,663 L 849,659 L 747,615 L 727,608 L 712,608 L 697,614 L 572,686 Z"/>',
@@ -15475,6 +15525,38 @@ PAGES.portfolio = () => {
         </div>
       </section>`;
     })() : ''}
+
+    ${(() => {
+      /* "Et si je n'avais rien fait ?" (§30) : ne montre QUE les ventes
+         réelles (state.transactions, ajouté 2026-09-17), les plus
+         récentes d'abord, avec un lien de comparaison par vente. Aucune
+         section si aucune vente n'a encore eu lieu — jamais une liste
+         vide présentée comme une fonctionnalité active. */
+      const ventes = state.transactions.filter(t => t.type === 'sell').slice().reverse().slice(0, 10);
+      if (!ventes.length) return '';
+      return `<section class="section">
+        <div class="section-h"><h2 class="h2">Et si je n'avais rien fait ?</h2></div>
+        <div class="card"><div class="rows">
+          ${ventes.map(tx => {
+            const q = queSiRienFait(tx);
+            const dateAffichee = new Date(tx.date).toLocaleDateString('fr-FR', { day:'2-digit', month:'short', year:'numeric' });
+            return `<div class="row" style="padding:11px 0;align-items:flex-start">
+              <span class="row-main">
+                <span class="row-t">${esc(tx.name)}</span>
+                <span class="row-s">Vendu le ${dateAffichee} · ${fmt.eur(tx.amountEUR)} récupérés</span>
+              </span>
+              <span style="text-align:right;flex:0 0 auto">
+                ${q === null
+                  ? `<span class="tiny" style="color:var(--ink-4)">Cours actuel indisponible</span>`
+                  : `<span class="tabular-nums ${q.difference >= 0 ? 'up-t' : 'down-t'}" style="font-size:13.5px;font-weight:600">
+                      ${q.difference >= 0 ? '+' : ''}${fmt.eur(q.difference)}</span><br>
+                    <span class="tiny" style="color:var(--ink-4)">en gardant, vaudrait ${fmt.eur(q.valeurAujourdhui)} aujourd'hui</span>`}
+              </span>
+            </div>`;
+          }).join('')}
+        </div></div>
+      </section>`;
+    })()}
     </div>`;
 };
 

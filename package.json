@@ -14,7 +14,8 @@
     "test-region-map": "node scripts/test-region-map.js",
     "test-radar-sort": "node scripts/test-radar-sort.js",
     "test-portfolio-breakdown": "node scripts/test-portfolio-breakdown.js",
-    "test-portfolio-diversification": "node scripts/test-portfolio-diversification.js"
+    "test-portfolio-diversification": "node scripts/test-portfolio-diversification.js",
+    "test-what-if": "node scripts/test-what-if.js"
   },
   "dependencies": {
     "stripe": "^16.12.0"
