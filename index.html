@@ -237,8 +237,23 @@ button:active{transform:scale(.97)}
 .btn-sm{min-height:38px;padding:9px 18px;font-size:var(--t-small)}
 .btn-lg{min-height:54px;padding:16px 32px;font-size:16.5px}
 .btns{display:flex;gap:10px;flex-wrap:wrap}
-.card{background:var(--bg-2);border:none;border-radius:var(--r-l);
-  padding:var(--card-pad);box-shadow:none}
+/* CORRECTIF DESIGN (2026-09-17) : vérifié en direct sur www.novabourse.site
+   avant d'être intégré — depuis l'ajout du fond animé (.aurora-bg), une
+   carte plate en background:var(--bg-2) (un gris très proche du fond
+   clair) devenait presque indissociable de l'arrière-plan, surtout dans
+   les zones les plus claires du dégradé. Traitement "verre dépoli" :
+   fond semi-transparent + flou, comme le bandeau de navigation (.top) le
+   fait déjà avec succès — une carte laisse transparaître une pointe de
+   couleur du fond plutôt que de s'y noyer, tout en restant nettement plus
+   contrastée que lui. background-color (jamais juste `background`) pour
+   ne pas écraser un dégradé éventuel posé par une règle plus spécifique
+   ailleurs (ex. .nb-pf). */
+.card{background-color:rgba(255,255,255,.6);backdrop-filter:blur(24px) saturate(160%);
+  -webkit-backdrop-filter:blur(24px) saturate(160%);border:1px solid rgba(255,255,255,.8);
+  border-radius:var(--r-l);padding:var(--card-pad);
+  box-shadow:0 1px 2px rgba(13,17,23,.05),0 16px 40px rgba(53,87,246,.10)}
+[data-theme="dark"] .card{background-color:rgba(22,26,33,.6);border-color:rgba(255,255,255,.08);
+  box-shadow:0 1px 2px rgba(0,0,0,.3),0 16px 40px rgba(0,0,0,.4)}
 .card-flat{background:var(--bg-2);border-radius:var(--r-l);padding:var(--card-pad)}
 .card-lift{transition:background var(--slow) var(--ease)}
 .card-lift:hover{background:var(--bg-3)}
@@ -313,7 +328,14 @@ button:active{transform:scale(.97)}
 .av{width:40px;height:40px;border-radius:12px;display:flex;align-items:center;justify-content:center;flex:0 0 auto;
   font-size:13px;font-weight:700;letter-spacing:-.03em;color:#fff}
 .row-main{flex:1;min-width:0}
-.row-t{font-size:15px;font-weight:600;letter-spacing:-.02em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* CORRECTIF (même bug que ci-dessus, vérifié en direct) : overflow:hidden
+   et text-overflow:ellipsis n'ont AUCUN effet sur un élément inline (un
+   <span> l'est par défaut) — cette règle ne pouvait donc jamais tronquer
+   quoi que ce soit, même avant la double déclaration supprimée plus bas.
+   display:block la fait fonctionner réellement (confirmé : "Vanguard
+   Total Stock Market Index Fund ETF Shares" se tronque bien en "…" après
+   ce correctif, plus de défilement horizontal). */
+.row-t{display:block;font-size:15px;font-weight:600;letter-spacing:-.02em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .row-s{font-size:12.5px;color:var(--ink-4);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .row-end{flex:0 0 auto;text-align:right;display:flex;align-items:center;gap:10px;min-width:0}
 .row-spark{flex:0 0 auto;width:78px;height:26px;overflow:hidden;display:block}
@@ -494,7 +516,19 @@ button:active{transform:scale(.97)}
   .nb-split{grid-template-columns:1fr}
   .nb-hero{max-width:none;padding-top:var(--space-6)}
 }
-.row-t{font-size:15px;font-weight:600;letter-spacing:-.01em}
+/* CORRECTIF (bug visuel réel, trouvé en aperçu mobile de la feuille de
+   recherche, 2026-09-17) : .row-t était redéfini ICI, en double par
+   rapport à sa première déclaration plus haut dans ce fichier (voir
+   ".row-t{...overflow:hidden;text-overflow:ellipsis;white-space:nowrap}")
+   — cette seconde définition, presque identique mais SANS la troncature,
+   écrasait silencieusement la première partout où .row-t est utilisé (une
+   ligne d'action dans une liste, un résultat de recherche récente...).
+   Conséquence concrète observée en direct : un nom long ("Vanguard Total
+   Stock Market Index Fund ETF Shares") débordait de la feuille de
+   recherche au lieu d'être tronqué avec des points de suspension,
+   provoquant un défilement horizontal inattendu sur mobile. Supprimée
+   plutôt que fusionnée : elle n'apportait rien que la première ne fasse
+   déjà (même taille, même graisse, +.01em de letter-spacing négligeable). */
 .row-s{font-size:13px;color:var(--ink-3);margin-top:2px;overflow:hidden;
   text-overflow:ellipsis;white-space:nowrap}
 .row-end{display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex:0 0 auto;min-width:92px}
