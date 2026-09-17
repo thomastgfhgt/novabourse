@@ -75,6 +75,19 @@ module.exports = async (req, res) => {
     ticker,
     exchange,
     fundamentals: aFundamentals ? f.data.fundamentals : null,
+    /* Ajout (audit "fiche entreprise", 2026-09-17) : description/site web/
+       effectifs/date d'introduction — déjà présents dans CETTE MÊME
+       réponse fournisseur (voir identity dans FUNDAMENTALS.eodhd,
+       _providers.js), jamais exposés par cette route jusqu'ici. null si
+       absent, jamais deviné. C'est la route réellement appelée par le
+       frontend ("Voir les chiffres") — company.js expose déjà ces mêmes
+       champs mais n'est pas le chemin emprunté en pratique. */
+    identity: aFundamentals ? {
+      description: f.data.identity?.description || null,
+      website: f.data.identity?.website || null,
+      employees: f.data.identity?.employees ?? null,
+      ipoDate: f.data.identity?.ipoDate || null,
+    } : null,
     source: aFundamentals ? f.source : null,
     asOf: aFundamentals ? (f.data?.asOf ?? null) : null,
     /* Additif (voir api/market/_freshness.js) : un bilan/résultat publié

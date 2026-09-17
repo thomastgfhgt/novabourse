@@ -144,6 +144,13 @@ module.exports = async (req, res) => {
        supplémentaire) — null si le fournisseur qui a répondu ne le
        fournit pas (ex. Finnhub), jamais deviné. */
     isin: f.data?.identity?.isin || null,
+    /* Ajout (audit "fiche entreprise") : mêmes garanties que les champs
+       ci-dessus (déjà présents dans la réponse fondamentaux, aucun coût
+       supplémentaire, null si absent — jamais deviné). */
+    description: f.data?.identity?.description || null,
+    website: f.data?.identity?.website || null,
+    employees: f.data?.identity?.employees ?? null,
+    ipoDate: f.data?.identity?.ipoDate || null,
   };
 
   const market = aMarket ? {

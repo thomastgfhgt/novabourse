@@ -1616,6 +1616,21 @@ const FUNDAMENTALS = {
            restent null plutôt que devinés. */
         isin:
           txt(general.ISIN),
+
+        /* Ajout (audit "fiche entreprise", 2026-09-17) : General.Description
+           est le paragraphe d'activité de l'entreprise, déjà présent dans
+           CETTE MÊME réponse EODHD, jamais extrait jusqu'ici. NON VÉRIFIÉ
+           EN DIRECT dans cette passe (clé masquée en sandbox, même réserve
+           que week52High/beta/avgVolume3M plus bas) — txt(undefined) => null
+           si le nom de champ est faux, aucune régression possible. */
+        description:
+          txt(general.Description),
+        website:
+          txt(general.WebURL),
+        employees:
+          num(general.FullTimeEmployees),
+        ipoDate:
+          txt(general.IPODate),
       },
 
       fundamentals: {

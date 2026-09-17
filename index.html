@@ -1246,6 +1246,10 @@ const BLANK_FIELDS = () => ({
      "donnée à zéro". Rien ici n'est une valeur de marché. */
   score:null, scores:{}, coverage:0, partial:true,
   fundamentals:null, hasFundamentals:false, fundamentalsSource:null,
+  /* Ajout (audit "fiche entreprise") : description/site web/effectifs,
+     chargés par le même appel que `fundamentals` ci-dessus (voir
+     chargerFondamentaux) — jamais une requête séparée. */
+  companyIdentity:null,
   /* État explicite à 4 valeurs pour le chargement à la demande :
      'idle' (jamais demandé) | 'loading' | 'loaded' | 'error'. */
   fundamentalsStatus:'idle',
@@ -12864,24 +12868,16 @@ const CHART_PERIODS = [
   { api:'max', label:'MAX' },
 ];
 
-const INDICES = [
-  { id:'spx',  name:'S&P 500',   place:'New York',  cur:'USD', tz:'America/New_York', open:[13,30], close:[20,0],  value:5487.2,  chg:0.42 },
-  { id:'ndx',  name:'Nasdaq 100',place:'New York',  cur:'USD', tz:'America/New_York', open:[13,30], close:[20,0],  value:19224.8, chg:0.71 },
-  { id:'dji',  name:'Dow Jones', place:'New York',  cur:'USD', tz:'America/New_York', open:[13,30], close:[20,0],  value:39411.6, chg:-0.18 },
-  { id:'cac',  name:'CAC 40',    place:'Paris',     cur:'EUR', tz:'Europe/Paris',     open:[7,0],   close:[15,30], value:7642.4,  chg:0.26 },
-  { id:'dax',  name:'DAX',       place:'Francfort', cur:'EUR', tz:'Europe/Berlin',    open:[7,0],   close:[15,30], value:18412.9, chg:0.34 },
-  { id:'ftse', name:'FTSE 100',  place:'Londres',   cur:'GBP', tz:'Europe/London',    open:[7,0],   close:[15,30], value:8216.3,  chg:-0.09 },
-  { id:'nk',   name:'Nikkei 225',place:'Tokyo',     cur:'JPY', tz:'Asia/Tokyo',       open:[0,0],   close:[6,0],   value:38104.7, chg:0.88 },
-  { id:'hsi',  name:'Hang Seng', place:'Hong Kong', cur:'HKD', tz:'Asia/Hong_Kong',   open:[1,30],  close:[8,0],   value:17945.2, chg:-0.52 },
-];
-function marketOpen(ix){
-  const now = new Date();
-  const day = now.getUTCDay();
-  if (day === 0 || day === 6) return { open:false, why:'week-end' };
-  const mins = now.getUTCHours() * 60 + now.getUTCMinutes();
-  const o = ix.open[0] * 60 + ix.open[1], c = ix.close[0] * 60 + ix.close[1];
-  return { open: mins >= o && mins < c, why: mins < o ? 'avant ouverture' : 'après clôture' };
-}
+/* SUPPRIMÉ (audit "indices sans graphique", 2026-09-17) : l'ancien tableau
+   INDICES (8 indices, valeurs `value`/`chg` figées en dur dans le code,
+   jamais mises à jour — un reliquat de prototype antérieur à l'intégration
+   des providers réels) et marketOpen() (qui n'en calculait le statut que
+   pour CE tableau, jamais appelée ailleurs). Les mêmes 8 indices existent
+   déjà comme entrées RÉELLES dans `stocks` (type:'index' — voir plus haut,
+   ex. id:'FCHI' pour le CAC 40, id:'N225' pour le Nikkei 225) avec cours/
+   historique en direct via le pipeline provider standard. Seul usage de
+   INDICES (searchAll()) est retiré dans le même commit — aucune autre
+   fonctionnalité n'en dépendait. */
 function localTime(tz){
   try { return new Intl.DateTimeFormat('fr-FR',{hour:'2-digit',minute:'2-digit',timeZone:tz}).format(new Date()); }
   catch { return '—'; }
@@ -12924,10 +12920,19 @@ function searchAll(q){
     if (hay.includes(t)) hits.push({ type:'action', id:s.id, title:s.name,
       sub:`${s.ticker} · ${s.sector} · ${s.market}` });
   }
-  for (const ix of INDICES){
-    if ((ix.name+' '+ix.place).toLowerCase().includes(t))
-      hits.push({ type:'indice', id:ix.id, title:ix.name, sub:`Indice · ${ix.place}` });
-  }
+  /* CORRECTIF (audit "indices sans graphique", 2026-09-17) : cette fonction
+     interrogeait AUSSI l'ancien tableau INDICES (données figées en dur,
+     value/chg jamais mis à jour — un reliquat de prototype) et poussait un
+     hit `type:'indice'` que pick() route vers un toast "page indice
+     bientôt disponible", cul-de-sac confirmé (voir pick() plus bas). Les
+     41 indices RÉELS (CAC 40, DAX, FTSE 100, Nikkei 225, Hang Seng,
+     Nasdaq 100, Dow Jones, S&P 500...) existent déjà dans `stocks`
+     (type:'index', cotation/historique en direct via le même pipeline
+     que les actions) et sont déjà couverts par la boucle ci-dessus, avec
+     `type:'action'` — pick() les ouvre donc déjà correctement. Le tableau
+     INDICES et marketOpen() (jamais appelée ailleurs) ont été supprimés :
+     aucune autre fonctionnalité n'en dépendait (vérifié par recherche
+     globale avant suppression). */
   return hits.slice(0, 8);
 }
 
@@ -13969,6 +13974,9 @@ async function chargerFondamentaux(stock){
     stock.fundamentals = d.fundamentals ?? null;
     stock.hasFundamentals = Boolean(d.fundamentals);
     stock.fundamentalsSource = d.source ?? null;
+    /* Ajout (audit "fiche entreprise") : description/site web/effectifs,
+       chargés par le même appel, sans requête supplémentaire. */
+    stock.companyIdentity = d.identity ?? null;
     /* 'loaded' dès que la requête a abouti, que des données exploitables
        existent ou non — symétrique à l'historique (ready/empty relèvent
        tous deux de "loaded", la nuance est affichée séparément via
@@ -14561,6 +14569,23 @@ PAGES.stock = (id) => {
     </div>
   </section>`;
   })()}
+
+  ${(s.type === 'stock' && s.fundamentalsStatus === 'loaded' && s.companyIdentity?.description) ? `
+  <!-- À PROPOS — chargée par le même appel que "Les chiffres" (chargerFondamentaux),
+       jamais une requête séparée. N'apparaît que si le fournisseur a réellement
+       renvoyé une description (aucun texte inventé si absente). -->
+  <section class="section">
+    <div class="section-h"><h2 class="h2">À propos</h2></div>
+    <div class="card">
+      <p class="small" style="line-height:1.6">${esc(s.companyIdentity.description)}</p>
+      ${(s.companyIdentity.website || Number.isFinite(s.companyIdentity.employees) || s.companyIdentity.ipoDate) ? `
+      <dl style="margin-top:16px">
+        ${s.companyIdentity.website ? `<div class="kv"><dt>Site web</dt><dd><a href="${esc(s.companyIdentity.website)}" target="_blank" rel="noopener noreferrer">${esc(s.companyIdentity.website.replace(/^https?:\/\//, ''))}</a></dd></div>` : ''}
+        ${Number.isFinite(s.companyIdentity.employees) ? `<div class="kv"><dt>Effectifs</dt><dd class="tabular-nums">${fmt.int(s.companyIdentity.employees)}</dd></div>` : ''}
+        ${s.companyIdentity.ipoDate ? `<div class="kv"><dt>Introduction en bourse</dt><dd>${esc(s.companyIdentity.ipoDate)}</dd></div>` : ''}
+      </dl>` : ''}
+    </div>
+  </section>` : ''}
 
   ${s.type === 'stock' ? `
   <!-- CHIFFRES — chargement à la demande -->
