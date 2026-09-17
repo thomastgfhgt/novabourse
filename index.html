@@ -1161,6 +1161,16 @@ const SECTEUR_CATALOGUE = {
    volontairement SON PROPRE libellé (pas de repli silencieux) : c'est une
    valeur explicite du backend, distincte d'une cotation pas encore
    chargée (où `freshness` est simplement absent et n'affiche donc rien). */
+/* Libellés de statut de séance (voir api/market/_marketHours.js) : 'unknown'
+   n'a volontairement AUCUN libellé (contrairement à FRESHNESS_LABEL.UNKNOWN
+   ci-dessous) — c'est la valeur attendue et fréquente pour crypto/forex/
+   indices/matières premières ou une place non couverte, pas une anomalie à
+   signaler comme "fraîcheur inconnue" l'est pour une cotation. */
+const MARKET_STATUS_LABEL = {
+  open: 'Séance en cours',
+  closed: 'Séance fermée',
+};
+
 const FRESHNESS_LABEL = {
   LIVE: 'Temps réel',
   DELAYED: 'Différé',
@@ -14470,8 +14480,14 @@ PAGES.stock = (id) => {
            mais "Fraîcheur inconnue" s'affiche bien si le serveur renvoie
            explicitement UNKNOWN. */
         const labelFraicheur = FRESHNESS_LABEL[q.freshness] || '';
+        /* Statut de séance (voir MARKET_STATUS_LABEL) : ajouté au même
+           préfixe que la fraîcheur, jamais à sa place — un "Différé ·
+           Séance fermée" reste avant tout une info de FRAÎCHEUR ; le
+           statut de séance n'est qu'un contexte de plus. Rien n'apparaît
+           pour 'unknown' (crypto/forex/indices/place non couverte). */
+        const labelSeance = MARKET_STATUS_LABEL[q.marketStatus] || '';
         const fraicheur = (state.ui.liveAt && route.page === 'stock' && route.arg === s.id)
-          ? `<div class="tiny" style="margin-top:4px;color:var(--ink-4)">${labelFraicheur ? esc(labelFraicheur) + ' · ' : ''}Actualisé à ${new Date(state.ui.liveAt).toLocaleTimeString('fr-FR')}</div>`
+          ? `<div class="tiny" style="margin-top:4px;color:var(--ink-4)">${labelFraicheur ? esc(labelFraicheur) + ' · ' : ''}Actualisé à ${new Date(state.ui.liveAt).toLocaleTimeString('fr-FR')}${labelSeance ? ' · ' + esc(labelSeance) : ''}</div>`
           : '';
         return `<div class="price">${fmt.num(q.price)}<small>${esc(s.curSymbol)}</small></div>
           ${v === null ? '' : `<div class="price-chg ${v >= 0 ? 'up-t' : 'down-t'}">
