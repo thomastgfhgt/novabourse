@@ -1238,29 +1238,51 @@ const MARKET_CATEGORIES = [
    Liste volontairement alignée sur les zones demandées ; toute valeur de
    `country` absente de cette table n'est simplement pas filtrable par
    zone (elle reste visible sous "Monde"). */
+/* CORRECTIF (audit "région Marchés incorrecte", 2026-09-17) : cette table
+   ne couvrait que 16 pays, exclusivement en anglais ("Germany", "Spain"...)
+   — un reliquat d'avant l'expansion du catalogue (11 281 valeurs, voir
+   historique de cette session), qui utilise systématiquement des noms de
+   pays en FRANÇAIS. Conséquence réelle vérifiée : sur les 44 pays
+   distincts aujourd'hui présents dans `stocks`, 40 tombaient dans "Monde"
+   faute de correspondance — y compris l'Espagne, l'Italie, la Suède, le
+   Danemark, la Finlande, la Norvège, les Pays-Bas et la Belgique, pourtant
+   déjà couverts par des places vérifiées. Reconstruite pour couvrir les 44
+   pays réellement présents ; un pays qui apparaîtrait plus tard sans
+   correspondance ici reste honnêtement classé "Monde", jamais deviné —
+   même principe qu'avant, cohérence en plus. */
 const REGION_OF_COUNTRY = {
   'France': 'France',
-  'Allemagne': 'Europe',
-  'États-Unis': 'Amériques',
-  /* Le catalogue mondial (voir /api/market/catalog) fournit `country` en
-     anglais, tel que reçu du dataset source — jamais traduit (aucune
-     raison de modifier une donnée réelle). Ajouts limités aux pays des
-     places déjà couvertes par le crosswalk fournisseur (voir
-     api/market/_exchangeCrosswalk.js) : un pays absent d'ici reste
-     honnêtement classé "Monde", jamais deviné. */
-  'United States': 'Amériques',
-  'Germany': 'Europe',
-  'Netherlands': 'Europe',
-  'Belgium': 'Europe',
-  'Portugal': 'Europe',
-  'Switzerland': 'Europe',
-  'United Kingdom': 'Europe',
-  'Spain': 'Europe',
-  'Italy': 'Europe',
-  'Sweden': 'Europe',
-  'Denmark': 'Europe',
-  'Finland': 'Europe',
-  'Norway': 'Europe',
+
+  'Allemagne': 'Europe', 'Autriche': 'Europe', 'Belgique': 'Europe',
+  'Danemark': 'Europe', 'Espagne': 'Europe', 'Finlande': 'Europe',
+  'Irlande': 'Europe', 'Italie': 'Europe', 'Luxembourg': 'Europe',
+  'Norvège': 'Europe', 'Pays-Bas': 'Europe', 'Pologne': 'Europe',
+  'Portugal': 'Europe', 'Royaume-Uni': 'Europe', 'Russie': 'Europe',
+  'Suède': 'Europe', 'Suisse': 'Europe', 'Turquie': 'Europe',
+  'Zone euro': 'Europe', 'Cyprus': 'Europe', 'Faroe Islands': 'Europe',
+
+  'États-Unis': 'Amériques', 'Canada': 'Amériques', 'Brésil': 'Amériques',
+  'Mexique': 'Amériques', 'Bermuda': 'Amériques', 'Cayman Islands': 'Amériques',
+  'British Virgin Islands': 'Amériques',
+
+  'Chine': 'Asie/Pacifique', 'Hong Kong': 'Asie/Pacifique', 'Japon': 'Asie/Pacifique',
+  'Corée du Sud': 'Asie/Pacifique', 'Inde': 'Asie/Pacifique', 'Indonésie': 'Asie/Pacifique',
+  'Malaisie': 'Asie/Pacifique', 'Singapour': 'Asie/Pacifique', 'Taïwan': 'Asie/Pacifique',
+  'Vietnam': 'Asie/Pacifique', 'Australie': 'Asie/Pacifique', 'New Zealand': 'Asie/Pacifique',
+
+  'Arabie saoudite': 'Moyen-Orient', 'Israël': 'Moyen-Orient',
+
+  'Afrique du Sud': 'Afrique',
+
+  /* Formes anglaises historiques conservées en repli — un ancien
+     enregistrement en localStorage/runtimeCatalog matérialisé avant cette
+     passe peut encore porter ces valeurs ; jamais recalculées, seulement
+     tolérées ici pour ne pas régresser silencieusement vers "Monde". */
+  'United States': 'Amériques', 'Germany': 'Europe', 'Netherlands': 'Europe',
+  'Belgium': 'Europe', 'Switzerland': 'Europe', 'United Kingdom': 'Europe',
+  'Spain': 'Europe', 'Italy': 'Europe', 'Sweden': 'Europe', 'Denmark': 'Europe',
+  'Finland': 'Europe', 'Norway': 'Europe', 'Austria': 'Europe', 'Brazil': 'Amériques',
+  'China': 'Asie/Pacifique', 'Mexico': 'Amériques',
 };
 const REGIONS = ['Monde','France','Europe','Amériques','Asie/Pacifique','Moyen-Orient','Afrique'];
 
