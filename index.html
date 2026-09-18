@@ -218,22 +218,25 @@ button:active{transform:scale(.97)}
   }
   [data-theme="dark"] .dock{background:rgba(28,31,35,.88);border-color:rgba(255,255,255,.09)}
   /* CORRECTIF (bug visuel réel, signalé par l'utilisateur : "les cases
-     sont mal mises") : min-width:60px × 6 boutons + gaps + padding =
-     ~384px minimum, mais .dock est plafonné à calc(100vw - 24px) — sur
-     un téléphone de moins de 408px de large (la quasi-totalité des
-     téléphones réels), le contenu ne pouvait matériellement pas tenir.
-     "Portefeuille", le libellé le plus long, passait alors sur deux
-     lignes dans son bouton pendant que les 5 autres restaient sur une,
-     rendant les cases visiblement de hauteurs différentes. flex:1 fait
-     que les 6 boutons se partagent TOUJOURS exactement la largeur
-     disponible (jamais de dépassement), et l'ellipse empêche tout
-     retour à la ligne. */
+     sont mal mises", puis "il faudrait l'allonger pour qu'on voit ce qui
+     a été écrit dans chaque case" après un premier essai à l'ellipse) :
+     min-width:60px × 6 boutons + gaps + padding = ~384px minimum, mais
+     .dock est plafonné à calc(100vw - 24px) — sur un téléphone de moins
+     de 408px de large (la quasi-totalité des téléphones réels), le
+     contenu ne pouvait matériellement pas tenir. flex:1 fait que les 6
+     boutons se partagent TOUJOURS exactement la largeur disponible
+     (jamais de dépassement). Plutôt que de couper le texte avec une
+     ellipse (rejeté : l'utilisateur veut lire chaque libellé en entier),
+     chaque étiquette peut désormais revenir sur 2 lignes, et min-height
+     réserve la même hauteur à TOUTES les cases (courtes ou non) pour
+     qu'elles restent uniformes que le libellé tienne sur 1 ou 2 lignes. */
   .dock button{
     display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
-    flex:1 1 0;min-width:0;padding:8px 4px 7px;border-radius:100px;color:var(--ink-3);
-    font-size:10.5px;font-weight:600;letter-spacing:-.01em
+    flex:1 1 0;min-width:0;padding:8px 3px 7px;border-radius:100px;color:var(--ink-3);
+    font-size:9.5px;font-weight:600;letter-spacing:-.01em
   }
-  .dock button span{display:block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .dock button span{display:block;max-width:100%;white-space:normal;text-align:center;
+    line-height:1.15;min-height:2.3em}
   .dock button svg{width:22px;height:22px}
   .dock button[aria-current]{background:var(--bg);color:var(--accent);box-shadow:var(--shadow-1)}
   [data-theme="dark"] .dock button[aria-current]{background:rgba(255,255,255,.1);color:var(--accent-2)}
@@ -473,6 +476,14 @@ button:active{transform:scale(.97)}
 .empty-i svg{width:26px;height:26px}
 .empty h3{font-size:18px;font-weight:650;letter-spacing:-.025em}
 .empty p{font-size:14.5px;color:var(--ink-3);margin:8px auto 0;max-width:38ch;line-height:1.5}
+/* CORRECTIF (bug visuel réel, signalé par l'utilisateur : "on ne voit
+   plus rien" sur la page Offres) : .rise démarre invisible et ne le
+   redevient qu'après qu'un IntersectionObserver ajoute .seen — un point
+   de défaillance de plus (timing, appareil, cycle de rendu) qu'une
+   page de tarification n'a pas à courir. Retiré des .plan (voir
+   pricingBlock ci-dessous) : ces cartes sont maintenant toujours
+   visibles immédiatement, jamais conditionnées à un déclenchement JS
+   après coup. La classe reste disponible pour du contenu non critique. */
 .rise{opacity:0;transform:translateY(16px)}
 .rise.seen{animation:rise .7s var(--spring) forwards}
 @keyframes rise{to{opacity:1;transform:none}}
@@ -538,7 +549,7 @@ button:active{transform:scale(.97)}
    bouton, le plus important pour la conversion — sortait simplement de
    l'écran, invisible et inaccessible). Le texte raccourci libère assez
    de place pour que le bouton reste toujours visible. */
-@media (max-width:480px){
+@media (max-width:600px){
   .cta-full{display:none}
   .cta-short{display:inline}
 }
@@ -14573,7 +14584,7 @@ function pricingBlock(compact = false){
     </div>
     <div class="plans">
       ${P.map((p,i)=>`
-        <div class="plan ${p.hot?'hot':''} rise" style="animation-delay:${i*.07}s">
+        <div class="plan ${p.hot?'hot':''}">
           ${p.hot?'<span class="plan-b">Le plus choisi</span>':''}
           <div class="plan-n">${p.n}</div>
           <div class="plan-p tabular-nums">${p.price===0 ? 'Gratuit'
