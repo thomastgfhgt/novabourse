@@ -966,6 +966,19 @@ body.no-spark .row-spark{display:none}
 .price{font-size:clamp(38px,7.2vw,48px);font-weight:900;line-height:1;letter-spacing:-.04em;
   font-variant-numeric:tabular-nums}
 .price small{font-size:.58em;font-weight:600;opacity:.6;margin-left:2px}
+/* AnimatedFinancialNumber (motion system, 2026-09-21) : une ANIMATION
+   (pas une transition) joue correctement même sur un élément recréé à
+   chaque render() — contrairement à une transition/position mesurée en
+   JS (voir le correctif du dock plus haut, MOTION_SYSTEM.md), qui exige
+   un nœud DOM persistant. Posée par liveTick() uniquement quand le prix
+   AFFICHÉ change réellement (jamais à l'ouverture de page ni sur un
+   cycle réseau sans changement réel). Micro-surlignage bref, retour
+   immédiat à la couleur normale — jamais un flash global de l'écran. */
+.price.flash-up{animation:priceFlashUp .9s ease-out}
+.price.flash-down{animation:priceFlashDown .9s ease-out}
+@keyframes priceFlashUp{0%{color:var(--up)}100%{color:inherit}}
+@keyframes priceFlashDown{0%{color:var(--down)}100%{color:inherit}}
+@media (prefers-reduced-motion:reduce){ .price.flash-up,.price.flash-down{animation:none} }
 .price-chg{font-size:14px;font-weight:600;margin-top:var(--space-xs);
   font-variant-numeric:tabular-nums;letter-spacing:-.02em;display:inline-flex;align-items:center;gap:6px}
 .kv{display:flex;align-items:baseline;justify-content:space-between;gap:var(--sp-2);padding:13px 0;
@@ -14070,6 +14083,13 @@ const LIVE_INTERVALLE_MS = 8000;
 const LIVE_MAX_SYMBOLES = 7;
 let liveTimer = null;
 let liveIds = [];
+/* AnimatedFinancialNumber : direction du dernier changement RÉEL de prix
+   par société ('up'/'down'), lue une seule fois par PAGES.stock() puis
+   effacée — jamais réappliquée à un render() qui suit sans nouveau
+   changement de cours. Jamais posée au premier chargement d'une cotation
+   (ancien === undefined) : ce n'est pas une variation, juste l'arrivée
+   de la donnée. */
+const PRICE_FLASH = new Map();
 
 async function liveTick(){
   const cibles = liveIds.map(id => byId[id]).filter(s => s && s.ticker);
@@ -14100,6 +14120,9 @@ async function liveTick(){
         || ancien.changePercent !== q.changePercent
         || ancien.change !== q.change
         || ancien.timestamp !== q.timestamp;
+      if (ancien && Number.isFinite(ancien.price) && q.price !== ancien.price){
+        PRICE_FLASH.set(s.id, q.price > ancien.price ? 'up' : 'down');
+      }
       QUOTES.set(s.id, q);
       if (aChange) misAJour = true;
     }
@@ -14995,7 +15018,9 @@ PAGES.stock = (id) => {
         const fraicheur = (state.ui.liveAt && route.page === 'stock' && route.arg === s.id)
           ? `<div class="tiny" style="margin-top:4px;color:var(--ink-4)">${labelFraicheur ? esc(labelFraicheur) + ' · ' : ''}Actualisé à ${new Date(state.ui.liveAt).toLocaleTimeString('fr-FR')}${labelSeance ? ' · ' + esc(labelSeance) : ''}</div>`
           : '';
-        return `<div class="price">${fmt.num(q.price)}<small>${esc(s.curSymbol)}</small></div>
+        const flash = PRICE_FLASH.get(s.id);
+        PRICE_FLASH.delete(s.id);
+        return `<div class="price${flash ? ` flash-${flash}` : ''}">${fmt.num(q.price)}<small>${esc(s.curSymbol)}</small></div>
           ${v === null ? '' : `<div class="price-chg ${v >= 0 ? 'up-t' : 'down-t'}">
             ${arrow(v)} ${fmt.pct(v)}</div>`}${fraicheur}`;
       })()}
