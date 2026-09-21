@@ -266,8 +266,28 @@ button:active{transform:scale(.97)}
   .dock button span{display:block;max-width:100%;white-space:normal;text-align:center;
     line-height:1.15;min-height:2.3em}
   .dock button svg{width:22px;height:22px}
-  .dock button[aria-current]{background:var(--bg);color:var(--accent);box-shadow:var(--shadow-1)}
-  [data-theme="dark"] .dock button[aria-current]{background:rgba(255,255,255,.1);color:var(--accent-2)}
+  /* CORRECTIF (bug réel trouvé pendant l'audit design system, 2026-09-21) :
+     --accent-2 était référencé ici sans jamais être défini nulle part
+     dans ce fichier — var() sans repli sur une variable inexistante rend
+     la déclaration invalide, la couleur du texte de l'onglet actif en
+     thème sombre retombait donc sur une valeur héritée non voulue au
+     lieu de la couleur d'accent. */
+  .dock button[aria-current]{color:var(--accent)}
+  [data-theme="dark"] .dock button[aria-current]{color:var(--accent)}
+  /* Pilule active glissante (2026-09-21, motion system) : REMPLACE
+     l'ancien ::before par bouton (voir dockIn plus bas, supprimé) qui
+     faisait disparaître l'ancien onglet et réapparaître le nouveau —
+     exactement ce qu'on ne veut pas ("elle doit réellement glisser").
+     Un seul élément partagé, repositionné par positionDockPill() (JS)
+     à chaque changement d'onglet ou redimensionnement : transform/width
+     animés en spring, jamais recréé. */
+  .dock-pill{position:absolute;top:7px;bottom:7px;left:0;border-radius:100px;
+    background:var(--bg);box-shadow:var(--shadow-1);z-index:0;pointer-events:none;
+    transition:transform .45s var(--spring), width .45s var(--spring);
+    will-change:transform,width}
+  [data-theme="dark"] .dock-pill{background:rgba(255,255,255,.1);box-shadow:none}
+  .dock-pill.no-anim{transition:none}
+  .dock button{position:relative;z-index:1}
 }
 .wrap{max-width:1120px;margin:0 auto;padding:var(--sp-4) 22px calc(var(--sp-6) + 40px)}
 .section{margin-top:96px}
@@ -821,13 +841,7 @@ button:active{transform:scale(.97)}
 .save{background:var(--accent);color:#fff;padding:2px 8px;border-radius:100px;font-size:11px;
   font-weight:700;margin-left:6px}
 @media (max-width:900px){
-  .dock button{position:relative;transition:color .3s var(--spring)}
-  .dock button[aria-current]::before{
-    content:'';position:absolute;inset:0;border-radius:100px;
-    background:var(--bg);box-shadow:var(--shadow-1);z-index:-1;
-    animation:dockIn .45s var(--spring)
-  }
-  @keyframes dockIn{from{transform:scale(.7);opacity:0}to{transform:none;opacity:1}}
+  .dock button{transition:color .3s var(--spring)}
 }
 body.gated .top,body.gated .dock{display:none}
 body.gated .wrap{padding:0;max-width:100%}
@@ -16717,17 +16731,55 @@ const NAV = [
 let route = { page:'home', arg:null };
 let history_ = [];
 
+/* Motion system — pilule glissante du dock (2026-09-21) : le dock lui-même
+   n'est construit qu'UNE SEULE FOIS (dockBuilt). Le reconstruire à chaque
+   render() (comme avant) détruisait et recréait la pilule à chaque fois :
+   un nœud DOM tout neuf n'a pas d'état "avant" dont transitionner, la
+   transition CSS ne pouvait donc jamais réellement s'animer — elle
+   "sautait" directement à sa position finale. En ne touchant plus que
+   aria-current + la position de la pilule persistante, le transform/width
+   change sur un élément qui existait déjà l'instant d'avant, et la
+   transition (.45s var(--spring)) s'exécute pour de vrai. */
+let dockBuilt = false;
 function paintNav(){
   paintSource();
   document.getElementById('topNav').innerHTML = NAV.map(n=>`
     <a href="#" data-go="${n.id}" ${route.page===n.id?'aria-current="page"':''}>${n.label}</a>`).join('');
-  document.getElementById('dock').innerHTML = NAV.map(n=>`
-    <button data-go="${n.id}" ${route.page===n.id?'aria-current="page"':''} aria-label="${n.label}">
-      ${svg(n.icon)}<span>${n.label}</span></button>`).join('');
+  const dock = document.getElementById('dock');
+  if (!dockBuilt){
+    dock.innerHTML = `<span class="dock-pill" aria-hidden="true"></span>` + NAV.map(n=>`
+      <button data-go="${n.id}" aria-label="${n.label}">${svg(n.icon)}<span>${n.label}</span></button>`).join('');
+    dockBuilt = true;
+  }
+  dock.querySelectorAll('button[data-go]').forEach(b => {
+    if (b.dataset.go === route.page) b.setAttribute('aria-current', 'page');
+    else b.removeAttribute('aria-current');
+  });
+  positionDockPill();
   document.querySelector('[data-search]').innerHTML = svg(ICON.search);
   document.querySelector('[data-theme-toggle]').innerHTML =
     svg(state.settings.theme === 'dark' ? ICON.sun : ICON.moon);
 }
+function positionDockPill(){
+  const dock = document.getElementById('dock');
+  const pill = dock.querySelector('.dock-pill');
+  const active = dock.querySelector('button[aria-current]');
+  if (!pill) return;
+  if (!active){ pill.style.width = '0px'; return; }
+  pill.style.transform = `translateX(${active.offsetLeft}px)`;
+  pill.style.width = active.offsetWidth + 'px';
+}
+/* La position mesurée en pixels ne survit pas à une rotation d'écran ou à
+   l'ouverture du clavier (qui redimensionne le viewport sur mobile) —
+   sans ce listener, la pilule resterait figée à ses anciennes coordonnées
+   jusqu'au prochain changement d'onglet. */
+window.addEventListener('resize', () => {
+  const pill = document.querySelector('.dock-pill');
+  if (!pill) return;
+  pill.classList.add('no-anim');
+  positionDockPill();
+  requestAnimationFrame(() => pill.classList.remove('no-anim'));
+});
 
 function render(navigated = false){
   /* Filet de sécurité : tant que la session n'est pas confirmée et
