@@ -496,6 +496,12 @@ button:active{transform:scale(.97)}
 .sheet{width:100%;max-width:520px;background:var(--bg);border-radius:var(--r-xl);padding:var(--sp-3);
   max-height:86vh;overflow-y:auto;box-shadow:var(--shadow-3);animation:sheetIn .42s var(--spring)}
 @keyframes sheetIn{from{transform:translateY(24px) scale(.97);opacity:0}to{transform:none;opacity:1}}
+/* Morph de la recherche : voir openSearch() (JS) pour --morph-from. Classe
+   plus spécifique que .sheet seul -> l'emporte sur sheetIn/sheetUp sans
+   !important. */
+.sheet.sheet-morph{animation:searchMorph .5s var(--spring)}
+@keyframes searchMorph{from{transform:var(--morph-from, none);opacity:.4}to{transform:none;opacity:1}}
+@media (prefers-reduced-motion:reduce){ .sheet.sheet-morph{animation:none} }
 .sheet-h{display:flex;align-items:flex-start;justify-content:space-between;gap:var(--sp-2);margin-bottom:var(--sp-2)}
 .sheet h3{font-size:22px;font-weight:700;letter-spacing:-.035em}
 .sheet p{font-size:15px;color:var(--ink-3);line-height:1.55;margin-top:10px}
@@ -17022,11 +17028,45 @@ function applyTheme(){
    searchToken protège contre les réponses obsolètes : si l'utilisateur tape
    vite, seule la dernière requête a le droit de peindre le résultat. */
 let searchTimer = null, hits = [], hi = 0, searchToken = 0;
-function openSearch(){
+/* Morph de la recherche (motion system, 2026-09-21) : la capsule d'où
+   vient le clic (icône loupe de l'en-tête, bouton "Rechercher…" d'un
+   état vide, etc.) sert de point de départ visuel — même technique FLIP
+   que les .seg (voir plus haut) et le même constat que pour eux :
+   .sheet est recréé à chaque ouverture, donc on écrit la position/échelle
+   de départ en variable CSS, on force un reflow, puis on laisse
+   l'animation "searchMorph" jouer vers la position naturelle. Sans clic
+   d'origine (raccourci clavier "/"), repli sur l'icône de l'en-tête —
+   si elle non plus n'existe pas (page gate), pas de morph, juste
+   l'entrée standard des feuilles. */
+function openSearch(origin){
+  const originEl = origin || document.querySelector('[data-search]');
+  const originRect = originEl ? originEl.getBoundingClientRect() : null;
   openSheet(`<h3 id="sheetTitle">Rechercher</h3>
     <input class="field" id="sq" type="search" placeholder="Entreprise, symbole, secteur…"
       autocomplete="off" aria-label="Rechercher" style="margin-top:16px">
     <div id="sqOut"></div>`);
+  const sheetEl = document.getElementById('sheet');
+  /* Le morph (mise à l'échelle depuis une icône) n'a de sens que pour la
+     boîte de dialogue centrée du desktop — sous 641px, .sheet devient une
+     feuille pleine largeur ancrée en bas (voir @media max-width:640px) :
+     partir d'une icône de 38px en haut d'écran donnerait un étirement
+     brutal plutôt qu'un morph. Le slide-up standard (sheetUp), déjà
+     adapté au mobile, reste inchangé sous ce seuil. */
+  if (originRect && sheetEl && window.innerWidth > 640){
+    const sr = sheetEl.getBoundingClientRect();
+    if (sr.width && sr.height){
+      const dx = (originRect.left + originRect.width/2) - (sr.left + sr.width/2);
+      const dy = (originRect.top + originRect.height/2) - (sr.top + sr.height/2);
+      const sx = Math.max(.1, Math.min(1, originRect.width / sr.width));
+      const sy = Math.max(.1, Math.min(1, originRect.height / sr.height));
+      sheetEl.style.setProperty('--morph-from',
+        `translate(${dx.toFixed(1)}px, ${dy.toFixed(1)}px) scale(${sx.toFixed(3)}, ${sy.toFixed(3)})`);
+      sheetEl.style.animation = 'none';
+      sheetEl.offsetHeight; // force le reflow avant d'activer l'animation
+      sheetEl.style.animation = '';
+      sheetEl.classList.add('sheet-morph');
+    }
+  }
   const i = document.getElementById('sq');
   i.focus(); paintSearch('');
   i.addEventListener('input', () => {
@@ -17326,7 +17366,8 @@ document.addEventListener('click', e => {
   const nav = q('[data-go]'); if (nav){ e.preventDefault(); go(nav.dataset.go, nav.dataset.arg); return; }
   if (q('[data-back]')){ back(); return; }
   if (q('[data-close]')){ closeSheet(); return; }
-  if (q('[data-search]')){ openSearch(); return; }
+  const searchOrigin = q('[data-search]');
+  if (searchOrigin){ openSearch(searchOrigin); return; }
 
   const st = q('[data-stock]'); if (st && !q('[data-star]')){ go('stock', st.dataset.stock); return; }
 
