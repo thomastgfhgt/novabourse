@@ -57,9 +57,12 @@ Implémenté comme une **animation** (keyframes), pas une transition — c'est l
 - `prefers-reduced-motion` coupe l'animation (vérifié en direct dans l'environnement de test de cette session, qui a justement cette préférence activée — confirmation en conditions réelles, pas seulement en lisant le CSS).
 - Limite connue et acceptée : un même titre affiché dans deux listes sur la même page (rare — ex. "Ma liste" et "Marché" sur l'accueil) ne flashe que dans la première lue ; le prix reste correct partout, seule l'animation ne se répète pas.
 
+## Segmented controls — fait (2026-09-21, suite)
+
+Les 8 `.seg` du fichier (période de graphique, période portefeuille, période comparateur, simple/détaillé — 2 endroits, thème — 2 endroits dont un à 3 options via `segControl()`, cycle de facturation) ont maintenant un curseur qui glisse réellement, via la technique FLIP plutôt qu'une transition passive (voir plus haut pourquoi le dock et les `.seg` ne pouvaient pas utiliser la même solution). Une seule capture générique ajoutée en tête du handler de clic partagé — aucune des poignées `data-chart-period`/`data-mode`/etc. individuelles n'a eu besoin d'être modifiée. Vérifié en direct sur la page Réglages ("Niveau de détail" Simple → Détaillé) : position finale du curseur exactement alignée sur `offsetLeft` du bouton actif.
+
 ## Ce qui N'A PAS été fait cette passe
 
-- Indicateur glissant pour `.seg` (segmented control 1J/1S/1M...) — actuellement un changement d'état instantané (`[aria-pressed]`), pas de transition. Contrairement au dock (élément stable, unique) ou au prix (recréé mais animable via keyframes), `.seg` apparaît 8 fois dans des pages entièrement recréées ET aurait besoin d'une vraie transition (glisser DEPUIS l'ancienne position), pas juste rejouer une animation d'apparition — la solution demande de passer la position précédente en variable CSS custom au moment de la recréation ; pas fait par prudence (8 sites d'appel à vérifier un par un, risque non négligeable sans pouvoir tout retester en direct).
 - Morph de la recherche globale (capsule → barre plein écran, shared element transition) — la recherche s'ouvre déjà via `openSheet()` mais sans animation de morph depuis l'icône.
 - Motion des graphiques (reveal progressif de ligne, arc du donut) — `chartSkeleton()` existe pour le chargement, pas d'animation d'apparition des données elles-mêmes.
 - `NovaOrb`, abstraction haptics, command-palette desktop pour la recherche.
