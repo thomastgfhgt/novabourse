@@ -355,14 +355,28 @@ button:active{transform:scale(.97)}
 .field:focus{outline:none;border-color:var(--accent);background:var(--bg)}
 .field::placeholder{color:var(--ink-4)}
 .field[aria-invalid="true"]{border-color:var(--down)}
-.seg{display:inline-flex;padding:4px;background:var(--bg-2);border-radius:var(--r-pill);
+.seg{display:inline-flex;position:relative;padding:4px;background:var(--bg-2);border-radius:var(--r-pill);
   gap:3px;max-width:100%;overflow-x:auto;scrollbar-width:none}
 .seg::-webkit-scrollbar{display:none}
-.seg button{padding:9px 18px;border-radius:var(--r-pill);font-size:var(--t-small);
+.seg button{position:relative;z-index:1;padding:9px 18px;border-radius:var(--r-pill);font-size:var(--t-small);
   font-weight:550;color:var(--ink-3);white-space:nowrap;min-height:38px;
-  transition:background var(--fast) ease,color var(--fast) ease}
-.seg button[aria-pressed="true"]{background:var(--bg);color:var(--ink);font-weight:600;
-  box-shadow:var(--shadow-2)}
+  transition:color var(--fast) ease}
+.seg button[aria-pressed="true"]{color:var(--ink);font-weight:600}
+/* Curseur glissant (motion system, 2026-09-21) : voir syncSegPill() (JS).
+   Contrairement au dock (élément d'app-shell jamais recréé), un .seg vit
+   dans une page entièrement reconstruite à chaque changement — donc pas
+   d'élément "persistant" possible ici. Solution FLIP (First-Last-Invert-
+   Play) à la place : syncSegPill() écrit explicitement la position de
+   DÉPART en style inline (sans transition), force un reflow synchrone,
+   puis écrit la position D'ARRIVÉE (avec transition) — le navigateur
+   anime le changement de style qu'il vient d'observer, que l'élément qui
+   le porte soit "nouveau" ou non ; ce n'est PAS le même besoin que le
+   dock (élément persistant + transition passive), qui ne se serait pas
+   appliqué ici. */
+.seg-pill{position:absolute;top:4px;bottom:4px;left:0;border-radius:var(--r-pill);
+  background:var(--bg);box-shadow:var(--shadow-2);z-index:0;pointer-events:none;
+  transition:transform .35s var(--spring),width .35s var(--spring)}
+@media (prefers-reduced-motion:reduce){ .seg-pill{transition:none} }
 /* CORRECTIF (audit complet 2026-09-17) : .sw avait une première
    définition ici, entièrement écrasée par la seconde plus bas dans ce
    fichier (aucun balisage n'a de sélecteur plus spécifique) — code
@@ -14101,6 +14115,10 @@ let liveIds = [];
    (ancien === undefined) : ce n'est pas une variation, juste l'arrivée
    de la donnée. */
 const PRICE_FLASH = new Map();
+/* Même idée pour le curseur des segmented controls (voir syncSegPill()
+   plus bas) : position de départ, par clé de .seg, posée juste avant le
+   changement d'état qui déclenche le prochain render(). */
+const SEG_FROM = new Map();
 
 async function liveTick(){
   const cibles = liveIds.map(id => byId[id]).filter(s => s && s.ticker);
@@ -14663,7 +14681,7 @@ function pricingBlock(compact = false){
       <h2 class="title" style="margin-top:6px">Commencez gratuitement.</h2>
       <p class="lead measure-l" style="margin:12px auto 0">
         L'essentiel est gratuit.</p>
-      ${CONFIG.annualBilling ? `<div class="seg" style="margin-top:24px" role="group" aria-label="Périodicité">
+      ${CONFIG.annualBilling ? `<div class="seg" data-seg="cycle" style="margin-top:24px" role="group" aria-label="Périodicité">
         <button data-cycle="mensuel" aria-pressed="${!yearly}">Mensuel</button>
         <button data-cycle="annuel" aria-pressed="${yearly}">Annuel <span class="save">−34 %</span></button>
       </div>` : ''}
@@ -15103,7 +15121,7 @@ PAGES.stock = (id) => {
     return `
   <section class="section">
     <div class="section-h"><h2 class="h2">Cours</h2>
-      ${status !== 'idle' ? `<div class="seg">${CHART_PERIODS.map(p=>`<button data-chart-period="${p.api}"
+      ${status !== 'idle' ? `<div class="seg" data-seg="chartPeriod">${CHART_PERIODS.map(p=>`<button data-chart-period="${p.api}"
         aria-pressed="${period===p.api}">${p.label}</button>`).join('')}</div>` : ''}</div>
     <div class="card">
       ${status === 'idle' ? `
@@ -15148,7 +15166,7 @@ PAGES.stock = (id) => {
   <!-- CHIFFRES — chargement à la demande -->
   <section class="section">
     <div class="section-h"><h2 class="h2">Les chiffres</h2>
-      ${s.fundamentalsStatus !== 'idle' ? `<div class="seg"><button data-mode="debutant" aria-pressed="${!isExpert()}">Simple</button>
+      ${s.fundamentalsStatus !== 'idle' ? `<div class="seg" data-seg="mode"><button data-mode="debutant" aria-pressed="${!isExpert()}">Simple</button>
         <button data-mode="expert" aria-pressed="${isExpert()}">Détaillé</button></div>` : ''}</div>
     <div class="card">
       ${s.fundamentalsStatus === 'idle' ? `
@@ -15734,7 +15752,7 @@ PAGES.portfolio = () => {
 
     <section class="section">
       <div class="section-h"><h2 class="h2">Évolution</h2>
-        <div class="seg">${PF_PERIODS.map(p=>`<button data-pf-period="${p}"
+        <div class="seg" data-seg="pfPeriod">${PF_PERIODS.map(p=>`<button data-pf-period="${p}"
           aria-pressed="${pfPeriod===p}">${p}</button>`).join('')}</div>
       </div>
       <div class="card" style="margin-top:14px">
@@ -15916,10 +15934,10 @@ PAGES.account = () => {
       <h2 class="h2">Préférences</h2>
       <div class="card" style="margin-top:14px">
         <div class="kv"><dt>Affichage</dt><dd>
-          <span class="seg"><button data-mode="debutant" aria-pressed="${!isExpert()}">Simple</button>
+          <span class="seg" data-seg="mode"><button data-mode="debutant" aria-pressed="${!isExpert()}">Simple</button>
           <button data-mode="expert" aria-pressed="${isExpert()}">Détaillé</button></span></dd></div>
         <div class="kv"><dt>Thème</dt><dd>
-          <span class="seg"><button data-set-theme="light" aria-pressed="${state.settings.theme!=='dark'}">Clair</button>
+          <span class="seg" data-seg="theme"><button data-set-theme="light" aria-pressed="${state.settings.theme!=='dark'}">Clair</button>
           <button data-set-theme="dark" aria-pressed="${state.settings.theme==='dark'}">Sombre</button></span></dd></div>
         <div class="kv"><dt>Devise d'affichage</dt><dd>EUR</dd></div>
         <div class="kv"><dt>Langue</dt><dd>Français</dd></div>
@@ -15973,7 +15991,7 @@ function settingRow(label, help, control){
   </div>`;
 }
 function segControl(name, options, current){
-  return `<div class="seg">${options.map(o=>`
+  return `<div class="seg" data-seg="${esc(name)}">${options.map(o=>`
     <button data-set="${name}" data-val="${esc(String(o.id))}"
       aria-pressed="${String(current)===String(o.id)}"
       ${o.ready===false?'data-soon="1"':''}>${esc(o.label)}</button>`).join('')}</div>`;
@@ -16310,7 +16328,7 @@ PAGES.compare = () => {
 
     <section class="section">
       <div class="section-h"><h2 class="h2">Performance</h2>
-        <div class="seg">${PERIODS_DISPO.map(x=>`<button data-cperiod="${x}"
+        <div class="seg" data-seg="cperiod">${PERIODS_DISPO.map(x=>`<button data-cperiod="${x}"
           aria-pressed="${periodId===x}">${x}</button>`).join('')}</div></div>
       <div class="card">
         ${ready.length >= 2
@@ -16817,6 +16835,38 @@ window.addEventListener('resize', () => {
   requestAnimationFrame(() => pill.classList.remove('no-anim'));
 });
 
+/* Curseur glissant des .seg — technique FLIP (voir le commentaire CSS sur
+   .seg-pill). SEG_FROM(key) posée par le handler de clic ci-dessus ;
+   consommée une seule fois ici, jamais réappliquée à un render() qui
+   suit sans nouveau clic sur ce .seg précis. */
+function syncSegPill(seg){
+  if (!seg) return;
+  let pill = seg.querySelector(':scope > .seg-pill');
+  if (!pill){
+    pill = document.createElement('span');
+    pill.className = 'seg-pill';
+    pill.setAttribute('aria-hidden', 'true');
+    seg.insertBefore(pill, seg.firstChild);
+  }
+  const active = seg.querySelector('button[aria-pressed="true"]');
+  if (!active){ pill.style.width = '0px'; return; }
+  const key = seg.dataset.seg;
+  const depart = key ? SEG_FROM.get(key) : null;
+  if (depart){
+    SEG_FROM.delete(key);
+    pill.style.transition = 'none';
+    pill.style.transform = `translateX(${depart.left}px)`;
+    pill.style.width = depart.width + 'px';
+    pill.offsetHeight; // force le reflow avant d'écrire la position d'arrivée
+    pill.style.transition = '';
+  }
+  pill.style.transform = `translateX(${active.offsetLeft}px)`;
+  pill.style.width = active.offsetWidth + 'px';
+}
+function syncAllSegPills(){
+  document.querySelectorAll('.seg[data-seg]').forEach(syncSegPill);
+}
+
 function render(navigated = false){
   /* Filet de sécurité : tant que la session n'est pas confirmée et
      l'onboarding terminé, jamais de contenu privé. */
@@ -16856,6 +16906,7 @@ function render(navigated = false){
     document.documentElement.scrollTop = 0; document.body.scrollTop = 0;
   }
   paintNav();
+  syncAllSegPills();
   /* Chargement à la demande : l'accueil/watchlist n'entraîne plus aucun
      appel history/fondamentaux (seules les quotes, déjà séparées, restent
      automatiques). L'ouverture d'une fiche n'en déclenche plus non plus —
@@ -17163,6 +17214,22 @@ function openSellReview(st){
 /* ---------- événements ---------- */
 document.addEventListener('click', e => {
   const q = sel => e.target.closest(sel);
+
+  /* Curseur glissant des segmented controls (motion system, 2026-09-21) :
+     capture la position de DÉPART avant que le clic ne déclenche le
+     changement d'état + render() plus bas dans ce même handler (chaque
+     data-chart-period/data-mode/etc. gère son propre state, celle-ci ne
+     fait qu'enregistrer d'où partir — générique, aucune des 8 poignées
+     de .seg n'a besoin d'être modifiée individuellement). */
+  const segBtn = q('.seg button');
+  if (segBtn){
+    const seg = segBtn.closest('.seg');
+    const key = seg?.dataset.seg;
+    const avant = seg?.querySelector('button[aria-pressed="true"]');
+    if (key && avant && avant !== segBtn){
+      SEG_FROM.set(key, { left: avant.offsetLeft, width: avant.offsetWidth });
+    }
+  }
 
   const amt = q('[data-amount]');
   if (amt){ const st = byId[amt.dataset.stock];
