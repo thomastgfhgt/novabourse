@@ -48,11 +48,19 @@ La règle générique `*{animation-duration:.001ms!important}` ne touchait ni `a
 
 **Règle apprise, à appliquer à toute future animation "backwards"/"both" avec délai** : sous `prefers-reduced-motion`, toujours `animation:none`, jamais une durée quasi nulle — cette dernière approche a un historique de bugs dans ce fichier (deux occurrences distinctes trouvées cette session).
 
+## `AnimatedFinancialNumber` — fait (mise à jour du 2026-09-21, suite)
+
+Implémenté comme une **animation** (keyframes), pas une transition — c'est le point technique qui la rend possible dans ce codebase : `PAGES.stock()`/`stockRow()` sont entièrement recréées à chaque `render()`, un élément neuf n'a donc pas d'état "avant" pour une transition, mais une animation CSS joue correctement dès son insertion, sans avoir besoin de connaître son état précédent.
+
+- `PRICE_FLASH` (Map stockId → 'up'/'down') posée par `liveTick()` uniquement quand le prix AFFICHÉ change réellement (réutilise le garde-fou anti-boucle-de-rechargement déjà en place).
+- Consommée (supprimée) à la première lecture — `.price` sur la fiche action (commit `1ef0c46`), `.row-px` dans `stockRow()` donc sur Accueil/Radar/Explorer/Marchés/Suivi (commit `7cccd59`).
+- `prefers-reduced-motion` coupe l'animation (vérifié en direct dans l'environnement de test de cette session, qui a justement cette préférence activée — confirmation en conditions réelles, pas seulement en lisant le CSS).
+- Limite connue et acceptée : un même titre affiché dans deux listes sur la même page (rare — ex. "Ma liste" et "Marché" sur l'accueil) ne flashe que dans la première lue ; le prix reste correct partout, seule l'animation ne se répète pas.
+
 ## Ce qui N'A PAS été fait cette passe
 
-- Indicateur glissant pour `.seg` (segmented control 1J/1S/1M...) — actuellement un changement d'état instantané (`[aria-pressed]`), pas de transition. Même pattern que le dock avant correctif ; à faire en réutilisant `positionDockPill()` comme modèle.
+- Indicateur glissant pour `.seg` (segmented control 1J/1S/1M...) — actuellement un changement d'état instantané (`[aria-pressed]`), pas de transition. Contrairement au dock (élément stable, unique) ou au prix (recréé mais animable via keyframes), `.seg` apparaît 8 fois dans des pages entièrement recréées ET aurait besoin d'une vraie transition (glisser DEPUIS l'ancienne position), pas juste rejouer une animation d'apparition — la solution demande de passer la position précédente en variable CSS custom au moment de la recréation ; pas fait par prudence (8 sites d'appel à vérifier un par un, risque non négligeable sans pouvoir tout retester en direct).
 - Morph de la recherche globale (capsule → barre plein écran, shared element transition) — la recherche s'ouvre déjà via `openSheet()` mais sans animation de morph depuis l'icône.
-- `AnimatedFinancialNumber` (micro-highlight vert/rouge sur changement de valeur) — les montants se re-rendent instantanément aujourd'hui.
 - Motion des graphiques (reveal progressif de ligne, arc du donut) — `chartSkeleton()` existe pour le chargement, pas d'animation d'apparition des données elles-mêmes.
 - `NovaOrb`, abstraction haptics, command-palette desktop pour la recherche.
 
