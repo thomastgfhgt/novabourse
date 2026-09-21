@@ -1051,6 +1051,16 @@ function esc(v){
     '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;'
   }[c]));
 }
+/* CORRECTIF (audit sécurité, 2026-09-21) : esc() échappe les caractères
+   HTML mais ne valide jamais le SCHÉMA d'une URL — un lien "javascript:"
+   ou "data:" venu d'un fournisseur externe (actualités, site web d'une
+   société) passerait esc() sans encombre et s'exécuterait au clic.
+   safeHref() n'autorise que http(s), sinon renvoie null (jamais un lien
+   cliquable dangereux, jamais un throw qui casserait le rendu). */
+function safeHref(url){
+  const v = String(url ?? '').trim();
+  return /^https?:\/\//i.test(v) ? v : null;
+}
 
 /* ---- devises ---- */
 const CUR_SYMBOL = { EUR:'€', USD:'$', GBP:'£', CHF:'CHF', JPY:'¥', HKD:'HK$' };
@@ -15044,7 +15054,12 @@ PAGES.stock = (id) => {
       <p class="small" style="line-height:1.6">${esc(s.companyIdentity.description)}</p>
       ${(s.companyIdentity.website || Number.isFinite(s.companyIdentity.employees) || s.companyIdentity.ipoDate) ? `
       <dl style="margin-top:16px">
-        ${s.companyIdentity.website ? `<div class="kv"><dt>Site web</dt><dd><a href="${esc(s.companyIdentity.website)}" target="_blank" rel="noopener noreferrer">${esc(s.companyIdentity.website.replace(/^https?:\/\//, ''))}</a></dd></div>` : ''}
+        ${s.companyIdentity.website ? (() => {
+          const href = safeHref(s.companyIdentity.website);
+          const label = esc(s.companyIdentity.website.replace(/^https?:\/\//, ''));
+          return `<div class="kv"><dt>Site web</dt><dd>${href
+            ? `<a href="${esc(href)}" target="_blank" rel="noopener noreferrer">${label}</a>` : label}</dd></div>`;
+        })() : ''}
         ${Number.isFinite(s.companyIdentity.employees) ? `<div class="kv"><dt>Effectifs</dt><dd class="tabular-nums">${fmt.int(s.companyIdentity.employees)}</dd></div>` : ''}
         ${s.companyIdentity.ipoDate ? `<div class="kv"><dt>Introduction en bourse</dt><dd>${esc(s.companyIdentity.ipoDate)}</dd></div>` : ''}
       </dl>` : ''}
@@ -15173,7 +15188,7 @@ PAGES.stock = (id) => {
         <p class="small" style="padding:24px 0;text-align:center">Chargement des actualités…</p>`
       : (Array.isArray(s.news) && s.news.length) ? `
         <div class="rows">
-          ${s.news.map(a => `<a class="row" href="${esc(a.link)}" target="_blank" rel="noopener noreferrer">
+          ${s.news.filter(a => safeHref(a.link)).map(a => `<a class="row" href="${esc(safeHref(a.link))}" target="_blank" rel="noopener noreferrer">
             <span class="row-main">
               <span class="row-t">${esc(a.title)}</span>
               <span class="row-s">${esc(formatDateAffichage(a.date, 'intraday'))}${a.tags && a.tags.length ? ' · ' + esc(a.tags.slice(0,3).join(', ')) : ''}</span>
