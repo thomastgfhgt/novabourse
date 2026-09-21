@@ -89,13 +89,13 @@ Fonctionnel, vérifié par lecture de code (voir ci-dessus). Test bout-en-bout (
 3 tables réelles confirmées (`profiles`, `stripe_events`, table de quota IA). Portefeuille/watchlist/listes = localStorage uniquement, pas de table.
 
 ## RLS_STATUS
-SANS OBJET tel que demandé (pas de RLS actif constaté) — autorisation applicative en place, voir SECURITY.
+SANS OBJET tel que demandé (pas de RLS actif constaté) — autorisation applicative en place, voir SECURITY. **Point additionnel trouvé cette session** : le schéma des tables `profiles`/`stripe_events` (celles qui porteraient RLS) n'existe nulle part dans ce repository — `sql/` ne contient que le script du catalogue marché. Ces tables ont donc été créées directement dans le tableau de bord Supabase, hors contrôle de version. Conséquence pratique : je ne peux pas écrire de politique RLS en toute sécurité sans voir les colonnes réelles (risque de casser l'appli avec une policy mal calée) — à faire directement dans Supabase, ou en exportant d'abord le schéma réel vers `sql/` pour que ce soit vérifiable ici.
 
 ## STRIPE_STATUS
 Sain, voir SECURITY_ISSUES_FOUND. Non testé en conditions réelles (mode test) cette session.
 
 ## MARKET_DATA_STATUS
-6 fournisseurs avec repli (`_providers.js`, ~114 Ko — pas audité ligne à ligne, hors budget). Fraîcheur des cotations affichée honnêtement à l'utilisateur (labels "Différé"/"Cours réels" vus en direct).
+6 fournisseurs avec repli (`_providers.js`, ~114 Ko / 3671 lignes). Échantillonné cette session (le fetch générique `getJSON()`, l'orchestrateur de repli `cascade()`, la liste des fonctions exportées) plutôt que lu intégralement (hors budget) : timeout explicite (9s, `AbortController`), erreurs capturées avec statut/corps, **clés API systématiquement retirées des URLs avant tout log d'erreur** (`urlSansCle()`) — bon réflexe de sécurité. `cascade()` essaie chaque fournisseur configuré dans l'ordre, journalise, s'arrête au premier succès. Rien d'alarmant trouvé sur l'échantillon lu ; pas une garantie sur les ~3600 lignes non lues. Fraîcheur des cotations affichée honnêtement à l'utilisateur (labels "Différé"/"Cours réels" vus en direct).
 
 ## AI_STATUS
 Sain — auth + quota + rate limit vérifiés dans le code, voir SECURITY.
@@ -131,10 +131,10 @@ SANS OBJET (pas de build step — `index.html` est servi tel quel). Validation f
 12 scripts dans `scripts/test-*.js`, tous exécutés et au vert après chaque modification de cette session (`node scripts/test-*.js`).
 
 ## PENDING_P2_P3_ISSUES
-- `api/market/_providers.js` (114 Ko) jamais audité ligne à ligne.
-- Messages d'erreur bruts (codes machine) potentiellement affichés sans traduction dans de rares cas d'échec réseau — voir `CONTENT_ISSUES.md`.
-- RLS non activé (recommandé en défense en profondeur, non bloquant vu le filtrage applicatif déjà en place).
-- Audit console/réseau live incomplet (voir section suivante).
+- `api/market/_providers.js` : ~3600 des 3671 lignes non lues individuellement (échantillon lu rassurant, voir MARKET_DATA_STATUS).
+- ~~Messages d'erreur bruts potentiellement affichés~~ — vérifié cette session, non fondé (voir `CONTENT_ISSUES.md`) : chaque famille d'appel a soit une table de traduction avec repli honnête, soit ne transmet jamais le code brut à l'UI.
+- RLS non activée, et surtout : le schéma des tables `profiles`/`stripe_events` n'est pas versionné dans ce repo (créé directement dans Supabase) — à corriger en exportant le schéma réel avant d'y toucher.
+- Audit console/réseau live toujours bloqué par l'interception SSL Fortinet locale (revérifié cette session, toujours actif) — voir section suivante.
 
 ## WHAT_MUST_BE_DONE_IN_STEP_2
 (Tel que cadré par l'utilisateur : refonte visuelle, motion system, fiches actions.) Rien d'autre à ajouter ici — l'étape 1 ne doit pas empiéter dessus.
