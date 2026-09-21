@@ -61,9 +61,12 @@ Implémenté comme une **animation** (keyframes), pas une transition — c'est l
 
 Les 8 `.seg` du fichier (période de graphique, période portefeuille, période comparateur, simple/détaillé — 2 endroits, thème — 2 endroits dont un à 3 options via `segControl()`, cycle de facturation) ont maintenant un curseur qui glisse réellement, via la technique FLIP plutôt qu'une transition passive (voir plus haut pourquoi le dock et les `.seg` ne pouvaient pas utiliser la même solution). Une seule capture générique ajoutée en tête du handler de clic partagé — aucune des poignées `data-chart-period`/`data-mode`/etc. individuelles n'a eu besoin d'être modifiée. Vérifié en direct sur la page Réglages ("Niveau de détail" Simple → Détaillé) : position finale du curseur exactement alignée sur `offsetLeft` du bouton actif.
 
+## Recherche globale — fait (2026-09-21, suite)
+
+`openSearch(origin)` capture l'élément réellement cliqué (icône loupe de l'en-tête, ou tout autre bouton portant `data-search` — état vide, page Explorer...) et fait démarrer la feuille de recherche visuellement depuis sa position/taille à l'écran, plutôt que le scale-up-from-center générique des autres feuilles. Même technique FLIP que les `.seg`. Uniquement au-dessus de 640px (voir le commentaire dans le code pour pourquoi : en dessous, `.sheet` devient une feuille pleine largeur ancrée en bas, partir d'une icône de 38px donnerait un étirement au lieu d'un morph — le slide-up mobile existant reste inchangé et adapté). Vérifié en direct : `--morph-from` calculé correctement (`translate(336px,-336px) scale(.10,.23)` pour l'icône testée), état final correctement centré et dimensionné.
+
 ## Ce qui N'A PAS été fait cette passe
 
-- Morph de la recherche globale (capsule → barre plein écran, shared element transition) — la recherche s'ouvre déjà via `openSheet()` mais sans animation de morph depuis l'icône.
 - Motion des graphiques (reveal progressif de ligne, arc du donut) — `chartSkeleton()` existe pour le chargement, pas d'animation d'apparition des données elles-mêmes.
 - `NovaOrb`, abstraction haptics, command-palette desktop pour la recherche.
 
