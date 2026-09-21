@@ -17,20 +17,33 @@
   <script src="https://unpkg.com/lightweight-charts@5.2.1/dist/lightweight-charts.standalone.production.js"></script><style>
 :root{
   color-scheme:light;
+  /* Palette officielle NovaBourse (2026-09-21) : noir/blanc structurent,
+     orange/bleu/vert créent l'identité — remplace l'ancien accent bleu
+     unique. Échelles à 6 crans (50/100/300/500/700/900) plutôt que 10 :
+     l'app n'utilise jamais plus de 3-4 variantes sémantiques par couleur
+     (fond doux/base/survol/appui), une échelle plus fine serait un
+     abstraction non utilisée nulle part dans ce fichier. */
+  --orange-50:#fff3ea;  --orange-100:#ffe1cc; --orange-300:#ffb27a;
+  --orange-500:#f37021; --orange-700:#c6560f; --orange-900:#7a3308;
+  --blue-50:#eef1ff;  --blue-100:#dce3ff; --blue-300:#94a9ff;
+  --blue-500:#4c6fff; --blue-700:#2f4ecc; --blue-900:#1a2b75;
+  --green-50:#e7fbf2;  --green-100:#c6f5e0; --green-300:#74e6b8;
+  --green-500:#21c984; --green-700:#159a64; --green-900:#0b5c3c;
   --bg:#ffffff;
-  --bg-2:#f4f5f8;
-  --bg-3:#eceef3;
-  --bg-4:#e3e6ed;
+  --bg-2:#faf9f8;
+  --bg-3:#f5f4f0;
+  --bg-4:#ecece8;
   --ink:#0d1117;
   --ink-2:#3d4453;
   --ink-3:#6b7385;
   --ink-4:#9aa1b1;
-  --accent:#3557f6;
-  --accent-hover:#2a48d8;
-  --accent-press:#2440c0;
-  --accent-soft:#eef2ff;
+  --accent:var(--orange-500);
+  --accent-hover:var(--orange-700);
+  --accent-press:#a8480c;
+  --accent-soft:var(--orange-50);
   --accent-ink:#ffffff;
-  --up:#16a34a;   --up-soft:#e9f7ee;
+  --blue-accent:var(--blue-500); --blue-accent-soft:var(--blue-50);
+  --up:var(--green-500);   --up-soft:var(--green-50);
   --down:#dc2626; --down-soft:#fdecec;
   --warn:#b45309; --warn-soft:#fdf4e7;
   --line:#e6e9f0;
@@ -72,16 +85,22 @@
 }
 [data-theme="dark"]{
   color-scheme:dark;
-  --bg:#0e1116; --bg-2:#161a21; --bg-3:#1d222b; --bg-4:#252b36;
+  /* Échelle noire officielle (2026-09-21) : 050505 (fond) -> 16191F
+     (surface la plus élevée), même logique de palier que le clair. */
+  --bg:#050505; --bg-2:#0b0d11; --bg-3:#111318; --bg-4:#16191f;
   --ink:#f2f4f8; --ink-2:#c3c9d4; --ink-3:#8d95a4; --ink-4:#646c7c;
-  --accent:#5b7cff; --accent-hover:#7590ff; --accent-press:#4568f0;
-  --accent-soft:#161d33; --accent-ink:#0e1116;
-  --up:#3ecf7f; --up-soft:#11251a; --down:#f87171; --down-soft:#2a1416;
+  /* Orange plus clair/saturé qu'en thème clair (lisibilité sur fond
+     quasi noir) ; encre du bouton reste sombre — un orange aussi clair
+     porte mieux un texte sombre qu'un texte blanc. */
+  --accent:#ff8a3d; --accent-hover:#ffa35c; --accent-press:#e86d1f;
+  --accent-soft:#2a1608; --accent-ink:#08090b;
+  --blue-accent:var(--blue-300); --blue-accent-soft:#0f1733;
+  --up:#2fe39b; --up-soft:#0c2419; --down:#f87171; --down-soft:#2a1416;
   --warn:#e0a63a; --warn-soft:#2a2110;
   --line:#242a34; --line-2:#1b2028;
   --shadow-2:0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.35);
   --shadow-3:0 2px 6px rgba(0,0,0,.45), 0 24px 48px rgba(0,0,0,.45);
-  --shadow-accent:0 8px 24px rgba(91,124,255,.22);
+  --shadow-accent:0 8px 24px rgba(255,138,61,.24);
 }
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html{-webkit-text-size-adjust:100%}
@@ -131,26 +150,35 @@ body{
   filter:blur(110px);opacity:.32;
   animation:auroraDrift 26s ease-in-out infinite, auroraHue 60s linear infinite;
   will-change:transform}
+/* Couleurs en variables (2026-09-21, palette officielle orange/bleu/vert) :
+   permet de faire varier le fond par section (JS pose body[data-bg=...],
+   voir paintNav()/render()) sans dupliquer les règles d'animation. Repli
+   par défaut = orange + bleu (Accueil, Marchés, Radar, Explorer...). */
 .aurora-bg::before{width:55vw;height:55vw;top:-18vw;left:-12vw;
-  background:radial-gradient(circle,#8b7bff 0%,#5b7cff 45%,transparent 72%)}
+  background:radial-gradient(circle,var(--aurora-1,#f37021) 0%,var(--aurora-1b,#ff9d5c) 45%,transparent 72%)}
 .aurora-bg::after{width:50vw;height:50vw;bottom:-22vw;right:-14vw;animation-delay:-13s;
-  background:radial-gradient(circle,#ff8bd6 0%,#ff5b9c 40%,transparent 72%)}
+  background:radial-gradient(circle,var(--aurora-2,#4c6fff) 0%,var(--aurora-2b,#8ba0ff) 40%,transparent 72%)}
 .aurora-bg .aurora-3{width:38vw;height:38vw;top:38vh;left:32vw;animation-delay:-8s;
   animation-duration:32s;opacity:.24;
-  background:radial-gradient(circle,#5be6c8 0%,#3ec9ff 45%,transparent 72%)}
+  background:radial-gradient(circle,var(--aurora-3,#21c984) 0%,var(--aurora-3b,#5be6c8) 45%,transparent 72%)}
+body[data-bg="portfolio"]{--aurora-1:#21c984;--aurora-1b:#5be6c8;--aurora-2:#f37021;--aurora-2b:#ff9d5c;
+  --aurora-3:#4c6fff;--aurora-3b:#8ba0ff}
+body[data-bg="account"]{--aurora-1:#8d95a4;--aurora-1b:#aeb4c0;--aurora-2:#646c7c;--aurora-2b:#9aa1b1;
+  --aurora-3:#8d95a4;--aurora-3b:#aeb4c0}
 @keyframes auroraDrift{
   0%,100%{transform:translate(0,0) scale(1)}
   33%{transform:translate(5vw,3vw) scale(1.06)}
   66%{transform:translate(-3vw,5vw) scale(.97)}
 }
-/* La rotation de teinte sur le CALQUE ENTIER (pas les dégradés eux-mêmes)
-   fait glisser lentement les 3 taches à travers tout le spectre — c'est
-   littéralement "un fond qui change de couleur" (PRD §2), vérifié en
-   direct : le cycle de 60s reste imperceptible seconde par seconde mais
-   franchement visible en comparant deux captures à 20s d'écart. */
+/* CORRECTIF (2026-09-21, palette officielle) : une rotation complète sur
+   360° promenait chaque tache à travers TOUTES les teintes (le bleu
+   devenait vert, puis jaune, puis rouge...) — "un fond qui change de
+   couleur" au sens du PRD, mais qui abandonnait l'identité orange/bleu/
+   vert au fil du cycle. Oscillation resserrée (±18°) : le fond continue
+   de "vivre" sans jamais quitter la famille de teinte de sa tache. */
 @keyframes auroraHue{
-  from{filter:blur(110px) hue-rotate(0deg)}
-  to{filter:blur(110px) hue-rotate(360deg)}
+  0%,100%{filter:blur(110px) hue-rotate(-18deg)}
+  50%{filter:blur(110px) hue-rotate(18deg)}
 }
 @media (prefers-reduced-motion:reduce){
   .aurora-bg::before,.aurora-bg::after,.aurora-bg .aurora-3{animation:none}
@@ -1285,7 +1313,7 @@ function loadState(){
           ? saved.lists.filter(l => l && typeof l.id === 'string' && typeof l.name === 'string')
             .map(l => ({
               id: l.id, name: l.name,
-              color: typeof l.color === 'string' ? l.color : '#3557f6',
+              color: typeof l.color === 'string' ? l.color : '#f37021',
               icon: typeof l.icon === 'string' ? l.icon : 'star',
               items: Array.isArray(l.items) ? [...new Set(l.items.filter(x => typeof x === 'string'))] : [],
             }))
@@ -13347,7 +13375,7 @@ const inWatch = (id) => state.watchlist.includes(id);
 /* ============================================================
    LISTES ORGANISÉES (§9) — distinctes de watchlist/inWatch ci-dessus.
    ============================================================ */
-const LIST_COLORS = ['#3557f6','#00a651','#e0407a','#c47f0a','#5b4ae0','#0891b2','#dc2626','#64748b'];
+const LIST_COLORS = ['#f37021','#21c984','#e0407a','#4c6fff','#5b4ae0','#0891b2','#dc2626','#64748b'];
 /* Réutilise des icônes déjà existantes dans ICON (voir plus bas) plutôt que
    d'en dessiner de nouvelles — aucun nouvel asset SVG pour cette passe. */
 const LIST_ICONS = ['star','shield','chart','wallet','list','book'];
@@ -16100,7 +16128,7 @@ const CMP_ROWS = [
     fmt:v => fmt.num(v,1) + ' %', higher:false },
 ];
 
-const CMP_PALETTE = ['#3557f6','#00a651','#e0407a','#c47f0a'];
+const CMP_PALETTE = ['#f37021','#4c6fff','#21c984','#e0407a'];
 
 /* Prépare, pour chaque société sélectionnée, ses points réels pour la
    période choisie (mêmes HIST/histPeriode que la fiche action — aucun
@@ -16725,6 +16753,14 @@ function render(navigated = false){
     </div>`;
   }
   view.innerHTML = html;
+  /* Fond ambiant par section (2026-09-21, palette officielle) : voir les
+     règles body[data-bg=...] sur .aurora-bg — portfolio penche vert+orange,
+     compte/réglages restent neutres, tout le reste garde le défaut
+     orange+bleu. Un simple attribut plutôt qu'une classe : une seule
+     source de vérité, jamais désynchronisée d'un toggle CSS séparé. */
+  document.body.dataset.bg = (route.page === 'portfolio') ? 'portfolio'
+    : (route.page === 'account' || route.page === 'settings') ? 'account'
+    : 'default';
   /* Le scroll ne repart en haut que lors d'une VRAIE navigation (go()/back()),
      jamais lors d'un simple rafraîchissement déclenché par l'arrivée d'une
      quote ou d'un historique en tâche de fond. */
