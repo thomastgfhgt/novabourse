@@ -72,7 +72,13 @@
      env(safe-area-inset-bottom) — jamais une valeur fixe devinée — pour que
      le padding-bottom du contenu s'adapte à la VRAIE zone sûre de l'appareil
      (elle varie selon le modèle d'iPhone/Android et l'orientation). */
-  --dock-h:68px; --dock-gap:14px;
+  /* Recalculé pour le dock agrandi (2026-09-22, refonte bottom nav) :
+     14px×2 (padding du dock) + icône 26px + gap 4px + jusqu'à 2 lignes
+     de libellé 13px (~30px) + padding du bouton 6px×2 ≈ 100px. Toujours
+     couplé à env(safe-area-inset-bottom) dans .wrap ci-dessous — ne
+     JAMAIS ajuster l'un sans l'autre, c'est ce qui a évité que ce
+     changement ne fasse recouvrir du contenu par le dock. */
+  --dock-h:100px; --dock-gap:14px;
   --space-xs:8px; --space-sm:16px; --space-md:24px; --space-lg:32px;
   --t-display:clamp(38px,7vw,60px);
   --t-title:clamp(26px,4vw,36px);
@@ -251,15 +257,31 @@ button:active{transform:scale(.97)}
 .dock{display:none}
 @media (max-width:900px){
   .top-nav{display:none}
+  /* CORRECTIF DESIGN (2026-09-22, refonte bottom nav — "nord magnétique"
+     du brief) : dock agrandi (icônes 22→26px, libellés 9.5→13px, cases
+     56px minimum) pour un rendu bien plus "app native". Écart assumé
+     par rapport au chiffre littéral du brief (gap 12-16px horizontal) :
+     ce projet a 6 destinations, pas 4-5 comme la référence — un tel
+     espacement ×5 intervalles dépasserait la largeur d'un téléphone
+     réel. gap resserré à 4px, tout le reste (padding, tailles) suit la
+     spec. Vérifié en direct après coup (voir commit), pas juste calculé
+     à l'aveugle. */
   .dock{
     display:flex;position:fixed;left:50%;transform:translateX(-50%);
     bottom:calc(14px + env(safe-area-inset-bottom));z-index:60;
     background:rgba(248,249,251,.86);backdrop-filter:saturate(180%) blur(24px);
     -webkit-backdrop-filter:saturate(180%) blur(24px);
-    border:.5px solid rgba(0,0,0,.07);border-radius:100px;
-    padding:7px;gap:2px;box-shadow:var(--shadow-3);max-width:calc(100vw - 24px)
+    border:.5px solid rgba(0,0,0,.07);border-radius:28px;
+    padding:14px 10px;gap:4px;box-shadow:var(--shadow-3);max-width:calc(100vw - 24px)
   }
-  [data-theme="dark"] .dock{background:rgba(28,31,35,.88);border-color:rgba(255,255,255,.09)}
+  /* Dégradé noir -> orange subtil (spec exacte) : n'a de sens que sur
+     l'esthétique sombre visée par le nouveau brief ("noir profond" en
+     base) — le thème clair garde son verre dépoli existant, déjà
+     cohérent avec le reste de ses surfaces. */
+  [data-theme="dark"] .dock{
+    background:linear-gradient(180deg,rgba(10,14,39,.94) 0%,rgba(230,126,34,.16) 100%);
+    border-color:rgba(255,255,255,.09)
+  }
   /* CORRECTIF (bug visuel réel, signalé par l'utilisateur : "les cases
      sont mal mises", puis "il faudrait l'allonger pour qu'on voit ce qui
      a été écrit dans chaque case" après un premier essai à l'ellipse) :
@@ -274,13 +296,14 @@ button:active{transform:scale(.97)}
      réserve la même hauteur à TOUTES les cases (courtes ou non) pour
      qu'elles restent uniformes que le libellé tienne sur 1 ou 2 lignes. */
   .dock button{
-    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
-    flex:1 1 0;min-width:0;padding:8px 3px 7px;border-radius:100px;color:var(--ink-3);
-    font-size:9.5px;font-weight:600;letter-spacing:-.01em
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;
+    flex:1 1 0;min-width:0;min-height:56px;padding:6px 3px;border-radius:18px;color:var(--ink-3);
+    font-size:13px;font-weight:700;letter-spacing:-.01em;
+    transition:color .3s ease-out
   }
   .dock button span{display:block;max-width:100%;white-space:normal;text-align:center;
     line-height:1.15;min-height:2.3em}
-  .dock button svg{width:22px;height:22px}
+  .dock button svg{width:26px;height:26px;transition:transform .3s ease-out}
   /* CORRECTIF (bug réel trouvé pendant l'audit design system, 2026-09-21) :
      --accent-2 était référencé ici sans jamais être défini nulle part
      dans ce fichier — var() sans repli sur une variable inexistante rend
@@ -289,6 +312,11 @@ button:active{transform:scale(.97)}
      lieu de la couleur d'accent. */
   .dock button[aria-current]{color:var(--accent)}
   [data-theme="dark"] .dock button[aria-current]{color:var(--accent)}
+  /* Animation de sélection (spec exacte, 2026-09-22) : l'icône grandit
+     très légèrement et pivote au moment où l'onglet devient actif —
+     la pilule glissante (.dock-pill, plus haut) gère déjà le
+     déplacement du fond, ceci ajoute le mouvement propre à l'icône. */
+  .dock button[aria-current] svg{transform:scale(1.05) rotate(5deg)}
   /* Pilule active glissante (2026-09-21, motion system) : REMPLACE
      l'ancien ::before par bouton (voir dockIn plus bas, supprimé) qui
      faisait disparaître l'ancien onglet et réapparaître le nouveau —
