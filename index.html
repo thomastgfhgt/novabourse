@@ -836,9 +836,15 @@ button:active{transform:scale(.97)}
 .nova-orb{position:relative;width:52px;height:52px;flex:0 0 auto}
 .nova-orb i{position:absolute;inset:0;border-radius:50%;opacity:.55;
   animation:orb 5.5s var(--spring) infinite}
-.nova-orb i:nth-child(1){background:radial-gradient(circle at 30% 30%,#00c462,#00a651)}
-.nova-orb i:nth-child(2){background:radial-gradient(circle at 70% 40%,#5b4ae0,#7c6cf0);animation-delay:-1.8s}
-.nova-orb i:nth-child(3){background:radial-gradient(circle at 50% 70%,#0071e3,#3b9bff);animation-delay:-3.6s}
+/* CORRECTIF (audit de cohérence visuelle, 2026-09-21) : les 3 couleurs
+   étaient encore l'ancien vert/violet/bleu générique — jamais mises à
+   jour vers l'identité officielle orange/bleu/vert lors du changement
+   de palette (commit a529447), simplement parce que .nova-orb n'était
+   alors branché à aucun balisage réel (trouvé mort par cet audit — voir
+   plus bas où il est enfin utilisé, pour l'attente "Analyse IA"). */
+.nova-orb i:nth-child(1){background:radial-gradient(circle at 30% 30%,var(--green-300),var(--green-500))}
+.nova-orb i:nth-child(2){background:radial-gradient(circle at 70% 40%,var(--orange-300),var(--orange-500));animation-delay:-1.8s}
+.nova-orb i:nth-child(3){background:radial-gradient(circle at 50% 70%,var(--blue-300),var(--blue-500));animation-delay:-3.6s}
 @keyframes orb{
   0%,100%{transform:translate(0,0) scale(.82)}
   33%{transform:translate(7px,-5px) scale(1)}
@@ -872,11 +878,12 @@ body.gated .wrap{padding:0;max-width:100%}
   background:radial-gradient(120% 90% at 50% 0%,var(--accent-soft),transparent 58%)}
 .gate-card{width:100%;max-width:520px;text-align:center;animation:gateIn .7s var(--spring)}
 @keyframes gateIn{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:none}}
-.gate-orb{position:relative;display:block;width:74px;height:74px;margin:0 auto}
-.gate-orb i{position:absolute;inset:0;border-radius:50%;opacity:.6;animation:orb 5.5s var(--spring) infinite}
-.gate-orb i:nth-child(1){background:radial-gradient(circle at 30% 30%,#00c462,#00a651)}
-.gate-orb i:nth-child(2){background:radial-gradient(circle at 70% 40%,#5b4ae0,#7c6cf0);animation-delay:-1.8s}
-.gate-orb i:nth-child(3){background:radial-gradient(circle at 50% 70%,#0071e3,#3b9bff);animation-delay:-3.6s}
+/* CORRECTIF (audit de cohérence visuelle, 2026-09-21) : .gate-orb —
+   jamais utilisé par aucun balisage (vérifié), un doublon quasi
+   identique de .nova-orb (mêmes 3 couleurs, même animation "orb", juste
+   74px au lieu de 52px). Supprimé plutôt que recoloré comme .nova-orb :
+   contrairement à lui, personne ne l'appelait nulle part, pas de raison
+   de garder deux versions mortes d'un même motif. */
 .btn-google{width:100%;margin-top:var(--space-lg);min-height:56px;font-size:16px;font-weight:600;
   background:var(--bg);color:var(--ink);border:1.5px solid var(--line);box-shadow:var(--shadow-1)}
 .btn-google:hover{border-color:var(--ink-4);box-shadow:var(--shadow-2);transform:translateY(-2px)}
@@ -17931,9 +17938,18 @@ async function runAnalysis(stockId){
   if (!st || !st.ticker){ toast("Entreprise non identifiée."); return; }
   if (state.auth.status !== 'authenticated'){ toast('Connectez-vous pour lancer une analyse.'); return; }
 
+  /* NovaOrb (§53 du brief design system) : état "thinking" pendant
+     l'attente de la réponse IA — remplace le spinner générique
+     .brand-spin (logo qui tourne, déjà utilisé ailleurs pour le
+     chargement de l'app) par .nova-orb (3 halos orange/bleu/vert qui
+     flottent), trouvé déjà implémenté en CSS mais jamais branché à
+     aucun balisage avant cet audit. C'est le seul endroit de l'app où
+     l'IA "réfléchit" réellement à une question posée par l'utilisateur —
+     l'endroit le plus honnête pour donner à NovaOrb un sens, plutôt que
+     de l'ajouter à un endroit arbitraire juste pour l'utiliser. */
   openSheet(`<h3 id="sheetTitle">${esc(st.name)}</h3>
     <div id="aiOut"><div class="spin-wrap">
-      <span class="brand-spin">${svg(ICON.brand)}</span>
+      <span class="nova-orb"><i></i><i></i><i></i></span>
       <span class="spin-txt">Analyse en cours…</span></div></div>`);
 
   let d;
