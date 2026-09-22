@@ -268,42 +268,42 @@ button:active{transform:scale(.97)}
 .dock{display:none}
 @media (max-width:900px){
   .top-nav{display:none}
-  /* REFONTE (2026-09-23, référence Revolut), PASSE 3 (correction de
-     surcorrection) — la passe 2 a corrigé la géométrie générale (capsule
-     horizontale, palette, pilule dynamique) mais est restée bien trop
-     GROSSE dans l'absolu (icônes 26px, police 12px, dock ~80px) : le
-     retour utilisateur après comparaison directe avec la capture Revolut
-     a été explicite — "la barre n'est pas énorme, elle est fine, basse,
-     discrète". Cette passe réduit fortement toutes les dimensions SANS
-     toucher à la géométrie/au comportement déjà corrects (capsule
-     dynamique, pilule glissante, palette bleu-nuit, structure flex).
+  /* REFONTE (2026-09-23, référence Revolut) — historique complet des 4
+     passes précédentes (géométrie générale, correction de surcorrection,
+     verre dépoli) conservé dans l'historique git ; résumé utile ici :
+     fond translucide rgba(10,14,35,.50) + backdrop-filter, bordure
+     rgba(255,255,255,.10), dimensions validées par l'utilisateur
+     ("la barre actuelle est bonne en dimensions, NE CHANGE PLUS sa
+     taille") — hauteur/police/icônes de la PASSE 3 (font 11px, icône
+     22px, dock padding 6px) restent donc la référence, INCHANGÉES ici.
 
-     CAUSE RACINE du texte coupé, toujours valable (vérifiée dans le
-     code) : .dock button avait flex:1 1 0 — 6 colonnes strictement
-     égales, "Portefeuille" ne rentrant jamais dans ~54-58px. Reste
-     corrigé par flex:0 0 auto + .dock{justify-content:space-between}
-     (chaque onglet = largeur de son propre contenu, pas de colonnes
-     égales forcées) — INCHANGÉ, ce n'était pas le problème de cette
-     passe. Ce qui a changé : la police (12→11px) et l'icône (26→22px)
-     rendent maintenant CE correctif structurel encore plus confortable
-     (moins de contenu à faire tenir), l'interstice entre onglets à
-     390px passe d'environ 7px à ~9px pour un texte plus petit — voir
-     mesures dans MOTION_SYSTEM.md.
+     PASSE 5 (même jour, fusion Marchés/Explorer, 6→5 onglets) — deux
+     changements structurels demandés explicitement, qui ANNULENT le
+     comportement "capsule dynamique" des passes 2-3 :
+     1) Explorer supprimée de la nav (fusionnée dans Marchés) : 6
+        destinations → 5.
+     2) Comportement de largeur inversé : "chaque position occupe 20%...
+        aucun changement de largeur de l'onglet actif... aucun
+        flex-grow dynamique" — flex:0 0 auto + padding élargi au clic
+        (qui résolvait le débordement de "Portefeuille" à 6 colonnes
+        égales) est donc retiré. flex:0 0 20% (colonnes strictement
+        égales et FIXES, jamais recalculées) remplace flex:0 0 auto ;
+        .dock button[aria-current] n'a plus de padding différent de ses
+        voisins.
 
-     PASSE 4 (même jour, verre dépoli) : la géométrie de la passe 3 était
-     enfin la bonne ("la barre actuelle est bonne en dimensions, NE
-     CHANGE PLUS sa taille") — seul le fond restait un dégradé opaque
-     plein, alors que la référence Revolut est translucide (on devine le
-     contenu derrière). Remplacé par rgba(10,14,35,.50) +
-     backdrop-filter:blur(18px) saturate(120%) ; bordure éclaircie à
-     rgba(255,255,255,.10) (plus neutre que le bleu précédent). Rien
-     d'autre touché : largeur, hauteur, padding, police, icônes,
-     border-radius, timing de la pilule tous identiques à la passe 3. La
-     capsule active (.dock-pill) utilisait déjà rgba(255,255,255,.12)
-     depuis la passe 2 — déjà translucide, aucun changement nécessaire
-     là non plus. */
+     Avec UNE destination de moins, "Portefeuille" retrouve assez de
+     place dans une colonne à 20% fixe SANS avoir besoin de grandir —
+     revérifié au canvas (mesure indépendante de la taille de fenêtre)
+     et par simulation de largeur de conteneur à 320/340/350/360/375/
+     390/393/414/430/768px (voir MOTION_SYSTEM.md) : la police de base
+     (11px) suffit dès 386px environ, mais tombe juste en dessous du
+     nécessaire à 360-375px avec seulement 5 colonnes fixes au lieu de
+     6 colonnes qui s'auto-dimensionnaient avant — d'où les 2 paliers
+     étroits ci-dessous (nouveaux, remplacent l'unique palier ≤350px de
+     la passe 3), chacun avec sa propre marge de sécurité mesurée, pas
+     une simple règle de trois. */
   .dock{
-    display:flex;justify-content:space-between;align-items:stretch;
+    display:flex;align-items:stretch;
     position:fixed;left:50%;transform:translateX(-50%);
     bottom:calc(12px + env(safe-area-inset-bottom));z-index:60;
     width:calc(100% - 20px);max-width:440px;
@@ -314,56 +314,51 @@ button:active{transform:scale(.97)}
     padding:6px 6px;
     box-shadow:0 8px 22px rgba(2,5,14,.45), 0 2px 6px rgba(10,20,45,.14)
   }
-  /* Largeur = contenu (icône empilée sur libellé, c'est le PLUS LARGE
-     des deux qui détermine la largeur, jamais côte à côte). Padding
-     horizontal serré à l'état inactif : c'est ce qui laisse la marge de
-     manœuvre pour que l'onglet ACTIF s'élargisse (voir [aria-current]
-     plus bas) sans dépasser la largeur d'un téléphone à 6 destinations —
-     mesuré au canvas et vérifié par simulation à 320-430px et 768px
-     (voir MOTION_SYSTEM.md). */
+  /* 5 colonnes strictement égales et fixes (flex:0 0 20%, jamais
+     recalculées selon l'onglet actif) — icône empilée sur libellé,
+     c'est le PLUS LARGE des deux qui doit tenir dans 20% de la barre. */
   .dock button{
     position:relative;z-index:1;
     display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;
-    flex:0 0 auto;min-width:34px;min-height:40px;padding:2px 3px;border-radius:9999px;
+    flex:0 0 20%;min-width:0;min-height:40px;padding:2px 3px;border-radius:9999px;
     color:rgba(255,255,255,.68);
     font-size:11px;font-weight:600;letter-spacing:-.01em;
-    transition:color .25s ease-out,padding .3s cubic-bezier(.22,1,.36,1)
+    transition:color .25s ease-out
   }
-  /* Priorité absolue du brief : plus jamais de libellé coupé/en 2 lignes.
-     nowrap + overflow visible (jamais overflow:hidden, qui masquerait un
-     mot au lieu de le montrer en entier) — rendu possible par le
-     correctif structurel ci-dessus, qui garantit que chaque case est déjà
-     au moins aussi large que son texte. */
+  /* Priorité absolue : plus jamais de libellé coupé/en 2 lignes. nowrap
+     + overflow visible (jamais overflow:hidden, qui masquerait un mot
+     au lieu de le montrer en entier) — garanti par les colonnes à 20%
+     dimensionnées pour "Portefeuille" (voir mesures ci-dessus et
+     paliers responsive plus bas). */
   .dock button span{display:block;white-space:nowrap;overflow:visible}
   .dock button svg{width:22px;height:22px;color:inherit;
     transition:transform .25s cubic-bezier(.22,1,.36,1),opacity .25s ease-out}
-  .dock button[aria-current]{color:#fff;padding-left:9px;padding-right:9px}
+  .dock button[aria-current]{color:#fff}
   .dock button[aria-current] svg{transform:scale(1.05)}
   .dock button:focus-visible{outline:2px solid rgba(255,255,255,.85);outline-offset:2px;border-radius:9999px}
-  /* Palier responsive (brief §19/§21) : jamais de mot cassé pour gagner
-     de la place — on réduit plutôt, dans l'ordre, la marge extérieure,
-     le padding, le "surplus" actif, puis la police/les icônes. Seuils et
-     valeurs calculés à partir des largeurs réelles mesurées au canvas
-     (voir MOTION_SYSTEM.md), pas choisis au hasard. Un seul palier
-     suffit désormais (contre 2 dans la passe précédente) : la base est
-     déjà assez fine pour que seuls les très petits écrans (<340px, ex.
-     iPhone SE 1re génération) aient besoin d'un ajustement. */
-  @media (max-width:350px){
+  /* 2 paliers étroits (voir note plus haut) : seule la police/icône/le
+     padding du dock changent, jamais les colonnes à 20% ni le
+     comportement "fixe" de la barre. */
+  @media (max-width:385px){
     .dock{width:calc(100% - 16px);padding:5px 5px}
-    .dock button{font-size:10px;gap:3px;min-width:30px}
+    .dock button{font-size:10px;gap:3px}
     .dock button svg{width:20px;height:20px}
-    .dock button[aria-current]{padding-left:6px;padding-right:6px}
+  }
+  @media (max-width:340px){
+    .dock{width:calc(100% - 14px);padding:4px 4px}
+    .dock button{font-size:9px;gap:3px}
+    .dock button svg{width:18px;height:18px}
   }
   /* Pilule active glissante (technique inchangée depuis le 21/09, voir
      positionDockPill() en JS) : un seul élément partagé, jamais recréé,
      repositionné en transform/width à chaque changement d'onglet — la
      MÊME pilule glisse d'un onglet à l'autre, ne disparaît/réapparaît
-     jamais. Sa largeur suit le padding élargi du bouton actif
-     (positionDockPill() lit offsetWidth) : la capsule grandit avec
-     l'onglet plutôt que de rester à la largeur minimale icône+texte,
-     mais top/bottom:3px la garde clairement PLUS PETITE que la barre
-     extérieure (respiration haut/bas, comme sur la référence — pas une
-     capsule qui remplit tout l'intérieur). */
+     jamais. Sa largeur vaut désormais TOUJOURS 20% de la barre (les 5
+     boutons ont maintenant tous la même largeur fixe) — positionDockPill()
+     n'a pas eu besoin de changer, il lit toujours offsetLeft/offsetWidth
+     du bouton actif, qui se trouve juste être constant maintenant.
+     top/bottom:3px la garde clairement PLUS PETITE que la barre
+     extérieure (respiration haut/bas, comme sur la référence). */
   .dock-pill{position:absolute;top:3px;bottom:3px;left:0;border-radius:9999px;
     background:rgba(255,255,255,.12);
     z-index:0;pointer-events:none;
@@ -1511,12 +1506,14 @@ const DEFAULT_STATE = {
     radarQ:'',
     radarMin:0,
     radarCountry:'tous',
-    exploreQ:'',
-    exploreSector:'tous',
-    exploreCountry:'tous',
-    exploreVisibles:20,
+    /* exploreSector/exploreCountry/exploreQ/exploreVisibles retirés le
+       2026-09-23 (fusion Explorer -> Marchés, voir PAGES.markets) —
+       remplacés par marketsSector/marketsCountry ci-dessous, un seul
+       jeu de filtres et une seule pagination pour la page fusionnée. */
     marketsCategory:'tous',
     marketsRegion:'Monde',
+    marketsSector:'tous',
+    marketsCountry:'tous',
     marketsVisibles:20,
   },
 
@@ -14096,6 +14093,7 @@ const ICON = {
   book:'<path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H19v15H6.5A2.5 2.5 0 0 0 4 20.5z"/>',
   trash:'<path d="M4 7h16M9 7V5h6v2M6 7l1 13h10l1-13"/>',
   spark:'<path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/>',
+  filter:'<path d="M4 7h16M4 12h10M4 17h6"/><circle cx="17" cy="7" r="2"/><circle cx="11" cy="12" r="2"/><circle cx="7" cy="17" r="2"/>',
 };
 const ICON_SHIFT = {
   home:[0.03,-1.95], list:[1.65,-3.56], wallet:[0,-0.41], star:[0,-0.46],
@@ -14885,7 +14883,7 @@ PAGES.home = () => {
   <section class="section">
     <div class="section-h">
       <h2 class="h2">Marché</h2>
-      <button class="btn btn-ghost btn-sm" data-go="explore">Tout voir</button>
+      <button class="btn btn-ghost btn-sm" data-go="markets">Tout voir</button>
     </div>
     <div class="card"><div class="rows rows-grid">${marche.map(x => stockRow(x)).join('')}</div></div>
   </section>
@@ -15073,91 +15071,28 @@ function radarResults(){
     </div></div>`;
 }
 
-PAGES.explore = () => {
-  /* Déclenche (sans bloquer ce rendu) le chargement du catalogue mondial
-     'stock' si l'affichage courant en réclame plus que ce qui est déjà
-     chargé localement — voir garantirCatalogueExplore(). Le rendu ci-dessous
-     utilise ce qui est disponible MAINTENANT ; le "Voir plus"/chargement
-     de fond se charge de compléter et de rafraîchir #exploreOut. */
-  garantirCatalogueExplore();
-  return `<div class="page-in">
-  <p class="eyebrow">Explorer</p>
-  <h1 class="title">Explorer</h1>
-  <p class="lead measure-l" style="margin-top:10px">${fmt.int(stocks.filter(s=>s.type==='stock').length)} entreprises</p>
-  <button class="search-btn" style="margin:22px 0 0;max-width:100%" data-search>
-    ${svg(ICON.search)}<span>Rechercher…</span></button>
-  <div class="chips" style="margin-top:16px">
-    ${['tous',...SECTORS].map(c=>`<button class="chip" data-filter="exploreSector" data-val="${esc(c)}"
-      aria-pressed="${String(state.filters.exploreSector||'tous')===c}">${c==='tous'?'Tous les secteurs':esc(c)}</button>`).join('')}
-  </div>
-  <!-- Ajout (audit "filtre pays absent", 2026-09-17) : exploreCountry existait
-       dans state.filters depuis le début mais n'avait jamais reçu de contrôle
-       UI ni de filtrage réel — champ mort, jamais consulté nulle part avant
-       cette passe. Même motif que 'Pays' côté Radar (filterRow), pour rester
-       cohérent avec un pattern déjà éprouvé pour une longue liste de puces. -->
-  <div class="chips" style="margin-top:10px">
-    ${['tous',...[...new Set(stocks.filter(s=>s.type==='stock').map(x=>paysAffiche(x.country)))].filter(Boolean).sort((a,b)=>a.localeCompare(b,'fr'))]
-      .map(c=>`<button class="chip" data-filter="exploreCountry" data-val="${esc(c)}"
-        aria-pressed="${String(state.filters.exploreCountry||'tous')===c}">${c==='tous'?'Tous les pays':esc(c)}</button>`).join('')}
-  </div>
-  <div class="card" style="margin-top:18px"><div class="rows rows-grid" id="exploreOut">${exploreRows()}</div></div>
-</div>`;
-};
-function exploreListeFiltree(){
-  /* Explorer reste le catalogue d'ENTREPRISES (actions) — exclusion
-     explicite des autres types (ETF/forex/crypto), qui vivent dans
-     Marchés. Inclut désormais aussi bien le noyau statique que les
-     sociétés matérialisées depuis le catalogue mondial (même tableau
-     `stocks`, voir ensureRuntimeStock). */
-  let list = stocks.filter(s => s.type === 'stock');
-  const sec = state.filters.exploreSector || 'tous';
-  if (sec !== 'tous') list = list.filter(s => s.sector === sec);
-  const pays = state.filters.exploreCountry || 'tous';
-  if (pays !== 'tous') list = list.filter(s => paysAffiche(s.country) === pays);
-  if (state.filters.exploreQ){ const q = state.filters.exploreQ.toLowerCase();
-    list = list.filter(s => (s.name+' '+s.ticker).toLowerCase().includes(q)); }
-  list.sort((a,b)=>a.name.localeCompare(b.name,'fr'));
-  return list;
-}
-function exploreRows(){
-  const list = exploreListeFiltree();
-  if (!list.length) return emptyState('Aucun résultat','Aucune entreprise ne correspond à ce filtre.');
-  /* Même logique de pagination progressive que Marchés (voir marketsRows) :
-     jamais tout le catalogue rendu d'un coup, même une fois les dizaines de
-     milliers de sociétés potentiellement chargées en mémoire. */
-  const visibles = state.filters.exploreVisibles || 20;
-  const page = list.slice(0, visibles);
-  return page.map(s=>stockRow(s)).join('') + (list.length > page.length
-    ? `<button class="btn btn-ghost btn-sm" style="width:100%;margin-top:12px" data-explore-plus="1">
-        Voir plus (${list.length - page.length} restants)</button>`
-    : '');
-}
-/* Charge autant de pages catalogue 'stock' que nécessaire pour couvrir
-   exploreVisibles (mini 20), puis rafraîchit #exploreOut si de nouvelles
-   sociétés sont arrivées et que la page Explorer est toujours affichée
-   (gen évite d'écraser un rendu plus récent si l'utilisateur a navigué
-   ailleurs entre-temps). */
-let exploreCatalogGen = 0;
-async function garantirCatalogueExplore(){
-  const gen = ++exploreCatalogGen;
-  const minimum = Math.max(20, state.filters.exploreVisibles || 20);
-  const changement = await assurerCatalogueSuffisant('stock', minimum);
-  if (changement && gen === exploreCatalogGen && route.page === 'explore'){
-    const out = document.getElementById('exploreOut');
-    if (out) out.innerHTML = exploreRows();
-  }
-}
-
 /* ---------- MARCHÉS ----------
-   Navigation/découverte multi-actifs. Distincte d'Explorer (qui reste le
-   catalogue d'entreprises) : Marchés couvre toutes les catégories
-   réellement fonctionnelles (voir MARKET_CATEGORIES). Chargement léger
+   Fusionnée avec Explorer le 2026-09-23 (voir NAV plus bas) : Explorer
+   affichait en permanence un "mur" de puces secteur/pays au-dessus d'un
+   catalogue d'entreprises uniquement ; Marchés couvrait déjà toutes les
+   catégories (actions/ETF/forex/crypto/indices/matières premières) mais
+   sans secteur/pays. Cette page réunit les deux : recherche + bouton
+   Filtres (panneau) + puces des filtres RÉELLEMENT actifs + liste,
+   plutôt que deux pages et deux jeux de filtres séparés. Aucune capacité
+   de filtrage perdue : secteur/pays d'Explorer sont repris tels quels
+   (voir marketsSector/marketsCountry), simplement déplacés dans le
+   panneau au lieu d'être affichés en permanence. Chargement léger
    uniquement : identité + quote déjà connue via QUOTES (lazy-loading
    intact — aucun graphique/fondamentaux/actualité chargé depuis cette
    page). */
 /* Types du catalogue mondial réellement utiles à une catégorie Marchés
    donnée — voir CATALOG_TYPES : jamais forex/crypto (dataset sans ces
-   actifs, voir plus haut), 'tous' réclame donc les deux types couverts. */
+   actifs, voir plus haut), 'tous' réclame donc les deux types couverts.
+   Secteur/pays n'ont de sens que pour les actions (voir plus bas) : pas
+   besoin d'étendre cette liste pour eux, un secteur/pays sélectionné sur
+   une autre catégorie donne simplement 0 résultat (aucune société ETF/
+   forex/crypto n'a de secteur ou de pays renseigné — comportement logique,
+   pas un bug). */
 function typesCatalogueUtiles(cat){
   if (cat === 'stock') return ['stock'];
   if (cat === 'etf') return ['etf'];
@@ -15178,34 +15113,30 @@ async function garantirCatalogueMarkets(){
     if (out) out.innerHTML = marketsRows();
   }
 }
-PAGES.markets = () => {
-  const cat = state.filters.marketsCategory || 'tous';
-  const region = state.filters.marketsRegion || 'Monde';
-  /* Déclenche (sans bloquer ce rendu) le chargement du catalogue mondial
-     pour stock/etf si nécessaire — voir garantirCatalogueMarkets(). */
-  garantirCatalogueMarkets();
-  return `<div class="page-in">
-    <p class="eyebrow">Marchés</p>
-    <h1 class="title">Marchés</h1>
-    <p class="lead measure-l" style="margin-top:10px">Actions • ETF • Cryptos • Devises</p>
-    <div class="chips" style="margin-top:16px;overflow-x:auto;flex-wrap:nowrap">
-      ${MARKET_CATEGORIES.map(c=>`<button class="chip" data-filter="marketsCategory" data-val="${c.id}"
-        aria-pressed="${cat===c.id}">${esc(c.label)}</button>`).join('')}
-    </div>
-    ${cat === 'stock' ? `<div class="chips" style="margin-top:10px;overflow-x:auto;flex-wrap:nowrap">
-      ${REGIONS.map(r=>`<button class="chip" data-filter="marketsRegion" data-val="${esc(r)}"
-        aria-pressed="${region===r}">${esc(r)}</button>`).join('')}
-    </div>` : ''}
-    <div class="card" style="margin-top:18px"><div class="rows rows-grid" id="marketsOut">${marketsRows()}</div></div>
-  </div>`;
-};
-function marketsListeFiltree(){
-  const cat = state.filters.marketsCategory || 'tous';
-  const region = state.filters.marketsRegion || 'Monde';
+/* Liste des pays réellement présents dans le catalogue ACTIONS (même
+   source que l'ancien filtre pays d'Explorer) — noms français canoniques
+   via paysAffiche(), jamais de "null"/"—"/doublon anglais (voir son
+   commentaire). Recalculée à chaque ouverture du panneau plutôt que mise
+   en cache : le catalogue mondial grandit au fil du chargement. */
+function marketsPaysDisponibles(){
+  return [...new Set(stocks.filter(s=>s.type==='stock').map(x=>paysAffiche(x.country)))]
+    .filter(Boolean).sort((a,b)=>a.localeCompare(b,'fr'));
+}
+/* Accepte un jeu de filtres optionnel (le brouillon du panneau, voir
+   marketsFilterDraft) pour calculer un compte de résultats "en direct"
+   SANS toucher state.filters ni re-rendre la page derrière le panneau —
+   state.filters par défaut pour tous les appels existants (liste
+   affichée, pagination, rafraîchissement vivant). */
+function marketsListeFiltree(f){
+  f = f || state.filters;
+  const cat = f.marketsCategory || 'tous';
+  const region = f.marketsRegion || 'Monde';
+  const sector = f.marketsSector || 'tous';
+  const country = f.marketsCountry || 'tous';
   let list = cat === 'tous' ? [...stocks] : stocks.filter(s => s.type === cat);
-  if (cat === 'stock' && region !== 'Monde'){
-    list = list.filter(s => REGION_OF_COUNTRY[s.country] === region);
-  }
+  if (region !== 'Monde') list = list.filter(s => REGION_OF_COUNTRY[s.country] === region);
+  if (sector !== 'tous') list = list.filter(s => s.sector === sector);
+  if (country !== 'tous') list = list.filter(s => paysAffiche(s.country) === country);
   list.sort((a,b)=>a.name.localeCompare(b.name,'fr'));
   return list;
 }
@@ -15222,13 +15153,128 @@ function marketsRows(){
   /* Pagination : "20 minimum accessibles" ne veut pas dire "20 affichés
      et chargés d'un coup pour toujours" — marketsVisibles suit combien
      sont actuellement révélés (20 par défaut, +20 à chaque clic "Voir
-     plus"), réinitialisé à 20 dès qu'on change de catégorie/région. */
+     plus"), réinitialisé à 20 dès qu'on applique de nouveaux filtres. */
   const visibles = state.filters.marketsVisibles || 20;
   const page = list.slice(0, visibles);
   return page.map(s=>stockRow(s)).join('') + (list.length > page.length
     ? `<button class="btn btn-ghost btn-sm" style="width:100%;margin-top:12px" data-markets-plus="1">
         Voir plus (${list.length - page.length} restants)</button>`
     : '');
+}
+/* Puces "filtres actifs" affichées sous la recherche — uniquement ceux
+   réellement différents de leur valeur par défaut (jamais un mur de
+   puces permanent, voir MARKETS_FILTER_DEFAULTS plus bas pour les
+   valeurs de repli utilisées aussi par Réinitialiser et par le ×). */
+const MARKETS_FILTER_DEFAULTS = { marketsCategory:'tous', marketsRegion:'Monde', marketsSector:'tous', marketsCountry:'tous' };
+function marketsFiltresActifs(){
+  const f = state.filters;
+  const out = [];
+  const cat = f.marketsCategory || 'tous';
+  if (cat !== 'tous'){
+    const c = MARKET_CATEGORIES.find(x=>x.id===cat);
+    out.push({ key:'marketsCategory', label: c ? c.label : cat });
+  }
+  if ((f.marketsRegion||'Monde') !== 'Monde') out.push({ key:'marketsRegion', label:f.marketsRegion });
+  if ((f.marketsSector||'tous') !== 'tous') out.push({ key:'marketsSector', label:f.marketsSector });
+  if ((f.marketsCountry||'tous') !== 'tous') out.push({ key:'marketsCountry', label:f.marketsCountry });
+  return out;
+}
+PAGES.markets = () => {
+  /* Déclenche (sans bloquer ce rendu) le chargement du catalogue mondial
+     pour stock/etf si nécessaire — voir garantirCatalogueMarkets(). */
+  garantirCatalogueMarkets();
+  const chips = marketsFiltresActifs();
+  return `<div class="page-in">
+    <p class="eyebrow">Marchés</p>
+    <h1 class="title">Marchés</h1>
+    <p class="lead measure-l" style="margin-top:10px">Actions • ETF • Cryptos • Devises</p>
+    <div style="display:flex;gap:10px;margin-top:22px">
+      <button class="search-btn" style="margin:0;max-width:none;flex:1" data-search>
+        ${svg(ICON.search)}<span>Rechercher une entreprise…</span></button>
+      <button class="btn btn-s" data-open-market-filters
+        style="flex:0 0 auto;display:inline-flex;align-items:center;gap:7px">
+        ${svg(ICON.filter,2)} Filtres</button>
+    </div>
+    ${chips.length ? `<div class="chips" style="margin-top:14px">
+      ${chips.map(c=>`<button class="chip" aria-pressed="true" data-mf-remove="${c.key}">
+        ${esc(c.label)} <span aria-hidden="true">×</span></button>`).join('')}
+    </div>` : ''}
+    <div class="card" style="margin-top:18px"><div class="rows rows-grid" id="marketsOut">${marketsRows()}</div></div>
+  </div>`;
+};
+/* ---------- Panneau Filtres de Marchés ----------
+   Brouillon séparé de state.filters : les puces à l'intérieur du panneau
+   ne s'appliquent qu'au clic sur "Afficher X résultats" (exigence
+   explicite du brief), jamais immédiatement comme les puces classiques
+   `[data-filter]` (Radar) — sinon fermer le panneau sans confirmer
+   laisserait quand même les filtres modifiés. */
+let marketsFilterDraft = null;
+function openMarketsFilters(){
+  marketsFilterDraft = {
+    marketsCategory: state.filters.marketsCategory || 'tous',
+    marketsRegion: state.filters.marketsRegion || 'Monde',
+    marketsSector: state.filters.marketsSector || 'tous',
+    marketsCountry: state.filters.marketsCountry || 'tous',
+    _paysQ: '',
+  };
+  openSheet(`<h3 id="sheetTitle">Filtres</h3><div id="mfBody">${marketsFilterBodyHTML(marketsFilterDraft)}</div>`);
+  wireMarketsPaysSearch();
+}
+function marketsFilterGroupe(titre, options, key, draft){
+  return `<p class="tiny" style="text-transform:uppercase;letter-spacing:.04em;font-weight:700;margin:16px 0 8px">${esc(titre)}</p>
+    <div class="chips">${options.map(o=>`<button class="chip" data-mf="${key}" data-mf-val="${esc(o.val)}"
+      aria-pressed="${String(draft[key])===o.val}">${esc(o.label)}</button>`).join('')}</div>`;
+}
+function marketsFilterBodyHTML(draft){
+  const count = marketsListeFiltree(draft).length;
+  const paysQ = (draft._paysQ || '').toLowerCase();
+  const paysTous = marketsPaysDisponibles();
+  const paysVisibles = paysQ ? paysTous.filter(p => p.toLowerCase().includes(paysQ)) : paysTous;
+  return `<div style="max-height:52vh;overflow-y:auto;padding-right:2px;margin-top:2px">
+      ${marketsFilterGroupe('Type d’actif', MARKET_CATEGORIES.map(c=>({val:c.id,label:c.label})), 'marketsCategory', draft)}
+      ${marketsFilterGroupe('Zone géographique', REGIONS.map(r=>({val:r,label:r})), 'marketsRegion', draft)}
+      ${marketsFilterGroupe('Secteur', ['tous',...SECTORS].map(s=>({val:s,label:s==='tous'?'Tous les secteurs':s})), 'marketsSector', draft)}
+      <p class="tiny" style="text-transform:uppercase;letter-spacing:.04em;font-weight:700;margin:16px 0 8px">Pays</p>
+      <input class="field" id="mfPaysQ" type="text" placeholder="Rechercher un pays…"
+        value="${esc(draft._paysQ||'')}" style="margin-bottom:10px">
+      <div class="chips" id="mfPaysChips">
+        <button class="chip" data-mf="marketsCountry" data-mf-val="tous"
+          aria-pressed="${draft.marketsCountry==='tous'}">Tous les pays</button>
+        ${paysVisibles.map(p=>`<button class="chip" data-mf="marketsCountry" data-mf-val="${esc(p)}"
+          aria-pressed="${draft.marketsCountry===p}">${esc(p)}</button>`).join('')}
+      </div>
+    </div>
+    <div class="btns" style="margin-top:18px">
+      <button class="btn btn-s" data-mf-reset style="flex:1">Réinitialiser</button>
+      <button class="btn btn-a" data-mf-apply style="flex:1">Afficher ${fmt.int(count)} résultat${count>1?'s':''}</button>
+    </div>`;
+}
+function paintMarketsFilters(){
+  const body = document.getElementById('mfBody');
+  if (!body || !marketsFilterDraft) return;
+  body.innerHTML = marketsFilterBodyHTML(marketsFilterDraft);
+  wireMarketsPaysSearch();
+}
+/* Recherche dans la liste des pays (brief : "éventuellement recherche
+   dans les pays") — ne filtre QUE les puces affichées dans le panneau,
+   jamais la liste de résultats elle-même (aucun pays n'est sélectionné
+   tant qu'on n'a pas cliqué une puce). Écouteur direct sur l'input
+   (même schéma que la recherche globale, #sq) plutôt que la délégation
+   de clic générique : ré-attaché à chaque re-rendu de #mfBody. */
+function wireMarketsPaysSearch(){
+  const input = document.getElementById('mfPaysQ');
+  if (!input) return;
+  input.addEventListener('input', () => {
+    marketsFilterDraft._paysQ = input.value;
+    const paysQ = input.value.toLowerCase();
+    const paysTous = marketsPaysDisponibles();
+    const paysVisibles = paysQ ? paysTous.filter(p => p.toLowerCase().includes(paysQ)) : paysTous;
+    document.getElementById('mfPaysChips').innerHTML = `
+      <button class="chip" data-mf="marketsCountry" data-mf-val="tous"
+        aria-pressed="${marketsFilterDraft.marketsCountry==='tous'}">Tous les pays</button>
+      ${paysVisibles.map(p=>`<button class="chip" data-mf="marketsCountry" data-mf-val="${esc(p)}"
+        aria-pressed="${marketsFilterDraft.marketsCountry===p}">${esc(p)}</button>`).join('')}`;
+  });
 }
 
 /* ---------- FICHE ENTREPRISE ---------- */
@@ -15929,7 +15975,7 @@ PAGES.listDetail = (listId) => {
       ${items.length ? `<div class="rows rows-grid">${items.map(x => stockRow(x)).join('')}</div>`
         : emptyState('Cette liste est vide',
             'Ouvrez une fiche action et utilisez « Ajouter à une liste » pour la remplir.',
-            { go:'explore', label:'Explorer les entreprises' })}
+            { go:'markets', label:'Explorer les entreprises' })}
     </div>
   </div>`;
 };
@@ -17027,11 +17073,13 @@ function renderApp(){
 /* ============================================================
    NAVIGATION, ÉVÉNEMENTS, DÉMARRAGE
    ============================================================ */
+/* Explorer fusionnée dans Marchés le 2026-09-23 (recherche + bouton
+   Filtres remplacent le "mur" de puces secteur/pays affiché en
+   permanence) — 6 destinations -> 5. Voir PAGES.markets(). */
 const NAV = [
   { id:'home',      label:'Accueil',      icon:ICON.home },
   { id:'markets',   label:'Marchés',      icon:ICON.chart },
   { id:'radar',     label:'Radar',        icon:ICON.radar },
-  { id:'explore',   label:'Explorer',     icon:ICON.list },
   { id:'portfolio', label:'Portefeuille', icon:ICON.wallet },
   { id:'account',   label:'Compte',       icon:ICON.user },
 ];
@@ -17179,7 +17227,6 @@ function render(navigated = false){
     comparees.filter(s => s.type === 'stock').forEach(chargerFondamentaux);
   }
   if (route.page === 'radar')   document.getElementById('radarOut').innerHTML = radarResults();
-  if (route.page === 'explore') document.getElementById('exploreOut').innerHTML = exploreRows();
   /* Pose/complète le relevé du jour à chaque visite réelle de la page
      Portefeuille — jamais un minuteur en tâche de fond (voir
      assurerRelevéQuotidien). */
@@ -17721,48 +17768,51 @@ document.addEventListener('click', e => {
     return;
   }
 
-  const explorePlus = q('[data-explore-plus]');
-  if (explorePlus){
-    state.filters.exploreVisibles = (state.filters.exploreVisibles || 20) + 20;
+  /* Panneau Filtres de Marchés (fusion Explorer, 2026-09-23) — voir
+     openMarketsFilters()/marketsFilterDraft plus haut. data-mf-* est
+     volontairement distinct de [data-filter] (Radar) : ces puces
+     modifient un BROUILLON, jamais state.filters directement. */
+  if (q('[data-open-market-filters]')){ openMarketsFilters(); return; }
+  const mf = q('[data-mf]');
+  if (mf && marketsFilterDraft){
+    marketsFilterDraft[mf.dataset.mf] = mf.dataset.mfVal;
+    paintMarketsFilters();
+    return;
+  }
+  if (q('[data-mf-reset]')){
+    marketsFilterDraft = { ...MARKETS_FILTER_DEFAULTS, _paysQ:'' };
+    paintMarketsFilters();
+    return;
+  }
+  if (q('[data-mf-apply]') && marketsFilterDraft){
+    state.filters.marketsCategory = marketsFilterDraft.marketsCategory;
+    state.filters.marketsRegion = marketsFilterDraft.marketsRegion;
+    state.filters.marketsSector = marketsFilterDraft.marketsSector;
+    state.filters.marketsCountry = marketsFilterDraft.marketsCountry;
+    state.filters.marketsVisibles = 20;
     saveState();
-    const out = document.getElementById('exploreOut');
-    if (out) out.innerHTML = exploreRows();
-    garantirCatalogueExplore();
+    closeSheet();
+    marketsFilterDraft = null;
+    if (route.page === 'markets') render();
+    return;
+  }
+  const mfRemove = q('[data-mf-remove]');
+  if (mfRemove){
+    const key = mfRemove.dataset.mfRemove;
+    state.filters[key] = MARKETS_FILTER_DEFAULTS[key];
+    state.filters.marketsVisibles = 20;
+    saveState();
+    render();
     return;
   }
 
   const flt = q('[data-filter]');
   if (flt){
     state.filters[flt.dataset.filter] = isNaN(flt.dataset.val) ? flt.dataset.val : +flt.dataset.val;
-    /* Changer de catégorie/région = nouvelle liste = pagination repartie
-       de zéro. Sans ça, "Voir plus" cliqué en Actions resterait à 40/60
-       en passant sur Crypto, chargeant inutilement plus que les 20
-       premiers de la nouvelle catégorie. */
-    if (flt.dataset.filter === 'marketsCategory' || flt.dataset.filter === 'marketsRegion'){
-      state.filters.marketsVisibles = 20;
-    }
-    /* Changer de secteur OU de pays = nouvelle liste filtrée = pagination
-       Explorer repartie de zéro, même raisonnement que Marchés ci-dessus. */
-    if (flt.dataset.filter === 'exploreSector' || flt.dataset.filter === 'exploreCountry'){
-      state.filters.exploreVisibles = 20;
-    }
     saveState();
-    /* marketsCategory change la MISE EN PAGE (les puces de région
-       n'apparaissent que pour la catégorie "Actions") : un simple
-       rafraîchissement de #marketsOut ne suffit pas, il faut un render()
-       complet. marketsRegion, elle, ne change que la liste. */
-    if (flt.dataset.filter === 'marketsCategory'){ render(); return; }
     document.querySelectorAll(`[data-filter="${flt.dataset.filter}"]`).forEach(b=>
       b.setAttribute('aria-pressed', String(b.dataset.val === flt.dataset.val)));
     if (route.page === 'radar') document.getElementById('radarOut').innerHTML = radarResults();
-    if (route.page === 'explore'){
-      document.getElementById('exploreOut').innerHTML = exploreRows();
-      /* Un changement de secteur peut révéler un manque local (le
-         catalogue chargé jusqu'ici n'a pas encore rencontré ce secteur) :
-         tente de compléter en tâche de fond, comme au premier affichage. */
-      garantirCatalogueExplore();
-    }
-    if (route.page === 'markets') render();   // pagination + éventuels nouveaux instruments à charger
     return;
   }
   const nl = q('[data-nl]');
