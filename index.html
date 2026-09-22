@@ -15224,7 +15224,15 @@ PAGES.stock = (id) => {
           <div class="kv"><dt>Rentabilité (ROE) ${infoBtn('ROE')}</dt><dd>${fmt.pctRatio(f.roe)}</dd></div>
           <div class="kv"><dt>Marge ${infoBtn('Marge')}</dt><dd>${fmt.pctRatio(Number.isFinite(f.profitMargin) ? f.profitMargin : f.operatingMargin)}</dd></div>
           <div class="kv"><dt>Croissance du CA</dt><dd class="${(() => { const g = croissanceSerie(f.revenueSeries); return g === null ? '' : (g >= 0 ? 'up-t' : 'down-t'); })()}">${(() => { const g = croissanceSerie(f.revenueSeries); return g !== null ? trendTxt(g, 1) : '—'; })()}</dd></div>
-          <div class="kv"><dt>Dette / fonds propres ${infoBtn('Dette')}</dt><dd>—</dd></div>
+          <!-- CORRECTIF (clarté, 2026-09-21) : ce champ affichait un simple
+               "—" sans explication, alors que "Endettement" pèse 15 % du
+               Nova Score (voir _novascore.js) — de quoi laisser croire à
+               une donnée cassée. Vérifié : api/market/fundamentals.js
+               n'expose aucun champ de dette au frontend (le calcul du
+               score, lui, y a accès côté serveur) ; honnête de le dire
+               plutôt que de laisser un tiret muet. -->
+          <div class="kv"><dt>Dette / fonds propres ${infoBtn('Dette')}</dt>
+            <dd class="tiny" style="color:var(--ink-4);text-align:right;max-width:180px">Utilisée dans le score, pas encore affichée ici</dd></div>
           <div class="kv"><dt>PER ${infoBtn('PER')}</dt><dd>${fmt.mult(f.pe)}</dd></div>
           ${isExpert()?`
             <div class="kv"><dt>Croissance du bénéfice ${infoBtn('BPA')}</dt><dd class="${(() => { const g = croissanceSerie(f.epsSeries); return g === null ? '' : (g >= 0 ? 'up-t' : 'down-t'); })()}">${(() => { const g = croissanceSerie(f.epsSeries); return g !== null ? trendTxt(g, 1) : '—'; })()}</dd></div>
