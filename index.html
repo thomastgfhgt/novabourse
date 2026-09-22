@@ -23,12 +23,18 @@
      l'app n'utilise jamais plus de 3-4 variantes sémantiques par couleur
      (fond doux/base/survol/appui), une échelle plus fine serait un
      abstraction non utilisée nulle part dans ce fichier. */
-  --orange-50:#fff3ea;  --orange-100:#ffe1cc; --orange-300:#ffb27a;
-  --orange-500:#f37021; --orange-700:#c6560f; --orange-900:#7a3308;
-  --blue-50:#e6f0ff;  --blue-100:#c2dbff; --blue-300:#6fa8ff;
-  --blue-500:#0066ff; --blue-700:#0047b3; --blue-900:#002766;
-  --green-50:#e7fbf2;  --green-100:#c6f5e0; --green-300:#74e6b8;
-  --green-500:#21c984; --green-700:#159a64; --green-900:#0b5c3c;
+  /* Mise à jour (2026-09-22) : valeurs hexadécimales exactes fournies
+     (orange Hermès #E67E22/#F39C12, bleu électrique #00D4FF) — remplace
+     les teintes approchées choisies précédemment. --orange-light est le
+     second point du dégradé animé (135deg, 4s), distinct de orange-300
+     (qui reste le palier "doux" de l'échelle, pas la même fonction). */
+  --orange-50:#fdf0e4;  --orange-100:#fbdfc0; --orange-300:#f0ad66;
+  --orange-500:#e67e22; --orange-700:#b8621a; --orange-900:#6e3b0f;
+  --orange-light:#f39c12;
+  --blue-50:#e0fbff;  --blue-100:#b3f5ff; --blue-300:#4de3ff;
+  --blue-500:#00d4ff; --blue-700:#00a3c7; --blue-900:#005566;
+  --green-50:#e7fbf4;  --green-100:#c3f5e3; --green-300:#6ee7b7;
+  --green-500:#10b981; --green-700:#0d9268; --green-900:#065f46;
   --bg:#ffffff;
   --bg-2:#faf9f8;
   --bg-3:#f5f4f0;
@@ -39,12 +45,14 @@
   --ink-4:#9aa1b1;
   --accent:var(--orange-500);
   --accent-hover:var(--orange-700);
-  --accent-press:#a8480c;
+  --accent-press:#8f4c14;
   --accent-soft:var(--orange-50);
   --accent-ink:#ffffff;
+  /* Bleu électrique réservé aux boutons SECONDAIRES uniquement (jamais
+     un accent général concurrent de l'orange) — voir .btn-blue plus bas. */
   --blue-accent:var(--blue-500); --blue-accent-soft:var(--blue-50);
   --up:var(--green-500);   --up-soft:var(--green-50);
-  --down:#dc2626; --down-soft:#fdecec;
+  --down:#ef4444; --down-soft:#fef0ef;
   --warn:#b45309; --warn-soft:#fdf4e7;
   --line:#e6e9f0;
   --line-2:#eef0f5;
@@ -52,7 +60,7 @@
   --shadow-1:none;
   --shadow-2:0 1px 2px rgba(13,17,23,.04), 0 8px 24px rgba(13,17,23,.05);
   --shadow-3:0 2px 6px rgba(13,17,23,.06), 0 24px 48px rgba(13,17,23,.08);
-  --shadow-accent:0 8px 24px rgba(243,112,33,.24);
+  --shadow-accent:0 8px 24px rgba(230,126,34,.24);
   --space-2:8px;  --space-3:12px; --space-4:16px; --space-5:24px;
   --space-6:32px; --space-7:48px; --space-8:64px; --space-9:96px;
   --sp-1:8px; --sp-2:16px; --sp-3:24px; --sp-4:32px; --sp-5:48px; --sp-6:80px;
@@ -85,22 +93,26 @@
 }
 [data-theme="dark"]{
   color-scheme:dark;
-  /* Échelle noire officielle (2026-09-21) : 050505 (fond) -> 16191F
-     (surface la plus élevée), même logique de palier que le clair. */
-  --bg:#050505; --bg-2:#0b0d11; --bg-3:#111318; --bg-4:#16191f;
-  --ink:#f2f4f8; --ink-2:#c3c9d4; --ink-3:#8d95a4; --ink-4:#646c7c;
-  /* Orange plus clair/saturé qu'en thème clair (lisibilité sur fond
-     quasi noir) ; encre du bouton reste sombre — un orange aussi clair
-     porte mieux un texte sombre qu'un texte blanc. */
-  --accent:#ff8a3d; --accent-hover:#ffa35c; --accent-press:#e86d1f;
-  --accent-soft:#2a1608; --accent-ink:#08090b;
-  --blue-accent:var(--blue-300); --blue-accent-soft:#0f1733;
-  --up:#2fe39b; --up-soft:#0c2419; --down:#f87171; --down-soft:#2a1416;
+  /* Échelle noire officielle (mise à jour 2026-09-22, valeurs exactes
+     fournies) : #0A0E27 (noir profond, fond) -> #1A3050 (dégradé,
+     surface la plus élevée) — remplace l'échelle neutre précédente. */
+  --bg:#0a0e27; --bg-2:#111830; --bg-3:#182140; --bg-4:#1a3050;
+  --ink:#f3f4f6; --ink-2:#d1d5db; --ink-3:#9ca3af; --ink-4:#6b7280;
+  /* Orange Hermès — MÊME teinte que le thème clair ("Primary = Orange
+     toujours", palette imposée) : contrairement à l'ancien choix d'un
+     orange éclairci pour le mode sombre, #E67E22 reste assez saturé
+     pour rester lisible sur #0A0E27 sans le diluer. */
+  --accent:var(--orange-500); --accent-hover:var(--orange-light); --accent-press:#c96a1a;
+  --accent-soft:#2a1c0c; --accent-ink:#ffffff;
+  /* Bleu électrique réservé aux boutons secondaires (même règle qu'en
+     thème clair) — jamais un accent général. */
+  --blue-accent:var(--blue-500); --blue-accent-soft:#0a2733;
+  --up:#34d399; --up-soft:#0c2419; --down:#f87171; --down-soft:#2a1416;
   --warn:#e0a63a; --warn-soft:#2a2110;
-  --line:#242a34; --line-2:#1b2028;
+  --line:#25304a; --line-2:#1a2338;
   --shadow-2:0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.35);
   --shadow-3:0 2px 6px rgba(0,0,0,.45), 0 24px 48px rgba(0,0,0,.45);
-  --shadow-accent:0 8px 24px rgba(255,138,61,.24);
+  --shadow-accent:0 8px 24px rgba(230,126,34,.3);
 }
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html{-webkit-text-size-adjust:100%}
@@ -150,19 +162,22 @@ body{
   filter:blur(110px);opacity:.32;
   animation:auroraDrift 26s ease-in-out infinite, auroraHue 60s linear infinite;
   will-change:transform}
-/* Couleurs en variables (2026-09-21, palette officielle orange/bleu/vert) :
-   permet de faire varier le fond par section (JS pose body[data-bg=...],
-   voir paintNav()/render()) sans dupliquer les règles d'animation. Repli
-   par défaut = orange + bleu (Accueil, Marchés, Radar, Explorer...). */
+/* Couleurs en variables (mise à jour 2026-09-22 : "Primary = Orange
+   toujours", bleu électrique réservé aux boutons secondaires — plus un
+   accent général comme avant). Le bleu est donc retiré du fond
+   ambiant par défaut : orange (2 tons) domine, le vert reste en
+   touche discrète (déjà une couleur fonctionnelle "hausse", pas
+   seulement décorative). Toujours personnalisable par section via
+   body[data-bg=...] (paintNav()/render()). */
 .aurora-bg::before{width:55vw;height:55vw;top:-18vw;left:-12vw;
-  background:radial-gradient(circle,var(--aurora-1,#f37021) 0%,var(--aurora-1b,#ff9d5c) 45%,transparent 72%)}
+  background:radial-gradient(circle,var(--aurora-1,#e67e22) 0%,var(--aurora-1b,#f39c12) 45%,transparent 72%)}
 .aurora-bg::after{width:50vw;height:50vw;bottom:-22vw;right:-14vw;animation-delay:-13s;
-  background:radial-gradient(circle,var(--aurora-2,#0066ff) 0%,var(--aurora-2b,#6fa8ff) 40%,transparent 72%)}
+  background:radial-gradient(circle,var(--aurora-2,#b8621a) 0%,var(--aurora-2b,#e67e22) 40%,transparent 72%)}
 .aurora-bg .aurora-3{width:38vw;height:38vw;top:38vh;left:32vw;animation-delay:-8s;
   animation-duration:32s;opacity:.24;
-  background:radial-gradient(circle,var(--aurora-3,#21c984) 0%,var(--aurora-3b,#5be6c8) 45%,transparent 72%)}
-body[data-bg="portfolio"]{--aurora-1:#21c984;--aurora-1b:#5be6c8;--aurora-2:#f37021;--aurora-2b:#ff9d5c;
-  --aurora-3:#0066ff;--aurora-3b:#6fa8ff}
+  background:radial-gradient(circle,var(--aurora-3,#10b981) 0%,var(--aurora-3b,#6ee7b7) 45%,transparent 72%)}
+body[data-bg="portfolio"]{--aurora-1:#10b981;--aurora-1b:#6ee7b7;--aurora-2:#e67e22;--aurora-2b:#f39c12;
+  --aurora-3:#b8621a;--aurora-3b:#e67e22}
 body[data-bg="account"]{--aurora-1:#8d95a4;--aurora-1b:#aeb4c0;--aurora-2:#646c7c;--aurora-2b:#9aa1b1;
   --aurora-3:#8d95a4;--aurora-3b:#aeb4c0}
 @keyframes auroraDrift{
@@ -319,11 +334,40 @@ button:active{transform:scale(.97)}
 .btn:active{transform:scale(.985)}
 .btn:disabled,.btn[aria-disabled="true"]{opacity:.45;pointer-events:none}
 .btn svg{width:17px;height:17px}
-.btn-a{background:var(--accent);color:var(--accent-ink);box-shadow:var(--shadow-accent)}
+/* Dégradé orange animé (2026-09-22, spec exacte fournie) : reproduit
+   tel quel sur le bouton primaire — celui qui doit porter la
+   personnalité de la marque, comme demandé ("Primary = Orange
+   toujours"). background-size:200% 200% est nécessaire pour que
+   l'animation de background-position soit réellement visible (un
+   dégradé qui correspond exactement aux dimensions du bouton n'a nulle
+   part où "se déplacer"). Coupée sous prefers-reduced-motion comme
+   toutes les animations infinies de ce fichier (la leçon du fond
+   aurora, plus haut, documente pourquoi une durée quasi nulle plutôt
+   qu'un arrêt franc a déjà causé un vrai bug cette session). */
+.btn-a{background:linear-gradient(135deg,var(--accent) 0%,var(--orange-light,var(--accent-hover)) 100%);
+  background-size:200% 200%;animation:gradientShift 4s ease-in-out infinite;
+  color:var(--accent-ink);box-shadow:var(--shadow-accent)}
+@keyframes gradientShift{
+  0%{background-position:0% 50%}
+  50%{background-position:100% 50%}
+  100%{background-position:0% 50%}
+}
+@media (prefers-reduced-motion:reduce){ .btn-a{animation:none} }
 .btn-a:hover{background:var(--accent-hover)}
 .btn-a:active{background:var(--accent-press)}
 .btn-s{background:var(--bg-2);color:var(--ink)}
 .btn-s:hover{background:var(--bg-3)}
+/* Bouton secondaire bleu électrique (2026-09-22, composant demandé par
+   le brief) — jamais utilisé comme accent général : réservé à une
+   action secondaire précise qui mérite de se distinguer sans rivaliser
+   avec l'orange primaire. Appliqué à "Vendre" sur la fiche action (voir
+   PAGES.stock) : une vraie seconde action, pas juste "moins importante
+   qu'Acheter" — le bleu porte ce sens mieux qu'un simple gris. */
+.btn-blue{background:var(--blue-accent);color:#04202b}
+.btn-blue:hover{filter:brightness(1.1)}
+.btn-blue-outline{background:transparent;color:var(--blue-accent);
+  box-shadow:inset 0 0 0 1.5px var(--blue-accent)}
+.btn-blue-outline:hover{background:var(--blue-accent-soft)}
 .btn-g,.btn-ghost{background:transparent;color:var(--ink-2);
   box-shadow:inset 0 0 0 1px var(--line)}
 .btn-g:hover,.btn-ghost:hover{background:var(--bg-2);color:var(--ink)}
@@ -345,7 +389,7 @@ button:active{transform:scale(.97)}
 .card{background-color:rgba(255,255,255,.6);backdrop-filter:blur(24px) saturate(160%);
   -webkit-backdrop-filter:blur(24px) saturate(160%);border:1px solid rgba(255,255,255,.8);
   border-radius:var(--r-l);padding:var(--card-pad);
-  box-shadow:0 1px 2px rgba(13,17,23,.05),0 16px 40px rgba(243,112,33,.10)}
+  box-shadow:0 1px 2px rgba(13,17,23,.05),0 16px 40px rgba(230,126,34,.10)}
 [data-theme="dark"] .card{background-color:rgba(22,26,33,.6);border-color:rgba(255,255,255,.08);
   box-shadow:0 1px 2px rgba(0,0,0,.3),0 16px 40px rgba(0,0,0,.4)}
 .card-flat{background:var(--bg-2);border-radius:var(--r-l);padding:var(--card-pad)}
@@ -1443,7 +1487,7 @@ function loadState(){
           ? saved.lists.filter(l => l && typeof l.id === 'string' && typeof l.name === 'string')
             .map(l => ({
               id: l.id, name: l.name,
-              color: typeof l.color === 'string' ? l.color : '#f37021',
+              color: typeof l.color === 'string' ? l.color : '#e67e22',
               icon: typeof l.icon === 'string' ? l.icon : 'star',
               items: Array.isArray(l.items) ? [...new Set(l.items.filter(x => typeof x === 'string'))] : [],
             }))
@@ -13505,7 +13549,7 @@ const inWatch = (id) => state.watchlist.includes(id);
 /* ============================================================
    LISTES ORGANISÉES (§9) — distinctes de watchlist/inWatch ci-dessus.
    ============================================================ */
-const LIST_COLORS = ['#f37021','#21c984','#e0407a','#0066ff','#5b4ae0','#0891b2','#dc2626','#64748b'];
+const LIST_COLORS = ['#e67e22','#21c984','#e0407a','#0066ff','#5b4ae0','#0891b2','#dc2626','#64748b'];
 /* Réutilise des icônes déjà existantes dans ICON (voir plus bas) plutôt que
    d'en dessiner de nouvelles — aucun nouvel asset SVG pour cette passe. */
 const LIST_ICONS = ['star','shield','chart','wallet','list','book'];
@@ -15192,7 +15236,7 @@ PAGES.stock = (id) => {
   <div class="stk-cta">
     <button class="btn btn-a btn-lg" data-buy="${esc(s.id)}" style="flex:1"
       ${canBuy ? '' : 'disabled aria-disabled="true"'}>Acheter</button>
-    ${pos ? `<button class="btn btn-s btn-lg" data-sell="${esc(s.id)}">Vendre</button>` : ''}
+    ${pos ? `<button class="btn btn-blue btn-lg" data-sell="${esc(s.id)}">Vendre</button>` : ''}
   </div>
   ${!canBuy ? `<p class="tiny" style="margin-top:8px;color:var(--ink-4)">
     Cours temporairement indisponible pour cette valeur : achat désactivé tant qu'aucun prix vérifié n'est reçu.</p>` : ''}
@@ -15212,13 +15256,28 @@ PAGES.stock = (id) => {
       <p class="tiny" style="margin-top:6px;color:var(--ink-4)">Est-ce toujours vrai ?</p>
     </div>`;
   })()}
-  <div class="stk-more">
-    ${s.type === 'stock' ? `<button data-nova="${esc(s.id)}">${svg(ICON.spark,2)} Analyse</button>` : ''}
-    <button data-cmp="${esc(s.id)}" aria-pressed="${state.compare.includes(s.id)}">
-      ${state.compare.includes(s.id) ? '✓ Ajoutée à la comparaison' : 'Comparer'}</button>
-    <button data-add-to-list="${esc(s.id)}">${svg(ICON.list,2)}
-      ${listesAvec(s.id).length ? `Dans ${listesAvec(s.id).length} liste${listesAvec(s.id).length>1?'s':''}` : 'Ajouter à une liste'}</button>
-    ${starBtn(s.id)}
+  <!-- CORRECTIF DESIGN (2026-09-22, "vraiment mieux que Revolut") :
+       captures d'écran réelles de l'app Revolut (App Store) analysées
+       en détail — leur fiche "Invest" utilise une rangée d'actions
+       rapides circulaires (icône + libellé court dessous), pas des
+       pilules de texte variable comme ici avant ce correctif. Reproduit
+       avec les icônes déjà existantes (spark/scale/list) — le libellé
+       reste COURT ET FIXE ("Comparer", jamais "✓ Ajoutée à la
+       comparaison" comme avant, qui aurait débordé d'un petit cercle) ;
+       l'état "actif" (comparaison/liste) se lit maintenant sur le
+       cercle lui-même (rempli de la couleur d'accent) plutôt que dans
+       le texte — voir .qa[aria-pressed] et .qa-badge plus bas.
+       Au passage : l'étoile "suivre" était dupliquée deux fois sur
+       cette même fiche (déjà présente à côté du prix juste au-dessus) —
+       gardée une seule fois, la plus visible des deux. -->
+  <div class="stk-qa">
+    ${s.type === 'stock' ? `<button class="qa" data-nova="${esc(s.id)}">
+      <i>${svg(ICON.spark,2)}</i><span>Analyse</span></button>` : ''}
+    <button class="qa" data-cmp="${esc(s.id)}" aria-pressed="${state.compare.includes(s.id)}">
+      <i>${svg(ICON.scale,2)}</i><span>Comparer</span></button>
+    <button class="qa" data-add-to-list="${esc(s.id)}" aria-pressed="${listesAvec(s.id).length > 0}">
+      <i>${svg(ICON.list,2)}${listesAvec(s.id).length ? `<em class="qa-badge">${listesAvec(s.id).length}</em>` : ''}</i>
+      <span>Liste</span></button>
   </div>
   ${state.compare.length >= 2 ? `<button class="btn btn-ghost btn-sm" style="margin-top:10px" data-go="compare">
     Voir la comparaison (${state.compare.length})</button>` : ''}
@@ -16315,7 +16374,7 @@ const CMP_ROWS = [
     fmt:v => fmt.num(v,1) + ' %', higher:false },
 ];
 
-const CMP_PALETTE = ['#f37021','#0066ff','#21c984','#e0407a'];
+const CMP_PALETTE = ['#e67e22','#0066ff','#21c984','#e0407a'];
 
 /* Prépare, pour chaque société sélectionnée, ses points réels pour la
    période choisie (mêmes HIST/histPeriode que la fiche action — aucun
