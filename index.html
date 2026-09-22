@@ -583,6 +583,9 @@ button:active{transform:scale(.97)}
 }
 .chart-line{stroke-dasharray:2400;stroke-dashoffset:2400;animation:draw 1.3s var(--spring) forwards}
 @keyframes draw{to{stroke-dashoffset:0}}
+.donut-svg{transform:rotate(-90deg);transform-origin:center;animation:donutIn .6s var(--spring)}
+@keyframes donutIn{from{opacity:0;transform:rotate(-90deg) scale(.85)}to{opacity:1;transform:rotate(-90deg) scale(1)}}
+@media (prefers-reduced-motion:reduce){ .donut-svg{animation:none} }
 .build{display:inline-flex;align-items:center;padding:4px 8px;border-radius:100px;flex:0 0 auto;
   background:var(--bg-3);color:var(--ink-4);font-size:10.5px;font-weight:700;letter-spacing:.02em}
 /* CORRECTIF (audit visuel, 2026-09-17) : text-overflow:ellipsis posé sur ce
@@ -14036,12 +14039,21 @@ function ring(score, size = 150){
       <div class="ring-l">${(score===null||score===undefined)?'non calculable':'sur 100'}</div>
     </div></div></div>`;
 }
+/* Motion des graphiques — donut (§43 du brief design system, 2026-09-21) :
+   chaque arc a son propre stroke-dasharray/dashoffset CALCULÉ à partir
+   des données (longueurs différentes par part) — contrairement à
+   .chart-line (une seule ligne, un seul dasharray constant), une vraie
+   animation "balayage" par segment demanderait de passer une valeur de
+   départ différente par cercle. Plus sûr et toujours une vraie
+   apparition progressive plutôt qu'un pop instantané : le donut entier
+   se matérialise (fondu + échelle), en CSS pur, sans dépendre des
+   valeurs data par segment. */
 function donut(parts, size = 150){
   const clean = (parts || []).filter(p => Number.isFinite(p.v) && p.v >= 0);
   const total = clean.reduce((s,p)=>s+p.v,0) || 1, R = size/2 - 13, C = 2*Math.PI*R;
   let acc = 0;
-  return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}"
-    style="transform:rotate(-90deg)" aria-hidden="true">
+  return `<svg class="donut-svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}"
+    aria-hidden="true">
     <circle cx="${size/2}" cy="${size/2}" r="${R}" fill="none" stroke="var(--bg-3)" stroke-width="17"/>
     ${clean.map(p=>{ const len=(p.v/total)*C, off=C-acc; acc+=len;
       return `<circle cx="${size/2}" cy="${size/2}" r="${R}" fill="none" stroke="${p.c}" stroke-width="17"
