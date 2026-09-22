@@ -393,7 +393,12 @@ button:active{transform:scale(.97)}
 .tag-warn{background:var(--warn-soft);color:var(--warn)}
 .tag-neutral{background:var(--bg-3);color:var(--ink-3)}
 .tag-accent{background:var(--accent-soft);color:var(--accent)}
-.tag-violet{background:var(--violet-soft);color:var(--violet)}
+/* CORRECTIF (audit de cohérence visuelle, 2026-09-21) : .tag-violet,
+   jamais utilisé dans le balisage, référençait --violet/--violet-soft —
+   également jamais définis nulle part. Contrairement à .ai-dot ci-dessus,
+   rien n'indique à quoi cette variante était destinée ; .tag-accent
+   couvre déjà le seul cas "puce colorée avec la couleur de marque".
+   Supprimée plutôt qu'inventée. */
 .up-t{color:var(--up)} .down-t{color:var(--down)}
 .hero{padding:var(--sp-5) 0 var(--sp-4);text-align:center}
 .hero .display{margin:0 auto;max-width:16ch}
@@ -935,7 +940,15 @@ body.gated .wrap{padding:0;max-width:100%}
 .ai-card-h{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
 .ai-alias{font-size:14px;font-weight:650;letter-spacing:-.02em}
 .ai-dot{width:9px;height:9px;border-radius:50%;flex:0 0 auto}
-.ai-dot-1{background:var(--accent)} .ai-dot-2{background:var(--violet)} .ai-dot-3{background:var(--info)}
+/* CORRECTIF (audit de cohérence visuelle, 2026-09-21) : --violet et
+   --info n'ont jamais été définis nulle part dans ce fichier (comme
+   --accent-2, trouvé et corrigé plus haut cette session) — .ai-dot-2/3
+   ne s'affichaient donc jamais réellement. Ce trio de puces (inutilisé
+   dans le balisage actuel, probablement prévu pour représenter les
+   trois IA du positionnement "Trois IA analysent les marchés") tombe
+   naturellement sur les trois couleurs de marque plutôt que sur des
+   teintes arbitraires. */
+.ai-dot-1{background:var(--accent)} .ai-dot-2{background:var(--blue-accent)} .ai-dot-3{background:var(--up)}
 .ai-points{list-style:none;margin-top:12px}
 .ai-points li{display:flex;gap:8px;padding:5px 0;font-size:12.8px;color:var(--ink-3);line-height:1.45}
 .ai-points li i{flex:0 0 auto;width:17px;height:17px;border-radius:50%;display:flex;align-items:center;justify-content:center;
