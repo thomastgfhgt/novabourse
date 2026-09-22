@@ -72,13 +72,19 @@
      env(safe-area-inset-bottom) — jamais une valeur fixe devinée — pour que
      le padding-bottom du contenu s'adapte à la VRAIE zone sûre de l'appareil
      (elle varie selon le modèle d'iPhone/Android et l'orientation). */
-  /* Recalculé pour le dock agrandi (2026-09-22, refonte bottom nav) :
-     14px×2 (padding du dock) + icône 26px + gap 4px + jusqu'à 2 lignes
-     de libellé 13px (~30px) + padding du bouton 6px×2 ≈ 100px. Toujours
-     couplé à env(safe-area-inset-bottom) dans .wrap ci-dessous — ne
-     JAMAIS ajuster l'un sans l'autre, c'est ce qui a évité que ce
-     changement ne fasse recouvrir du contenu par le dock. */
-  --dock-h:100px; --dock-gap:14px;
+  /* Recalculé deux fois le même jour (2026-09-22) : d'abord agrandi à
+     100px pour la refonte bottom nav (voir historique dans le commentaire
+     CSS de .dock), puis rétréci après retour utilisateur en direct
+     ("trop large, il fallait juste qu'elle soit plus longue" — le dock
+     était devenu épais, pas long, ce n'était pas ce qui était demandé).
+     Mesuré en direct (pas recalculé à la main) : dock à 73.8px de haut
+     avec le nouveau padding/icônes/police réduits ; 76px retenu ici avec
+     une petite marge de sécurité plutôt que la valeur pile mesurée.
+     Toujours couplé à env(safe-area-inset-bottom) dans .wrap ci-dessous —
+     ne JAMAIS ajuster l'un sans l'autre, c'est ce qui a évité que ce
+     changement (comme le précédent) ne fasse recouvrir du contenu par
+     le dock. */
+  --dock-h:76px; --dock-gap:14px;
   --space-xs:8px; --space-sm:16px; --space-md:24px; --space-lg:32px;
   --t-display:clamp(38px,7vw,60px);
   --t-title:clamp(26px,4vw,36px);
@@ -265,14 +271,22 @@ button:active{transform:scale(.97)}
      espacement ×5 intervalles dépasserait la largeur d'un téléphone
      réel. gap resserré à 4px, tout le reste (padding, tailles) suit la
      spec. Vérifié en direct après coup (voir commit), pas juste calculé
-     à l'aveugle. */
+     à l'aveugle.
+     CORRECTIF (même jour, retour utilisateur après coup : "trop large,
+     il fallait juste qu'elle soit plus longue") : le dock ci-dessus,
+     bien qu'il respecte la longueur horizontale demandée (déjà proche
+     de calc(100vw - 24px), donc déjà "longue"), était devenu trop ÉPAIS
+     (100px de haut) à cause du padding et des cases 56px — un bloc plutôt
+     qu'une barre. Repassé à un gabarit plus fin (padding, icônes, police
+     et cases réduits) SANS toucher à sa largeur/longueur horizontale,
+     qui n'était pas le problème. --dock-h recalculé en conséquence. */
   .dock{
     display:flex;position:fixed;left:50%;transform:translateX(-50%);
     bottom:calc(14px + env(safe-area-inset-bottom));z-index:60;
     background:rgba(248,249,251,.86);backdrop-filter:saturate(180%) blur(24px);
     -webkit-backdrop-filter:saturate(180%) blur(24px);
-    border:.5px solid rgba(0,0,0,.07);border-radius:28px;
-    padding:14px 10px;gap:4px;box-shadow:var(--shadow-3);max-width:calc(100vw - 24px)
+    border:.5px solid rgba(0,0,0,.07);border-radius:22px;
+    padding:8px 10px;gap:4px;box-shadow:var(--shadow-3);max-width:calc(100vw - 24px)
   }
   /* Dégradé noir -> orange subtil (spec exacte) : n'a de sens que sur
      l'esthétique sombre visée par le nouveau brief ("noir profond" en
@@ -296,14 +310,14 @@ button:active{transform:scale(.97)}
      réserve la même hauteur à TOUTES les cases (courtes ou non) pour
      qu'elles restent uniformes que le libellé tienne sur 1 ou 2 lignes. */
   .dock button{
-    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;
-    flex:1 1 0;min-width:0;min-height:56px;padding:6px 3px;border-radius:18px;color:var(--ink-3);
-    font-size:13px;font-weight:700;letter-spacing:-.01em;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+    flex:1 1 0;min-width:0;min-height:44px;padding:4px 3px;border-radius:14px;color:var(--ink-3);
+    font-size:11px;font-weight:700;letter-spacing:-.01em;
     transition:color .3s ease-out
   }
   .dock button span{display:block;max-width:100%;white-space:normal;text-align:center;
-    line-height:1.15;min-height:2.3em;hyphens:auto;overflow-wrap:break-word}
-  .dock button svg{width:26px;height:26px;transition:transform .3s ease-out}
+    line-height:1.1;min-height:1em;hyphens:auto;overflow-wrap:break-word}
+  .dock button svg{width:21px;height:21px;transition:transform .3s ease-out}
   /* CORRECTIF (bug réel trouvé pendant l'audit design system, 2026-09-21) :
      --accent-2 était référencé ici sans jamais être défini nulle part
      dans ce fichier — var() sans repli sur une variable inexistante rend
