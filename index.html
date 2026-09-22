@@ -14764,23 +14764,21 @@ PAGES.home = () => {
   const suivies = state.watchlist.map(id => byId[id]).filter(Boolean);
   const marche = stocks.slice(0, 6);
   const pf = portfolioValue();
-  const prenom = (state.auth.name || '').split(' ')[0];
 
   return `
   <div class="nb-top">
     <header class="nb-hero">
-      <h1 class="display">${prenom ? `Bonjour ${esc(prenom)}.` : 'NovaBourse.'}<br>
-        <span class="nb-hero-2">Analysez avant d'investir.</span></h1>
-      <p class="lead nb-hero-sub">Des chiffres vérifiés, un score expliqué, une analyse par plusieurs modèles.</p>
+      <h1 class="display">Prêt à investir ?</h1>
+      <p class="lead nb-hero-sub">Données en temps réel.</p>
       <div class="nb-hero-act">
-        <button class="btn btn-a btn-lg" data-go="radar">Analyser une entreprise</button>
+        <button class="btn btn-a btn-lg" data-go="radar">Analyser</button>
         <button class="btn btn-ghost btn-lg" data-search>Rechercher</button>
       </div>
     </header>
 
     <div class="nb-split">
       <article class="card nb-pf">
-        <p class="eyebrow">Portefeuille</p>
+        <p class="eyebrow">Mes positions</p>
         <p class="nb-pf-val tabular-nums">${fmt.eur(pf.total)}</p>
         <p class="nb-pf-var ${pf.gain >= 0 ? 'up-t' : 'down-t'} tabular-nums">
           ${arrow(pf.gainPct)} ${fmt.eur(Math.abs(pf.gain))} · ${fmt.pct(pf.gainPct)}</p>
@@ -14887,8 +14885,8 @@ PAGES.radar = () => {
   return `<div class="page-in">
   <div class="section-h" style="margin-bottom:20px">
     <div><p class="eyebrow">Radar</p>
-      <h1 class="title">Trouver une entreprise</h1>
-      <p class="lead measure-l" style="margin-top:10px">Chaque résultat explique pourquoi il apparaît.</p></div>
+      <h1 class="title">Radar</h1>
+      <p class="lead measure-l" style="margin-top:10px">Filtrez par critères. Trouvez votre prochain investissement.</p></div>
   </div>
 
   <div class="card" style="margin-bottom:18px">
@@ -14985,10 +14983,8 @@ function radarResults(){
   if (!list.length) return `<div class="card">${emptyState('Aucune entreprise ne correspond',
     'Élargissez un critère : le Radar n’ajoute jamais de résultat approchant.')}</div>`;
 
-  const cotees = list.filter(s => varDe(s) !== null).length;
   return `
-    <p class="small" style="margin-bottom:12px">${list.length} entreprise${list.length>1?'s':''} ·
-      ${cotees} cotation${cotees>1?'s':''} disponible${cotees>1?'s':''}</p>
+    <p class="small" style="margin-bottom:12px">${list.length} résultat${list.length>1?'s':''}</p>
     <div class="card"><div class="rows rows-grid">
       ${list.slice(0, 40).map(s => stockRow(s)).join('')}
     </div></div>`;
@@ -15003,8 +14999,8 @@ PAGES.explore = () => {
   garantirCatalogueExplore();
   return `<div class="page-in">
   <p class="eyebrow">Explorer</p>
-  <h1 class="title">Toutes les entreprises</h1>
-  <p class="lead measure-l" style="margin-top:10px">${stocks.filter(s=>s.type==='stock').length} sociétés suivies sur ${new Set(stocks.filter(s=>s.type==='stock').map(s=>s.market)).size} places boursières.</p>
+  <h1 class="title">Explorer</h1>
+  <p class="lead measure-l" style="margin-top:10px">${fmt.int(stocks.filter(s=>s.type==='stock').length)} entreprises</p>
   <button class="search-btn" style="margin:22px 0 0;max-width:100%" data-search>
     ${svg(ICON.search)}<span>Rechercher…</span></button>
   <div class="chips" style="margin-top:16px">
@@ -15107,10 +15103,8 @@ PAGES.markets = () => {
   garantirCatalogueMarkets();
   return `<div class="page-in">
     <p class="eyebrow">Marchés</p>
-    <h1 class="title">Explorer les marchés</h1>
-    <p class="lead measure-l" style="margin-top:10px">Actions, ETF, devises, cryptomonnaies,
-      indices et matières premières, avec des cotations réelles. D'autres catégories
-      (obligations, fonds, futures) seront ajoutées quand leurs données seront vérifiées.</p>
+    <h1 class="title">Marchés</h1>
+    <p class="lead measure-l" style="margin-top:10px">Actions • ETF • Cryptos • Devises</p>
     <div class="chips" style="margin-top:16px;overflow-x:auto;flex-wrap:nowrap">
       ${MARKET_CATEGORIES.map(c=>`<button class="chip" data-filter="marketsCategory" data-val="${c.id}"
         aria-pressed="${cat===c.id}">${esc(c.label)}</button>`).join('')}
@@ -15910,8 +15904,7 @@ PAGES.portfolio = () => {
   const periodePct = (first && last && first.totalValue) ? (periodeGain / first.totalValue) * 100 : null;
 
   return `<div class="page-in">
-    <p class="eyebrow">Simulation</p>
-    <h1 class="title">Mon portefeuille</h1>
+    <h1 class="title">Portefeuille</h1>
     <p class="lead" style="margin-top:10px">Portefeuille <b>virtuel</b> : suivez vos positions sans engager d'argent réel.</p>
 
     <div class="card" style="margin-top:22px">
@@ -16087,8 +16080,7 @@ PAGES.portfolio = () => {
 PAGES.account = () => {
   const plan = { free:'Free', pro:'Pro', elite:'Elite' }[state.settings.plan] || 'Free';
   return `<div class="page-in">
-    <p class="eyebrow">Compte</p>
-    <h1 class="title">Mon espace</h1>
+    <h1 class="title">Profil</h1>
 
     <div class="card" style="margin-top:22px">
       <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
@@ -16123,7 +16115,7 @@ PAGES.account = () => {
     </section>
 
     <section class="section">
-      <h2 class="h2">En savoir plus</h2>
+      <h2 class="h2">Ressources</h2>
       <div class="card" style="margin-top:14px"><div class="rows">
         ${[['settings','Réglages complets'],['method','Comment fonctionne le Nova Score'],['trust','Notre engagement de transparence'],
            ['pricing','Offres et tarifs'],['watchlist','Ma liste de suivi']].map(([g,l])=>`
