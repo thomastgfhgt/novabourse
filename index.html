@@ -13951,6 +13951,22 @@ function toast(msg){
   t.textContent = msg; t.classList.add('on');
   clearTimeout(t._x); t._x = setTimeout(() => t.classList.remove('on'), 2600);
 }
+/* Abstraction haptics (§55 du brief design system, 2026-09-21) : noop
+   volontaire sur web — le but n'est pas de vibrer le téléphone
+   maintenant (jamais demandé, et une appli financière qui vibre sans
+   qu'on le lui demande serait plus agaçante qu'utile), mais de fixer
+   dès aujourd'hui les points d'appel qu'une future app native
+   (React Native/Capacitor) n'aura qu'à intercepter avec sa propre
+   implémentation, sans devoir les retrouver un par un dans 17 000
+   lignes. Câblée ci-dessous aux mêmes moments que les confirmations
+   visuelles déjà en place (achat/vente confirmés, erreur) — jamais un
+   nouveau chemin de décision, uniquement un appel de plus au même
+   endroit qu'un toast existant. */
+const haptics = {
+  light(){ /* noop sur web */ },
+  success(){ /* noop sur web */ },
+  error(){ /* noop sur web */ },
+};
 let lastFocus = null;
 function openSheet(html){
   lastFocus = document.activeElement;
@@ -17327,7 +17343,7 @@ document.addEventListener('click', e => {
     const these = (texteThese || horizonBtn) ? { reason: texteThese, horizon: horizonBtn?.dataset.thesisHorizon || null } : null;
     const r = buyStock(okBuy.dataset.buyOk, +okBuy.dataset.value, these);
     toast(r.msg);
-    if (r.ok){ closeSheet(); render(); } else { okBuy.disabled = false; }
+    if (r.ok){ haptics.success(); closeSheet(); render(); } else { haptics.error(); okBuy.disabled = false; }
     return;
   }
 
@@ -17393,7 +17409,7 @@ document.addEventListener('click', e => {
 
   const star = q('[data-star]');
   if (star){
-    e.stopPropagation(); toggleWatch(star.dataset.star);
+    e.stopPropagation(); haptics.light(); toggleWatch(star.dataset.star);
     document.querySelectorAll(`[data-star="${CSS.escape(star.dataset.star)}"]`).forEach(b=>{
       const on = state.watchlist.includes(star.dataset.star);
       b.setAttribute('aria-pressed', String(on));
@@ -17633,7 +17649,7 @@ document.addEventListener('click', e => {
     sellOk.disabled = true;
     const r = sellStock(sellOk.dataset.sellOk);
     toast(r.msg);
-    if (r.ok){ closeSheet(); render(); } else { sellOk.disabled = false; }
+    if (r.ok){ haptics.success(); closeSheet(); render(); } else { haptics.error(); sellOk.disabled = false; }
     return;
   }
 
