@@ -25,8 +25,8 @@
      abstraction non utilisée nulle part dans ce fichier. */
   --orange-50:#fff3ea;  --orange-100:#ffe1cc; --orange-300:#ffb27a;
   --orange-500:#f37021; --orange-700:#c6560f; --orange-900:#7a3308;
-  --blue-50:#eef1ff;  --blue-100:#dce3ff; --blue-300:#94a9ff;
-  --blue-500:#4c6fff; --blue-700:#2f4ecc; --blue-900:#1a2b75;
+  --blue-50:#e6f0ff;  --blue-100:#c2dbff; --blue-300:#6fa8ff;
+  --blue-500:#0066ff; --blue-700:#0047b3; --blue-900:#002766;
   --green-50:#e7fbf2;  --green-100:#c6f5e0; --green-300:#74e6b8;
   --green-500:#21c984; --green-700:#159a64; --green-900:#0b5c3c;
   --bg:#ffffff;
@@ -157,12 +157,12 @@ body{
 .aurora-bg::before{width:55vw;height:55vw;top:-18vw;left:-12vw;
   background:radial-gradient(circle,var(--aurora-1,#f37021) 0%,var(--aurora-1b,#ff9d5c) 45%,transparent 72%)}
 .aurora-bg::after{width:50vw;height:50vw;bottom:-22vw;right:-14vw;animation-delay:-13s;
-  background:radial-gradient(circle,var(--aurora-2,#4c6fff) 0%,var(--aurora-2b,#8ba0ff) 40%,transparent 72%)}
+  background:radial-gradient(circle,var(--aurora-2,#0066ff) 0%,var(--aurora-2b,#6fa8ff) 40%,transparent 72%)}
 .aurora-bg .aurora-3{width:38vw;height:38vw;top:38vh;left:32vw;animation-delay:-8s;
   animation-duration:32s;opacity:.24;
   background:radial-gradient(circle,var(--aurora-3,#21c984) 0%,var(--aurora-3b,#5be6c8) 45%,transparent 72%)}
 body[data-bg="portfolio"]{--aurora-1:#21c984;--aurora-1b:#5be6c8;--aurora-2:#f37021;--aurora-2b:#ff9d5c;
-  --aurora-3:#4c6fff;--aurora-3b:#8ba0ff}
+  --aurora-3:#0066ff;--aurora-3b:#6fa8ff}
 body[data-bg="account"]{--aurora-1:#8d95a4;--aurora-1b:#aeb4c0;--aurora-2:#646c7c;--aurora-2b:#9aa1b1;
   --aurora-3:#8d95a4;--aurora-3b:#aeb4c0}
 @keyframes auroraDrift{
@@ -13445,7 +13445,7 @@ const inWatch = (id) => state.watchlist.includes(id);
 /* ============================================================
    LISTES ORGANISÉES (§9) — distinctes de watchlist/inWatch ci-dessus.
    ============================================================ */
-const LIST_COLORS = ['#f37021','#21c984','#e0407a','#4c6fff','#5b4ae0','#0891b2','#dc2626','#64748b'];
+const LIST_COLORS = ['#f37021','#21c984','#e0407a','#0066ff','#5b4ae0','#0891b2','#dc2626','#64748b'];
 /* Réutilise des icônes déjà existantes dans ICON (voir plus bas) plutôt que
    d'en dessiner de nouvelles — aucun nouvel asset SVG pour cette passe. */
 const LIST_ICONS = ['star','shield','chart','wallet','list','book'];
@@ -16246,7 +16246,7 @@ const CMP_ROWS = [
     fmt:v => fmt.num(v,1) + ' %', higher:false },
 ];
 
-const CMP_PALETTE = ['#f37021','#4c6fff','#21c984','#e0407a'];
+const CMP_PALETTE = ['#f37021','#0066ff','#21c984','#e0407a'];
 
 /* Prépare, pour chaque société sélectionnée, ses points réels pour la
    période choisie (mêmes HIST/histPeriode que la fiche action — aucun
