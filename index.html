@@ -72,22 +72,24 @@
      env(safe-area-inset-bottom) — jamais une valeur fixe devinée — pour que
      le padding-bottom du contenu s'adapte à la VRAIE zone sûre de l'appareil
      (elle varie selon le modèle d'iPhone/Android et l'orientation). */
-  /* Recalculé une 3e fois le 2026-09-23 : refonte complète du dock
-     (référence visuelle Revolut, palette bleu-nuit, correctif structurel
-     du bug de libellés coupés — voir le commentaire détaillé sur .dock).
-     Dock plus généreux verticalement qu'avant (padding 18px, cible du
-     brief "90 à 110px") : mesuré en direct sur le palier par défaut
-     (≥390px, écran 414px) à 91.6px, 92px retenu ici avec une petite marge
-     de sécurité plutôt que la valeur pile mesurée. Les 2 paliers
-     responsive plus étroits (≤390px, ≤360px) donnent un dock légèrement
-     moins haut (mesuré 79px et 71px) ; --dock-h garde la valeur du
-     palier le PLUS haut par sécurité (mieux vaut un peu de padding-bottom
-     en trop sur petit écran qu'un pixel de contenu caché derrière le
-     dock). Toujours couplé à env(safe-area-inset-bottom) dans .wrap
-     ci-dessous — ne JAMAIS ajuster l'un sans l'autre, c'est ce qui a
-     évité que ce changement (comme les 2 précédents) ne fasse recouvrir
-     du contenu par le dock. */
-  --dock-h:92px; --dock-gap:12px;
+  /* Recalculé une 4e fois le 2026-09-23 (passe 2, finition visuelle
+     après comparaison directe avec la capture Revolut de référence) :
+     la passe précédente visait délibérément "90 à 110px" (cible initiale
+     du tout premier brief) et le résultat était trop haut/compact —
+     Revolut est une capsule bien plus HORIZONTALE. Nouvelle cible
+     "70-82px", et le padding vertical du dock réduit en conséquence
+     (18px → 10px). Mesuré en direct sur le palier par défaut (≥390px,
+     écran 414/430px) à 79.6px ; 82px retenu ici avec une petite marge de
+     sécurité plutôt que la valeur pile mesurée. Les 2 paliers responsive
+     plus étroits (≤390px, ≤360px) donnent un dock encore moins haut
+     (mesuré 76.1px et 70.6px) ; --dock-h garde la valeur du palier le
+     PLUS haut par sécurité (mieux vaut un peu de padding-bottom en trop
+     sur petit écran qu'un pixel de contenu caché derrière le dock).
+     Toujours couplé à env(safe-area-inset-bottom) dans .wrap ci-dessous
+     — ne JAMAIS ajuster l'un sans l'autre, c'est ce qui a évité que ce
+     changement (comme les 3 précédents) ne fasse recouvrir du contenu
+     par le dock. */
+  --dock-h:82px; --dock-gap:12px;
   --space-xs:8px; --space-sm:16px; --space-md:24px; --space-lg:32px;
   --t-display:clamp(38px,7vw,60px);
   --t-title:clamp(26px,4vw,36px);
@@ -267,53 +269,58 @@ button:active{transform:scale(.97)}
 @media (max-width:900px){
   .top-nav{display:none}
   /* REFONTE COMPLÈTE (2026-09-23, référence Revolut fournie par
-     l'utilisateur) — remplace les deux passes précédentes du même dock
-     (agrandi le 22/09, puis rétréci le même jour). Cette fois la demande
-     va plus loin qu'un réglage de taille : palette bleu-nuit dédiée
-     (jamais l'orange de marque dans cette barre précise), et surtout une
-     VRAIE correction structurelle du bug de libellés coupés/en 2 lignes.
+     l'utilisateur), PASSE 2 (finition visuelle, même jour) — la passe 1
+     a corrigé le bug structurel (voir plus bas) mais restait trop haute/
+     compacte comparée à la capture Revolut fournie en référence, et la
+     capsule active ressemblait à un bouton indépendant plutôt qu'à une
+     capsule intégrée qui "grandit" pour l'onglet actif.
 
-     CAUSE RACINE du texte coupé (vérifiée dans le code, pas supposée) :
-     .dock button avait flex:1 1 0 — les 6 onglets se partageaient TOUJOURS
-     une largeur strictement égale, quel que soit leur contenu. "Portefeuille"
-     (12 caractères) recevait donc exactement la même largeur que "Radar"
-     (5 caractères). Sur un téléphone de 390px, ça donne ~54-58px par
-     onglet : "Portefeuille" n'y tient physiquement pas sur une ligne à une
-     police lisible (mesuré au canvas : ~66px à 12px/600 — DÉJÀ plus large
-     que la case elle-même). white-space:nowrap seul (ce que l'utilisateur
-     a explicitement demandé de NE PAS faire comme "simple patch") aurait
-     donc simplement fait déborder le texte par-dessus les voisins.
+     CAUSE RACINE du texte coupé, toujours valable (vérifiée dans le
+     code, pas supposée) : .dock button avait flex:1 1 0 — les 6 onglets
+     se partageaient TOUJOURS une largeur strictement égale, quel que
+     soit leur contenu. "Portefeuille" (12 caractères, ~66px mesuré au
+     canvas à 12px/600) ne tient pas dans une colonne de ~54-58px.
 
-     CORRECTIF STRUCTUREL : flex:1 1 0 (colonnes égales) → flex:0 0 auto
-     (chaque onglet prend la largeur de SON PROPRE contenu) + le dock passe
-     de justify-content implicite à `space-between`, qui répartit l'espace
-     RESTANT en 5 intervalles égaux entre les onglets plutôt que de forcer
-     des colonnes égales. Résultat : "Portefeuille" est enfin plus large
-     que "Radar" — comme son texte l'exige — et aucun mot ne se casse plus
-     jamais, à n'importe quelle largeur d'écran réelle (mesuré au canvas
-     pour les 6 libellés à plusieurs tailles de police, calculé pour
-     320-430px, voir les 2 paliers responsive plus bas pour <390px). */
+     CORRECTIF STRUCTUREL, toujours en place : flex:0 0 auto (chaque
+     onglet = largeur de son propre contenu) + .dock{justify-content:
+     space-between}. Nouveau cette passe : le padding horizontal du
+     bouton actif est plus généreux que celui des boutons inactifs
+     (voir .dock button[aria-current] plus bas) — c'est ce qui produit
+     visuellement "l'onglet actif prend légèrement plus de place, les
+     autres se réajustent" demandé dans le brief. transition:padding sur
+     .dock button fait que ce changement de largeur est animé nativement
+     par le moteur de layout du navigateur (flexbox recalcule et anime
+     chaque frame) — pas de FLIP/JS supplémentaire nécessaire : plus
+     simple que de réécrire le repositionnement des 5 autres onglets à
+     la main, et la pilule (positionDockPill(), inchangée) lit déjà la
+     géométrie finale du bouton actif au moment du changement de route,
+     donc reste synchronisée sans code neuf. */
   .dock{
     display:flex;justify-content:space-between;align-items:stretch;
     position:fixed;left:50%;transform:translateX(-50%);
     bottom:calc(12px + env(safe-area-inset-bottom));z-index:60;
     width:calc(100% - 24px);max-width:480px;
-    background:linear-gradient(160deg,#1E3A5F 0%,#0F1E35 100%);
-    border:1px solid rgba(59,130,246,.28);border-radius:32px;
-    padding:18px 10px;
-    box-shadow:0 12px 32px rgba(3,8,20,.45), 0 2px 10px rgba(15,40,80,.2)
+    background:linear-gradient(135deg,#11182B 0%,#0B1020 100%);
+    border:1px solid rgba(100,120,255,.20);border-radius:9999px;
+    padding:10px 8px;
+    box-shadow:0 10px 28px rgba(2,5,14,.5), 0 2px 8px rgba(10,20,45,.16)
   }
-  /* Onglets : largeur = leur propre contenu (icône empilée sur libellé,
-     donc c'est le PLUS LARGE des deux qui détermine la largeur du bouton,
-     jamais icône+libellé côte à côte). min-width garde une zone tactile
-     correcte même pour les libellés courts ("Radar", "Compte"). */
+  /* Largeur = contenu (icône empilée sur libellé, c'est le PLUS LARGE
+     des deux qui détermine la largeur, jamais côte à côte). Padding
+     horizontal volontairement serré à l'état inactif (3px) : c'est ce
+     qui laisse la marge de manœuvre nécessaire pour que l'onglet ACTIF
+     puisse s'élargir (voir règle [aria-current] plus bas) sans jamais
+     dépasser la largeur d'un téléphone réel à 6 destinations — mesuré
+     au canvas et vérifié par simulation à 320/360/375/390/393/414/430px
+     (voir MOTION_SYSTEM.md), pire cas ~343px de contenu total à 390px
+     pour une largeur disponible de 350px. */
   .dock button{
     position:relative;z-index:1;
-    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;
-    flex:0 0 auto;min-width:44px;min-height:44px;padding:2px 4px;border-radius:20px;
-    color:rgba(255,255,255,.72);
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;
+    flex:0 0 auto;min-width:38px;min-height:44px;padding:4px 3px;border-radius:9999px;
+    color:rgba(255,255,255,.65);
     font-size:12px;font-weight:600;letter-spacing:-.01em;
-    transition:color .25s ease-out
+    transition:color .25s ease-out,padding .3s cubic-bezier(.22,1,.36,1)
   }
   /* Priorité absolue du brief : plus jamais de libellé coupé/en 2 lignes.
      nowrap + overflow visible (jamais overflow:hidden, qui masquerait un
@@ -321,37 +328,44 @@ button:active{transform:scale(.97)}
      correctif structurel ci-dessus, qui garantit que chaque case est déjà
      au moins aussi large que son texte. */
   .dock button span{display:block;white-space:nowrap;overflow:visible}
-  .dock button svg{width:24px;height:24px;color:inherit;
+  .dock button svg{width:26px;height:26px;color:inherit;
     transition:transform .25s cubic-bezier(.22,1,.36,1),opacity .25s ease-out}
-  .dock button[aria-current]{color:#fff}
+  .dock button[aria-current]{color:#fff;padding-left:13px;padding-right:13px}
   .dock button[aria-current] svg{transform:scale(1.05)}
-  .dock button:focus-visible{outline:2px solid rgba(255,255,255,.85);outline-offset:2px;border-radius:20px}
-  /* Paliers responsive (brief §21/§28) : jamais de mot cassé pour gagner
+  .dock button:focus-visible{outline:2px solid rgba(255,255,255,.85);outline-offset:2px;border-radius:9999px}
+  /* Paliers responsive (brief §19/§21) : jamais de mot cassé pour gagner
      de la place — on réduit plutôt, dans l'ordre, la marge extérieure,
-     le padding du dock puis la police/les icônes. Seuils et valeurs
-     calculés à partir des largeurs réelles mesurées au canvas (voir plus
-     haut), pas choisis au hasard : à chaque palier, la somme des largeurs
-     des 6 onglets reste inférieure à la largeur d'écran cible. */
+     le padding du dock, le "surplus" de padding de l'onglet actif, puis
+     la police/les icônes. Seuils et valeurs calculés à partir des
+     largeurs réelles mesurées au canvas (voir plus haut), pas choisis au
+     hasard : à chaque palier, la somme des largeurs des 6 onglets
+     (le pire cas, un onglet large actif) reste inférieure à la largeur
+     d'écran cible. */
   @media (max-width:390px){
-    .dock{padding:14px 8px}
-    .dock button{font-size:11px;gap:7px}
-    .dock button svg{width:22px;height:22px}
+    .dock{padding:11px 6px}
+    .dock button{font-size:11px;gap:5px}
+    .dock button svg{width:23px;height:23px}
+    .dock button[aria-current]{padding-left:9px;padding-right:9px}
   }
   @media (max-width:360px){
-    .dock{width:calc(100% - 16px);padding:12px 6px}
-    .dock button{font-size:10px;gap:6px;min-width:38px}
-    .dock button svg{width:20px;height:20px}
+    .dock{width:calc(100% - 16px);padding:10px 5px}
+    .dock button{font-size:10px;gap:5px;min-width:34px}
+    .dock button svg{width:21px;height:21px}
+    .dock button[aria-current]{padding-left:6px;padding-right:6px}
   }
   /* Pilule active glissante (technique inchangée depuis le 21/09, voir
      positionDockPill() en JS) : un seul élément partagé, jamais recréé,
      repositionné en transform/width à chaque changement d'onglet — c'est
      ce qui permet à la MÊME pilule de glisser d'un onglet à l'autre au
-     lieu de disparaître puis réapparaître (exigence explicite du brief).
-     Timing changé à la valeur exacte demandée cette fois (300ms,
-     cubic-bezier(.22,1,.36,1)) plutôt que le --spring générique du reste
-     du site, pour ce composant précis. */
-  .dock-pill{position:absolute;top:8px;bottom:8px;left:0;border-radius:26px;
-    background:#2D3748;box-shadow:inset 0 0 0 1px rgba(255,255,255,.06);
+     lieu de disparaître puis réapparaître. Sa largeur suit maintenant
+     AUSSI le padding élargi du bouton actif (positionDockPill() lit
+     offsetWidth, qui inclut ce padding) : la capsule grandit avec
+     l'onglet plutôt que de rester à la largeur minimale icône+texte.
+     Couleur rendue très subtile (blanc à 10% d'opacité, plus de fond
+     plein #2D3748) et rayon 9999px (stade complet) — demande explicite
+     du brief : "fondue dans la barre", pas un bouton indépendant. */
+  .dock-pill{position:absolute;top:6px;bottom:6px;left:0;border-radius:9999px;
+    background:rgba(255,255,255,.10);
     z-index:0;pointer-events:none;
     transition:transform .3s cubic-bezier(.22,1,.36,1), width .3s cubic-bezier(.22,1,.36,1);
     will-change:transform,width}
@@ -360,6 +374,7 @@ button:active{transform:scale(.97)}
 @media (prefers-reduced-motion:reduce){
   .dock-pill{transition:none}
   .dock button svg{transition:none}
+  .dock button{transition:none}
 }
 .wrap{max-width:1120px;margin:0 auto;padding:var(--sp-4) 22px calc(var(--sp-6) + 40px)}
 .section{margin-top:96px}
