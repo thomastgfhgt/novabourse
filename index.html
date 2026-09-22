@@ -898,12 +898,21 @@ button:active{transform:scale(.97)}
 .buy-total dd{font-size:24px;font-weight:700;letter-spacing:-.03em}
 .buy-note{font-size:12.5px;color:var(--ink-4);margin-top:16px;line-height:1.5}
 .stk-cta{display:flex;gap:10px;margin-top:24px}
-.stk-more{display:flex;align-items:center;gap:8px;margin-top:14px;flex-wrap:wrap}
-.stk-more button:not(.star){display:inline-flex;align-items:center;gap:7px;padding:9px 15px;
-  border-radius:100px;background:var(--bg-2);font-size:13.5px;font-weight:550;color:var(--ink-2);
-  min-height:40px}
-.stk-more button:not(.star):hover{background:var(--bg-3)}
-.stk-more svg{width:15px;height:15px}
+/* Actions rapides circulaires (2026-09-22) — voir le commentaire au
+   point d'appel (PAGES.stock) pour le contexte de la refonte. */
+.stk-qa{display:flex;gap:22px;margin-top:20px}
+.qa{display:flex;flex-direction:column;align-items:center;gap:7px;
+  background:none;color:var(--ink-2);font-size:12.5px;font-weight:600}
+.qa i{display:flex;align-items:center;justify-content:center;position:relative;
+  width:52px;height:52px;border-radius:50%;background:var(--bg-2);color:var(--ink);
+  transition:background .2s ease-out,color .2s ease-out}
+.qa:hover i{background:var(--bg-3)}
+.qa[aria-pressed="true"] i{background:var(--accent);color:var(--accent-ink)}
+.qa svg{width:20px;height:20px}
+.qa-badge{position:absolute;top:-3px;right:-3px;min-width:17px;height:17px;padding:0 4px;
+  border-radius:999px;background:var(--accent);color:var(--accent-ink);
+  font-size:10.5px;font-weight:700;line-height:17px;text-align:center;
+  box-shadow:0 0 0 2.5px var(--bg)}
 .hero{position:relative;isolation:isolate}
 .hero > *:not(.hero-chart){position:relative;z-index:1}
 .hero-chart{
