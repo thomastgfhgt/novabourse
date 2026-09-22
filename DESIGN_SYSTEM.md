@@ -94,6 +94,30 @@ Deux échelles coexistent (`--space-*` et `--sp-*`), toutes deux valant les mêm
 | État vide | `emptyState()` (JS) | |
 | Squelette de chargement | `.sk`, `chartSkeleton()` | |
 
+## Z-index
+
+Déjà cohérent avant cette session — vérifié cette passe (audit de cohérence, §62 du brief), pas besoin de nouveaux tokens :
+
+```
+0   fonds d'ambiance / curseurs de motion (aurora, .seg-pill, .dock-pill)
+1   contenu au-dessus de ces fonds
+50  en-tête (sticky)
+60  dock (barre du bas)
+90  fond des feuilles modales
+95  toast (au-dessus des modales — une confirmation doit rester visible même feuille ouverte)
+```
+
+Aucun `z-index:9999` dispersé trouvé.
+
+## Audit de cohérence visuelle (§66-67 du brief) — ce qui a été vérifié cette session
+
+- **Doublons de sélecteurs CSS** : re-balayé après tous les ajouts de cette session (dock, seg, morph recherche...) — les seuls doublons restants sont des overrides `@media` légitimes (même motif que `.top-nav`/`.dock`/`.card`, déjà vérifiés), rien de nouveau cassé.
+- **Variables CSS invalides** : balayage systématique (script Node comparant chaque `var(--x)` à chaque `--x:` défini) — 3 trouvées et corrigées cette session (`--accent-2`, `--violet`/`--violet-soft`, `--info`), 0 restante.
+- **Couleurs codées en dur oubliées lors du passage à la palette officielle** : 6 trouvées et corrigées (`.nova-orb`, `.gate-orb` [supprimé, mort], `--shadow-accent` clair, halo de `.card`, listes `LIST_COLORS`/`CMP_PALETTE`, couleur de repli d'une liste).
+- **Composants morts (CSS jamais atteint par aucun balisage)** : `.gate-orb`, `.tag-violet` supprimés ; `.nova-orb` récupéré et enfin branché (voir MOTION_SYSTEM.md) ; `.ai-card`/`.ai-dot`/`.ai-alias`/`.ai-points` restent orphelins (base cohérente, pas cassée, mais aucun balisage ne les utilise — pas touchés, aucune indication de ce qu'ils devaient devenir).
+
+Pas encore fait (hors budget de cette session) : audit visuel PAGE PAR PAGE des boutons/cards/inputs "anciens" par rapport aux nouveaux composants (le brief demande de comparer chaque page à un inventaire Storybook-like, qui n'existe pas non plus — section suivante).
+
 ## Ce qui N'A PAS été construit cette passe
 
 Honnêteté du rapport final (comme demandé) : le brief liste ~50 composants (`NovaModal`, `NovaDropdown`, `NovaSlider`, `NovaOrb`, `AnimatedFinancialNumber`, etc.). Cette session a livré la fondation (palette, tokens, fond ambiant, moteur de motion du dock) plutôt qu'une reconstruction totale, par choix délibéré : sans accès navigateur fiable pour tester en direct (voir AUDIT_REPORT.md, blocage réseau Fortinet, intermittent), livrer 50 composants non vérifiés visuellement aurait été irresponsable. Voir `MOTION_SYSTEM.md` et le rapport de fin d'étape pour le détail de ce qui reste.
