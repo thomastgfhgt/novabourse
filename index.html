@@ -422,7 +422,9 @@ button:active{transform:scale(.97)}
 .trio-c span{display:block;font-size:13px;color:var(--ink-3);margin-top:4px;line-height:1.45}
 .search-btn{display:flex;align-items:center;gap:11px;width:100%;max-width:520px;margin:var(--sp-3) auto 0;
   padding:15px 20px;border-radius:100px;background:var(--bg-2);color:var(--ink-4);font-size:15.5px;
-  text-align:left;border:1px solid transparent;transition:all .25s var(--spring)}
+  text-align:left;border:1px solid transparent;
+  transition:background .25s var(--spring),border-color .25s var(--spring),
+    box-shadow .25s var(--spring),transform .25s var(--spring)}
 .search-btn:hover{background:var(--bg);border-color:var(--line);box-shadow:var(--shadow-2);
   transform:translateY(-2px)}
 .search-btn:active{transform:scale(.99)}
@@ -483,9 +485,21 @@ button:active{transform:scale(.97)}
 .pts b{color:var(--ink);font-weight:600}
 .plans{display:grid;grid-template-columns:repeat(auto-fit,minmax(258px,1fr));gap:var(--sp-2);
   margin-top:var(--sp-3)}
+/* CORRECTIF DESIGN (2026-09-22, "mieux que Revolut") : "transition:all"
+   (§61 du brief : à éviter explicitement — anime aussi des propriétés
+   qui n'ont jamais changé, coût de calcul inutile) remplacé par les
+   deux propriétés réellement concernées. Ajouté un vrai soulèvement au
+   survol (offres = la décision la plus commerciale du site) plutôt que
+   le simple changement de couleur de bordure d'avant — gardé derrière
+   (hover:hover)/(pointer:fine), même raison qu'ailleurs dans ce fichier
+   (jamais un survol "collé" après un tap tactile). */
 .plan{position:relative;padding:var(--sp-3);border-radius:var(--r-l);border:1.5px solid var(--line);
-  display:flex;flex-direction:column;background:var(--bg);transition:all .3s var(--spring)}
+  display:flex;flex-direction:column;background:var(--bg);
+  transition:border-color .3s var(--spring),box-shadow .3s var(--spring),transform .3s var(--spring)}
 .plan:hover{border-color:var(--ink-4)}
+@media (hover:hover) and (pointer:fine){
+  .plan:hover{transform:translateY(-4px);box-shadow:var(--shadow-3)}
+}
 .plan.hot{border-color:var(--ink);box-shadow:var(--shadow-2)}
 .plan-b{position:absolute;top:-11px;left:50%;transform:translateX(-50%);padding:5px 14px;border-radius:100px;
   background:var(--ink);color:var(--bg);font-size:11.5px;font-weight:650;white-space:nowrap}
@@ -530,7 +544,7 @@ button:active{transform:scale(.97)}
 .toast{position:fixed;left:50%;bottom:calc(96px + env(safe-area-inset-bottom));z-index:95;
   transform:translate(-50%,16px);background:var(--ink);color:var(--bg);padding:13px 22px;
   border-radius:100px;font-size:14.5px;font-weight:550;opacity:0;pointer-events:none;
-  transition:all .35s var(--spring);box-shadow:var(--shadow-3);max-width:90vw}
+  transition:opacity .35s var(--spring),transform .35s var(--spring);box-shadow:var(--shadow-3);max-width:90vw}
 .toast.on{opacity:1;transform:translate(-50%,0)}
 .chips{display:flex;gap:7px;flex-wrap:wrap}
 .chip{padding:9px 15px;border-radius:100px;background:var(--bg-2);font-size:13.5px;font-weight:550;
@@ -747,8 +761,20 @@ button:active{transform:scale(.97)}
      la largeur réelle, jamais un nombre de colonnes figé par palier. */
   .rows-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:10px}
   .rows-grid .row{border-bottom:none;border-radius:var(--r-m);padding:14px 16px;margin:0;
-    background:var(--bg-2);transition:background var(--fast) ease}
+    background:var(--bg-2);transition:background var(--fast) ease,transform var(--fast) var(--spring),
+      box-shadow var(--fast) var(--spring)}
   .rows-grid .row:hover{margin:0;padding-left:16px;padding-right:16px;background:var(--bg-3)}
+}
+/* CORRECTIF DESIGN (2026-09-22, "mieux que Revolut") : un léger
+   soulèvement au survol donne aux fiches cliquables une vraie présence
+   physique — Revolut lui-même n'a pas cette micro-interaction sur ses
+   listes. Volontairement réservé à (hover:hover) ET (pointer:fine) :
+   sans ce garde-fou, un survol au clavier/tactile resterait "collé" en
+   l'état soulevé après le tap (le point §49 du brief le signale
+   explicitement — "pas de hover-only behavior" sur mobile). */
+@media (min-width:640px) and (hover:hover) and (pointer:fine){
+  .rows-grid .row:hover{transform:translateY(-2px);box-shadow:0 8px 20px rgba(13,17,23,.08)}
+  [data-theme="dark"] .rows-grid .row:hover{box-shadow:0 8px 20px rgba(0,0,0,.35)}
 }
 .nsc{padding:18px;border-radius:14px;background:var(--bg-2);margin-bottom:20px}
 .nsc-head{display:flex;align-items:center;gap:16px}
@@ -938,7 +964,8 @@ body.gated .wrap{padding:0;max-width:100%}
 .onb-dots span.on{background:var(--accent)}
 .onb-list{display:grid;gap:var(--space-xs);margin-top:var(--space-md)}
 .onb-c{display:flex;align-items:center;gap:12px;text-align:left;padding:18px;border-radius:var(--r-m);
-  background:var(--bg-2);border:1.5px solid transparent;transition:all .28s var(--spring)}
+  background:var(--bg-2);border:1.5px solid transparent;
+  transition:border-color .28s var(--spring),background .28s var(--spring),transform .28s var(--spring)}
 .onb-c:hover{border-color:var(--accent);background:var(--bg);transform:translateX(3px)}
 .onb-c b{display:block;font-size:15.5px;font-weight:650;letter-spacing:-.02em}
 .onb-c span:not(.onb-a){display:block;font-size:13px;color:var(--ink-3);margin-top:3px}
