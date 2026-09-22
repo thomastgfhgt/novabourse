@@ -672,7 +672,13 @@ button:active{transform:scale(.97)}
 .nb-hero-2{color:var(--ink-3);font-weight:600}
 .nb-hero-sub{margin-top:var(--space-5);max-width:46ch}
 .nb-hero-act{display:flex;gap:12px;margin-top:var(--space-6);flex-wrap:wrap}
-.nb-split{display:grid;grid-template-columns:1fr 1.25fr;gap:var(--space-4);align-items:stretch}
+/* margin-top ici (et non plus sur un <section class="section"> autour,
+   retiré en restructurant le balisage pour .nb-top ci-dessous) : même
+   valeur que .section{margin-top:96px} pour ne rien changer à
+   l'espacement mobile — annulé dans la grille desktop, où gap/
+   align-items du conteneur .nb-top s'en chargent déjà. */
+.nb-split{display:grid;grid-template-columns:1fr 1.25fr;gap:var(--space-4);align-items:stretch;
+  margin-top:var(--space-9)}
 .nb-pf{display:flex;flex-direction:column;min-height:220px}
 .nb-pf-val{font-size:clamp(32px,4.6vw,44px);font-weight:700;letter-spacing:-.04em;
   line-height:1;margin-top:12px;font-variant-numeric:tabular-nums}
@@ -680,6 +686,23 @@ button:active{transform:scale(.97)}
 @media (max-width:820px){
   .nb-split{grid-template-columns:1fr}
   .nb-hero{max-width:none;padding-top:var(--space-6)}
+}
+/* CORRECTIF DESIGN (2026-09-22, "travaille vraiment sur le design") :
+   vérifié en direct plus tôt cette session (captures à 1536px) — sur un
+   vrai écran de bureau, .nb-hero{max-width:20ch} laissait la MOITIÉ
+   droite de l'accueil complètement vide (juste le fond animé), pendant
+   que Portefeuille/Ma liste restaient coincés dans une section à part,
+   plus bas. .nb-top regroupe maintenant le texte d'accueil et ces deux
+   cartes dans une seule grille à partir de 900px : l'espace vide devient
+   du contenu réel déjà existant (pas un nouvel élément décoratif),
+   Portefeuille et Ma liste s'empilent dans la colonne de droite (une
+   grille 2 colonnes y serait trop étroite). En dessous de 900px,
+   comportement strictement inchangé (empilement vertical). */
+@media (min-width:900px){
+  .nb-top{display:grid;grid-template-columns:1.05fr 1fr;gap:48px;align-items:center;
+    padding:var(--space-8) 0 var(--space-6)}
+  .nb-top .nb-hero{max-width:none;padding:0}
+  .nb-top .nb-split{grid-template-columns:1fr;gap:var(--space-4);margin-top:0}
 }
 /* CORRECTIF (bug visuel réel, trouvé en aperçu mobile de la feuille de
    recherche, 2026-09-17) : .row-t était redéfini ICI, en double par
@@ -14666,17 +14689,17 @@ PAGES.home = () => {
   const prenom = (state.auth.name || '').split(' ')[0];
 
   return `
-  <header class="nb-hero">
-    <h1 class="display">${prenom ? `Bonjour ${esc(prenom)}.` : 'NovaBourse.'}<br>
-      <span class="nb-hero-2">Analysez avant d'investir.</span></h1>
-    <p class="lead nb-hero-sub">Des chiffres vérifiés, un score expliqué, une analyse par plusieurs modèles.</p>
-    <div class="nb-hero-act">
-      <button class="btn btn-a btn-lg" data-go="radar">Analyser une entreprise</button>
-      <button class="btn btn-ghost btn-lg" data-search>Rechercher</button>
-    </div>
-  </header>
+  <div class="nb-top">
+    <header class="nb-hero">
+      <h1 class="display">${prenom ? `Bonjour ${esc(prenom)}.` : 'NovaBourse.'}<br>
+        <span class="nb-hero-2">Analysez avant d'investir.</span></h1>
+      <p class="lead nb-hero-sub">Des chiffres vérifiés, un score expliqué, une analyse par plusieurs modèles.</p>
+      <div class="nb-hero-act">
+        <button class="btn btn-a btn-lg" data-go="radar">Analyser une entreprise</button>
+        <button class="btn btn-ghost btn-lg" data-search>Rechercher</button>
+      </div>
+    </header>
 
-  <section class="section">
     <div class="nb-split">
       <article class="card nb-pf">
         <p class="eyebrow">Portefeuille</p>
@@ -14698,7 +14721,7 @@ PAGES.home = () => {
           ${svg(ICON.list,2)} Mes listes${state.lists.length ? ` (${state.lists.length})` : ''}</button>
       </article>
     </div>
-  </section>
+  </div>
 
   <section class="section">
     <div class="section-h">
