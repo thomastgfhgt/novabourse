@@ -17904,10 +17904,31 @@ document.addEventListener('click', e => {
 document.getElementById('sheetBg').addEventListener('click', e => {
   if (e.target.id === 'sheetBg') closeSheet();
 });
+/* CORRECTIF (accessibilité, §57 du brief design system, 2026-09-21) :
+   .sheet a bien role="dialog"/aria-modal="true" et restaure le focus à
+   la fermeture (lastFocus), mais rien n'empêchait Tab de faire sortir
+   le focus clavier VERS LA PAGE DERRIÈRE la feuille ouverte — invisible
+   à l'écran (recouverte par l'overlay) mais toujours dans le DOM et
+   donc toujours atteignable au clavier. Un utilisateur au clavier ou
+   lecteur d'écran pouvait ainsi interagir avec du contenu qu'il ne
+   voit pas. Piège de focus minimal : Tab/Shift+Tab ne fait boucler le
+   focus qu'ENTRE le premier et le dernier élément focusable de la
+   feuille ouverte, jamais au-delà. */
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') closeSheet();
   if (e.key === '/' && !/input|textarea|select/i.test(document.activeElement.tagName)){
     e.preventDefault(); openSearch();
+  }
+  if (e.key === 'Tab'){
+    const bg = document.getElementById('sheetBg');
+    if (bg.hidden) return;
+    const sheet = document.getElementById('sheet');
+    const focusables = sheet.querySelectorAll(
+      'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])');
+    if (!focusables.length) return;
+    const first = focusables[0], last = focusables[focusables.length - 1];
+    if (e.shiftKey && document.activeElement === first){ e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && document.activeElement === last){ e.preventDefault(); first.focus(); }
   }
 });
 
