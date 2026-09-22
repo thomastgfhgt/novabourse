@@ -293,7 +293,14 @@ button:active{transform:scale(.97)}
 .section{margin-top:96px}
 .section:first-child{margin-top:0}
 .section-h{display:flex;align-items:baseline;justify-content:space-between;gap:var(--sp-2);margin-bottom:var(--sp-3)}
-.display{font-size:var(--t-display);font-weight:700;letter-spacing:-.04em;line-height:var(--lh-tight)}
+/* CORRECTIF DESIGN (2026-09-22, inspiration Revolut) : consulté
+   revolut.com en direct — leurs plus gros titres ("Banking & Beyond")
+   sont nettement plus massifs à taille égale que notre 700 (Inter en
+   charge déjà 800/900, jamais utilisé). Réservé au SEUL .display (les
+   accroches les plus visibles : accueil, écran de connexion) — .title,
+   utilisé partout comme H1 de page, reste à 700 pour garder une vraie
+   hiérarchie entre les deux. */
+.display{font-size:var(--t-display);font-weight:800;letter-spacing:-.04em;line-height:var(--lh-tight)}
 .title{font-size:var(--t-title);font-weight:700;letter-spacing:-.032em;line-height:var(--lh-title)}
 .h2{font-size:var(--t-h2);font-weight:650;letter-spacing:-.024em}
 .h3{font-size:var(--t-h3);font-weight:600;letter-spacing:-.018em}
