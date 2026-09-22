@@ -1,5 +1,5 @@
 # NovaBourse — Motion System
-Dernière mise à jour : 2026-09-21
+Dernière mise à jour : 2026-09-22
 
 ## Principe directeur
 
@@ -64,6 +64,20 @@ Les 8 `.seg` du fichier (période de graphique, période portefeuille, période 
 ## Recherche globale — fait (2026-09-21, suite)
 
 `openSearch(origin)` capture l'élément réellement cliqué (icône loupe de l'en-tête, ou tout autre bouton portant `data-search` — état vide, page Explorer...) et fait démarrer la feuille de recherche visuellement depuis sa position/taille à l'écran, plutôt que le scale-up-from-center générique des autres feuilles. Même technique FLIP que les `.seg`. Uniquement au-dessus de 640px (voir le commentaire dans le code pour pourquoi : en dessous, `.sheet` devient une feuille pleine largeur ancrée en bas, partir d'une icône de 38px donnerait un étirement au lieu d'un morph — le slide-up mobile existant reste inchangé et adapté). Vérifié en direct : `--morph-from` calculé correctement (`translate(336px,-336px) scale(.10,.23)` pour l'icône testée), état final correctement centré et dimensionné.
+
+## Dégradé animé du bouton primaire — fait (2026-09-22)
+
+`.btn-a` : `background-size:200% 200%` + `animation:gradientShift 4s ease-in-out infinite` (glissement diagonal 135deg orange-500→orange-light). `prefers-reduced-motion:reduce` → `animation:none` (jamais une durée quasi nulle, même règle que partout ailleurs dans ce fichier). Vérifié en direct dans l'environnement de test (qui a cette préférence activée) : l'animation est bien coupée net, pas juste ralentie.
+
+## Sélection du dock — icône scale+rotate (2026-09-22)
+
+Ajouté sur `.dock button[aria-current] svg` : `transform:scale(1.05) rotate(5deg)`, transition `.3s ease-out` déjà en place sur `svg{transition:transform...}` (pas une nouvelle propriété à animer, réutilise l'existant). Pas de FLIP nécessaire ici contrairement à `.dock-pill` : c'est une transform appliquée directement à l'élément actif au moment où `aria-current` change, pas une position recalculée entre deux éléments.
+
+## Bug réel trouvé et corrigé (2026-09-22) : libellés du dock qui se chevauchent
+
+Le dock agrandi (100px, refonte "Revolut-level") a un libellé de 12 caractères (`Portefeuille`) qui débordait de sa colonne (~57px de large sur mobile réel à 6 destinations) et recouvrait visuellement le bouton suivant. `white-space:normal` seul ne suffit pas : un mot français unique et long n'a pas d'espace où se couper. Fixé avec `hyphens:auto;overflow-wrap:break-word` sur `.dock button span` — le document est `lang="fr"`, le dictionnaire de coupure français s'applique sans configuration supplémentaire. Vérifié en direct : coupure propre (`Porte-feuille`) uniquement pour les mots qui en ont besoin, les libellés courts restent sur une ligne.
+
+**Leçon méthodologique sur la vérification mobile elle-même** : `resize_window` reste non fiable dans cet environnement (rapporte un succès sans changer réellement `window.innerWidth`, ou change la fenêtre à une hauteur inutilisable ~96px). La technique de repli — injecter un `<style>` reproduisant `@media(max-width:900px)` — doit être fidèle au **code réellement déployé**, pas retapée de mémoire : une première tentative avait omis les règles `.dock button`/`.dock button svg` et le dégradé de fond, ce qui aurait pu masquer ce bug plutôt que le révéler. Méthode fiable retenue : `fetch('/index.html',{cache:'no-store'})` puis extraction programmatique (comptage d'accolades) de tous les blocs `@media (max-width:900px){...}` du fichier, injectés tels quels dans un nouvel onglet propre.
 
 ## Ce qui N'A PAS été fait cette passe
 
