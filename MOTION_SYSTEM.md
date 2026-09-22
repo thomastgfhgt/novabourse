@@ -1,5 +1,5 @@
 # NovaBourse — Motion System
-Dernière mise à jour : 2026-09-22
+Dernière mise à jour : 2026-09-23
 
 ## Principe directeur
 
@@ -78,6 +78,14 @@ Ajouté sur `.dock button[aria-current] svg` : `transform:scale(1.05) rotate(5de
 Le dock agrandi (100px, refonte "Revolut-level") a un libellé de 12 caractères (`Portefeuille`) qui débordait de sa colonne (~57px de large sur mobile réel à 6 destinations) et recouvrait visuellement le bouton suivant. `white-space:normal` seul ne suffit pas : un mot français unique et long n'a pas d'espace où se couper. Fixé avec `hyphens:auto;overflow-wrap:break-word` sur `.dock button span` — le document est `lang="fr"`, le dictionnaire de coupure français s'applique sans configuration supplémentaire. Vérifié en direct : coupure propre (`Porte-feuille`) uniquement pour les mots qui en ont besoin, les libellés courts restent sur une ligne.
 
 **Leçon méthodologique sur la vérification mobile elle-même** : `resize_window` reste non fiable dans cet environnement (rapporte un succès sans changer réellement `window.innerWidth`, ou change la fenêtre à une hauteur inutilisable ~96px). La technique de repli — injecter un `<style>` reproduisant `@media(max-width:900px)` — doit être fidèle au **code réellement déployé**, pas retapée de mémoire : une première tentative avait omis les règles `.dock button`/`.dock button svg` et le dégradé de fond, ce qui aurait pu masquer ce bug plutôt que le révéler. Méthode fiable retenue : `fetch('/index.html',{cache:'no-store'})` puis extraction programmatique (comptage d'accolades) de tous les blocs `@media (max-width:900px){...}` du fichier, injectés tels quels dans un nouvel onglet propre.
+
+## Dock — timing dédié 2026-09-23
+
+Le mécanisme de pilule glissante (`positionDockPill()`, inchangé — voir plus haut) satisfaisait déjà l'exigence "la même capsule doit glisser, jamais disparaître/réapparaître" depuis le 21/09. Seul le timing a changé pour ce brief précis, qui donnait une valeur exacte : `.45s var(--spring)` (`cubic-bezier(.32,.72,0,1)`, générique à tout le site) → `.3s cubic-bezier(.22,1,.36,1)` (propre au dock uniquement, le reste du site garde `--spring`). Même chose sur la transition `transform`/`opacity` des icônes (`.25s`). `prefers-reduced-motion:reduce` coupe maintenant explicitement la transition de la pilule ET des icônes du dock (trou trouvé pendant cette passe : la pilule utilise `transition`, pas `animation`, donc la règle générique `*{animation-duration:.001ms}` ne la touchait pas — il fallait une règle dédiée, maintenant ajoutée).
+
+## Méthode de test responsive fiabilisée (2026-09-23)
+
+Pour vérifier les 8 largeurs demandées (320 à 768px) sans `resize_window` fiable (toujours cassé dans cet environnement, voir plus haut) : mesure de la largeur réelle de chaque libellé au **canvas** (`ctx.measureText`, indépendant de la taille de fenêtre — donne des nombres exacts à n'importe quelle taille de police hypothétique sans avoir besoin de redimensionner quoi que ce soit), puis vérification du rendu réel en simulant la largeur du conteneur (technique déjà en place, voir plus haut) ET en forçant explicitement `.dock{width:...px}` à la valeur que produirait chaque largeur cible (le dock étant `position:fixed`, sa largeur se calcule contre le vrai viewport, pas contre le conteneur simulé — il faut donc la forcer séparément à chaque test). Pour les paliers `@media(max-width:390px)`/`@media(max-width:360px)`, extraction de leur contenu et injection inconditionnelle séparée (ces media queries imbriquées ne se déclenchent pas non plus avec un conteneur simulé, seul un vrai changement de largeur de viewport les activerait). Combinaison qui a permis de calculer et vérifier les 3 paliers de tailles avant déploiement, plutôt que de deviner.
 
 ## Ce qui N'A PAS été fait cette passe
 

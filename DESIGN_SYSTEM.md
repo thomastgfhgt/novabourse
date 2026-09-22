@@ -1,5 +1,5 @@
 # NovaBourse — Design System
-Dernière mise à jour : 2026-09-22
+Dernière mise à jour : 2026-09-23
 
 **Note de cadrage** (comme pour l'audit d'étape 1) : ce document décrit un système de design réel, implémenté en CSS/variables custom properties dans `index.html` — pas des composants React (`NovaButton`, `design/tokens/colors.ts`...). Il n'y a ni framework ni bundler. "Composant" ci-dessous signifie : une classe CSS + éventuellement une fonction JS qui génère le HTML correspondant (ex. `esc()`, `svg()`, `avatar()`).
 
@@ -107,7 +107,25 @@ Deux échelles coexistent (`--space-*` et `--sp-*`), toutes deux valant les mêm
 | État vide | `emptyState()` (JS) | |
 | Squelette de chargement | `.sk`, `chartSkeleton()` | |
 
-## Bottom nav — refonte 2026-09-22
+## Bottom nav — reconstruction complète 2026-09-23 (référence Revolut)
+
+Remplace intégralement la section "refonte 2026-09-22" ci-dessous, qui documentait un simple réglage de taille. Cette fois le brief fournissait une capture d'écran réelle de la nav Revolut comme référence directe et demandait explicitement une "vraie correction structurelle, pas un patch".
+
+**Palette dédiée, indépendante du thème clair/sombre de l'app** — décision assumée : le dock est désormais TOUJOURS bleu nuit (`linear-gradient(160deg,#1E3A5F,#0F1E35)`), même en thème clair. Aucun orange dans cette barre (contrairement au reste de l'app où l'orange est la couleur primaire — exception délibérée et documentée dans le code). Icônes/libellés blancs : `rgba(255,255,255,.72)` inactif, `#fff` actif. Capsule active `#2D3748`. Bordure `rgba(59,130,246,.28)` (quasi invisible sauf examen attentif, comme demandé). Ombre diffuse sombre + léger halo bleu, sans glow.
+
+**Cause racine du bug de libellés coupés (vérifiée dans le code, pas supposée)** : `.dock button` utilisait `flex:1 1 0` — 6 colonnes strictement égales quel que soit le texte. "Portefeuille" (12 caractères, ~66px mesuré au canvas à 12px/600) ne tenait jamais dans une colonne de ~55-58px sur un vrai téléphone, d'où les 2 lignes/coupures malgré les réglages de police des passes précédentes.
+
+**Correctif structurel** : `flex:0 0 auto` (chaque onglet prend la largeur de son propre texte, l'icône étant empilée AU-DESSUS du libellé donc jamais le facteur limitant) + `.dock{justify-content:space-between}` qui répartit l'espace restant en intervalles égaux entre les 6 onglets plutôt que de forcer des colonnes égales. `white-space:nowrap` sur `.dock button span`, aucun `hyphens`/`word-break` — rendu possible seulement grâce au correctif structurel, pas en le remplaçant.
+
+**Dimensions finales (palier par défaut, ≥390px)** : dock ~92px de haut (padding 18px vertical, 10px horizontal), icônes 24px, police 12px/600, `border-radius:32px` (dock) / `26px` (capsule active), capsule active `top/bottom:8px` (≈89% de la hauteur du dock). `width:calc(100% - 24px)` plafonné à `max-width:480px` (empêche un étalement excessif sur tablette).
+
+**Paliers responsive** (jamais de mot cassé — on réduit progressivement marge/padding/police/icônes à la place, calculé à partir de largeurs de texte mesurées au canvas, pas au hasard) :
+- `≤390px` : police 11px, icônes 22px, padding dock 14px/8px.
+- `≤360px` : marge extérieure réduite à 16px, police 10px (plancher — jamais plus petit, lisibilité avant tout), icônes 20px, padding dock 12px/6px.
+
+Testé (simulation de largeur de conteneur fidèle au CSS réellement déployé, voir MOTION_SYSTEM.md pour la méthode) : 320, 360, 375, 390, 393, 414, 430, 768px — aucun retour à la ligne, aucun chevauchement, aucun débordement à aucune de ces largeurs. À 320px et 390px les interstices entre onglets sont proches de zéro (contrainte physique réelle de 6 mots français dans si peu d'espace, documentée honnêtement plutôt que maquillée) ; à partir de 393px l'espacement devient confortable.
+
+## Bottom nav — refonte 2026-09-22 (historique, remplacée ci-dessus)
 
 Agrandie pour se rapprocher du gabarit "Revolut-level" du brief (icônes 26px, libellés 13px/700, dock ~100px de haut, fond en dégradé noir→orange en thème sombre). `--dock-h` recalculé de 68px à 100px en conséquence — voir le commentaire détaillé dans `:root{}` (`index.html`) pour le calcul exact, et l'invariant rappelé partout dans ce fichier : ne jamais changer la hauteur réelle du dock sans recaler ce token, sous peine de contenu masqué en bas de page.
 
