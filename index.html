@@ -282,22 +282,58 @@ button:active{transform:scale(.97)}
   border-bottom:1px solid var(--line-2);
   padding-top:env(safe-area-inset-top);
   transition:background-color .1s linear;
+  animation:topSlideIn .6s cubic-bezier(.22,1,.36,1) both;
 }
+/* Entrée au chargement (2026-09-23, retour utilisateur : "de la
+   modernité et de l'animation, vraiment beaucoup" sur la nav) — courte
+   et discrète (14px, pas un grand slide) pour ne pas retarder la
+   lecture du contenu ; sticky+transform sont compatibles (le sticky ne
+   régit que la position de scroll, pas le rendu du transform). */
+@keyframes topSlideIn{ from{transform:translateY(-14px);opacity:0} to{transform:translateY(0);opacity:1} }
 [data-theme="dark"] .top{background:rgba(8,9,12,calc(.72 * var(--top-fade,1)));border-bottom-color:rgba(255,255,255,.06)}
 .top-in{max-width:1120px;margin:0 auto;padding:10px 20px;display:flex;align-items:center;
   gap:12px;min-width:0}
 .logo{display:flex;align-items:center;gap:9px;font-weight:700;font-size:17px;
   letter-spacing:-.03em;flex:0 0 auto;white-space:nowrap}
-.logo-m{width:28px;height:28px;border-radius:8px;background:var(--ink);display:flex;align-items:center;justify-content:center;color:var(--bg)}
+.logo-m{width:28px;height:28px;border-radius:8px;background:var(--ink);display:flex;align-items:center;justify-content:center;color:var(--bg);
+  transition:transform .35s cubic-bezier(.22,1,.36,1);
+  animation:logoGlow 4.5s ease-in-out infinite}
 .logo-m svg{width:16px;height:16px}
-.top-nav{display:flex;gap:2px;margin-left:var(--sp-3)}
-.top-nav a{padding:8px 14px;border-radius:100px;font-size:14.5px;font-weight:500;color:var(--ink-3)}
-.top-nav a:hover{color:var(--ink);background:var(--bg-2)}
-.top-nav a[aria-current]{color:var(--ink);font-weight:600;background:var(--bg-2)}
+.logo:hover .logo-m{transform:rotate(-10deg) scale(1.1)}
+.logo:active .logo-m{transform:rotate(-4deg) scale(.94)}
+/* Respiration continue très légère (même famille que templeGlowPulse
+   sur le temple de l'accueil, même logique de cohérence de marque) —
+   couleur en rgba brute plutôt que color-mix()/var() : ombre portée
+   colorée, un cran de gris différent en clair/sombre n'aurait aucune
+   incidence visible ici (le point n'est pas la nuance exacte du fond,
+   c'est le halo rose qui pulse dessus). */
+@keyframes logoGlow{
+  0%,100%{box-shadow:0 0 0 0 rgba(236,72,153,0)}
+  50%{box-shadow:0 0 0 5px rgba(236,72,153,.16)}
+}
+@media (prefers-reduced-motion:reduce){ .top{animation:none} .logo-m{animation:none} }
+/* Nav desktop — pilule glissante (2026-09-23, même technique FLIP que
+   .dock-pill plus bas dans ce fichier, voir positionTopNavPill() en JS)
+   : jusqu'ici les liens n'avaient qu'un hover/actif statique (couleur +
+   fond instantanés, sans transition). position:relative sur .top-nav
+   sert de repère pour la pilule absolue ; les liens passent en z-index:1
+   pour rester lisibles AU-DESSUS d'elle. */
+.top-nav{display:flex;gap:2px;margin-left:var(--sp-3);position:relative}
+.top-nav-pill{position:absolute;top:0;bottom:0;left:0;width:0;border-radius:100px;
+  background:var(--bg-2);z-index:0;pointer-events:none;
+  transition:transform .45s var(--spring),width .45s var(--spring)}
+.top-nav-pill.no-anim{transition:none}
+.top-nav a{position:relative;z-index:1;padding:8px 14px;border-radius:100px;font-size:14.5px;font-weight:500;
+  color:var(--ink-3);transition:color .2s ease,transform .2s ease}
+.top-nav a:hover{color:var(--ink);transform:translateY(-1px)}
+.top-nav a[aria-current]{color:var(--ink);font-weight:600}
+@media (prefers-reduced-motion:reduce){ .top-nav-pill{transition:none} }
 .top-act{margin-left:auto;display:flex;align-items:center;gap:8px;min-width:0}
 #srcBadge{display:flex;align-items:center;gap:6px;min-width:0;overflow:hidden}
-.icon-btn{width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:var(--ink-3)}
-.icon-btn:hover{background:var(--bg-2);color:var(--ink)}
+.icon-btn{width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:var(--ink-3);
+  transition:background .2s ease,color .2s ease,transform .2s cubic-bezier(.22,1,.36,1)}
+.icon-btn:hover{background:var(--bg-2);color:var(--ink);transform:translateY(-1px) scale(1.08)}
+.icon-btn:active{transform:scale(.9)}
 .icon-btn svg{width:19px;height:19px}
 .dock{display:none}
 @media (max-width:900px){
@@ -368,7 +404,20 @@ button:active{transform:scale(.97)}
   .dock button svg{width:22px;height:22px;color:inherit;
     transition:transform .25s cubic-bezier(.22,1,.36,1),opacity .25s ease-out}
   .dock button[aria-current]{color:#fff}
-  .dock button[aria-current] svg{transform:scale(1.05)}
+  .dock button[aria-current] svg{transform:scale(1.05);animation:dockIconPop .45s cubic-bezier(.22,1,.36,1)}
+  /* Rebond quand une icône DEVIENT active (2026-09-23, "vraiment
+     beaucoup d'animation") : une animation CSS démarre quand l'élément
+     se met à correspondre à une règle qui en porte une — donc seulement
+     au vrai changement d'onglet, jamais à un simple re-render, grâce à
+     syncActiveAttr() en JS qui ne touche plus aria-current que lorsqu'il
+     change réellement (voir sa note). Sans fill-mode: retombe proprement
+     sur le transform:scale(1.05) statique juste au-dessus une fois finie,
+     pas de saut visible. */
+  @keyframes dockIconPop{
+    0%{transform:scale(1)}
+    45%{transform:scale(1.24)}
+    100%{transform:scale(1.05)}
+  }
   .dock button:focus-visible{outline:2px solid rgba(255,255,255,.85);outline-offset:2px;border-radius:9999px}
   /* 2 paliers étroits (voir note plus haut) : seule la police/icône/le
      padding du dock changent, jamais les colonnes à 20% ni le
@@ -404,6 +453,7 @@ button:active{transform:scale(.97)}
   .dock-pill{transition:none}
   .dock button svg{transition:none}
   .dock button{transition:none}
+  .dock button[aria-current] svg{animation:none}
 }
 .wrap{max-width:1120px;margin:0 auto;padding:var(--sp-4) 22px calc(var(--sp-6) + 40px)}
 .section{margin-top:96px}
@@ -933,7 +983,22 @@ button:active{transform:scale(.97)}
 .temple-secondary{stroke-width:4.5}
 .temple-flute{stroke-width:2.5;opacity:.90}
 .nova-temple-brand{fill:#e4d9ff}
-@media (max-width:600px){ .nova-temple{width:98vw;max-width:none} }
+@media (max-width:600px){
+  .nova-temple{width:98vw;max-width:none}
+  /* Retour utilisateur (2026-09-23) : "le temple est un peu trop épais"
+     sur téléphone. vector-effect:non-scaling-stroke (ci-dessus) garde
+     l'épaisseur du trait CONSTANTE en pixels écran quelle que soit la
+     taille d'affichage du temple — sur un petit écran, le temple
+     lui-même rétrécit mais le trait garde EXACTEMENT la même épaisseur
+     qu'en desktop, donc parait proportionnellement plus épais. D'où un
+     correctif spécifique mobile plutôt qu'un changement global (qui
+     aurait aussi amincin le temple sur ordinateur, non demandé) —
+     réduction légère (~20%, "un tout petit peu"), mêmes proportions
+     entre les 3 épaisseurs conservées. */
+  .temple-main{stroke-width:5.5}
+  .temple-secondary{stroke-width:3.5}
+  .temple-flute{stroke-width:2}
+}
 /* Animations (2026-09-23, "un maximum d'animation autour de cette
    architecture romaine") — quatre effets combinés, chacun sur une
    propriété/un élément différent pour ne jamais se marcher dessus :
@@ -17500,20 +17565,39 @@ let history_ = [];
    change sur un élément qui existait déjà l'instant d'avant, et la
    transition (.45s var(--spring)) s'exécute pour de vrai. */
 let dockBuilt = false;
+let topNavBuilt = false;
+/* setAttribute/removeAttribute seulement quand l'état CHANGE vraiment
+   (2026-09-23, ajouté avec les animations de la nav — "vraiment
+   beaucoup d'animation") : paintNav() tourne à CHAQUE render(), pas
+   seulement à la navigation (aussi à chaque tick de rafraîchissement
+   vivant) — reposer aria-current inconditionnellement sur les 5/6
+   boutons à chaque fois, même sur ceux qui ne changent pas, risquait de
+   redéclencher les animations CSS liées à [aria-current] (rebond de
+   l'icône, pilule) en continu plutôt que seulement au vrai changement
+   d'onglet. Ne toucher l'attribut QUE quand il change réellement
+   élimine ce risque à la source. */
+function syncActiveAttr(el, shouldBeActive){
+  const isActive = el.hasAttribute('aria-current');
+  if (shouldBeActive && !isActive) el.setAttribute('aria-current', 'page');
+  else if (!shouldBeActive && isActive) el.removeAttribute('aria-current');
+}
 function paintNav(){
   paintSource();
-  document.getElementById('topNav').innerHTML = NAV.map(n=>`
-    <a href="#" data-go="${n.id}" ${route.page===n.id?'aria-current="page"':''}>${n.label}</a>`).join('');
+  const topNav = document.getElementById('topNav');
+  if (!topNavBuilt){
+    topNav.innerHTML = `<span class="top-nav-pill" aria-hidden="true"></span>` + NAV.map(n=>`
+      <a href="#" data-go="${n.id}">${n.label}</a>`).join('');
+    topNavBuilt = true;
+  }
+  topNav.querySelectorAll('a[data-go]').forEach(a => syncActiveAttr(a, a.dataset.go === route.page));
+  positionTopNavPill();
   const dock = document.getElementById('dock');
   if (!dockBuilt){
     dock.innerHTML = `<span class="dock-pill" aria-hidden="true"></span>` + NAV.map(n=>`
       <button data-go="${n.id}" aria-label="${n.label}">${svg(n.icon)}<span>${n.label}</span></button>`).join('');
     dockBuilt = true;
   }
-  dock.querySelectorAll('button[data-go]').forEach(b => {
-    if (b.dataset.go === route.page) b.setAttribute('aria-current', 'page');
-    else b.removeAttribute('aria-current');
-  });
+  dock.querySelectorAll('button[data-go]').forEach(b => syncActiveAttr(b, b.dataset.go === route.page));
   positionDockPill();
   document.querySelector('[data-search]').innerHTML = svg(ICON.search);
   document.querySelector('[data-theme-toggle]').innerHTML =
@@ -17528,16 +17612,38 @@ function positionDockPill(){
   pill.style.transform = `translateX(${active.offsetLeft}px)`;
   pill.style.width = active.offsetWidth + 'px';
 }
+/* Même mécanique FLIP que .dock-pill juste au-dessus (nœud persistant,
+   seules transform/width bougent d'un render à l'autre) appliquée à la
+   nav du haut (desktop) — jusqu'ici elle recréait ses liens à chaque
+   paintNav() (voir topNavBuilt plus haut, même correctif que dockBuilt
+   en son temps) : une pilule sur des nœuds recréés en continu n'aurait
+   jamais pu réellement glisser. */
+function positionTopNavPill(){
+  const topNav = document.getElementById('topNav');
+  const pill = topNav.querySelector('.top-nav-pill');
+  const active = topNav.querySelector('a[aria-current]');
+  if (!pill) return;
+  if (!active){ pill.style.width = '0px'; return; }
+  pill.style.transform = `translateX(${active.offsetLeft}px)`;
+  pill.style.width = active.offsetWidth + 'px';
+}
 /* La position mesurée en pixels ne survit pas à une rotation d'écran ou à
    l'ouverture du clavier (qui redimensionne le viewport sur mobile) —
    sans ce listener, la pilule resterait figée à ses anciennes coordonnées
    jusqu'au prochain changement d'onglet. */
 window.addEventListener('resize', () => {
-  const pill = document.querySelector('.dock-pill');
-  if (!pill) return;
-  pill.classList.add('no-anim');
-  positionDockPill();
-  requestAnimationFrame(() => pill.classList.remove('no-anim'));
+  const dockPill = document.querySelector('.dock-pill');
+  if (dockPill){
+    dockPill.classList.add('no-anim');
+    positionDockPill();
+    requestAnimationFrame(() => dockPill.classList.remove('no-anim'));
+  }
+  const topPill = document.querySelector('.top-nav-pill');
+  if (topPill){
+    topPill.classList.add('no-anim');
+    positionTopNavPill();
+    requestAnimationFrame(() => topPill.classList.remove('no-anim'));
+  }
 });
 
 /* Fondus progressifs au scroll (2026-09-23, en 2 temps le même jour) —
