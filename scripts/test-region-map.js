@@ -1,11 +1,18 @@
 // Verifie la couverture reelle de REGION_OF_COUNTRY contre les pays
-// reellement presents dans le catalogue (index.html), et quelques
-// classifications de reference.
+// reellement presents dans le catalogue, et quelques classifications
+// de reference.
+// CORRECTIF (2026-09-24) : le catalogue (11 243 entreprises) vit
+// desormais dans catalog.json, extrait de l'ancien "const stocks = [...]"
+// d'index.html pour ne plus etre analyse/compile en JS a chaque
+// chargement de page (voir la note dans index.html juste avant
+// "const stocks = []") — ce script lit donc catalog.json plutot que de
+// regex-extraire un tableau qui n'existe plus en dur dans le HTML.
 const fs = require('fs');
 const path = require('path');
 const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+const catalog = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'catalog.json'), 'utf8'));
 
-const countriesInCatalog = new Set([...html.matchAll(/country:'([^']+)'/g)].map(m => m[1]));
+const countriesInCatalog = new Set(catalog.map(s => s.country).filter(Boolean));
 const mapSection = html.slice(html.indexOf('const REGION_OF_COUNTRY'), html.indexOf('const REGIONS ='));
 const regionMap = Object.fromEntries([...mapSection.matchAll(/'([^']+)':\s*'([^']+)'/g)].map(m => [m[1], m[2]]));
 
