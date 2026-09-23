@@ -16243,10 +16243,16 @@ PAGES.stock = (id) => {
     </div>
   </section>
 
-  <!-- ACTUALITÉS — chargement à la demande, fournisseur unique aujourd'hui
-       (EODHD), stock/etf uniquement. -->
+  <!-- NOVA NEWS (2026-09-23, rebaptisée depuis "Actualités" — retour
+       utilisateur : "actualité c'est Nova News". Fonctionnalité
+       INCHANGÉE, réelle, déjà existante (chargement à la demande,
+       fournisseur EODHD, stock/etf uniquement) — seul le nom affiché
+       change, pour ne plus coexister avec un Nova News "bientôt
+       disponible" fictif juste en dessous d'une actualité qui, elle,
+       fonctionne déjà vraiment (même logique que Nova AI/"Analyse IA"
+       juste avant). -->
   <section class="section">
-    <div class="section-h"><h2 class="h2">Actualités</h2></div>
+    <div class="section-h"><h2 class="h2">Nova News</h2></div>
     <div class="card">
       ${(s.newsStatus || 'idle') === 'idle' ? `
         <div style="text-align:center;padding:24px 0">
@@ -16285,24 +16291,6 @@ PAGES.stock = (id) => {
         Il ne produit aucun nombre.${DATA.mode === 'live' ? ''
           : ' Les données de marché ne sont pas connectées : l\'analyse sert à valider la chaîne technique.'}</p>
       <button class="btn btn-a" style="margin-top:18px" data-nova="${esc(s.id)}">Lancer l'analyse</button>
-    </div>
-  </section>
-
-  <!-- NOVA NEWS (2026-09-23, "préparer visuellement les prochaines
-       fonctionnalités") : distincte de la section "Actualités"
-       ci-dessus (existante, réelle, articles externes via EODHD,
-       inchangée) — Nova News couvrira PLUS TARD l'actualité mondiale
-       pertinente pour CETTE entreprise précise (§5 du brief : "Apple →
-       Nova News → actualités Apple"), pas encore connectée à ce stade.
-       État honnête "bientôt disponible", jamais de faux article. -->
-  <section class="section">
-    <div class="section-h"><h2 class="h2">Nova News</h2>
-      <span class="tag" style="background:rgba(109,40,217,.14);color:#6d28d9">Bientôt</span></div>
-    <div class="card">
-      <div style="display:flex;align-items:center;gap:10px">
-        <span class="empty-i" style="width:40px;height:40px;margin:0;background:rgba(109,40,217,.14);color:#6d28d9">${svg(ICON.news,1.7)}</span>
-        <p class="small">L'actualité propre à ${esc(s.name)} arrivera bientôt ici, réunie par Nova News.</p>
-      </div>
     </div>
   </section>
 
