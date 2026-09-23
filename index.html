@@ -294,7 +294,21 @@ button:active{transform:scale(.97)}
 .top-in{max-width:1120px;margin:0 auto;padding:10px 20px;display:flex;align-items:center;
   gap:12px;min-width:0}
 .logo{display:flex;align-items:center;gap:9px;font-weight:700;font-size:17px;
-  letter-spacing:-.03em;flex:0 0 auto;white-space:nowrap}
+  letter-spacing:-.03em;flex:0 0 auto;white-space:nowrap;
+  opacity:0;animation:navFadeIn .4s ease-out .1s both}
+/* Cascade d'entrée (2026-09-23, "maximum de fluidité... vraiment
+   beaucoup") — UNIQUEMENT sur opacity, jamais transform, ici : .top
+   anime déjà transform sur lui-même (topSlideIn) et .top-nav a/.icon-btn
+   ont chacun leur PROPRE transform au survol (transition, pas
+   animation) — un keyframe qui toucherait aussi transform sur ces mêmes
+   éléments récréerait exactement le bug d'interaction CSS documenté
+   plus haut dans ce fichier (pulsation du logo du temple). opacity reste
+   une propriété totalement séparée, jamais en conflit. Ne joue qu'une
+   fois au montage réel : .logo/.top-act existent une seule fois dans le
+   HTML statique (jamais recréés), et .top-nav a ne l'est plus non plus
+   depuis topNavBuilt (voir JS) — sans ça, un re-render sans navigation
+   (tick de rafraîchissement vivant) aurait rejoué le fondu en boucle. */
+@keyframes navFadeIn{ from{opacity:0} to{opacity:1} }
 .logo-m{width:28px;height:28px;border-radius:8px;background:var(--ink);display:flex;align-items:center;justify-content:center;color:var(--bg);
   transition:transform .35s cubic-bezier(.22,1,.36,1);
   animation:logoGlow 4.5s ease-in-out infinite}
@@ -319,22 +333,77 @@ button:active{transform:scale(.97)}
    sert de repère pour la pilule absolue ; les liens passent en z-index:1
    pour rester lisibles AU-DESSUS d'elle. */
 .top-nav{display:flex;gap:2px;margin-left:var(--sp-3);position:relative}
+/* Pilule ACTIVE — easing avec léger rebond (cubic-bezier avec un
+   coefficient >1, "overshoot" standard) plutôt que le spring plus sobre
+   utilisé ailleurs (dock-pill, sheets...) : demandé explicitement
+   "un maximum de fluidité", ici la pilule peut se permettre un rebond
+   perceptible puisque rien d'autre ne bouge sur le même axe en même
+   temps (contrairement au dock, laissé sur son easing d'origine pour ne
+   pas se marcher sur la largeur fixe des colonnes déjà validée). width
+   reste sur var(--spring) (jamais l'overshoot) : un REBOND DE LARGEUR
+   aurait l'air d'un bug (la pilule "respire") plutôt que d'un rebond de
+   déplacement. */
 .top-nav-pill{position:absolute;top:0;bottom:0;left:0;width:0;border-radius:100px;
   background:var(--bg-2);z-index:0;pointer-events:none;
-  transition:transform .45s var(--spring),width .45s var(--spring)}
+  transition:transform .5s cubic-bezier(.34,1.56,.64,1),width .45s var(--spring)}
 .top-nav-pill.no-anim{transition:none}
+/* Pilule de SURVOL — deuxième élément indépendant, plus discret
+   (opacity variable), qui suit le lien survolé quel qu'il soit (actif
+   ou non) : voir le pointerover/pointerleave dans paintNav() (JS). Reste
+   sous la pilule active en z-index seulement par ordre naturel (déclarée
+   avant elle dans le HTML, voir paintNav()) — jamais superposées de
+   façon visible puisqu'un lien actif n'a de toute façon pas besoin du
+   survol pour se distinguer. */
+.top-nav-hover{position:absolute;top:0;bottom:0;left:0;width:0;border-radius:100px;
+  background:var(--bg-3);opacity:0;z-index:0;pointer-events:none;
+  transition:transform .3s var(--spring),width .3s var(--spring),opacity .18s ease-out}
 .top-nav a{position:relative;z-index:1;padding:8px 14px;border-radius:100px;font-size:14.5px;font-weight:500;
-  color:var(--ink-3);transition:color .2s ease,transform .2s ease}
+  color:var(--ink-3);transition:color .2s ease,transform .2s ease;
+  opacity:0;animation:navFadeIn .4s ease-out both}
 .top-nav a:hover{color:var(--ink);transform:translateY(-1px)}
 .top-nav a[aria-current]{color:var(--ink);font-weight:600}
-@media (prefers-reduced-motion:reduce){ .top-nav-pill{transition:none} }
-.top-act{margin-left:auto;display:flex;align-items:center;gap:8px;min-width:0}
+@media (prefers-reduced-motion:reduce){
+  .top-nav-pill{transition:none}
+  .top-nav-hover{transition:opacity .18s ease-out}
+}
+.top-act{margin-left:auto;display:flex;align-items:center;gap:8px;min-width:0;
+  opacity:0;animation:navFadeIn .4s ease-out .3s both}
 #srcBadge{display:flex;align-items:center;gap:6px;min-width:0;overflow:hidden}
 .icon-btn{width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:var(--ink-3);
   transition:background .2s ease,color .2s ease,transform .2s cubic-bezier(.22,1,.36,1)}
 .icon-btn:hover{background:var(--bg-2);color:var(--ink);transform:translateY(-1px) scale(1.08)}
 .icon-btn:active{transform:scale(.9)}
 .icon-btn svg{width:19px;height:19px}
+/* Rotation d'entrée de l'icône thème (2026-09-23) — ne rejoue QUE quand
+   l'icône change vraiment (voir la garde sur data-icon dans paintNav(),
+   JS) : sans elle, cette animation aurait rejoué à chaque render comme
+   pour aria-current plus haut dans ce fichier, ici pire encore puisque
+   render() tourne à chaque tick de cotation. transform sur le <svg>
+   enfant, jamais sur .icon-btn lui-même (qui a déjà sa propre transition
+   de transform au survol/appui) — même règle de séparation des
+   propriétés/éléments que partout ailleurs dans ce fichier. */
+[data-theme-toggle] svg{animation:themeIconSwap .4s cubic-bezier(.22,1,.36,1)}
+@keyframes themeIconSwap{ from{transform:rotate(-90deg) scale(.5);opacity:0} to{transform:rotate(0) scale(1);opacity:1} }
+@media (prefers-reduced-motion:reduce){ [data-theme-toggle] svg{animation:none} }
+/* Reflet qui balaie le bouton "Voir les offres" (2026-09-23) — pseudo-
+   élément séparé, jamais sur .btn-a lui-même qui anime déjà sa PROPRE
+   background-position (gradientShift) : encore la même règle de
+   séparation. overflow:hidden nécessaire pour rogner le reflet dans la
+   forme en pilule ; le box-shadow du bouton (var(--shadow-accent))
+   n'est pas affecté par l'overflow de sa propre boîte (seuls les
+   enfants/pseudo-éléments sont rognés), donc le halo reste visible. */
+.cta-offres{position:relative;overflow:hidden}
+.cta-offres::after{
+  content:"";position:absolute;top:0;left:-60%;width:35%;height:100%;
+  background:linear-gradient(115deg,transparent 0%,rgba(255,255,255,.5) 50%,transparent 100%);
+  transform:skewX(-18deg);pointer-events:none;
+  animation:ctaShimmer 3.4s ease-in-out infinite}
+@keyframes ctaShimmer{
+  0%{left:-60%}
+  28%{left:130%}
+  100%{left:130%}
+}
+@media (prefers-reduced-motion:reduce){ .cta-offres::after{animation:none;display:none} }
 .dock{display:none}
 @media (max-width:900px){
   .top-nav{display:none}
@@ -445,7 +514,12 @@ button:active{transform:scale(.97)}
   .dock-pill{position:absolute;top:3px;bottom:3px;left:0;border-radius:9999px;
     background:rgba(255,255,255,.12);
     z-index:0;pointer-events:none;
-    transition:transform .3s cubic-bezier(.22,1,.36,1), width .3s cubic-bezier(.22,1,.36,1);
+    /* transform passé à un easing avec léger rebond (2026-09-23,
+       "maximum de fluidité", même changement que .top-nav-pill plus
+       haut) ; width reste sur l'easing d'origine — elle ne varie de
+       toute façon jamais en pratique (les 5 colonnes font toutes 20%,
+       voir note plus haut), donc rien à gagner à la changer là. */
+    transition:transform .4s cubic-bezier(.34,1.56,.64,1), width .3s cubic-bezier(.22,1,.36,1);
     will-change:transform,width}
   .dock-pill.no-anim{transition:none}
 }
@@ -17585,9 +17659,26 @@ function paintNav(){
   paintSource();
   const topNav = document.getElementById('topNav');
   if (!topNavBuilt){
-    topNav.innerHTML = `<span class="top-nav-pill" aria-hidden="true"></span>` + NAV.map(n=>`
-      <a href="#" data-go="${n.id}">${n.label}</a>`).join('');
+    topNav.innerHTML = `<span class="top-nav-pill" aria-hidden="true"></span>` +
+      `<span class="top-nav-hover" aria-hidden="true"></span>` + NAV.map((n,i)=>`
+      <a href="#" data-go="${n.id}" style="animation-delay:${(.12 + i*.05).toFixed(2)}s">${n.label}</a>`).join('');
     topNavBuilt = true;
+    /* Pilule de survol (voir sa note CSS) : posée une seule fois ici,
+       jamais réattachée — topNavBuilt garde déjà cette fonction de
+       n'exécuter ce bloc qu'au tout premier paintNav(). pointerover
+       plutôt que mouseenter/mouseleave par lien : un seul écouteur
+       délégué sur le conteneur plutôt que 5 (un par lien), cohérent
+       avec le principe déjà appliqué à --top-fade/--temple-fade (un
+       seul écouteur partagé) plus bas dans ce fichier. */
+    const hoverPill = topNav.querySelector('.top-nav-hover');
+    topNav.addEventListener('pointerover', (e) => {
+      const a = e.target.closest('a[data-go]');
+      if (!a) return;
+      hoverPill.style.transform = `translateX(${a.offsetLeft}px)`;
+      hoverPill.style.width = a.offsetWidth + 'px';
+      hoverPill.style.opacity = '1';
+    });
+    topNav.addEventListener('pointerleave', () => { hoverPill.style.opacity = '0'; });
   }
   topNav.querySelectorAll('a[data-go]').forEach(a => syncActiveAttr(a, a.dataset.go === route.page));
   positionTopNavPill();
@@ -17599,9 +17690,22 @@ function paintNav(){
   }
   dock.querySelectorAll('button[data-go]').forEach(b => syncActiveAttr(b, b.dataset.go === route.page));
   positionDockPill();
-  document.querySelector('[data-search]').innerHTML = svg(ICON.search);
-  document.querySelector('[data-theme-toggle]').innerHTML =
-    svg(state.settings.theme === 'dark' ? ICON.sun : ICON.moon);
+  /* Icônes recherche/thème (2026-09-23) : reconstruites seulement quand
+     nécessaire, jamais inconditionnellement à chaque render comme
+     avant — même raisonnement que syncActiveAttr() plus haut, ici pour
+     de vrai puisque le bouton thème porte désormais une animation
+     d'entrée (themeIconSwap, CSS) qui aurait autrement rejoué à chaque
+     tick de rafraîchissement vivant plutôt que seulement au vrai
+     changement de thème. La recherche ne change jamais : un seul flag
+     suffit (pas besoin de comparer une valeur). */
+  const searchBtn = document.querySelector('[data-search]');
+  if (!searchBtn.dataset.built){ searchBtn.innerHTML = svg(ICON.search); searchBtn.dataset.built = '1'; }
+  const themeBtn = document.querySelector('[data-theme-toggle]');
+  const wantedThemeIcon = state.settings.theme === 'dark' ? 'sun' : 'moon';
+  if (themeBtn.dataset.icon !== wantedThemeIcon){
+    themeBtn.innerHTML = svg(ICON[wantedThemeIcon]);
+    themeBtn.dataset.icon = wantedThemeIcon;
+  }
 }
 function positionDockPill(){
   const dock = document.getElementById('dock');
