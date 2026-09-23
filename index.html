@@ -800,42 +800,109 @@ button:active{transform:scale(.97)}
 .quota-bar{display:block;height:4px;border-radius:100px;background:var(--bg-3);margin-top:12px;overflow:hidden}
 .quota-bar em{display:block;height:100%;background:var(--ink);border-radius:100px;
   transition:width .5s var(--spring)}
-.nb-hero{padding:var(--space-8) 0 var(--space-6);max-width:20ch}
-.nb-hero-2{color:var(--ink-3);font-weight:600}
-.nb-hero-sub{margin-top:var(--space-5);max-width:46ch}
-.nb-hero-act{display:flex;gap:12px;margin-top:var(--space-6);flex-wrap:wrap}
-/* margin-top ici (et non plus sur un <section class="section"> autour,
-   retiré en restructurant le balisage pour .nb-top ci-dessous) : même
-   valeur que .section{margin-top:96px} pour ne rien changer à
-   l'espacement mobile — annulé dans la grille desktop, où gap/
-   align-items du conteneur .nb-top s'en chargent déjà. */
-.nb-split{display:grid;grid-template-columns:1fr 1.25fr;gap:var(--space-4);align-items:stretch;
-  margin-top:var(--space-9)}
-.nb-pf{display:flex;flex-direction:column;min-height:220px}
-.nb-pf-val{font-size:clamp(32px,4.6vw,44px);font-weight:700;letter-spacing:-.04em;
-  line-height:1;margin-top:12px;font-variant-numeric:tabular-nums}
-.nb-pf-var{font-size:var(--t-small);font-weight:600;margin-top:12px}
-@media (max-width:820px){
-  .nb-split{grid-template-columns:1fr}
-  .nb-hero{max-width:none;padding-top:var(--space-6)}
+/* ============================================================
+   ACCUEIL — refonte "temple" (2026-09-23)
+   ============================================================
+   Remplace l'ancien .nb-hero/.nb-top/.nb-split/.nb-pf (grille
+   texte+cartes ajoutée le 2026-09-22 pour combler le vide desktop —
+   devenue obsolète : la nouvelle hero a son propre fond navy et sa
+   propre largeur bornée, plus besoin de ce mécanisme). Palette dédiée,
+   indépendante du thème clair/sombre de l'app — même principe déjà
+   établi pour .dock (bottom nav) : cette section garde son bleu nuit
+   même en thème clair, elle ne suit pas --bg/--accent (qui restent
+   orange/clair-sombre partout ailleurs dans l'app, inchangés). Couleurs
+   fournies telles quelles (#070B1D, #075BFF...) plutôt que dérivées des
+   tokens existants — un one-off assumé, comme le dock. */
+.nb-hero-v2{
+  margin:calc(var(--sp-3) * -1) -18px 0;padding:14px 18px 28px;
+  background:
+    radial-gradient(circle at 50% 18%, rgba(20,60,130,.16), transparent 62%),
+    linear-gradient(180deg,#090F25 0%,#070B1D 55%,#0B122A 100%);
+  position:relative;overflow:hidden
 }
-/* CORRECTIF DESIGN (2026-09-22, "travaille vraiment sur le design") :
-   vérifié en direct plus tôt cette session (captures à 1536px) — sur un
-   vrai écran de bureau, .nb-hero{max-width:20ch} laissait la MOITIÉ
-   droite de l'accueil complètement vide (juste le fond animé), pendant
-   que Portefeuille/Ma liste restaient coincés dans une section à part,
-   plus bas. .nb-top regroupe maintenant le texte d'accueil et ces deux
-   cartes dans une seule grille à partir de 900px : l'espace vide devient
-   du contenu réel déjà existant (pas un nouvel élément décoratif),
-   Portefeuille et Ma liste s'empilent dans la colonne de droite (une
-   grille 2 colonnes y serait trop étroite). En dessous de 900px,
-   comportement strictement inchangé (empilement vertical). */
 @media (min-width:900px){
-  .nb-top{display:grid;grid-template-columns:1.05fr 1fr;gap:48px;align-items:center;
-    padding:var(--space-8) 0 var(--space-6)}
-  .nb-top .nb-hero{max-width:none;padding:0}
-  .nb-top .nb-split{grid-template-columns:1fr;gap:var(--space-4);margin-top:0}
+  .nb-hero-v2{margin:calc(var(--sp-4) * -1) -22px 0;padding:20px 22px 36px}
 }
+/* Temple — SECTION 7 DU BRIEF : SVG et CSS fournis tels quels par
+   l'utilisateur, classes/dessin/nombre de colonnes INCHANGÉS. Seule
+   adaptation : .nova-temple-section n'a plus besoin de son propre
+   padding latéral (18px) puisqu'elle vit déjà dans .nb-hero-v2, qui a
+   le sien — évite un cumul 18+18=36px qui aurait rétréci le temple
+   sous la largeur voulue (94vw visée par le brief). */
+.nova-temple-section{width:100%;display:flex;justify-content:center;align-items:center;
+  padding:8px 0 0;box-sizing:border-box;position:relative;z-index:1}
+.nova-temple{display:block;width:min(94vw,760px);height:auto;overflow:visible;
+  filter:drop-shadow(0 0 4px rgba(255,255,255,.25)) drop-shadow(0 0 12px rgba(70,105,255,.10))}
+.temple-line{fill:none;stroke:#ffffff;stroke-width:10;stroke-linecap:round;stroke-linejoin:round;
+  vector-effect:non-scaling-stroke}
+.temple-line.thin{stroke-width:7}
+.temple-line.very-thin{stroke-width:4}
+.nova-symbol{fill:#ffffff}
+@media (max-width:600px){ .nova-temple{width:96vw;max-width:560px} }
+@media (max-width:390px){ .nova-temple{width:98vw} }
+/* 4 actions rapides — grille à 4 colonnes STRICTEMENT égales, jamais de
+   passage en 2×2 (exigence explicite, voir brief §8/§32). */
+.nb-quick{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;
+  margin-top:14px;position:relative;z-index:1}
+.nb-quick-item{display:flex;flex-direction:column;align-items:center;gap:8px;
+  text-align:center;color:inherit;min-height:44px}
+.nb-quick-bub{width:60px;height:60px;border-radius:50%;flex:0 0 auto;
+  display:flex;align-items:center;justify-content:center;
+  background:rgba(20,29,58,.72);border:1px solid rgba(255,255,255,.10);
+  backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
+  color:#1677FF;transition:transform .2s ease-out,background .2s ease-out}
+.nb-quick-item:active .nb-quick-bub{transform:scale(.95);background:rgba(20,29,58,.9)}
+.nb-quick-bub svg{width:24px;height:24px}
+/* CORRECTIF (bug réel trouvé en aperçu mobile) : white-space:nowrap ici
+   provoquait exactement le bug déjà corrigé sur le dock plus tôt cette
+   session — "Analyser avec l'IA"/"Ajouter au portefeuille" (2-3 mots)
+   débordaient de leur colonne à 25% et chevauchaient leurs voisins. Le
+   brief interdit de couper un MOT caractère par caractère (§14), pas de
+   revenir à la ligne entre deux mots — son propre schéma ASCII (§8)
+   montre d'ailleurs "titre" sur une ligne dédiée sans jamais garantir
+   qu'un titre de 3 mots y tienne en une seule ligne dans une colonne de
+   ~85px. white-space:normal (repli sur la coupure naturelle aux
+   espaces) résout le débordement sans jamais couper un mot. */
+.nb-quick-t{font-size:12px;font-weight:700;color:#fff;line-height:1.25;white-space:normal;
+  overflow-wrap:normal;word-break:normal;min-height:2.5em}
+.nb-quick-d{font-size:10px;color:rgba(255,255,255,.65);line-height:1.35;
+  max-width:15ch}
+.nb-quick-item:focus-visible{outline:2px solid rgba(255,255,255,.85);outline-offset:3px;border-radius:16px}
+@media (max-width:340px){
+  .nb-quick{gap:2px}
+  .nb-quick-bub{width:50px;height:50px}
+  .nb-quick-bub svg{width:20px;height:20px}
+  .nb-quick-t{font-size:10.5px}
+  .nb-quick-d{display:none}
+}
+.nb-hero-title{margin-top:26px;font-size:clamp(30px,7.5vw,40px);font-weight:800;
+  letter-spacing:-.03em;color:#fff;line-height:1.08;position:relative;z-index:1}
+.nb-hero-sub2{margin-top:8px;font-size:clamp(15px,3.6vw,17px);color:rgba(255,255,255,.65);
+  position:relative;z-index:1}
+.nb-cta-row{display:flex;gap:10px;margin-top:18px;position:relative;z-index:1}
+.nb-cta-a,.nb-cta-s{flex:1;height:52px;border-radius:9999px;font-size:15px;font-weight:700;
+  display:flex;align-items:center;justify-content:center;gap:8px}
+.nb-cta-a{background:linear-gradient(135deg,#075BFF 0%,#0047FF 100%);color:#fff;
+  box-shadow:0 0 22px rgba(0,91,255,.25)}
+.nb-cta-a:active{transform:scale(.98)}
+.nb-cta-s{background:rgba(10,16,38,.55);border:1px solid rgba(255,255,255,.10);color:#fff}
+.nb-cta-s:active{background:rgba(10,16,38,.75)}
+@media (prefers-reduced-motion:reduce){ .nb-cta-a:active,.nb-quick-item:active .nb-quick-bub{transform:none} }
+/* Carte "Mes positions" v2 — hors de .nb-hero-v2 (fond normal de l'app
+   en dessous, comme avant), palette propre à cette carte (brief §19). */
+.nb-pf2{background:rgba(12,18,40,.75);border:1px solid rgba(255,255,255,.10);
+  border-radius:20px;padding:20px;margin-top:20px}
+.nb-pf2-eyebrow{color:#4D8DFF;font-weight:700;font-size:13px}
+.nb-pf2-val{font-size:clamp(30px,7.5vw,38px);font-weight:700;letter-spacing:-.03em;
+  color:#fff;line-height:1;margin-top:10px;font-variant-numeric:tabular-nums}
+.nb-pf2-var{font-size:14px;font-weight:600;margin-top:10px}
+.nb-pf2-var.up-t{color:#45D69A}
+.nb-pf2-var.down-t{color:#FF647C}
+.nb-pf2-empty p{color:rgba(255,255,255,.65);font-size:14.5px;margin-top:8px;line-height:1.5}
+.nb-pf2-detail{display:block;width:100%;margin-top:16px;padding:13px 16px;
+  border-radius:14px;background:rgba(16,35,78,.65);color:#fff;font-weight:600;font-size:14.5px;
+  text-align:center}
+.nb-pf2-detail:active{background:rgba(16,35,78,.85)}
 /* CORRECTIF (bug visuel réel, trouvé en aperçu mobile de la feuille de
    recherche, 2026-09-17) : .row-t était redéfini ICI, en double par
    rapport à sa première déclaration plus haut dans ce fichier (voir
@@ -1409,6 +1476,17 @@ const DEFAULT_STATE = {
      `items` = tableau d'id de `stocks`, jamais de doublon (contrôlé par
      toggleItemListe, jamais construit à la main ailleurs). */
   lists:[],
+
+  /* Alertes de prix (2026-09-23, raccourci "Créer une alerte" de
+     l'accueil) : { id, stockId, target, direction:'above'|'below',
+     createdAt, triggered:false }. Vérifiées pendant que l'app est
+     ouverte (voir verifierAlertes(), branchée sur le même mécanisme de
+     rafraîchissement vivant que le reste du site) — HONNÊTETÉ : aucune
+     notification push, aucun serveur ne surveille les prix en arrière-
+     plan (aurait exigé un backend/webhook, explicitement hors périmètre
+     de cette passe). Une alerte déclenchée reste consultable/déclenchée
+     une seule fois, jamais répétée en boucle. */
+  alerts:[],
 
   wallet:{
     cash:15480,
@@ -14356,6 +14434,26 @@ const PRICE_FLASH = new Map();
    changement d'état qui déclenche le prochain render(). */
 const SEG_FROM = new Map();
 
+/* Vérifie les alertes de prix actives sur ce titre à chaque cotation
+   reçue par le rafraîchissement vivant (voir liveTick ci-dessous et
+   l'ajout de leurs stockId à idsVisibles, plus bas dans render()).
+   Déclenchée au FRANCHISSEMENT du seuil, pas à chaque tick où le prix
+   reste au-delà/en-deçà — sinon la même alerte redéclencherait un toast
+   toutes les ~8s tant que le cours ne revient pas sous le seuil. */
+function verifierAlertes(stockId, price){
+  if (!Number.isFinite(price)) return;
+  const st = byId[stockId];
+  let touched = false;
+  for (const a of state.alerts){
+    if (a.triggered || a.stockId !== stockId) continue;
+    const franchie = a.direction === 'above' ? price >= a.target : price <= a.target;
+    if (!franchie) continue;
+    a.triggered = true;
+    touched = true;
+    toast(`Alerte : ${st ? st.name : stockId} ${a.direction === 'above' ? 'a dépassé' : 'est passé sous'} ${fmt.cur(a.target, st?.cur || 'EUR')}`);
+  }
+  if (touched) saveState();
+}
 async function liveTick(){
   const cibles = liveIds.map(id => byId[id]).filter(s => s && s.ticker);
   if (!cibles.length) return;
@@ -14390,6 +14488,7 @@ async function liveTick(){
       }
       QUOTES.set(s.id, q);
       if (aChange) misAJour = true;
+      verifierAlertes(s.id, q.price);
     }
     if (misAJour){ state.ui.liveAt = Date.now(); render(); }
   } catch { /* un cycle raté n'interrompt pas les suivants, le prochain tick réessaiera */ }
@@ -14841,44 +14940,105 @@ function heroChart(){
   </div>`;
 }
 
+/* Les 4 raccourcis passent tous par la VRAIE recherche existante
+   (openSearch/pick, voir plus bas) plutôt que par un flux dédié
+   inventé pour chacun — searchIntent (module-level, consommé et remis
+   à null dans pick()) indique simplement ce qu'il faut faire du
+   résultat choisi : ouvrir sa fiche (défaut, intent absent), lancer
+   runAnalysis() dessus, ouvrir l'achat, ou ouvrir la création d'alerte.
+   Aucun nouveau parcours de recherche, aucune donnée inventée. */
+const NB_QUICK = [
+  { intent:'', icon:ICON.search, title:'Rechercher',
+    desc:"Trouver instantanément une action, ETF, crypto ou entreprise." },
+  { intent:'analyze', icon:ICON.spark, title:'Analyser avec l’IA',
+    desc:"Entrer un actif et lancer directement l’analyse NovaBourse." },
+  { intent:'buy', icon:ICON.plus, title:'Ajouter au portefeuille',
+    desc:"Ajouter rapidement une position ou un actif à suivre." },
+  { intent:'alert', icon:ICON.radar, title:'Créer une alerte',
+    desc:"Prix cible, variation, actualité importante, signal Radar, etc." },
+];
 PAGES.home = () => {
   const suivies = state.watchlist.map(id => byId[id]).filter(Boolean);
   const marche = stocks.slice(0, 6);
   const pf = portfolioValue();
+  const hasPositions = state.wallet.positions.length > 0;
 
   return `
-  <div class="nb-top">
-    <header class="nb-hero">
-      <h1 class="display">Prêt à investir ?</h1>
-      <p class="lead nb-hero-sub">Données en temps réel.</p>
-      <div class="nb-hero-act">
-        <button class="btn btn-a btn-lg" data-go="radar">Analyser</button>
-        <button class="btn btn-ghost btn-lg" data-search>Rechercher</button>
-      </div>
-    </header>
-
-    <div class="nb-split">
-      <article class="card nb-pf">
-        <p class="eyebrow">Mes positions</p>
-        <p class="nb-pf-val tabular-nums">${fmt.eur(pf.total)}</p>
-        <p class="nb-pf-var ${pf.gain >= 0 ? 'up-t' : 'down-t'} tabular-nums">
-          ${arrow(pf.gainPct)} ${fmt.eur(Math.abs(pf.gain))} · ${fmt.pct(pf.gainPct)}</p>
-        <button class="btn btn-s btn-sm" style="margin-top:auto" data-go="portfolio">Voir le détail</button>
-      </article>
-
-      <article class="card nb-watch">
-        <div class="section-h" style="margin-bottom:14px">
-          <p class="eyebrow">Ma liste</p>
-          ${suivies.length ? `<button class="btn btn-ghost btn-sm" data-go="watchlist">Tout voir</button>` : ''}
-        </div>
-        ${suivies.length
-          ? `<div class="rows">${suivies.slice(0, 3).map(x => stockRow(x)).join('')}</div>`
-          : `<p class="small">Touchez l'étoile sur une entreprise pour la suivre.</p>`}
-        <button class="btn btn-ghost btn-sm" style="margin-top:12px" data-go="lists">
-          ${svg(ICON.list,2)} Mes listes${state.lists.length ? ` (${state.lists.length})` : ''}</button>
-      </article>
+  <section class="nb-hero-v2">
+    <div class="nova-temple-section">
+      <svg class="nova-temple" viewBox="0 0 1000 720" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="NovaBourse">
+        <path d="M90 245 L500 55 L910 245" class="temple-line"/>
+        <path d="M125 245 L500 78 L875 245" class="temple-line thin"/>
+        <line x1="80" y1="245" x2="920" y2="245" class="temple-line"/>
+        <line x1="100" y1="270" x2="900" y2="270" class="temple-line"/>
+        <line x1="115" y1="292" x2="885" y2="292" class="temple-line thin"/>
+        <g class="nova-symbol" transform="translate(500 175) scale(.72)">
+          <path d="M 0 -72 L -65 48 L -12 14 C -4 8 -2 -1 0 -12 Z"/>
+          <path d="M 0 -72 L 65 48 L 12 14 C 4 8 2 -1 0 -12 Z"/>
+          <path d="M -65 48 L 65 48 L 12 14 C 4 8 -4 8 -12 14 Z"/>
+        </g>
+        ${[155,310,575,730].map(tx => `
+        <g transform="translate(${tx} 0)">
+          <path d="M0 300 H115" class="temple-line"/>
+          <path d="M12 315 H103" class="temple-line thin"/>
+          <path d="M18 330 Q30 300 48 330 Q58 300 70 330 Q82 300 97 330" class="temple-line"/>
+          <rect x="35" y="350" width="45" height="255" rx="4" class="temple-line"/>
+          <line x1="46" y1="360" x2="46" y2="595" class="temple-line very-thin"/>
+          <line x1="58" y1="360" x2="58" y2="595" class="temple-line very-thin"/>
+          <line x1="69" y1="360" x2="69" y2="595" class="temple-line very-thin"/>
+          <path d="M22 610 H93" class="temple-line"/>
+          <path d="M12 630 H103" class="temple-line"/>
+        </g>`).join('')}
+        <line x1="130" y1="650" x2="870" y2="650" class="temple-line"/>
+        <line x1="100" y1="675" x2="900" y2="675" class="temple-line"/>
+        <line x1="65" y1="700" x2="935" y2="700" class="temple-line"/>
+      </svg>
     </div>
-  </div>
+
+    <div class="nb-quick">
+      ${NB_QUICK.map(a => `
+        <button class="nb-quick-item" data-search ${a.intent ? `data-search-intent="${a.intent}"` : ''}
+          aria-label="${esc(a.title)}">
+          <span class="nb-quick-bub" aria-hidden="true">${svg(a.icon,2)}</span>
+          <span class="nb-quick-t">${esc(a.title)}</span>
+          <span class="nb-quick-d">${esc(a.desc)}</span>
+        </button>`).join('')}
+    </div>
+
+    <h1 class="nb-hero-title">Prêt à investir ?</h1>
+    <p class="nb-hero-sub2">Données en temps réel.</p>
+    <div class="nb-cta-row">
+      <button class="nb-cta-a" data-search data-search-intent="analyze">Analyser</button>
+      <button class="nb-cta-s" data-search>Rechercher</button>
+    </div>
+  </section>
+
+  <article class="nb-pf2">
+    <p class="nb-pf2-eyebrow">Mes positions</p>
+    ${hasPositions ? `
+      <p class="nb-pf2-val tabular-nums">${fmt.eur(pf.total)}</p>
+      <p class="nb-pf2-var ${pf.gain >= 0 ? 'up-t' : 'down-t'} tabular-nums">
+        ${arrow(pf.gainPct)} ${fmt.eur(Math.abs(pf.gain))} · ${fmt.pct(pf.gainPct)}</p>
+      <button class="nb-pf2-detail" data-go="portfolio">Voir le détail</button>
+    ` : `
+      <div class="nb-pf2-empty">
+        <p>Votre portefeuille est vide.</p>
+        <button class="nb-cta-a" style="width:100%;margin-top:14px" data-search data-search-intent="buy">Ajouter une position</button>
+      </div>
+    `}
+  </article>
+
+  <article class="card" style="margin-top:16px">
+    <div class="section-h" style="margin-bottom:14px">
+      <p class="eyebrow">Ma liste</p>
+      ${suivies.length ? `<button class="btn btn-ghost btn-sm" data-go="watchlist">Tout voir</button>` : ''}
+    </div>
+    ${suivies.length
+      ? `<div class="rows">${suivies.slice(0, 3).map(x => stockRow(x)).join('')}</div>`
+      : `<p class="small">Touchez l'étoile sur une entreprise pour la suivre.</p>`}
+    <button class="btn btn-ghost btn-sm" style="margin-top:12px" data-go="lists">
+      ${svg(ICON.list,2)} Mes listes${state.lists.length ? ` (${state.lists.length})` : ''}</button>
+  </article>
 
   <section class="section">
     <div class="section-h">
@@ -15401,9 +15561,24 @@ PAGES.stock = (id) => {
     <button class="qa" data-add-to-list="${esc(s.id)}" aria-pressed="${listesAvec(s.id).length > 0}">
       <i>${svg(ICON.list,2)}${listesAvec(s.id).length ? `<em class="qa-badge">${listesAvec(s.id).length}</em>` : ''}</i>
       <span>Liste</span></button>
+    <button class="qa" data-open-alerte="${esc(s.id)}"
+      aria-pressed="${state.alerts.some(a => a.stockId === s.id && !a.triggered)}">
+      <i>${svg(ICON.radar,2)}${state.alerts.filter(a => a.stockId === s.id && !a.triggered).length
+        ? `<em class="qa-badge">${state.alerts.filter(a => a.stockId === s.id && !a.triggered).length}</em>` : ''}</i>
+      <span>Alerte</span></button>
   </div>
   ${state.compare.length >= 2 ? `<button class="btn btn-ghost btn-sm" style="margin-top:10px" data-go="compare">
     Voir la comparaison (${state.compare.length})</button>` : ''}
+  ${(() => {
+    const mesAlertes = state.alerts.filter(a => a.stockId === s.id);
+    if (!mesAlertes.length) return '';
+    return `<div class="tiny" style="margin-top:10px">
+      ${mesAlertes.map(a => `<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 0">
+        <span>${a.triggered ? '✓' : '○'} ${a.direction === 'above' ? '≥' : '≤'} ${esc(fmt.cur(a.target, s.cur))}${a.triggered ? ' · atteinte' : ''}</span>
+        <button data-delete-alerte="${esc(a.id)}" aria-label="Retirer cette alerte" style="color:var(--ink-4)">${svg(ICON.x,2)}</button>
+      </div>`).join('')}
+    </div>`;
+  })()}
 
   <!-- COURS — graphique professionnel, chargement à la demande par période.
        État explicite à 5 valeurs : idle / loading / ready / empty / error. -->
@@ -17257,7 +17432,16 @@ function render(navigated = false){
     portfolio: () => state.wallet.positions.map(p => p.id),
   };
   const listeVisible = (listesParRoute[route.page] || (() => []))();
-  const idsVisibles = (liveParRoute[route.page] || (() => []))();
+  /* Alertes actives (2026-09-23) : ajoutées à la liste suivie en direct
+     QUELLE QUE SOIT la page courante — une alerte doit continuer à être
+     vérifiée même si l'utilisateur navigue ailleurs, pas seulement
+     quand la fiche du titre concerné est affichée. demarrerRafraichis-
+     sementVivant() déduplique déjà et plafonne à LIVE_MAX_SYMBOLES ;
+     limite honnête assumée (voir DEFAULT_STATE.alerts) : au-delà de ce
+     plafond partagé avec le reste de la page, les alertes en surplus
+     patientent jusqu'à ce qu'une place se libère. */
+  const idsAlertesActives = [...new Set(state.alerts.filter(a => !a.triggered).map(a => a.stockId))];
+  const idsVisibles = [...(liveParRoute[route.page] || (() => []))(), ...idsAlertesActives];
   /* Ne jamais redemander via assurerCotations() ce que le rafraîchissement
      vivant s'apprête de toute façon à obtenir tout de suite (son tick
      immédiat) — sinon les mêmes premiers symboles partent deux fois dans
@@ -17426,8 +17610,16 @@ function paintSearch(q){
     renderHits(q, true);   // recherche distante terminée : le message "aucun résultat" est définitif
   });
 }
+/* Intention portée par les 4 raccourcis de l'accueil (2026-09-23) — voir
+   NB_QUICK/PAGES.home. Consommée UNE SEULE FOIS ici : posée juste avant
+   openSearch() (voir le handler [data-search]), remise à null dès que
+   pick() ou l'abandon de la recherche (fermeture sans choix) l'a lue,
+   pour qu'un search "normal" ultérieur ne réutilise jamais par erreur
+   l'intention d'un raccourci précédent. */
+let searchIntent = null;
 function pick(h){
   pushRecent(h.title); closeSheet();
+  const intent = searchIntent; searchIntent = null;
   if (h.type === 'action'){
     console.debug('[NovaBourse][pick] résultat cliqué', h);
     /* Une société venue de /api/market/search n'existe pas encore dans
@@ -17435,10 +17627,32 @@ function pick(h){
        fiche, qui se comporte alors exactement comme pour le catalogue
        local — cours/historique/score restent à charger depuis le serveur. */
     const id = (h.remote && !byId[h.id] && h.meta) ? (ensureRuntimeStock(h.meta)?.id || h.id) : h.id;
+    if (intent === 'analyze'){ runAnalysis(id); return; }
+    if (intent === 'buy'){ const st = byId[id]; if (st) openBuyAmount(st); return; }
+    if (intent === 'alert'){ const st = byId[id]; if (st) openCreateAlerte(st); return; }
     go('stock', id);
   } else toast(`${h.title} : page indice bientôt disponible.`);
 }
 
+/* Alerte de prix — voir DEFAULT_STATE.alerts pour le format retenu et
+   les limites honnêtement assumées (vérifiée pendant que l'app est
+   ouverte, jamais de notification push). */
+function openCreateAlerte(st){
+  const prix = prixDe(st);
+  openSheet(`<h3 id="sheetTitle">Créer une alerte</h3>
+    <p class="small" style="margin-top:6px">${esc(st.name)}${prix !== null ? ` · ${fmt.cur(prix, st.cur)} actuellement` : ''}</p>
+    <div class="chips" style="margin-top:16px">
+      <button class="chip" data-alert-dir="above" aria-pressed="true">Au-dessus de</button>
+      <button class="chip" data-alert-dir="below" aria-pressed="false">En dessous de</button>
+    </div>
+    <input class="field" id="alertTarget" type="number" inputmode="decimal" step="0.01" min="0"
+      placeholder="Prix cible" value="${prix !== null ? prix : ''}" style="margin-top:14px">
+    <div class="btns" style="margin-top:22px">
+      <button class="btn btn-s" data-close style="flex:1">Annuler</button>
+      <button class="btn btn-a" data-create-alerte="${esc(st.id)}" style="flex:1">Créer l'alerte</button>
+    </div>`);
+  document.getElementById('alertTarget')?.focus();
+}
 function openBuyAmount(st, initial){
   const max = Math.floor(state.wallet.cash);
   const v = Math.min(initial || Math.min(100, max), max);
@@ -17661,7 +17875,11 @@ document.addEventListener('click', e => {
   if (q('[data-back]')){ back(); return; }
   if (q('[data-close]')){ closeSheet(); return; }
   const searchOrigin = q('[data-search]');
-  if (searchOrigin){ openSearch(searchOrigin); return; }
+  if (searchOrigin){
+    searchIntent = searchOrigin.dataset.searchIntent || null;
+    openSearch(searchOrigin);
+    return;
+  }
 
   const st = q('[data-stock]'); if (st && !q('[data-star]')){ go('stock', st.dataset.stock); return; }
 
@@ -18021,6 +18239,35 @@ document.addEventListener('click', e => {
     return;
   }
 
+  const alertDir = q('[data-alert-dir]');
+  if (alertDir){
+    document.querySelectorAll('[data-alert-dir]').forEach(b =>
+      b.setAttribute('aria-pressed', String(b === alertDir)));
+    return;
+  }
+  const createAlerte = q('[data-create-alerte]');
+  if (createAlerte){
+    const stockId = createAlerte.dataset.createAlerte;
+    const target = +document.getElementById('alertTarget')?.value;
+    if (!Number.isFinite(target) || target <= 0){ toast('Indiquez un prix cible valide.'); return; }
+    const dirBtn = document.querySelector('[data-alert-dir][aria-pressed="true"]');
+    const direction = dirBtn?.dataset.alertDir === 'below' ? 'below' : 'above';
+    state.alerts.push({ id:'al_'+Date.now().toString(36), stockId, target, direction,
+      createdAt:Date.now(), triggered:false });
+    saveState();
+    closeSheet();
+    toast('Alerte créée');
+    if (route.page === 'home' || route.page === 'stock') render();
+    return;
+  }
+  const deleteAlerte = q('[data-delete-alerte]');
+  if (deleteAlerte){
+    state.alerts = state.alerts.filter(a => a.id !== deleteAlerte.dataset.deleteAlerte);
+    saveState();
+    if (route.page === 'stock') render();
+    return;
+  }
+
   const renameList = q('[data-rename-list]');
   if (renameList){
     const l = state.lists.find(x => x.id === renameList.dataset.renameList);
@@ -18088,6 +18335,12 @@ document.addEventListener('click', e => {
     return;
   }
 
+  const openAlerte = q('[data-open-alerte]');
+  if (openAlerte){
+    const st = byId[openAlerte.dataset.openAlerte];
+    if (st) openCreateAlerte(st);
+    return;
+  }
   const addToList = q('[data-add-to-list]');
   if (addToList){
     const stockId = addToList.dataset.addToList;
