@@ -1491,6 +1491,36 @@ table.t td:last-child,table.t th:last-child{text-align:right;padding-right:0}
 
 <script>
 "use strict";
+/* CORRECTIF (bug réel, 2026-09-23, signalé par l'utilisateur : "on ne
+   voit plus du tout le temple") : sur un rechargement (F5, retour
+   après que Chrome ait déchargé l'onglet pour libérer de la mémoire,
+   etc.), le NAVIGATEUR restaure lui-même l'ancienne position de scroll
+   AVANT que le moindre JS de cette page ne s'exécute — confirmé en
+   direct (history.scrollRestoration par défaut, scrollY non nul dès
+   le tout premier tick après un location.reload() effectué en étant
+   descendu dans la page). Le fondu du temple au scroll (--temple-fade,
+   voir plus bas) se calculait alors immédiatement sur cette position
+   restaurée, AVANT même que render() n'ait eu la chance de remettre le
+   scroll à 0 (qu'il ne fait de toute façon que sur une navigation
+   interne "navigated", pas sur un rechargement complet) — un
+   utilisateur qui rechargeait la page après avoir déjà descendu la
+   page d'accueil retrouvait donc le temple déjà fondu, parfois presque
+   invisible (plancher .08 × opacité de base .55 ≈ 4%), sans jamais
+   l'avoir vu apparaître normalement. 'manual' désactive cette
+   restauration native : cette appli gère déjà elle-même son scroll
+   (voir le "if (navigated)" dans render()), le navigateur n'a plus de
+   raison de s'en mêler. Posé tout en haut du script, avant absolument
+   tout le reste, pour laisser le minimum de fenêtre possible à une
+   restauration native. */
+if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
+/* Filet de sécurité : sur ce rechargement PRÉCIS, le navigateur avait
+   déjà restauré le scroll avant même d'atteindre cette ligne (confirmé
+   en direct — 'manual' ci-dessus empêche les PROCHAINES restaurations,
+   pas nécessairement celle déjà en cours). window.scrollTo(0,0) annule
+   explicitement ce qui a pu être restauré, pour que le calcul initial
+   de --temple-fade parte toujours d'un scroll à 0, comme un premier
+   affichage normal. */
+window.scrollTo(0, 0);
 const BUILD = 'v2-9';
 console.log('%cNovaBourse ' + BUILD, 'color:#00a651;font-weight:700');
 
