@@ -860,8 +860,25 @@ button:active{transform:scale(.97)}
    conservé tel quel — c'est ÇA le fond "original" à restaurer, pas une
    teinte bleue particulière — simplement reteint en noir/violet nuit
    pour rejoindre la nouvelle palette plutôt que de garder du bleu. */
+/* CORRECTIF ordinateur (2026-09-23, retour utilisateur : "adapte ça
+   aussi pour les ordinateurs") : les marges négatives fixes (-18px/
+   -22px) n'annulaient QUE le padding propre de .wrap — suffisant tant
+   que .wrap fait toute la largeur de l'écran (mobile/tablette), mais
+   .wrap a aussi un max-width:1120px (voir sa règle plus haut) qui se
+   centre avec des marges "auto" dès qu'un écran dépasse ~1160px : cette
+   hero restait alors coincée à 1120px de large, comme un rectangle
+   sombre flottant au milieu d'un océan de fond rose — jamais
+   "adaptée" aux grands écrans, juste redimensionnée. width:100vw +
+   margin left/right:calc(50% - 50vw) est la technique standard pour
+   qu'un enfant d'un conteneur centré déborde jusqu'aux bords RÉELS du
+   viewport quelle que soit la largeur de ce conteneur (ici 100% sur
+   mobile, 1120px centré sur grand écran) — se réduit mathématiquement
+   à l'ancienne valeur fixe sur mobile (vérifié : 50%-50vw avec le
+   padding actuel de .wrap redonne bien -18px/-22px), donc rien ne
+   change en dessous de ~1160px, seul le grand écran est corrigé. */
 .nb-hero-v2{
-  margin:calc(var(--sp-3) * -1) -18px 0;padding:14px 18px 28px;
+  width:100vw;
+  margin:calc(var(--sp-3) * -1) calc(50% - 50vw) 0;padding:14px 18px 28px;
   background:
     radial-gradient(circle at 50% 18%, rgba(139,92,246,.14), transparent 62%),
     linear-gradient(180deg,#14101f 0%,#0d0b14 55%,#120e1c 100%);
@@ -875,7 +892,7 @@ button:active{transform:scale(.97)}
      ~88-90% de la largeur réellement disponible à ~96% une fois retiré. */
 }
 @media (min-width:900px){
-  .nb-hero-v2{margin:calc(var(--sp-4) * -1) -22px 0;padding:20px 22px 36px}
+  .nb-hero-v2{margin:calc(var(--sp-4) * -1) calc(50% - 50vw) 0;padding:20px 22px 36px}
 }
 /* Temple — PASSE 2 (2026-09-23, nouveau SVG fourni) : remplace le
    premier jet par la structure/coordonnées exactes données cette fois
