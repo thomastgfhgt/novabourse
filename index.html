@@ -886,6 +886,55 @@ button:active{transform:scale(.97)}
 .temple-flute{stroke-width:2.5;opacity:.90}
 .nova-temple-brand{fill:#d6e4ff}
 @media (max-width:600px){ .nova-temple{width:98vw;max-width:none} }
+/* Animations (2026-09-23, "un maximum d'animation autour de cette
+   architecture romaine") — quatre effets combinés, chacun sur une
+   propriété/un élément différent pour ne jamais se marcher dessus :
+   1) .nova-temple : léger scale-in une fois au montage (transform),
+      jamais l'opacity (déjà pilotée par --temple-fade au scroll — un
+      keyframe qui toucherait aussi opacity écraserait cette valeur
+      dynamique tant qu'il "tient" sa position finale via fill-mode).
+   2) .temple-part (fronton/logo/4 colonnes/marches) : apparition en
+      cascade au montage, delay posé en inline juste au-dessus dans le
+      HTML — "le temple se construit" plutôt qu'un bloc unique.
+   3) .nova-temple lui-même, une 2e animation (filter cette fois, pas
+      transform) : respiration lente et continue du halo.
+   Le parallaxe au scroll (--temple-parallax) est appliqué en JS sur
+   .nova-temple-section, un ÉLÉMENT PARENT différent de .nova-temple :
+   même raison, éviter que deux sources (CSS animation + JS scroll)
+   ne s'affrontent sur la propriété transform d'un seul et même nœud.
+   BUG RÉEL trouvé et retiré en testant (2026-09-23) : une pulsation
+   continue (transform:scale) avait été ajoutée sur .nova-temple-brand
+   avec transform-box:fill-box pour la faire tourner autour de son
+   propre centre plutôt que l'origine du SVG — combinée à l'attribut
+   transform SVG déjà présent sur ce même <g> (translate/scale pour son
+   positionnement), ça faisait littéralement bondir UN SEUL des 3
+   <path> du logo à une position aberrante (loin à droite du temple,
+   visible en direct). Un vrai bug d'interaction CSS/SVG, pas un simple
+   choix esthétique à ajuster — retirée entièrement plutôt que
+   rafistolée : le logo garde son apparition en fondu (#2 ci-dessus),
+   sans pulsation continue. */
+@keyframes templeScaleIn{ from{transform:scale(.96)} to{transform:scale(1)} }
+@keyframes templePartIn{ from{opacity:0} to{opacity:1} }
+@keyframes templeGlowPulse{
+  0%,100%{ filter:drop-shadow(0 0 3px rgba(255,255,255,.20)) drop-shadow(0 0 11px rgba(71,119,255,.08)) }
+  50%{ filter:drop-shadow(0 0 7px rgba(255,255,255,.32)) drop-shadow(0 0 20px rgba(71,119,255,.20)) }
+}
+.nova-temple{
+  animation:templeScaleIn .9s cubic-bezier(.22,1,.36,1) both,
+    templeGlowPulse 4.5s ease-in-out 1s infinite}
+.temple-part{opacity:0;animation:templePartIn .6s cubic-bezier(.22,1,.36,1) both}
+/* Survol desktop uniquement (§ voir .nova-action-circle:hover plus haut
+   pour le même principe) : le halo s'intensifie légèrement, purement
+   décoratif, jamais nécessaire pour comprendre/utiliser la page. */
+@media (hover:hover){
+  .nova-temple-section:hover .nova-temple{
+    filter:drop-shadow(0 0 6px rgba(255,255,255,.30)) drop-shadow(0 0 18px rgba(71,119,255,.18));
+    transition:filter .3s ease-out}
+}
+@media (prefers-reduced-motion:reduce){
+  .nova-temple{animation:none}
+  .temple-part{opacity:1;animation:none}
+}
 /* 4 raccourcis — verre dépoli bleu électrique transparent (brief §3/§4),
    remplace le fond quasi-opaque rgba(20,29,58,.72) de la passe
    précédente : le fond bleu nuit de .nb-hero-v2 doit rester visible à
@@ -15042,23 +15091,32 @@ PAGES.home = () => {
   <section class="nb-hero-v2">
     <section class="nova-temple-section">
       <svg class="nova-temple" viewBox="0 0 1000 720" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Temple NovaBourse">
-        <path d="M70 245 L500 45 L930 245" class="temple-line temple-main"/>
-        <path d="M110 245 L500 70 L890 245" class="temple-line temple-secondary"/>
-        <line x1="65" y1="245" x2="935" y2="245" class="temple-line temple-main"/>
-        <line x1="85" y1="270" x2="915" y2="270" class="temple-line temple-main"/>
-        <line x1="105" y1="292" x2="895" y2="292" class="temple-line temple-secondary"/>
+        <!-- Entrée en scène par blocs (2026-09-23, "un maximum d'animation
+             autour de cette architecture romaine") : chaque groupe
+             ci-dessous porte sa propre classe .temple-part + un délai
+             inline, pour un effet "le temple se construit" plutôt qu'une
+             apparition d'un seul bloc — voir les classes temple-top/
+             nova-temple-brand/temple-col/temple-steps dans le CSS. -->
+        <g class="temple-top temple-part" style="animation-delay:0s">
+          <path d="M70 245 L500 45 L930 245" class="temple-line temple-main"/>
+          <path d="M110 245 L500 70 L890 245" class="temple-line temple-secondary"/>
+          <line x1="65" y1="245" x2="935" y2="245" class="temple-line temple-main"/>
+          <line x1="85" y1="270" x2="915" y2="270" class="temple-line temple-main"/>
+          <line x1="105" y1="292" x2="895" y2="292" class="temple-line temple-secondary"/>
+        </g>
         <!-- Logo NovaBourse réel (ICON.brand, voir header) recentré/mis à
              l'échelle autour de son propre centre géométrique (763.5,477 —
              calculé depuis ses tracés, pas estimé) pour une largeur cible
              d'environ 95px, puis positionné au centre du fronton. Jamais
              redessiné : mêmes 3 <path> que .logo-m dans le header. -->
-        <g class="nova-temple-brand" transform="translate(500 170) scale(.1314) translate(-763.5 -477)">
+        <g class="nova-temple-brand temple-part" style="animation-delay:.15s"
+           transform="translate(500 170) scale(.1314) translate(-763.5 -477)">
           <path d="M 770,180 L 781,283 L 781,293 L 783,303 L 784,324 L 802,500 L 803,521 L 808,559 L 808,569 L 810,583 L 815,594 L 828,607 L 1028,718 L 1125,770 L 949,475 Z"/>
           <path d="M 758,181 L 616,414 L 402,770 L 410,766 L 510,699 L 615,626 L 741,535 L 754,520 L 758,508 Z"/>
           <path d="M 410,774 L 1120,774 L 861,663 L 849,659 L 747,615 L 727,608 L 712,608 L 697,614 L 572,686 Z"/>
         </g>
-        ${[125,295,575,745].map(tx => `
-        <g transform="translate(${tx} 0)">
+        ${[125,295,575,745].map((tx,i) => `
+        <g class="temple-col temple-part" style="animation-delay:${(.28 + i*.11).toFixed(2)}s" transform="translate(${tx} 0)">
           <line x1="0" y1="305" x2="130" y2="305" class="temple-line temple-main"/>
           <line x1="12" y1="323" x2="118" y2="323" class="temple-line temple-secondary"/>
           <path d="M20 348 Q32 312 49 340 Q65 305 78 340 Q96 312 110 348" class="temple-line temple-main"/>
@@ -15070,9 +15128,11 @@ PAGES.home = () => {
           <line x1="30" y1="615" x2="100" y2="615" class="temple-line temple-secondary"/>
           <line x1="18" y1="635" x2="112" y2="635" class="temple-line temple-main"/>
         </g>`).join('')}
-        <line x1="105" y1="655" x2="895" y2="655" class="temple-line temple-main"/>
-        <line x1="75" y1="680" x2="925" y2="680" class="temple-line temple-main"/>
-        <line x1="45" y1="705" x2="955" y2="705" class="temple-line temple-main"/>
+        <g class="temple-steps temple-part" style="animation-delay:.78s">
+          <line x1="105" y1="655" x2="895" y2="655" class="temple-line temple-main"/>
+          <line x1="75" y1="680" x2="925" y2="680" class="temple-line temple-main"/>
+          <line x1="45" y1="705" x2="955" y2="705" class="temple-line temple-main"/>
+        </g>
       </svg>
     </section>
 
@@ -15884,13 +15944,22 @@ PAGES.stock = (id) => {
           constitution. Il sera alimenté par les relevés datés de vos analyses.</p>
       </div>
     </div>
-  </section>` : `
-  <!-- Forex/Crypto/etc. : ces blocs (fondamentaux, NovaScore, Analyse IA)
-       n'ont pas de sens pour ce type d'instrument — retirés entièrement
-       plutôt que remplis de "—", conformément à la consigne de ne jamais
-       afficher de métrique absurde (pas de PER pour EUR/USD, pas de ROE
-       pour Bitcoin). Rien à afficher ici pour l'instant. */
-  ''}`}
+  </section>` : /* Forex/Crypto/etc. : ces blocs (fondamentaux, NovaScore,
+       Analyse IA) n'ont pas de sens pour ce type d'instrument — retirés
+       entièrement plutôt que remplis de "—", conformément à la consigne
+       de ne jamais afficher de métrique absurde (pas de PER pour EUR/USD,
+       pas de ROE pour Bitcoin). Rien à afficher ici pour l'instant.
+       CORRECTIF (2026-09-23, trouvé en testant les animations du temple) :
+       ce commentaire vivait auparavant DANS le template literal HTML, en
+       syntaxe de commentaire HTML au lieu d'une syntaxe de commentaire
+       JS, jamais refermée correctement — elle avalait tout le reste du
+       HTML généré (visible sur toute fiche non-action : ETF, forex,
+       crypto, indice, matière première) dans un immense commentaire
+       jusqu'au prochain marqueur de fermeture trouvé ailleurs dans la
+       page. Déplacé ici, en dehors du template literal et en commentaire
+       JS, pour qu'aucune syntaxe de commentaire ne puisse plus jamais se
+       retrouver dans le HTML rendu. */
+  ''}
   </div>`;
 };
 
@@ -17417,6 +17486,7 @@ window.addEventListener('resize', () => {
    l'accueil par navigation (scroll remis à 0 par render() lui-même)
    pourrait laisser le temple visuellement figé à l'ancien niveau de
    fondu jusqu'au prochain scroll. */
+const REDUCED_MOTION = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 function updateScrollFades(){
   const HEADER_FADE_DISTANCE = 160;  // px de scroll pour atteindre le minimum
   const HEADER_FADE_FLOOR = .15;     // jamais totalement invisible (lisibilité)
@@ -17437,6 +17507,19 @@ function updateScrollFades(){
     const tt = Math.min(1, Math.max(0, (start - rect.top) / (start - end)));
     const templeFade = 1 - tt * (1 - TEMPLE_FADE_FLOOR);
     document.documentElement.style.setProperty('--temple-fade', templeFade.toFixed(3));
+    /* Parallaxe très léger (2026-09-23, "maximum d'animation") : le
+       temple monte un peu MOINS vite que le reste de la page pendant
+       qu'il défile, plafonné à 26px pour rester subtil (une vraie
+       impression de profondeur, jamais un décalage visible comme un
+       bug). Appliqué sur .nova-temple-section (le PARENT de .nova-
+       temple), jamais sur .nova-temple lui-même, qui a déjà sa propre
+       animation CSS sur `transform` — deux sources sur le même nœud se
+       marcheraient dessus. Sauté sous prefers-reduced-motion, comme le
+       reste des effets purement décoratifs de cette section. */
+    if (!REDUCED_MOTION){
+      const parallax = Math.max(-26, -y * .08);
+      temple.style.transform = `translateY(${parallax.toFixed(1)}px)`;
+    }
   }
 }
 (function wireScrollFades(){
