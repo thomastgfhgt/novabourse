@@ -96,7 +96,7 @@ Deux échelles coexistent (`--space-*` et `--sp-*`), toutes deux valant les mêm
 | Composant | Classe(s) | Variantes |
 |---|---|---|
 | Bouton | `.btn` | `.btn-a` (primaire, orange, dégradé animé — voir plus haut), `.btn-blue` / `.btn-blue-outline` (secondaire, bleu électrique, nouveau 2026-09-22), `.btn-s` (secondaire neutre), `.btn-g` / `.btn-ghost` (fantôme), tailles `.btn-sm` / `.btn-lg` |
-| Carte | `.card`, `.nb-pf`, `.nb-watch` | glass, voir Surfaces |
+| Carte | `.card`, `.nb-pf2` (carte "Mes positions" de l'accueil, palette propre — voir section Accueil ci-dessous) | glass, voir Surfaces |
 | Puce | `.chip` | `[aria-pressed]` pour l'état sélectionné |
 | Badge | `.tag`, `.tag-up` / `.tag-down` / `.tag-violet` | |
 | Interrupteur | `.sw` | `switchControl()` (JS) |
@@ -124,6 +124,14 @@ Remplace intégralement la section "refonte 2026-09-22" ci-dessous, qui document
 - `≤360px` : marge extérieure réduite à 16px, police 10px (plancher — jamais plus petit, lisibilité avant tout), icônes 20px, padding dock 12px/6px.
 
 Testé (simulation de largeur de conteneur fidèle au CSS réellement déployé, voir MOTION_SYSTEM.md pour la méthode) : 320, 360, 375, 390, 393, 414, 430, 768px — aucun retour à la ligne, aucun chevauchement, aucun débordement à aucune de ces largeurs. À 320px et 390px les interstices entre onglets sont proches de zéro (contrainte physique réelle de 6 mots français dans si peu d'espace, documentée honnêtement plutôt que maquillée) ; à partir de 393px l'espacement devient confortable.
+
+## Bottom nav — état actuel (2026-09-23, après plusieurs passes le même jour)
+
+La section "reconstruction complète" ci-dessus décrivait la géométrie issue du brief Revolut ; plusieurs retours utilisateur directs l'ont ensuite affinée le même jour (voir l'historique git pour le détail commit par commit — résumé ici plutôt que reconstruit pas à pas) :
+- **Rétrécie** ("la barre est beaucoup trop grosse") : hauteur ramenée d'environ 92px à ~60-82px selon le palier, icônes 26→22px, police 12→11px.
+- **Verre dépoli** ("elle est trop opaque") : fond `rgba(10,14,35,.50)` + `backdrop-filter:blur(18px) saturate(120%)` remplace le dégradé opaque plein — bordure éclaircie à `rgba(255,255,255,.10)`.
+- **Fusion Explorer → Marchés** (voir `PAGES.markets` dans `index.html`) : 6 destinations → 5 (Accueil/Marchés/Radar/Portefeuille/Compte). Explorer n'est plus une page séparée — sa recherche/ses filtres secteur/pays vivent maintenant dans un panneau "Filtres" (bottom sheet) ouvert depuis Marchés, avec puces de filtres actifs affichées uniquement quand un filtre est réellement posé.
+- **Colonnes redevenues fixes** ("aucun changement de largeur de l'onglet actif, aucun flex-grow dynamique") : retour à `flex:0 0 20%` (5 colonnes strictement égales) après une itération intermédiaire où l'onglet actif s'élargissait dynamiquement — ce comportement dynamique a été explicitement retiré sur demande. Avec une destination de moins qu'avant, `Portefeuille` (le libellé le plus long) tient sans problème dans une colonne à 20% fixe, y compris à 320px — revérifié au canvas + simulation à chaque palier.
 
 ## Bottom nav — refonte 2026-09-22 (historique, remplacée ci-dessus)
 
@@ -173,3 +181,22 @@ Brief le plus détaillé reçu à ce jour (palette hexadécimale exacte, refonte
 - Actions rapides circulaires de la fiche action (`.stk-qa`), inspirées d'une capture d'écran réelle de l'app Revolut (App Store).
 
 Toujours pas fait, et volontairement hors budget de cette passe : les ~50 composants nommés du brief au-delà de ceux listés ci-dessus, l'unification `--space-*`/`--sp-*`, et la mise à jour de `.ai-card`/`.ai-dot` orphelins.
+
+## Marchés — fusion avec Explorer (2026-09-23)
+
+Explorer (catalogue d'entreprises + mur de puces secteur/pays permanent) a été fusionnée dans Marchés (voir la note dans "Bottom nav — état actuel" ci-dessus pour le pourquoi côté navigation). Nouveau pattern à réutiliser si un autre "mur de filtres" apparaît ailleurs dans l'app :
+
+- Recherche + bouton "⚙ Filtres" toujours visibles ; le mur de puces disparaît de l'affichage principal.
+- Le panneau Filtres (`openMarketsFilters()`) travaille sur un **brouillon** (`marketsFilterDraft`), jamais directement sur `state.filters` — fermer sans confirmer ne change rien. `Afficher X résultats` calcule le compte en direct à chaque sélection (`marketsListeFiltree(draft)` accepte maintenant un jeu de filtres optionnel, au lieu de toujours lire `state.filters`).
+- Puces de filtres actifs affichées sous la recherche **uniquement** quand un filtre diffère de sa valeur par défaut (`MARKETS_FILTER_DEFAULTS`) — jamais une rangée vide.
+- Champ de recherche à l'intérieur du panneau (liste des pays) : écouteur `input` direct sur l'élément (même schéma que `#sq`, la recherche globale), PAS de re-rendu du panneau entier à chaque frappe — seule la liste de puces filtrées est remplacée, pour ne jamais perdre le focus du champ.
+
+## Accueil — temple NovaBourse (2026-09-23)
+
+Refonte complète du haut de l'accueil autour d'un SVG de temple à 4 colonnes fourni intégralement par l'utilisateur (utilisé tel quel, aucun redessin). Palette dédiée et indépendante du thème clair/sombre de l'app (`#070B1D`→`#0B122A`, accent `#075BFF`), scopée à `.nb-hero-v2` uniquement — même principe que le dock (voir plus haut) : ne touche jamais `--bg`/`--accent`, qui restent orange/clair-sombre partout ailleurs.
+
+**Bug réel trouvé et corrigé avant livraison** : les 4 titres d'action ("Analyser avec l'IA", "Ajouter au portefeuille") étaient en `white-space:nowrap` dans une grille à 4 colonnes égales et débordaient sur leurs voisins — exactement le même bug que celui déjà corrigé une fois sur le dock cette session, réapparu dans un nouveau composant. Corrigé en autorisant le retour à la ligne entre mots (`white-space:normal`), jamais la coupure d'un mot.
+
+**Nouveau pattern "intention de recherche"** (`searchIntent`, module-level, posé juste avant `openSearch()` et consommé une seule fois dans `pick()`) : permet à plusieurs points d'entrée de réutiliser la MÊME feuille de recherche existante tout en redirigeant le résultat choisi vers une action différente (fiche produit par défaut, `runAnalysis()`, `openBuyAmount()`, ou la nouvelle `openCreateAlerte()`) — évite de dupliquer un composant de recherche pour chaque nouveau raccourci.
+
+**Alertes de prix** (`state.alerts`, nouveau) : fonctionnalité qui n'existait nulle part avant cette passe (vérifié par recherche dans tout le fichier — seule une mention marketing sur la page tarifs). Créée honnêtement à budget contenu : vérifiées via le mécanisme de rafraîchissement vivant déjà existant (leur `stockId` est fusionné dans les identifiants suivis en direct, quelle que soit la page affichée), déclenchement unique par toast au franchissement du seuil, jamais répété. Gérées depuis la fiche action (`.qa`/`.qa-badge`, même pattern que le badge "Liste"). **Limitation assumée et documentée dans le code** : aucune notification push — nécessiterait un backend/webhook, explicitement hors périmètre de cette passe.
