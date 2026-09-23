@@ -202,20 +202,21 @@ body{
 /* Couleurs en variables (mise à jour 2026-09-23 : "Primary = Rose
    toujours", violet réservé aux boutons secondaires — plus un accent
    général comme avant ; recoloré depuis orange/bleu, voir note de
-   palette tout en haut du fichier). Le violet est donc retiré du fond
-   ambiant par défaut, comme le bleu l'était déjà : rose (2 tons)
-   domine, le vert reste en touche discrète (déjà une couleur
-   fonctionnelle "hausse", pas seulement décorative — non concerné par
-   ce changement, voir même note). Toujours personnalisable par section
-   via body[data-bg=...] (paintNav()/render()). */
+   palette tout en haut du fichier). Le vert (déjà une couleur
+   fonctionnelle "hausse" ailleurs) avait été gardé ici comme touche
+   discrète lors de la première passe de recoloration — retiré à son
+   tour (retour utilisateur : "retire le vert du fond") : rose (2 tons)
+   domine, violet en 3e touche plutôt que vert, cohérent avec le reste
+   de la nouvelle identité (boutons, temple...). Toujours personnalisable
+   par section via body[data-bg=...] (paintNav()/render()). */
 .aurora-bg::before{width:55vw;height:55vw;top:-18vw;left:-12vw;
   background:radial-gradient(circle,var(--aurora-1,#ec4899) 0%,var(--aurora-1b,#f472b6) 45%,transparent 72%)}
 .aurora-bg::after{width:50vw;height:50vw;bottom:-22vw;right:-14vw;animation-delay:-13s;
   background:radial-gradient(circle,var(--aurora-2,#be185d) 0%,var(--aurora-2b,#ec4899) 40%,transparent 72%)}
 .aurora-bg .aurora-3{width:38vw;height:38vw;top:38vh;left:32vw;animation-delay:-8s;
   animation-duration:32s;opacity:.24;
-  background:radial-gradient(circle,var(--aurora-3,#10b981) 0%,var(--aurora-3b,#6ee7b7) 45%,transparent 72%)}
-body[data-bg="portfolio"]{--aurora-1:#10b981;--aurora-1b:#6ee7b7;--aurora-2:#ec4899;--aurora-2b:#f472b6;
+  background:radial-gradient(circle,var(--aurora-3,#6d28d9) 0%,var(--aurora-3b,#8b5cf6) 45%,transparent 72%)}
+body[data-bg="portfolio"]{--aurora-1:#6d28d9;--aurora-1b:#8b5cf6;--aurora-2:#ec4899;--aurora-2b:#f472b6;
   --aurora-3:#be185d;--aurora-3b:#ec4899}
 body[data-bg="account"]{--aurora-1:#8d95a4;--aurora-1b:#aeb4c0;--aurora-2:#646c7c;--aurora-2b:#9aa1b1;
   --aurora-3:#8d95a4;--aurora-3b:#aeb4c0}
