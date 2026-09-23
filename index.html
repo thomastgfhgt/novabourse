@@ -278,7 +278,14 @@ button:active{transform:scale(.97)}
    quand le fond est presque transparent. */
 .top{
   position:sticky;top:0;z-index:50;background:rgba(255,255,255,calc(.72 * var(--top-fade,1)));
-  backdrop-filter:saturate(180%) blur(20px);-webkit-backdrop-filter:saturate(180%) blur(20px);
+  /* Flou réduit 20px -> 14px (2026-09-24, retour utilisateur : "le site
+     est super lent et manque énormément de fluidité") : le coût GPU
+     d'un backdrop-filter croît avec le rayon de flou, et ce header
+     sticky est présent sur TOUTE page — il recalcule ce flou à chaque
+     frame de défilement, sur tout le contenu qui passe dessous.
+     14px garde un effet "verre dépoli" net à l'œil (vérifié en direct),
+     pour une fraction du coût. */
+  backdrop-filter:saturate(180%) blur(14px);-webkit-backdrop-filter:saturate(180%) blur(14px);
   border-bottom:1px solid var(--line-2);
   padding-top:env(safe-area-inset-top);
   transition:background-color .1s linear;
@@ -302,23 +309,28 @@ button:active{transform:scale(.97)}
    header), donc color:var(--ink) directement sur ce conteneur suffit à
    la faire correspondre au texte "NovaBourse" juste à côté, sans fond
    ni coin arrondi. */
-.logo-m{width:40px;height:40px;display:flex;align-items:center;justify-content:center;color:var(--ink);
-  transition:transform .35s cubic-bezier(.22,1,.36,1);
-  animation:logoGlow 4.5s ease-in-out infinite}
+.logo-m{position:relative;width:40px;height:40px;display:flex;align-items:center;justify-content:center;color:var(--ink);
+  transition:transform .35s cubic-bezier(.22,1,.36,1)}
 .logo-m svg{width:40px;height:40px}
 .logo:hover .logo-m{transform:rotate(-10deg) scale(1.1)}
 .logo:active .logo-m{transform:rotate(-4deg) scale(.94)}
-/* Respiration continue très légère (même famille que templeGlowPulse
-   sur le temple de l'accueil, même logique de cohérence de marque) —
-   couleur en rgba brute plutôt que color-mix()/var() : ombre portée
-   colorée, un cran de gris différent en clair/sombre n'aurait aucune
-   incidence visible ici (le point n'est pas la nuance exacte du fond,
-   c'est le halo rose qui pulse dessus). */
-@keyframes logoGlow{
-  0%,100%{box-shadow:0 0 0 0 rgba(236,72,153,0)}
-  50%{box-shadow:0 0 0 5px rgba(236,72,153,.16)}
-}
-@media (prefers-reduced-motion:reduce){ .top{animation:none} .logo-m{animation:none} }
+/* CORRECTIF PERFORMANCE (2026-09-24, retour utilisateur : "le site est
+   super lent et manque énormément de fluidité") : cette respiration
+   animait box-shadow directement sur .logo-m — une propriété qui force
+   un repaint à CHAQUE frame (jamais composée par le GPU), en boucle
+   infinie, dans le header STICKY présent sur TOUTE page de l'app.
+   Remplacé par un ::after dont le box-shadow est fixe (calculé une
+   seule fois) et dont seule l'opacity est animée : opacity est une des
+   deux propriétés (avec transform) que le navigateur peut animer sur
+   son propre calque GPU sans jamais repeindre — même rendu visuel,
+   coût de rendu proche de zéro au lieu d'un repaint continu partout
+   dans l'app. */
+.logo-m::after{content:"";position:absolute;inset:-5px;border-radius:50%;
+  box-shadow:0 0 0 5px rgba(236,72,153,.16);opacity:0;pointer-events:none;
+  animation:logoGlow 4.5s ease-in-out infinite}
+@keyframes logoGlow{ 0%,100%{opacity:0} 50%{opacity:1} }
+@media (prefers-reduced-motion:reduce){ .logo-m::after{animation:none} }
+@media (prefers-reduced-motion:reduce){ .top{animation:none} }
 /* Nav desktop — pilule glissante (2026-09-23, même technique FLIP que
    .dock-pill plus bas dans ce fichier, voir positionTopNavPill() en JS)
    : jusqu'ici les liens n'avaient qu'un hover/actif statique (couleur +
@@ -385,8 +397,11 @@ button:active{transform:scale(.97)}
     bottom:calc(12px + env(safe-area-inset-bottom));z-index:60;
     width:calc(100% - 20px);max-width:440px;
     background:rgba(10,14,35,.50);
-    backdrop-filter:blur(18px) saturate(120%);
-    -webkit-backdrop-filter:blur(18px) saturate(120%);
+    /* Flou réduit 18px -> 13px (2026-09-24, même correctif performance
+       que .top ci-dessus, même raison : fixed + présent sur toute page
+       mobile, recalculé à chaque frame de défilement). */
+    backdrop-filter:blur(13px) saturate(120%);
+    -webkit-backdrop-filter:blur(13px) saturate(120%);
     border:1px solid rgba(255,255,255,.10);border-radius:9999px;
     padding:6px 6px;
     box-shadow:0 8px 22px rgba(2,5,14,.45), 0 2px 6px rgba(10,20,45,.14)
@@ -548,9 +563,15 @@ button:active{transform:scale(.97)}
    couleur du fond plutôt que de s'y noyer, tout en restant nettement plus
    contrastée que lui. background-color (jamais juste `background`) pour
    ne pas écraser un dégradé éventuel posé par une règle plus spécifique
-   ailleurs (ex. .buy-card). */
-.card{background-color:rgba(255,255,255,.6);backdrop-filter:blur(24px) saturate(160%);
-  -webkit-backdrop-filter:blur(24px) saturate(160%);border:1px solid rgba(255,255,255,.8);
+   ailleurs (ex. .buy-card).
+   Flou réduit 24px -> 16px (2026-09-24, retour utilisateur : "le site
+   est super lent et manque énormément de fluidité") : .card est le
+   composant le plus répété de tout le fichier — souvent plusieurs par
+   page — un flou aussi large multiplié par carte est un vrai coût GPU
+   cumulé. 16px garde le même effet "verre dépoli" à l'œil (vérifié en
+   direct), pour une fraction du coût par carte. */
+.card{background-color:rgba(255,255,255,.6);backdrop-filter:blur(16px) saturate(160%);
+  -webkit-backdrop-filter:blur(16px) saturate(160%);border:1px solid rgba(255,255,255,.8);
   border-radius:var(--r-l);padding:var(--card-pad);
   box-shadow:0 1px 2px rgba(13,17,23,.05),0 16px 40px rgba(236,72,153,.10)}
 [data-theme="dark"] .card{background-color:rgba(22,26,33,.6);border-color:rgba(255,255,255,.08);
@@ -1177,8 +1198,11 @@ button:active{transform:scale(.97)}
 @media (min-width:640px){ .nova-hub{grid-template-columns:repeat(4,1fr)} }
 .nova-hub-card{display:flex;flex-direction:column;align-items:flex-start;gap:8px;
   padding:14px;border-radius:var(--r-m);text-align:left;min-width:0;color:inherit;
-  background-color:rgba(255,255,255,.6);backdrop-filter:blur(24px) saturate(160%);
-  -webkit-backdrop-filter:blur(24px) saturate(160%);border:1px solid rgba(255,255,255,.8);
+  /* Flou réduit 24px -> 16px (2026-09-24, même correctif performance que
+     .card) : 4 de ces cartes s'affichent ensemble sur l'accueil, un flou
+     large multiplié par 4 en même temps est un coût GPU cumulé réel. */
+  background-color:rgba(255,255,255,.6);backdrop-filter:blur(16px) saturate(160%);
+  -webkit-backdrop-filter:blur(16px) saturate(160%);border:1px solid rgba(255,255,255,.8);
   transition:transform .25s var(--spring),background-color .25s var(--spring),box-shadow .25s var(--spring)}
 [data-theme="dark"] .nova-hub-card{background-color:rgba(22,26,33,.6);border-color:rgba(255,255,255,.08)}
 .nova-hub-card:hover{transform:translateY(-3px);box-shadow:var(--shadow-2)}
