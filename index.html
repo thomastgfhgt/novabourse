@@ -864,13 +864,18 @@ button:active{transform:scale(.97)}
    site, le remplaçant par une icône nue 30px sans fond ni arrondi.
    Supprimé : la vraie définition est celle plus haut, ".logo-m{...
    background:var(--ink);border-radius:8px...}". */
+/* Rétréci (2026-09-24, "page beaucoup plus courte... le bouton de
+   connexion doit apparaître rapidement sans devoir énormément
+   descendre") : 140px/86px prenait à lui seul près d'un quart d'un
+   écran de téléphone en hauteur avant même le titre. 64px/38px reste
+   parfaitement lisible en icône de marque, sans le poids d'un hero. */
 .brand-orbit{position:relative;display:flex;align-items:center;justify-content:center;
-  width:140px;height:140px;margin:0 auto}
+  width:64px;height:64px;margin:0 auto}
 .brand-ring{position:absolute;inset:0;width:100%;height:100%;color:var(--ink-4);opacity:.4;
   animation:ringSpin 9s linear infinite}
 .brand-ring circle:last-child{animation:ringSpin 6s linear infinite reverse;transform-origin:60px 60px}
 @keyframes ringSpin{to{transform:rotate(360deg)}}
-.brand-mark{display:flex;align-items:center;justify-content:center;width:86px;height:86px;
+.brand-mark{display:flex;align-items:center;justify-content:center;width:38px;height:38px;
   background:none;color:var(--ink);box-shadow:none;border-radius:0;
   animation:brandCycle 6s cubic-bezier(.65,0,.35,1) infinite}
 .brand-mark svg{width:100%;height:100%}
@@ -1446,16 +1451,52 @@ body.gated .wrap{padding:0;max-width:100%}
    74px au lieu de 52px). Supprimé plutôt que recoloré comme .nova-orb :
    contrairement à lui, personne ne l'appelait nulle part, pas de raison
    de garder deux versions mortes d'un même motif. */
-.btn-google{width:100%;margin-top:var(--space-lg);min-height:56px;font-size:16px;font-weight:600;
-  background:var(--bg);color:var(--ink);border:1.5px solid var(--line);box-shadow:var(--shadow-1)}
+/* Trois moyens de connexion (2026-09-24, "modernise la page de
+   connexion") — un seul style de bouton partagé (.btn-oauth), chaque
+   provider ne redéfinit que sa couleur. min-height:52px (au lieu de
+   56px) et un empilement resserré : trois boutons pleine largeur
+   prennent déjà de la place, pas besoin d'en ajouter par bouton. */
+.btn-oauth{width:100%;min-height:52px;font-size:15px;font-weight:600;
+  display:flex;align-items:center;justify-content:center;gap:10px}
+/* CORRECTIF (bug réel, trouvé en testant à 320px) : l'icône e-mail
+   (svg(ICON.mail), viewBox seul, sans width/height propres — contrai-
+   rement à GOOGLE_G/APPLE_LOGO qui fixent les leurs directement sur
+   leur <svg>) se retrouvait à width:0 dans ce bouton, invisible.
+   Même correctif que .icon-btn svg/.qa svg ailleurs dans ce fichier :
+   une taille explicite pour toute icône générée par svg() à cet
+   endroit précis. */
+.btn-oauth svg{width:18px;height:18px;flex:0 0 auto}
+.btn-google{background:var(--bg);color:var(--ink);border:1.5px solid var(--line);box-shadow:var(--shadow-1)}
 .btn-google:hover{border-color:var(--ink-4);box-shadow:var(--shadow-2);transform:translateY(-2px)}
-.gate-pts{margin-top:var(--space-lg);text-align:left;display:grid;gap:var(--space-xs)}
-.gate-pt{display:flex;gap:12px;padding:14px 16px;border-radius:var(--r-m);background:var(--bg-2)}
-.gate-i{width:26px;height:26px;border-radius:50%;background:var(--bg-3);color:var(--ink-2);
-  display:flex;align-items:center;justify-content:center;flex:0 0 auto}
-.gate-i svg{width:14px;height:14px}
-.gate-pt b{display:block;font-size:14.5px;font-weight:650;letter-spacing:-.02em}
-.gate-pt span span{display:block;font-size:13px;color:var(--ink-3);margin-top:3px;line-height:1.45}
+.btn-apple{background:#000;color:#fff;margin-top:10px}
+.btn-apple:hover{background:#1a1a1a;transform:translateY(-2px)}
+.btn-email{background:var(--bg-2);color:var(--ink);margin-top:10px}
+.btn-email:hover{background:var(--bg-3);transform:translateY(-2px)}
+/* Lien texte (formulaire e-mail) — n'existait nulle part dans ce
+   fichier avant cette passe (vérifié), jamais qu'un <button class="btn
+   ..."> plein pour une action secondaire de type "retour"/"mot de passe
+   oublié" ici. */
+.linklike{color:var(--ink-3);font-size:13px;font-weight:600;text-decoration:underline;
+  text-underline-offset:2px}
+.linklike:hover{color:var(--ink)}
+.notice-ok{background:var(--up-soft)}
+.notice-ok b{color:var(--up)}
+/* Remplace .gate-pts (liste verticale de 3 lignes pleine largeur) par
+   une grille compacte à 3 colonnes — même esprit que .nova-hub-card
+   (verre dépoli, icône teintée, titre + accroche courte), cohérence
+   avec le reste de la passe "Nova" de cette session plutôt qu'un style
+   isolé propre à cette seule page. Sur 320px, 3 colonnes ~90px chacune :
+   les accroches les plus longues passent sur 2 lignes (accepté,
+   jamais coupées ni débordantes — mêmes garanties que nova-hub-card). */
+.gate-cards{margin-top:22px;display:grid;grid-template-columns:repeat(3,1fr);gap:8px;text-align:left}
+.gate-card-i{padding:12px 9px;border-radius:var(--r-m);background:var(--bg-2);min-width:0}
+.gate-card-ic{width:28px;height:28px;border-radius:9px;display:flex;align-items:center;justify-content:center;
+  background:var(--accent-soft);color:var(--accent)}
+.gate-card-ic svg{width:15px;height:15px}
+.gate-card-eyebrow{display:block;margin-top:9px;font-size:9.5px;font-weight:700;letter-spacing:.05em;
+  text-transform:uppercase;color:var(--ink-4)}
+.gate-card-i b{display:block;margin-top:3px;font-size:12px;font-weight:700;letter-spacing:-.01em;line-height:1.28}
+.gate-card-i span{display:block;font-size:10.5px;color:var(--ink-3);margin-top:4px;line-height:1.35}
 .onb{text-align:left}
 .onb-dots{display:flex;gap:6px;justify-content:center;margin-bottom:var(--space-md)}
 .onb-dots span{width:26px;height:4px;border-radius:100px;background:var(--bg-3);transition:background .4s var(--spring)}
@@ -14517,6 +14558,11 @@ const ICON = {
      d'en redessiner une variante quasi identique sans raison. */
   calendar:'<rect x="3.5" y="5" width="17" height="15.5" rx="2.5"/><path d="M3.5 9.8h17M8 3v4M16 3v4"/><circle cx="8.2" cy="14.2" r="1"/><circle cx="12" cy="14.2" r="1"/><circle cx="15.8" cy="14.2" r="1"/>',
   news:'<path d="M4.5 6h12a2 2 0 0 1 2 2v10a1.5 1.5 0 0 1-1.5 1.5H6.5A2 2 0 0 1 4.5 17.5z"/><path d="M18.5 9v8a1.5 1.5 0 0 0 1.5 1.5"/><path d="M8 9.6h6.5M8 12.8h6.5M8 16h4"/>',
+  /* Enveloppe (2026-09-24, bouton "Continuer avec une adresse e-mail") :
+     "book" existait déjà mais ne se lit pas comme un e-mail à cette
+     taille (vérifié en direct) — jamais forcé la réutilisation d'une
+     icône juste pour éviter d'en ajouter une. */
+  mail:'<rect x="3.5" y="5.5" width="17" height="13" rx="2.5"/><path d="M4.5 7.2 12 12.5 19.5 7.2"/>',
   /* NovaBot (2026-09-24, retour utilisateur : "mettre le logo de
      NovaBourse en robot") — remplace le bot générique du premier jet :
      tête TRIANGULAIRE (même silhouette que le fronton du temple/le
@@ -17571,6 +17617,130 @@ async function signIn(){
   });
   if (error) toast('Connexion impossible : ' + error.message);
 }
+/* Apple (2026-09-24, "modernise la page de connexion") — même client
+   sbClient, même méthode signInWithOAuth que Google juste au-dessus,
+   seul le provider change : c'est tout ce que Supabase Auth demande
+   côté code pour un provider OAuth supplémentaire. Ce qui reste HORS de
+   ce fichier (et hors de ce que le code peut garantir) : le provider
+   Apple doit être activé côté tableau de bord Supabase (Authentication
+   → Providers → Apple) avec un Services ID, Team ID, Key ID et une clé
+   privée générés depuis un compte Apple Developer payant, plus l'URL de
+   callback Supabase déclarée dans ce Services ID côté Apple. Tant que
+   ce n'est pas fait, Supabase répond une erreur explicite ("Unsupported
+   provider..."), traduite comme les autres erreurs d'auth ci-dessous —
+   jamais un faux succès. */
+async function signInApple(){
+  if (!sbClient){
+    toast("Connexion indisponible : configuration du serveur incomplète.");
+    return;
+  }
+  const { error } = await sbClient.auth.signInWithOAuth({
+    provider: 'apple',
+    options: { redirectTo: window.location.origin + '/' },
+  });
+  if (error) toast('Connexion impossible : ' + traduireErreurAuth(error.message));
+}
+/* Connexion par e-mail/mot de passe (2026-09-24) — Supabase Auth
+   directement (signInWithPassword/signUp/resetPasswordForEmail), aucune
+   route API maison : c'est exactement pour ça que Supabase Auth a été
+   choisi à l'origine. État du formulaire (mode ouvert, erreur, en
+   cours) gardé en variables de module plutôt que dans `state` : c'est
+   de l'UI éphémère, jamais une donnée applicative à sauvegarder — même
+   principe que templeIntroPlayed/searchIntent ailleurs dans ce fichier. */
+let gateEmailMode = null;      // null (fermé) | 'signin' | 'signup' | 'reset'
+let gateEmailBusy = false;
+let gateEmailNotice = null;    // { kind:'error'|'success', text }
+
+function traduireErreurAuth(msg){
+  const m = (msg || '').toLowerCase();
+  if (m.includes('invalid login credentials')) return 'Adresse e-mail ou mot de passe incorrect.';
+  if (m.includes('already registered') || m.includes('already exists'))
+    return 'Un compte existe déjà avec cette adresse — connectez-vous plutôt.';
+  if (m.includes('password should be at least') || m.includes('password is too short'))
+    return 'Le mot de passe doit contenir au moins 6 caractères.';
+  if (m.includes('rate limit')) return 'Trop de tentatives : réessayez dans quelques minutes.';
+  if (m.includes('email not confirmed'))
+    return "Confirmez d'abord votre adresse e-mail (lien envoyé à l'inscription) avant de vous connecter.";
+  if (m.includes('unable to validate email') || m.includes('invalid email')) return 'Adresse e-mail invalide.';
+  if (m.includes('unsupported provider') || m.includes('provider is not enabled'))
+    return "Cette méthode de connexion n'est pas encore activée côté serveur.";
+  return msg || 'Une erreur est survenue.';
+}
+function openGateEmail(mode){
+  gateEmailMode = mode || 'signin'; gateEmailNotice = null; renderGate();
+  requestAnimationFrame(() => document.getElementById('gateEmail')?.focus());
+}
+function closeGateEmail(){ gateEmailMode = null; gateEmailNotice = null; renderGate(); }
+function toggleGateEmailMode(){
+  gateEmailMode = gateEmailMode === 'signup' ? 'signin' : 'signup';
+  gateEmailNotice = null; renderGate();
+  requestAnimationFrame(() => document.getElementById('gateEmail')?.focus());
+}
+function openGateEmailReset(){
+  gateEmailMode = 'reset'; gateEmailNotice = null; renderGate();
+  requestAnimationFrame(() => document.getElementById('gateEmail')?.focus());
+}
+function readGateEmailFields(){
+  return {
+    email: (document.getElementById('gateEmail')?.value || '').trim(),
+    password: document.getElementById('gatePassword')?.value || '',
+  };
+}
+function submitGateEmail(){
+  if (gateEmailBusy) return;
+  if (gateEmailMode === 'reset') return emailReset();
+  if (gateEmailMode === 'signup') return emailSignUp();
+  return emailSignIn();
+}
+async function emailSignIn(){
+  if (!sbClient){ gateEmailNotice = { kind:'error', text:'Connexion indisponible : configuration du serveur incomplète.' }; renderGate(); return; }
+  const { email, password } = readGateEmailFields();
+  if (!email || !password){ gateEmailNotice = { kind:'error', text:'Adresse e-mail et mot de passe requis.' }; renderGate(); return; }
+  gateEmailBusy = true; gateEmailNotice = null; renderGate();
+  const { error } = await sbClient.auth.signInWithPassword({ email, password });
+  gateEmailBusy = false;
+  if (error){ gateEmailNotice = { kind:'error', text: traduireErreurAuth(error.message) }; renderGate(); return; }
+  /* Pas de renderGate() ici en cas de succès : onAuthStateChange (câblé
+     dans initAuth()) reçoit la nouvelle session et appelle déjà
+     applySession() -> renderGate() — un second appel ici peindrait un
+     état transitoire incohérent entre les deux. */
+}
+async function emailSignUp(){
+  if (!sbClient){ gateEmailNotice = { kind:'error', text:'Connexion indisponible : configuration du serveur incomplète.' }; renderGate(); return; }
+  const { email, password } = readGateEmailFields();
+  if (!email || !password){ gateEmailNotice = { kind:'error', text:'Adresse e-mail et mot de passe requis.' }; renderGate(); return; }
+  if (password.length < 6){ gateEmailNotice = { kind:'error', text:'Le mot de passe doit contenir au moins 6 caractères.' }; renderGate(); return; }
+  gateEmailBusy = true; gateEmailNotice = null; renderGate();
+  const { data, error } = await sbClient.auth.signUp({
+    email, password, options: { emailRedirectTo: window.location.origin + '/' },
+  });
+  gateEmailBusy = false;
+  if (error){ gateEmailNotice = { kind:'error', text: traduireErreurAuth(error.message) }; renderGate(); return; }
+  if (data?.session) return;   // auto-confirmé : onAuthStateChange prend le relais, comme emailSignIn()
+  /* Confirmation par e-mail requise (comportement par défaut de
+     Supabase Auth, aucune session tant que le lien n'est pas cliqué) :
+     le dire honnêtement plutôt que de laisser croire à une connexion
+     immédiate qui n'a pas eu lieu. */
+  gateEmailMode = 'signin';
+  gateEmailNotice = { kind:'success',
+    text:`Compte créé. Vérifiez votre boîte mail (${email}) et cliquez sur le lien de confirmation avant de vous connecter.` };
+  renderGate();
+}
+async function emailReset(){
+  if (!sbClient){ gateEmailNotice = { kind:'error', text:'Connexion indisponible : configuration du serveur incomplète.' }; renderGate(); return; }
+  const { email } = readGateEmailFields();
+  if (!email){ gateEmailNotice = { kind:'error', text:'Indiquez votre adresse e-mail.' }; renderGate(); return; }
+  gateEmailBusy = true; gateEmailNotice = null; renderGate();
+  const { error } = await sbClient.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin + '/' });
+  gateEmailBusy = false;
+  if (error){ gateEmailNotice = { kind:'error', text: traduireErreurAuth(error.message) }; renderGate(); return; }
+  gateEmailMode = 'signin';
+  /* Supabase ne révèle jamais si l'adresse existe réellement (sécurité,
+     évite l'énumération de comptes) — "si un compte existe" reflète
+     honnêtement ce que la réponse garantit, jamais plus. */
+  gateEmailNotice = { kind:'success', text:`E-mail de récupération envoyé à ${email}, si un compte existe avec cette adresse.` };
+  renderGate();
+}
 
 async function startCheckout(plan){
   if (plan === 'free'){ toast("L'offre Découverte est déjà active."); return; }
@@ -17612,6 +17782,13 @@ const GOOGLE_G = `<svg viewBox="0 0 24 24" width="19" height="19" aria-hidden="t
   <path fill="#34A853" d="M12 24c3.1 0 5.7-1 7.6-2.8l-3.7-2.9c-1 .7-2.3 1.1-3.9 1.1-3 0-5.5-2-6.4-4.7H1.8v3C3.7 21.4 7.6 24 12 24z"/>
   <path fill="#FBBC05" d="M5.6 14.7a7.2 7.2 0 0 1 0-4.6v-3H1.8a12 12 0 0 0 0 10.6l3.8-3z"/>
   <path fill="#EA4335" d="M12 4.8c1.7 0 3.2.6 4.4 1.7l3.3-3.3C17.7 1.2 15.1 0 12 0 7.6 0 3.7 2.6 1.8 6.1l3.8 3C6.5 6.7 9 4.8 12 4.8z"/></svg>`;
+/* Glyphe Apple (2026-09-24) : silhouette standard, largement réutilisée
+   telle quelle pour les boutons "Sign in with Apple" à travers le web
+   (viewBox propre 0 0 384 512, comme GOOGLE_G ci-dessus a le sien) —
+   jamais redessinée à la main, aucune raison de réinventer un glyphe
+   aussi standardisé. */
+const APPLE_LOGO = `<svg viewBox="0 0 384 512" width="17" height="17" fill="currentColor" aria-hidden="true">
+  <path d="M318.7 268.7c-.2-36.7 16.4-64.4 50-84.8-18.8-26.9-47.2-41.7-84.7-44.6-35.5-2.8-74.3 20.7-88.5 20.7-15 0-49.4-19.7-76.4-19.7C63.3 141 0 185.2 0 275.3c0 26.7 4.9 54.3 14.7 82.8 13.1 37.3 60.4 128.7 109.8 127.2 25.8-.6 44-18.3 77.6-18.3 32.6 0 49.5 18.3 78.3 18.3 49.8-.7 92.6-83.7 105.1-121.1-66.8-31.5-65.8-92.4-66.8-95.5zM256.4 88.9c27.6-32.6 25.1-62.4 24.3-73.1-24.5 1.4-52.9 16.8-69.1 35.8-17.8 20.2-28.4 45.2-26.1 73.9 26.8 2 51.5-11.3 70.9-36.6z"/></svg>`;
 
 /* Écran neutre pendant la vérification de session : aucune information
    personnelle ne doit jamais apparaître ici. */
@@ -17623,7 +17800,25 @@ function loadingScreen(){
   </div></div>`;
 }
 
+/* Refonte 2026-09-24 ("elle n'est plus à jour avec le produit actuel")
+   — trois changements demandés explicitement :
+   1) Message principal et sous-texte réécrits.
+   2) Les 3 lignes .gate-pt (liste verticale) deviennent .gate-cards
+      (grille compacte 3 colonnes, voir CSS) — même esprit que les
+      cartes Nova de l'accueil/portefeuille/fiche action de cette même
+      session, cohérence plutôt qu'un style isolé propre à cette page.
+   3) Google + Apple + e-mail (voir gateEmailFormHTML ci-dessous) —
+      Apple utilise le même sbClient/la même méthode que Google, prêt
+      côté code ; ce qui reste à faire vit côté tableau de bord
+      Supabase, voir la note sur signInApple() plus haut.
+   Page nettement plus courte qu'avant (§4 du brief : "le bouton de
+   connexion doit apparaître rapidement") : brand-orbit réduit (voir
+   CSS), h1/marges resserrés, plus de "Connexion sécurisée par Google"
+   spécifique à un seul provider. Les 3 cartes ET le texte légal restent
+   présents mais après les boutons, jamais avant — priorité au geste
+   utile. */
 function gateScreen(){
+  const notice = AUTH_ERROR ? { kind:'error', text: AUTH_ERROR } : gateEmailNotice;
   return `<div class="gate">
     <div class="gate-card">
       <span class="brand-orbit" aria-hidden="true">
@@ -17635,28 +17830,63 @@ function gateScreen(){
         </svg>
         <span class="brand-mark">${svg(ICON.brand)}</span>
       </span>
-      <h1 class="display" style="font-size:clamp(30px,5.4vw,44px);margin-top:22px">
-        Trois IA analysent les marchés.<br>Vous décidez.</h1>
-      <p class="lead" style="margin-top:16px">
-        Des données vérifiées, un score expliqué, jamais un conseil déguisé. Créez votre compte
-        pour retrouver vos analyses et votre portefeuille sur tous vos appareils.</p>
+      <h1 class="display" style="font-size:clamp(26px,4.6vw,36px);margin-top:14px">
+        Comprenez les marchés.<br>Décidez mieux.</h1>
+      <p class="lead" style="margin-top:10px">
+        Analysez les marchés, suivez vos investissements et comprenez ce qui compte vraiment
+        grâce aux données et à Nova.</p>
 
-      ${AUTH_ERROR ? `<div class="notice" style="margin-top:20px;text-align:left">
-        <b>La connexion n'a pas abouti.</b><br>${esc(AUTH_ERROR)}</div>` : ''}
-      <button class="btn btn-google" data-signin>${GOOGLE_G} Continuer avec Google</button>
-      <p class="tiny" style="margin-top:14px">Connexion sécurisée par Google.</p>
+      ${notice ? `<div class="notice ${notice.kind==='success'?'notice-ok':''}" style="margin-top:18px;text-align:left">
+        <b>${notice.kind==='success' ? "C'est fait." : "La connexion n'a pas abouti."}</b><br>${esc(notice.text)}</div>` : ''}
 
-      <div class="gate-pts">
-        ${[['Analyse croisée','Trois modèles d\'IA confrontent leur lecture de chaque entreprise.'],
-           ['Nova Score transparent','Huit critères réels, chacun expliqué et pondéré — jamais une boîte noire.'],
-           ['Portefeuille sans risque','Entraînez-vous avec de l\'argent fictif avant d\'investir pour de vrai.']]
-          .map(([t2,d])=>`<div class="gate-pt">
-            <span class="gate-i">${svg(ICON.check,2.6)}</span>
-            <span><b>${t2}</b><span>${d}</span></span></div>`).join('')}
+      ${gateEmailMode ? gateEmailFormHTML() : `
+      <div style="margin-top:${notice?'14px':'20px'}">
+        <button class="btn btn-oauth btn-google" data-signin>${GOOGLE_G} Continuer avec Google</button>
+        <button class="btn btn-oauth btn-apple" data-signin-apple>${APPLE_LOGO} Continuer avec Apple</button>
+        <button class="btn btn-oauth btn-email" data-gate-email-open="signin">${svg(ICON.mail,2)} Continuer avec une adresse e-mail</button>
       </div>
+      <p class="tiny" style="margin-top:12px">Connexion sécurisée.</p>
 
-      <p class="tiny" style="margin-top:26px">En continuant, vous acceptez nos conditions. NovaBourse ne donne aucun conseil personnalisé.</p>
+      <div class="gate-cards">
+        ${[[ICON.spark,'ANALYSER','Analysez autrement','Données, Nova Score et analyses croisées pour mieux comprendre chaque entreprise.'],
+           [ICON.radar,'SUIVRE','Tout ce qui compte, au même endroit','Marchés, portefeuille, Radar et Nova News réunis dans une seule expérience.'],
+           [ICON.rook,'PROGRESSER','Apprenez de vos décisions','Nova Review vous aide à comprendre vos décisions et à suivre votre progression.']]
+          .map(([ic,eyebrow,t2,d])=>`<div class="gate-card-i">
+            <span class="gate-card-ic">${svg(ic,1.9)}</span>
+            <span class="gate-card-eyebrow">${eyebrow}</span>
+            <b>${t2}</b><span>${d}</span></div>`).join('')}
+      </div>`}
+
+      <p class="tiny" style="margin-top:24px">En continuant, vous acceptez nos conditions. NovaBourse ne donne aucun conseil personnalisé.</p>
     </div>
+  </div>`;
+}
+/* Formulaire e-mail (2026-09-24) — un seul balisage pour les 3 modes
+   (connexion/création/récupération), voir gateEmailMode et les
+   fonctions emailSignIn/emailSignUp/emailReset plus haut. `.field` :
+   même classe que tous les autres champs texte de l'app (recherche,
+   alertes...), jamais un style de champ propre à cette page. */
+function gateEmailFormHTML(){
+  const title = gateEmailMode === 'signup' ? 'Créer un compte'
+    : gateEmailMode === 'reset' ? 'Récupérer mon compte' : 'Se connecter';
+  const cta = gateEmailBusy ? 'Un instant…'
+    : gateEmailMode === 'signup' ? 'Créer mon compte'
+    : gateEmailMode === 'reset' ? 'Envoyer le lien' : 'Se connecter';
+  return `<div style="margin-top:20px;text-align:left">
+    <p class="h3">${title}</p>
+    <input class="field" id="gateEmail" type="email" autocomplete="email" placeholder="Adresse e-mail" style="margin-top:12px">
+    ${gateEmailMode !== 'reset' ? `<input class="field" id="gatePassword" type="password"
+      autocomplete="${gateEmailMode === 'signup' ? 'new-password' : 'current-password'}"
+      placeholder="Mot de passe" style="margin-top:10px">` : ''}
+    <button class="btn btn-a" style="width:100%;margin-top:14px;min-height:52px" data-gate-email-submit
+      ${gateEmailBusy ? 'disabled aria-disabled="true"' : ''}>${cta}</button>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-top:14px">
+      <button class="linklike" data-gate-email-close>← Retour</button>
+      ${gateEmailMode !== 'reset' ? `<button class="linklike" data-gate-email-toggle>
+        ${gateEmailMode === 'signup' ? 'Déjà un compte ?' : 'Créer un compte'}</button>` : ''}
+    </div>
+    ${gateEmailMode === 'signin' ? `<button class="linklike" data-gate-email-reset
+      style="display:block;margin:10px auto 0">Mot de passe oublié ?</button>` : ''}
   </div>`;
 }
 
@@ -18510,6 +18740,12 @@ document.addEventListener('click', e => {
   }
 
   if (q('[data-signin]')){ signIn(); return; }
+  if (q('[data-signin-apple]')){ signInApple(); return; }
+  const gateOpen = q('[data-gate-email-open]'); if (gateOpen){ openGateEmail(gateOpen.dataset.gateEmailOpen); return; }
+  if (q('[data-gate-email-close]')){ closeGateEmail(); return; }
+  if (q('[data-gate-email-toggle]')){ toggleGateEmailMode(); return; }
+  if (q('[data-gate-email-reset]')){ openGateEmailReset(); return; }
+  if (q('[data-gate-email-submit]')){ submitGateEmail(); return; }
   if (q('[data-signout]')){ signOut(); toast('Vous êtes déconnecté'); return; }
   const lvl = q('[data-level]');
   if (lvl){
@@ -19108,6 +19344,12 @@ document.addEventListener('keydown', e => {
   if (e.key === 'Escape') closeSheet();
   if (e.key === '/' && !/input|textarea|select/i.test(document.activeElement.tagName)){
     e.preventDefault(); openSearch();
+  }
+  /* Entrée valide le formulaire e-mail de connexion (2026-09-24) —
+     ids propres au formulaire (voir gateEmailFormHTML), jamais un
+     comportement Entrée générique sur tout input de l'app. */
+  if (e.key === 'Enter' && ['gateEmail','gatePassword'].includes(document.activeElement?.id)){
+    e.preventDefault(); submitGateEmail();
   }
   if (e.key === 'Tab'){
     const bg = document.getElementById('sheetBg');
