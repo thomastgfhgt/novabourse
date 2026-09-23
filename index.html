@@ -17,22 +17,27 @@
   <script src="https://unpkg.com/lightweight-charts@5.2.1/dist/lightweight-charts.standalone.production.js"></script><style>
 :root{
   color-scheme:light;
-  /* Palette officielle NovaBourse (2026-09-21) : noir/blanc structurent,
-     orange/bleu/vert créent l'identité — remplace l'ancien accent bleu
-     unique. Échelles à 6 crans (50/100/300/500/700/900) plutôt que 10 :
-     l'app n'utilise jamais plus de 3-4 variantes sémantiques par couleur
-     (fond doux/base/survol/appui), une échelle plus fine serait un
-     abstraction non utilisée nulle part dans ce fichier. */
-  /* Mise à jour (2026-09-22) : valeurs hexadécimales exactes fournies
-     (orange Hermès #E67E22/#F39C12, bleu électrique #00D4FF) — remplace
-     les teintes approchées choisies précédemment. --orange-light est le
-     second point du dégradé animé (135deg, 4s), distinct de orange-300
-     (qui reste le palier "doux" de l'échelle, pas la même fonction). */
-  --orange-50:#fdf0e4;  --orange-100:#fbdfc0; --orange-300:#f0ad66;
-  --orange-500:#e67e22; --orange-700:#b8621a; --orange-900:#6e3b0f;
-  --orange-light:#f39c12;
-  --blue-50:#e0fbff;  --blue-100:#b3f5ff; --blue-300:#4de3ff;
-  --blue-500:#00d4ff; --blue-700:#00a3c7; --blue-900:#005566;
+  /* Palette officielle NovaBourse v2 (2026-09-23, retour utilisateur :
+     "remplace le orange et le bleu par rose noir blanc gris et violet
+     pour l'intégralité du site, vraiment tout") — remplace la précédente
+     identité orange/bleu/vert (2026-09-21/22). Rose devient l'accent
+     PRIMAIRE (rôle exact de l'ancien orange : --accent), violet l'accent
+     SECONDAIRE (rôle exact de l'ancien bleu électrique : --blue-accent,
+     nom de variable et des classes .btn-blue/.btn-blue-outline conservés
+     tels quels — seul renommer risquait de casser des usages dispersés
+     dans tout le fichier pour un gain cosmétique seul ; c'est la VALEUR
+     qui compte ici, plus la couleur "bleu" du nom). Vert/rouge (hausse/
+     baisse) et l'ambre d'avertissement ne sont PAS concernés : ce sont
+     des couleurs sémantiques universelles en finance (gain/perte/alerte),
+     jamais une couleur de marque décorative — les changer n'a pas été
+     demandé et casserait une convention que l'utilisateur attend
+     probablement ailleurs dans l'app. Échelles à 6 crans (50/100/300/
+     500/700/900) conservées telles quelles, seules les valeurs changent. */
+  --pink-50:#fdf2f8;  --pink-100:#fce7f3; --pink-300:#f9a8d4;
+  --pink-500:#ec4899; --pink-700:#be185d; --pink-900:#831843;
+  --pink-light:#f472b6;
+  --violet-50:#f5f3ff;  --violet-100:#ede9fe; --violet-300:#c4b5fd;
+  --violet-500:#8b5cf6; --violet-700:#6d28d9; --violet-900:#4c1d95;
   --green-50:#e7fbf4;  --green-100:#c3f5e3; --green-300:#6ee7b7;
   --green-500:#10b981; --green-700:#0d9268; --green-900:#065f46;
   --bg:#ffffff;
@@ -43,14 +48,15 @@
   --ink-2:#3d4453;
   --ink-3:#6b7385;
   --ink-4:#9aa1b1;
-  --accent:var(--orange-500);
-  --accent-hover:var(--orange-700);
-  --accent-press:#8f4c14;
-  --accent-soft:var(--orange-50);
+  --accent:var(--pink-500);
+  --accent-hover:var(--pink-700);
+  --accent-press:#a3175f;
+  --accent-soft:var(--pink-50);
   --accent-ink:#ffffff;
-  /* Bleu électrique réservé aux boutons SECONDAIRES uniquement (jamais
-     un accent général concurrent de l'orange) — voir .btn-blue plus bas. */
-  --blue-accent:var(--blue-500); --blue-accent-soft:var(--blue-50);
+  /* Violet réservé aux boutons SECONDAIRES uniquement (jamais un accent
+     général concurrent du rose) — voir .btn-blue plus bas (nom conservé,
+     couleur désormais violette — voir note de palette ci-dessus). */
+  --blue-accent:var(--violet-500); --blue-accent-soft:var(--violet-50);
   --up:var(--green-500);   --up-soft:var(--green-50);
   --down:#ef4444; --down-soft:#fef0ef;
   --warn:#b45309; --warn-soft:#fdf4e7;
@@ -60,7 +66,7 @@
   --shadow-1:none;
   --shadow-2:0 1px 2px rgba(13,17,23,.04), 0 8px 24px rgba(13,17,23,.05);
   --shadow-3:0 2px 6px rgba(13,17,23,.06), 0 24px 48px rgba(13,17,23,.08);
-  --shadow-accent:0 8px 24px rgba(230,126,34,.24);
+  --shadow-accent:0 8px 24px rgba(236,72,153,.24);
   --space-2:8px;  --space-3:12px; --space-4:16px; --space-5:24px;
   --space-6:32px; --space-7:48px; --space-8:64px; --space-9:96px;
   --sp-1:8px; --sp-2:16px; --sp-3:24px; --sp-4:32px; --sp-5:48px; --sp-6:80px;
@@ -110,26 +116,32 @@
 }
 [data-theme="dark"]{
   color-scheme:dark;
-  /* Échelle noire officielle (mise à jour 2026-09-22, valeurs exactes
-     fournies) : #0A0E27 (noir profond, fond) -> #1A3050 (dégradé,
-     surface la plus élevée) — remplace l'échelle neutre précédente. */
-  --bg:#0a0e27; --bg-2:#111830; --bg-3:#182140; --bg-4:#1a3050;
+  /* Échelle noire v2 (2026-09-23, même passe "rose/noir/blanc/gris/
+     violet partout" que la palette claire ci-dessus) : les crans
+     #0A0E27 -> #1A3050 précédents avaient une dominante BLEU nuit
+     (justement ce qui devait disparaître) — remplacés par un noir
+     légèrement teinté violet plutôt qu'un gris neutre plat, pour garder
+     une vraie personnalité de marque en sombre (même logique que la
+     dominante bleue qu'ils remplacent, simplement reteintée). --line/
+     --line-2 (bordures) alignées pour la même raison, elles avaient la
+     même dominante bleu nuit. */
+  --bg:#0d0b14; --bg-2:#141119; --bg-3:#1c1824; --bg-4:#26202f;
   --ink:#f3f4f6; --ink-2:#d1d5db; --ink-3:#9ca3af; --ink-4:#6b7280;
-  /* Orange Hermès — MÊME teinte que le thème clair ("Primary = Orange
-     toujours", palette imposée) : contrairement à l'ancien choix d'un
-     orange éclairci pour le mode sombre, #E67E22 reste assez saturé
-     pour rester lisible sur #0A0E27 sans le diluer. */
-  --accent:var(--orange-500); --accent-hover:var(--orange-light); --accent-press:#c96a1a;
-  --accent-soft:#2a1c0c; --accent-ink:#ffffff;
-  /* Bleu électrique réservé aux boutons secondaires (même règle qu'en
-     thème clair) — jamais un accent général. */
-  --blue-accent:var(--blue-500); --blue-accent-soft:#0a2733;
+  /* Rose — MÊME teinte que le thème clair ("Primary = Rose toujours",
+     palette imposée) : #EC4899 reste assez saturé pour rester lisible
+     sur #0D0B14 sans le diluer (même raisonnement que l'orange qu'il
+     remplace). */
+  --accent:var(--pink-500); --accent-hover:var(--pink-light); --accent-press:#c9186d;
+  --accent-soft:#2a1420; --accent-ink:#ffffff;
+  /* Violet réservé aux boutons secondaires (même règle qu'en thème
+     clair) — jamais un accent général. */
+  --blue-accent:var(--violet-500); --blue-accent-soft:#1c1530;
   --up:#34d399; --up-soft:#0c2419; --down:#f87171; --down-soft:#2a1416;
   --warn:#e0a63a; --warn-soft:#2a2110;
-  --line:#25304a; --line-2:#1a2338;
+  --line:#2a2433; --line-2:#1e1a26;
   --shadow-2:0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.35);
   --shadow-3:0 2px 6px rgba(0,0,0,.45), 0 24px 48px rgba(0,0,0,.45);
-  --shadow-accent:0 8px 24px rgba(230,126,34,.3);
+  --shadow-accent:0 8px 24px rgba(236,72,153,.3);
 }
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 /* overflow-x:hidden ajouté ici le 2026-09-23 (bug réel trouvé en testant
@@ -187,22 +199,24 @@ body{
   filter:blur(110px);opacity:.32;
   animation:auroraDrift 26s ease-in-out infinite, auroraHue 60s linear infinite;
   will-change:transform}
-/* Couleurs en variables (mise à jour 2026-09-22 : "Primary = Orange
-   toujours", bleu électrique réservé aux boutons secondaires — plus un
-   accent général comme avant). Le bleu est donc retiré du fond
-   ambiant par défaut : orange (2 tons) domine, le vert reste en
-   touche discrète (déjà une couleur fonctionnelle "hausse", pas
-   seulement décorative). Toujours personnalisable par section via
-   body[data-bg=...] (paintNav()/render()). */
+/* Couleurs en variables (mise à jour 2026-09-23 : "Primary = Rose
+   toujours", violet réservé aux boutons secondaires — plus un accent
+   général comme avant ; recoloré depuis orange/bleu, voir note de
+   palette tout en haut du fichier). Le violet est donc retiré du fond
+   ambiant par défaut, comme le bleu l'était déjà : rose (2 tons)
+   domine, le vert reste en touche discrète (déjà une couleur
+   fonctionnelle "hausse", pas seulement décorative — non concerné par
+   ce changement, voir même note). Toujours personnalisable par section
+   via body[data-bg=...] (paintNav()/render()). */
 .aurora-bg::before{width:55vw;height:55vw;top:-18vw;left:-12vw;
-  background:radial-gradient(circle,var(--aurora-1,#e67e22) 0%,var(--aurora-1b,#f39c12) 45%,transparent 72%)}
+  background:radial-gradient(circle,var(--aurora-1,#ec4899) 0%,var(--aurora-1b,#f472b6) 45%,transparent 72%)}
 .aurora-bg::after{width:50vw;height:50vw;bottom:-22vw;right:-14vw;animation-delay:-13s;
-  background:radial-gradient(circle,var(--aurora-2,#b8621a) 0%,var(--aurora-2b,#e67e22) 40%,transparent 72%)}
+  background:radial-gradient(circle,var(--aurora-2,#be185d) 0%,var(--aurora-2b,#ec4899) 40%,transparent 72%)}
 .aurora-bg .aurora-3{width:38vw;height:38vw;top:38vh;left:32vw;animation-delay:-8s;
   animation-duration:32s;opacity:.24;
   background:radial-gradient(circle,var(--aurora-3,#10b981) 0%,var(--aurora-3b,#6ee7b7) 45%,transparent 72%)}
-body[data-bg="portfolio"]{--aurora-1:#10b981;--aurora-1b:#6ee7b7;--aurora-2:#e67e22;--aurora-2b:#f39c12;
-  --aurora-3:#b8621a;--aurora-3b:#e67e22}
+body[data-bg="portfolio"]{--aurora-1:#10b981;--aurora-1b:#6ee7b7;--aurora-2:#ec4899;--aurora-2b:#f472b6;
+  --aurora-3:#be185d;--aurora-3b:#ec4899}
 body[data-bg="account"]{--aurora-1:#8d95a4;--aurora-1b:#aeb4c0;--aurora-2:#646c7c;--aurora-2b:#9aa1b1;
   --aurora-3:#8d95a4;--aurora-3b:#aeb4c0}
 @keyframes auroraDrift{
@@ -420,9 +434,10 @@ button:active{transform:scale(.97)}
 .btn:active{transform:scale(.985)}
 .btn:disabled,.btn[aria-disabled="true"]{opacity:.45;pointer-events:none}
 .btn svg{width:17px;height:17px}
-/* Dégradé orange animé (2026-09-22, spec exacte fournie) : reproduit
-   tel quel sur le bouton primaire — celui qui doit porter la
-   personnalité de la marque, comme demandé ("Primary = Orange
+/* Dégradé rose animé (2026-09-22, spec exacte fournie ; recoloré
+   2026-09-23 orange -> rose, voir note de palette tout en haut) :
+   reproduit tel quel sur le bouton primaire — celui qui doit porter la
+   personnalité de la marque, comme demandé ("Primary = Rose
    toujours"). background-size:200% 200% est nécessaire pour que
    l'animation de background-position soit réellement visible (un
    dégradé qui correspond exactement aux dimensions du bouton n'a nulle
@@ -430,7 +445,7 @@ button:active{transform:scale(.97)}
    toutes les animations infinies de ce fichier (la leçon du fond
    aurora, plus haut, documente pourquoi une durée quasi nulle plutôt
    qu'un arrêt franc a déjà causé un vrai bug cette session). */
-.btn-a{background:linear-gradient(135deg,var(--accent) 0%,var(--orange-light,var(--accent-hover)) 100%);
+.btn-a{background:linear-gradient(135deg,var(--accent) 0%,var(--pink-light,var(--accent-hover)) 100%);
   background-size:200% 200%;animation:gradientShift 4s ease-in-out infinite;
   color:var(--accent-ink);box-shadow:var(--shadow-accent)}
 @keyframes gradientShift{
@@ -443,13 +458,17 @@ button:active{transform:scale(.97)}
 .btn-a:active{background:var(--accent-press)}
 .btn-s{background:var(--bg-2);color:var(--ink)}
 .btn-s:hover{background:var(--bg-3)}
-/* Bouton secondaire bleu électrique (2026-09-22, composant demandé par
-   le brief) — jamais utilisé comme accent général : réservé à une
-   action secondaire précise qui mérite de se distinguer sans rivaliser
-   avec l'orange primaire. Appliqué à "Vendre" sur la fiche action (voir
+/* Bouton secondaire violet (2026-09-22, composant demandé par le brief ;
+   recoloré 2026-09-23 bleu -> violet, voir note de palette tout en
+   haut) — jamais utilisé comme accent général : réservé à une action
+   secondaire précise qui mérite de se distinguer sans rivaliser avec le
+   rose primaire. Appliqué à "Vendre" sur la fiche action (voir
    PAGES.stock) : une vraie seconde action, pas juste "moins importante
-   qu'Acheter" — le bleu porte ce sens mieux qu'un simple gris. */
-.btn-blue{background:var(--blue-accent);color:#04202b}
+   qu'Acheter" — le violet porte ce sens mieux qu'un simple gris.
+   color:#fff (au lieu du bleu marine #04202b d'origine, pensé pour
+   contraster avec l'ancien cyan #00D4FF) : le violet est plus foncé
+   à luminosité égale, un texte marine s'y lirait mal. */
+.btn-blue{background:var(--blue-accent);color:#fff}
 .btn-blue:hover{filter:brightness(1.1)}
 .btn-blue-outline{background:transparent;color:var(--blue-accent);
   box-shadow:inset 0 0 0 1.5px var(--blue-accent)}
@@ -475,7 +494,7 @@ button:active{transform:scale(.97)}
 .card{background-color:rgba(255,255,255,.6);backdrop-filter:blur(24px) saturate(160%);
   -webkit-backdrop-filter:blur(24px) saturate(160%);border:1px solid rgba(255,255,255,.8);
   border-radius:var(--r-l);padding:var(--card-pad);
-  box-shadow:0 1px 2px rgba(13,17,23,.05),0 16px 40px rgba(230,126,34,.10)}
+  box-shadow:0 1px 2px rgba(13,17,23,.05),0 16px 40px rgba(236,72,153,.10)}
 [data-theme="dark"] .card{background-color:rgba(22,26,33,.6);border-color:rgba(255,255,255,.08);
   box-shadow:0 1px 2px rgba(0,0,0,.3),0 16px 40px rgba(0,0,0,.4)}
 .card-flat{background:var(--bg-2);border-radius:var(--r-l);padding:var(--card-pad)}
@@ -824,19 +843,28 @@ button:active{transform:scale(.97)}
    ============================================================
    Remplace l'ancien .nb-hero/.nb-top/.nb-split/.nb-pf (grille
    texte+cartes ajoutée le 2026-09-22 pour combler le vide desktop —
-   devenue obsolète : la nouvelle hero a son propre fond navy et sa
-   propre largeur bornée, plus besoin de ce mécanisme). Palette dédiée,
+   devenue obsolète : la nouvelle hero a son propre fond et sa propre
+   largeur bornée, plus besoin de ce mécanisme). Palette dédiée,
    indépendante du thème clair/sombre de l'app — même principe déjà
-   établi pour .dock (bottom nav) : cette section garde son bleu nuit
+   établi pour .dock (bottom nav) : cette section garde son fond nuit
    même en thème clair, elle ne suit pas --bg/--accent (qui restent
-   orange/clair-sombre partout ailleurs dans l'app, inchangés). Couleurs
-   fournies telles quelles (#070B1D, #075BFF...) plutôt que dérivées des
-   tokens existants — un one-off assumé, comme le dock. */
+   rose/clair-sombre partout ailleurs dans l'app, inchangés).
+   RECOLORÉ (2026-09-23, retour utilisateur : "remets le fond original
+   derrière le temple" + "remplace le orange et le bleu... vraiment
+   tout") : les couleurs fournies à l'origine (#070B1D, #075BFF...)
+   étaient un bleu nuit — exactement la teinte à faire disparaître.
+   Plutôt que de rendre la section transparente (le texte blanc/les
+   dégradés de cette hero ne fonctionnent qu'sur un fond sombre, quel
+   que soit le thème de l'app — un fond clair casserait totalement la
+   lisibilité), le principe "toujours sombre, one-off" d'origine est
+   conservé tel quel — c'est ÇA le fond "original" à restaurer, pas une
+   teinte bleue particulière — simplement reteint en noir/violet nuit
+   pour rejoindre la nouvelle palette plutôt que de garder du bleu. */
 .nb-hero-v2{
   margin:calc(var(--sp-3) * -1) -18px 0;padding:14px 18px 28px;
   background:
-    radial-gradient(circle at 50% 18%, rgba(20,60,130,.16), transparent 62%),
-    linear-gradient(180deg,#090F25 0%,#070B1D 55%,#0B122A 100%);
+    radial-gradient(circle at 50% 18%, rgba(139,92,246,.14), transparent 62%),
+    linear-gradient(180deg,#14101f 0%,#0d0b14 55%,#120e1c 100%);
   position:relative
   /* PAS de overflow:hidden ici (bug réel trouvé le 2026-09-23, passe 2) :
      ça rognait silencieusement le temple, qui vise min(96vw,780px) —
@@ -873,18 +901,20 @@ button:active{transform:scale(.97)}
    quand on le dépasse en descendant"). */
 .nova-temple{display:block;width:min(96vw,780px);height:auto;overflow:visible;flex-shrink:0;
   opacity:calc(.55 * var(--temple-fade,1));
-  filter:drop-shadow(0 0 3px rgba(255,255,255,.20)) drop-shadow(0 0 11px rgba(71,119,255,.08))}
-/* Trait légèrement bleuté (2026-09-23, retour utilisateur : "un peu
-   bleuté") — #d6e4ff plutôt que #ffffff blanc pur, un bleu très clair
+  filter:drop-shadow(0 0 3px rgba(255,255,255,.20)) drop-shadow(0 0 11px rgba(139,92,246,.08))}
+/* Trait légèrement violeté (2026-09-23, retour utilisateur initial : "un
+   peu bleuté" — reteint la même passe en violet le même jour, retour
+   utilisateur suivant : "remplace le bleu par... du violet... vraiment
+   tout") — #e4d9ff plutôt que #ffffff blanc pur, un violet très clair
    qui reste lisible comme "blanc" à distance mais prend clairement une
-   teinte bleue de près, cohérent avec le glow bleu déjà présent dans
-   le filter ci-dessus. */
-.temple-line{fill:none;stroke:#d6e4ff;stroke-linecap:round;stroke-linejoin:round;
+   teinte violette de près, cohérent avec le glow violet désormais
+   présent dans le filter ci-dessus (auparavant bleu). */
+.temple-line{fill:none;stroke:#e4d9ff;stroke-linecap:round;stroke-linejoin:round;
   vector-effect:non-scaling-stroke}
 .temple-main{stroke-width:7}
 .temple-secondary{stroke-width:4.5}
 .temple-flute{stroke-width:2.5;opacity:.90}
-.nova-temple-brand{fill:#d6e4ff}
+.nova-temple-brand{fill:#e4d9ff}
 @media (max-width:600px){ .nova-temple{width:98vw;max-width:none} }
 /* Animations (2026-09-23, "un maximum d'animation autour de cette
    architecture romaine") — quatre effets combinés, chacun sur une
@@ -916,8 +946,8 @@ button:active{transform:scale(.97)}
 @keyframes templeScaleIn{ from{transform:scale(.96)} to{transform:scale(1)} }
 @keyframes templePartIn{ from{opacity:0} to{opacity:1} }
 @keyframes templeGlowPulse{
-  0%,100%{ filter:drop-shadow(0 0 3px rgba(255,255,255,.20)) drop-shadow(0 0 11px rgba(71,119,255,.08)) }
-  50%{ filter:drop-shadow(0 0 7px rgba(255,255,255,.32)) drop-shadow(0 0 20px rgba(71,119,255,.20)) }
+  0%,100%{ filter:drop-shadow(0 0 3px rgba(255,255,255,.20)) drop-shadow(0 0 11px rgba(139,92,246,.08)) }
+  50%{ filter:drop-shadow(0 0 7px rgba(255,255,255,.32)) drop-shadow(0 0 20px rgba(139,92,246,.20)) }
 }
 .nova-temple{
   animation:templeScaleIn .9s cubic-bezier(.22,1,.36,1) both,
@@ -928,17 +958,18 @@ button:active{transform:scale(.97)}
    décoratif, jamais nécessaire pour comprendre/utiliser la page. */
 @media (hover:hover){
   .nova-temple-section:hover .nova-temple{
-    filter:drop-shadow(0 0 6px rgba(255,255,255,.30)) drop-shadow(0 0 18px rgba(71,119,255,.18));
+    filter:drop-shadow(0 0 6px rgba(255,255,255,.30)) drop-shadow(0 0 18px rgba(139,92,246,.18));
     transition:filter .3s ease-out}
 }
 @media (prefers-reduced-motion:reduce){
   .nova-temple{animation:none}
   .temple-part{opacity:1;animation:none}
 }
-/* 4 raccourcis — verre dépoli bleu électrique transparent (brief §3/§4),
-   remplace le fond quasi-opaque rgba(20,29,58,.72) de la passe
-   précédente : le fond bleu nuit de .nb-hero-v2 doit rester visible à
-   travers la bulle. Grille à 4 colonnes strictement égales, jamais de
+/* 4 raccourcis — verre dépoli violet transparent (brief §3/§4, teinte
+   bleu électrique d'origine ; recoloré 2026-09-23 en violet, voir note
+   de palette tout en haut), remplace le fond quasi-opaque
+   rgba(20,29,58,.72) de la passe précédente : le fond de .nb-hero-v2
+   doit rester visible à travers la bulle. Grille à 4 colonnes strictement égales, jamais de
    passage en 2×2 (inchangé). .nova-action-title n'a volontairement
    PAS de white-space:nowrap : la passe précédente avait ce bug exact
    ("Analyser avec l'IA"/"Ajouter au portefeuille" débordant sur leurs
@@ -963,24 +994,24 @@ button:active{transform:scale(.97)}
    le cercle autour d'une icône inchangée. */
 .nova-action-circle{width:70px;height:70px;flex-shrink:0;border-radius:50%;
   display:flex;align-items:center;justify-content:center;
-  background:radial-gradient(circle at 50% 35%,rgba(71,119,255,.18),rgba(11,99,255,.08) 55%,rgba(11,99,255,.04) 100%);
-  border:1px solid rgba(71,119,255,.42);
+  background:radial-gradient(circle at 50% 35%,rgba(139,92,246,.18),rgba(109,40,217,.08) 55%,rgba(109,40,217,.04) 100%);
+  border:1px solid rgba(139,92,246,.42);
   backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
-  box-shadow:inset 0 0 20px rgba(71,119,255,.07),0 0 18px rgba(11,99,255,.06);
+  box-shadow:inset 0 0 20px rgba(139,92,246,.07),0 0 18px rgba(109,40,217,.06);
   transition:transform .18s ease,background .18s ease,border-color .18s ease,box-shadow .18s ease}
-.nova-action-circle svg{width:29px;height:29px;fill:none;stroke:#4777FF;
+.nova-action-circle svg{width:29px;height:29px;fill:none;stroke:#a78bfa;
   stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 .nova-action-title{display:block;margin-top:10px;color:#fff;font-size:14px;font-weight:700;
   line-height:1.15;letter-spacing:-.01em}
 .nova-action-description{display:block;max-width:180px;margin-top:7px;
-  color:rgba(225,230,245,.62);font-size:12px;font-weight:400;line-height:1.32}
+  color:rgba(232,225,245,.62);font-size:12px;font-weight:400;line-height:1.32}
 @media (hover:hover){
   .nova-quick-action:hover .nova-action-circle{transform:translateY(-2px);
-    border-color:rgba(71,119,255,.72);background:rgba(11,99,255,.16);
-    box-shadow:inset 0 0 24px rgba(71,119,255,.10),0 7px 26px rgba(11,99,255,.13)}
+    border-color:rgba(139,92,246,.72);background:rgba(109,40,217,.16);
+    box-shadow:inset 0 0 24px rgba(139,92,246,.10),0 7px 26px rgba(109,40,217,.13)}
 }
 .nova-quick-action:active .nova-action-circle{transform:scale(.96)}
-.nova-quick-action:focus-visible .nova-action-circle{outline:2px solid #4777FF;outline-offset:4px}
+.nova-quick-action:focus-visible .nova-action-circle{outline:2px solid #a78bfa;outline-offset:4px}
 @media (prefers-reduced-motion:reduce){
   .nova-quick-action:active .nova-action-circle,.nova-quick-action:hover .nova-action-circle{transform:none}
 }
@@ -999,17 +1030,17 @@ button:active{transform:scale(.97)}
 .nb-cta-row{display:flex;gap:10px;margin-top:18px;position:relative;z-index:1}
 .nb-cta-a,.nb-cta-s{flex:1;height:52px;border-radius:9999px;font-size:15px;font-weight:700;
   display:flex;align-items:center;justify-content:center;gap:8px}
-.nb-cta-a{background:linear-gradient(135deg,#075CFF 0%,#126BFF 100%);color:#fff;
-  box-shadow:0 8px 28px rgba(11,99,255,.24)}
+.nb-cta-a{background:linear-gradient(135deg,#7c3aed 0%,#8b5cf6 100%);color:#fff;
+  box-shadow:0 8px 28px rgba(124,58,237,.24)}
 .nb-cta-a:active{transform:scale(.98)}
-.nb-cta-s{background:rgba(10,16,38,.55);border:1px solid rgba(255,255,255,.10);color:#fff}
-.nb-cta-s:active{background:rgba(10,16,38,.75)}
+.nb-cta-s{background:rgba(20,16,31,.55);border:1px solid rgba(255,255,255,.10);color:#fff}
+.nb-cta-s:active{background:rgba(20,16,31,.75)}
 @media (prefers-reduced-motion:reduce){ .nb-cta-a:active,.nb-quick-item:active .nb-quick-bub{transform:none} }
 /* Carte "Mes positions" v2 — hors de .nb-hero-v2 (fond normal de l'app
    en dessous, comme avant), palette propre à cette carte (brief §19). */
-.nb-pf2{background:rgba(12,18,40,.75);border:1px solid rgba(255,255,255,.10);
+.nb-pf2{background:rgba(20,16,31,.75);border:1px solid rgba(255,255,255,.10);
   border-radius:20px;padding:20px;margin-top:20px}
-.nb-pf2-eyebrow{color:#4D8DFF;font-weight:700;font-size:13px}
+.nb-pf2-eyebrow{color:#a78bfa;font-weight:700;font-size:13px}
 .nb-pf2-val{font-size:clamp(30px,7.5vw,38px);font-weight:700;letter-spacing:-.03em;
   color:#fff;line-height:1;margin-top:10px;font-variant-numeric:tabular-nums}
 .nb-pf2-var{font-size:14px;font-weight:600;margin-top:10px}
@@ -1211,8 +1242,8 @@ button:active{transform:scale(.97)}
    alors branché à aucun balisage réel (trouvé mort par cet audit — voir
    plus bas où il est enfin utilisé, pour l'attente "Analyse IA"). */
 .nova-orb i:nth-child(1){background:radial-gradient(circle at 30% 30%,var(--green-300),var(--green-500))}
-.nova-orb i:nth-child(2){background:radial-gradient(circle at 70% 40%,var(--orange-300),var(--orange-500));animation-delay:-1.8s}
-.nova-orb i:nth-child(3){background:radial-gradient(circle at 50% 70%,var(--blue-300),var(--blue-500));animation-delay:-3.6s}
+.nova-orb i:nth-child(2){background:radial-gradient(circle at 70% 40%,var(--pink-300),var(--pink-500));animation-delay:-1.8s}
+.nova-orb i:nth-child(3){background:radial-gradient(circle at 50% 70%,var(--violet-300),var(--violet-500));animation-delay:-3.6s}
 @keyframes orb{
   0%,100%{transform:translate(0,0) scale(.82)}
   33%{transform:translate(7px,-5px) scale(1)}
@@ -17783,7 +17814,7 @@ function applyTheme(){
     : (state.settings.theme === 'dark' ? 'dark' : 'light');
   document.documentElement.setAttribute('data-theme', wanted);
   document.querySelector('meta[name="theme-color"]')
-    ?.setAttribute('content', wanted === 'dark' ? '#0c0e10' : '#ffffff');
+    ?.setAttribute('content', wanted === 'dark' ? '#0d0b14' : '#ffffff');
 }
 
 /* ---------- recherche ----------
