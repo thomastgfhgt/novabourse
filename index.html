@@ -853,13 +853,13 @@ button:active{transform:scale(.97)}
    la largeur du temple sous sa valeur voulue (min(96vw,780px)) pour le
    faire tenir dans son conteneur flex, exactement le comportement par
    défaut de flex-shrink:1 qu'aucune propriété ne neutralisait ici. */
-/* opacity (2026-09-23, retour utilisateur : "que le temple soit
-   transparent") : le dessin lui-même n'a jamais eu de fond (fill:none
-   sur .temple-line), seul le trait blanc plein donnait une impression
-   "opaque" — .82 le rend nettement plus translucide/aérien sans le
-   rendre illisible. */
+/* opacity (2026-09-23, ajustée deux fois le même jour) : d'abord .82,
+   jugé encore trop opaque au retour utilisateur suivant ("transparent
+   comme les 4 boutons") — les bulles elles-mêmes sont très translucides
+   (fond radial-gradient à 4-18% d'opacité). .55 rapproche le temple de
+   ce même niveau de transparence sans le faire disparaître. */
 .nova-temple{display:block;width:min(96vw,780px);height:auto;overflow:visible;flex-shrink:0;
-  opacity:.82;
+  opacity:.55;
   filter:drop-shadow(0 0 3px rgba(255,255,255,.20)) drop-shadow(0 0 11px rgba(71,119,255,.08))}
 .temple-line{fill:none;stroke:#ffffff;stroke-linecap:round;stroke-linejoin:round;
   vector-effect:non-scaling-stroke}
@@ -878,7 +878,12 @@ button:active{transform:scale(.97)}
    voisins), corrigé une première fois sur le dock, puis ici — le
    retour à la ligne naturel aux espaces (comportement par défaut,
    jamais explicitement désactivé cette fois) l'évite d'emblée. */
-.nova-quick-actions{width:min(96%,900px);margin:-4px auto 30px;display:grid;
+/* margin-top -4px -> 10px (2026-09-23, retour utilisateur : "un tout
+   petit peu plus bas") — léger espace supplémentaire entre les marches
+   du temple et la rangée de bulles, sans les détacher visuellement
+   l'un de l'autre (voir §9 des briefs précédents : ils doivent rester
+   un seul ensemble). */
+.nova-quick-actions{width:min(96%,900px);margin:10px auto 30px;display:grid;
   grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;align-items:start;
   position:relative;z-index:1}
 .nova-quick-action{appearance:none;-webkit-appearance:none;border:0;padding:0;margin:0;
@@ -913,7 +918,7 @@ button:active{transform:scale(.97)}
   .nova-quick-action:active .nova-action-circle,.nova-quick-action:hover .nova-action-circle{transform:none}
 }
 @media (max-width:600px){
-  .nova-quick-actions{width:calc(100% - 12px);margin-top:-4px;margin-bottom:26px;
+  .nova-quick-actions{width:calc(100% - 12px);margin-top:8px;margin-bottom:26px;
     grid-template-columns:repeat(4,minmax(0,1fr));gap:3px}
   .nova-action-circle{width:clamp(50px,14.8vw,62px);height:clamp(50px,14.8vw,62px)}
   .nova-action-circle svg{width:clamp(21px,6.1vw,27px);height:clamp(21px,6.1vw,27px)}
