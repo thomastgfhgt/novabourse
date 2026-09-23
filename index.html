@@ -1157,6 +1157,61 @@ button:active{transform:scale(.97)}
   border-radius:14px;background:rgba(16,35,78,.65);color:#fff;font-weight:600;font-size:14.5px;
   text-align:center}
 .nb-pf2-detail:active{background:rgba(16,35,78,.85)}
+/* ============================================================
+   NOVA — architecture visuelle (2026-09-23)
+   ============================================================
+   Grille compacte de l'accueil (NovaBot/Nova Review/Nova Event/Nova
+   News) : 2 colonnes fixes sur mobile, jamais 4 blocs verticaux pleine
+   largeur (refusé explicitement dans le brief) — passe à 4 colonnes
+   dès que l'écran le permet (§15 : "sur desktop, utilise intelligemment
+   l'espace supplémentaire"). Même traitement "verre dépoli" que .card
+   (cohérence visuelle), teinte par carte via --nf-accent/--nf-accent-rgb
+   posés en style inline par novaHubCard() — un seul jeu de règles pour
+   les 4 cartes plutôt que 4 variantes CSS dupliquées. */
+.nova-hub{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-top:16px}
+@media (min-width:640px){ .nova-hub{grid-template-columns:repeat(4,1fr)} }
+.nova-hub-card{display:flex;flex-direction:column;align-items:flex-start;gap:8px;
+  padding:14px;border-radius:var(--r-m);text-align:left;min-width:0;color:inherit;
+  background-color:rgba(255,255,255,.6);backdrop-filter:blur(24px) saturate(160%);
+  -webkit-backdrop-filter:blur(24px) saturate(160%);border:1px solid rgba(255,255,255,.8);
+  transition:transform .25s var(--spring),background-color .25s var(--spring),box-shadow .25s var(--spring)}
+[data-theme="dark"] .nova-hub-card{background-color:rgba(22,26,33,.6);border-color:rgba(255,255,255,.08)}
+.nova-hub-card:hover{transform:translateY(-3px);box-shadow:var(--shadow-2)}
+.nova-hub-card:active{transform:scale(.98)}
+.nova-hub-i{width:36px;height:36px;border-radius:11px;display:flex;align-items:center;justify-content:center;
+  background:rgba(var(--nf-accent-rgb),.16);color:var(--nf-accent);flex:0 0 auto}
+.nova-hub-i svg{width:18px;height:18px}
+.nova-hub-t{font-size:13.5px;font-weight:700;letter-spacing:-.015em;color:var(--ink)}
+.nova-hub-s{font-size:11px;color:var(--ink-3);line-height:1.3;margin-top:-5px}
+@media (prefers-reduced-motion:reduce){ .nova-hub-card{transition:background-color .25s ease} }
+/* Rangée d'accès Nova (Portefeuille, fiche action — voir novaSuiteRow()
+   en JS) : défilement horizontal plutôt que retour à la ligne, jamais
+   de compression/chevauchement quelle que soit la largeur (§15,
+   320-430px). Même logique de teinte par bouton que .nova-hub-card. */
+.nova-suite{display:flex;gap:9px;margin-top:16px;overflow-x:auto;-webkit-overflow-scrolling:touch;
+  scrollbar-width:none;padding-bottom:1px}
+.nova-suite::-webkit-scrollbar{display:none}
+.nova-suite-btn{display:flex;align-items:center;gap:7px;flex:0 0 auto;padding:10px 16px;border-radius:100px;
+  background:rgba(var(--nf-accent-rgb),.12);color:var(--nf-accent);font-size:13.5px;font-weight:650;
+  border:1px solid rgba(var(--nf-accent-rgb),.22);white-space:nowrap;
+  transition:transform .2s var(--spring),background-color .2s ease}
+.nova-suite-btn svg{width:16px;height:16px;flex:0 0 auto}
+@media (hover:hover){ .nova-suite-btn:hover{background:rgba(var(--nf-accent-rgb),.2);transform:translateY(-1px)} }
+.nova-suite-btn:active{transform:scale(.96)}
+@media (prefers-reduced-motion:reduce){ .nova-suite-btn{transition:background-color .2s ease} }
+/* Bouton "+" Ajouter des fonds (Portefeuille) — visuel uniquement,
+   voir data-soon plus haut : jamais de dépôt réel à ce stade. Rond,
+   accent primaire, dans l'en-tête de la carte "Valeur totale" plutôt
+   qu'une pleine largeur — un ajout de fonds est une action ponctuelle,
+   pas la priorité visuelle de la carte (qui reste le montant). */
+.nova-add-funds{width:34px;height:34px;border-radius:50%;flex:0 0 auto;
+  display:flex;align-items:center;justify-content:center;
+  background:var(--accent);color:var(--accent-ink);
+  box-shadow:0 4px 14px rgba(236,72,153,.28);
+  transition:transform .2s cubic-bezier(.22,1,.36,1),box-shadow .2s ease}
+.nova-add-funds svg{width:18px;height:18px}
+@media (hover:hover){ .nova-add-funds:hover{transform:scale(1.08)} }
+.nova-add-funds:active{transform:scale(.9)}
 /* CORRECTIF (bug visuel réel, trouvé en aperçu mobile de la feuille de
    recherche, 2026-09-17) : .row-t était redéfini ICI, en double par
    rapport à sa première déclaration plus haut dans ce fichier (voir
@@ -14456,6 +14511,14 @@ const ICON = {
   trash:'<path d="M4 7h16M9 7V5h6v2M6 7l1 13h10l1-13"/>',
   spark:'<path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/>',
   filter:'<path d="M4 7h16M4 12h10M4 17h6"/><circle cx="17" cy="7" r="2"/><circle cx="11" cy="12" r="2"/><circle cx="7" cy="17" r="2"/>',
+  /* Ajoutées 2026-09-23 pour la passe "architecture visuelle" (NovaBot/
+     Nova Review/Nova Event/Nova News/Nova AI) — Nova Review et Nova AI
+     réutilisent volontairement scale/spark, déjà dans ce fichier
+     (Comparer/Analyse), plutôt que d'en redessiner une variante quasi
+     identique sans raison. */
+  bot:'<rect x="4.5" y="9" width="15" height="10" rx="3"/><path d="M12 9V5.5"/><circle cx="12" cy="3.6" r="1.3"/><circle cx="9" cy="14" r="1.1"/><circle cx="15" cy="14" r="1.1"/><path d="M2.5 12.5v3M21.5 12.5v3"/>',
+  calendar:'<rect x="3.5" y="5" width="17" height="15.5" rx="2.5"/><path d="M3.5 9.8h17M8 3v4M16 3v4"/><circle cx="8.2" cy="14.2" r="1"/><circle cx="12" cy="14.2" r="1"/><circle cx="15.8" cy="14.2" r="1"/>',
+  news:'<path d="M4.5 6h12a2 2 0 0 1 2 2v10a1.5 1.5 0 0 1-1.5 1.5H6.5A2 2 0 0 1 4.5 17.5z"/><path d="M18.5 9v8a1.5 1.5 0 0 0 1.5 1.5"/><path d="M8 9.6h6.5M8 12.8h6.5M8 16h4"/>',
 };
 const ICON_SHIFT = {
   home:[0.03,-1.95], list:[1.65,-3.56], wallet:[0,-0.41], star:[0,-0.46],
@@ -14492,6 +14555,82 @@ const emptyState = (title, text, action) => `
     <h3>${esc(title)}</h3><p>${text}</p>
     ${action?`<button class="btn btn-a btn-sm" style="margin-top:20px" data-go="${action.go}">${esc(action.label)}</button>`:''}
   </div>`;
+/* ============================================================
+   NOVA — architecture visuelle (2026-09-23)
+   ============================================================
+   Passe explicitement demandée comme "visuel uniquement" : emplacements,
+   identité, points d'accès des futures fonctions NovaBot/Nova Review/
+   Nova Event/Nova News. AUCUN moteur derrière — data-soon déclenche un
+   simple toast "bientôt disponible" (voir le gestionnaire de clic),
+   jamais un faux résultat. Config centralisée une seule fois ici,
+   réutilisée par la grille de l'accueil (novaHubCard) ET les pages de
+   présentation (novaFeaturePage) plutôt que dupliquée à chaque endroit
+   où une de ces 4 fonctions apparaît. rgb (triplet, pas un hex) permet
+   les fonds teintés en rgba() — jamais color-mix(), voir la note sur
+   .logo-m plus haut dans ce fichier pour pourquoi ce fichier évite
+   color-mix(). */
+const NOVA_FEATURES = {
+  novabot: { icon:'bot', accent:'#8b5cf6', rgb:'139,92,246',
+    title:'NovaBot', tag:'Automatisation intelligente',
+    desc:"NovaBot pourra bientôt gérer une partie de vos investissements selon des règles que vous aurez vous-même définies — jamais un ordre passé sans votre accord explicite." },
+  novareview: { icon:'scale', accent:'#ec4899', rgb:'236,72,153',
+    title:'Nova Review', tag:'Revoir vos décisions',
+    desc:"Nova Review reviendra sur vos décisions d'investissement passées pour vous aider à comprendre ce qui a fonctionné, ou non, et pourquoi." },
+  novaevent: { icon:'calendar', accent:'#8d95a4', rgb:'141,149,164',
+    title:'Nova Event', tag:'Événements NovaBourse',
+    desc:"Nova Event rassemblera les événements propres à NovaBourse — nouveautés, temps forts, rendez-vous à ne pas manquer. Pas l'actualité des marchés : ça, c'est Nova News." },
+  novanews: { icon:'news', accent:'#6d28d9', rgb:'109,40,217',
+    title:'Nova News', tag:"L'actualité qui compte",
+    desc:"Nova News réunira l'actualité économique, financière et géopolitique susceptible d'influencer vos investissements — dans chaque fiche, l'actualité propre à l'entreprise consultée." },
+};
+/* Carte compacte de la grille d'accueil (2x2 mobile → 4 colonnes
+   desktop, voir le CSS .nova-hub) — icône + titre + accroche d'une
+   ligne, jamais un pavé qui rallonge la page (refusé explicitement). */
+const novaHubCard = (key) => {
+  const f = NOVA_FEATURES[key];
+  return `<button type="button" class="nova-hub-card" data-go="${key}"
+    style="--nf-accent:${f.accent};--nf-accent-rgb:${f.rgb}">
+    <span class="nova-hub-i">${svg(ICON[f.icon],1.8)}</span>
+    <span class="nova-hub-t">${esc(f.title)}</span>
+    <span class="nova-hub-s">${esc(f.tag)}</span>
+  </button>`;
+};
+/* Page de présentation générique des 4 fonctions Nova — réutilise
+   .empty/.empty-i (déjà utilisé partout ailleurs pour les états vides)
+   plutôt qu'un nouveau composant, seule la teinte de l'icône change par
+   fonction. "Bientôt disponible" honnête plutôt qu'un faux contenu —
+   consigne explicite de cette passe. */
+const novaFeaturePage = (key) => {
+  const f = NOVA_FEATURES[key];
+  return `<div class="page-in">
+    <button class="btn btn-g btn-sm" data-back style="margin-bottom:20px">← Retour</button>
+    <div class="empty" style="padding-top:8px">
+      <div class="empty-i" style="background:rgba(${f.rgb},.14);color:${f.accent}">${svg(ICON[f.icon],1.7)}</div>
+      <h3 style="font-size:22px;margin-top:18px">${esc(f.title)}</h3>
+      <p style="max-width:46ch">${esc(f.desc)}</p>
+      <span class="tag" style="margin-top:16px;background:rgba(${f.rgb},.14);color:${f.accent}">Bientôt disponible</span>
+    </div>
+  </div>`;
+};
+/* Rangée compacte de 2-3 accès Nova (2026-09-23) — réutilisée sur le
+   Portefeuille (NovaBot/Nova Review/Nova AI) et la fiche action (Nova
+   AI/Nova Review). Défilement horizontal plutôt que retour à la ligne :
+   ne se compresse ni ne chevauche jamais, quelle que soit la largeur
+   d'écran (§15 du brief, testé 320-430px). `go` navigue vers une page
+   de présentation existante (NovaBot/Nova Review) ; `soon` (sans page
+   dédiée, ex. Nova AI — jamais sur l'accueil ni la nav, voir consigne)
+   affiche juste un toast. */
+const novaSuiteRow = (items) => `<div class="nova-suite" role="group" aria-label="Nova">
+  ${items.map(it => {
+    const f = NOVA_FEATURES[it.key];
+    const icon = f ? f.icon : it.icon, accent = f ? f.accent : it.accent, rgb = f ? f.rgb : it.rgb,
+      title = f ? f.title : it.title;
+    const attr = it.page ? `data-go="${it.page}"` : `data-soon="${esc(it.soon || title + ' — bientôt disponible.')}"`;
+    return `<button type="button" class="nova-suite-btn" ${attr}
+      style="--nf-accent:${accent};--nf-accent-rgb:${rgb}">
+      ${svg(ICON[icon],1.9)}<span>${esc(title)}</span></button>`;
+  }).join('')}
+</div>`;
 
 function toast(msg){
   const t = document.getElementById('toast');
@@ -15348,6 +15487,16 @@ PAGES.home = () => {
     `}
   </article>
 
+  <!-- Grille Nova (2026-09-23, "préparer visuellement les prochaines
+       fonctionnalités") : NovaBot/Nova Review/Nova Event/Nova News,
+       voir novaHubCard()/NOVA_FEATURES/.nova-hub plus haut. Volontai-
+       rement APRÈS "Mes positions" plutôt qu'en tout premier : le
+       contenu personnel de l'utilisateur (position, montant) prime sur
+       la découverte de nouvelles fonctions. -->
+  <nav class="nova-hub" aria-label="Fonctions NovaBourse">
+    ${novaHubCard('novabot')}${novaHubCard('novareview')}${novaHubCard('novaevent')}${novaHubCard('novanews')}
+  </nav>
+
   <article class="card" style="margin-top:16px">
     <div class="section-h" style="margin-bottom:14px">
       <p class="eyebrow">Ma liste</p>
@@ -15421,6 +15570,13 @@ function pricingBlock(compact = false){
       Sans engagement · Paiement sécurisé</p>
   </section>`;
 }
+/* Les 4 pages de présentation Nova (2026-09-23) : purement visuelles,
+   voir novaFeaturePage() — aucune n'a besoin de logique propre, une
+   ligne chacune suffit. */
+PAGES.novabot = () => novaFeaturePage('novabot');
+PAGES.novareview = () => novaFeaturePage('novareview');
+PAGES.novaevent = () => novaFeaturePage('novaevent');
+PAGES.novanews = () => novaFeaturePage('novanews');
 PAGES.pricing = () => `
   <div class="page-in">${pricingBlock(false)}
   <section class="section">
@@ -15887,6 +16043,18 @@ PAGES.stock = (id) => {
         ? `<em class="qa-badge">${state.alerts.filter(a => a.stockId === s.id && !a.triggered).length}</em>` : ''}</i>
       <span>Alerte</span></button>
   </div>
+
+  <!-- Accès Nova (2026-09-23, "préparer visuellement les prochaines
+       fonctionnalités") : distincts des actions rapides ci-dessus
+       (existantes, réelles, inchangées) — voir novaSuiteRow() plus haut.
+       Nova AI n'a pas de page dédiée (consigne : jamais sur l'accueil ni
+       une page à elle, toujours contextuel) — soon direct. Nova Review a
+       sa page de présentation, réutilisée telle quelle. -->
+  ${novaSuiteRow([
+    { icon:'spark', accent:'#6d28d9', rgb:'109,40,217', title:'Nova AI',
+      soon:'Nova AI — bientôt disponible.' },
+    { key:'novareview', page:'novareview' },
+  ])}
   ${state.compare.length >= 2 ? `<button class="btn btn-ghost btn-sm" style="margin-top:10px" data-go="compare">
     Voir la comparaison (${state.compare.length})</button>` : ''}
   ${(() => {
@@ -16104,6 +16272,24 @@ PAGES.stock = (id) => {
         Il ne produit aucun nombre.${DATA.mode === 'live' ? ''
           : ' Les données de marché ne sont pas connectées : l\'analyse sert à valider la chaîne technique.'}</p>
       <button class="btn btn-a" style="margin-top:18px" data-nova="${esc(s.id)}">Lancer l'analyse</button>
+    </div>
+  </section>
+
+  <!-- NOVA NEWS (2026-09-23, "préparer visuellement les prochaines
+       fonctionnalités") : distincte de la section "Actualités"
+       ci-dessus (existante, réelle, articles externes via EODHD,
+       inchangée) — Nova News couvrira PLUS TARD l'actualité mondiale
+       pertinente pour CETTE entreprise précise (§5 du brief : "Apple →
+       Nova News → actualités Apple"), pas encore connectée à ce stade.
+       État honnête "bientôt disponible", jamais de faux article. -->
+  <section class="section">
+    <div class="section-h"><h2 class="h2">Nova News</h2>
+      <span class="tag" style="background:rgba(109,40,217,.14);color:#6d28d9">Bientôt</span></div>
+    <div class="card">
+      <div style="display:flex;align-items:center;gap:10px">
+        <span class="empty-i" style="width:40px;height:40px;margin:0;background:rgba(109,40,217,.14);color:#6d28d9">${svg(ICON.news,1.7)}</span>
+        <p class="small">L'actualité propre à ${esc(s.name)} arrivera bientôt ici, réunie par Nova News.</p>
+      </div>
     </div>
   </section>
 
@@ -16541,7 +16727,11 @@ PAGES.portfolio = () => {
     <p class="lead" style="margin-top:10px">Portefeuille <b>virtuel</b> : suivez vos positions sans engager d'argent réel.</p>
 
     <div class="card" style="margin-top:22px">
-      <p class="small">Valeur totale</p>
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px">
+        <p class="small">Valeur totale</p>
+        <button type="button" class="nova-add-funds" data-soon="Ajout de fonds — bientôt disponible."
+          aria-label="Ajouter des fonds">${svg(ICON.plus,2.4)}</button>
+      </div>
       <p class="price" style="font-size:clamp(34px,7vw,52px);margin-top:4px">${fmt.eur(pf.total)}</p>
       <span class="tag ${pf.gain>=0?'tag-up':'tag-down'}" style="margin-top:10px">
         ${trendTxt(pf.gainPct)} · ${fmt.eur(pf.gain)}</span>
@@ -16553,6 +16743,19 @@ PAGES.portfolio = () => {
       ${pf.unresolvedCount ? `<p class="tiny" style="margin-top:10px;color:var(--warn)">
         ${pf.unresolvedCount} position(s) non reconnue(s) n'entrent pas dans ce total.</p>` : ''}
     </div>
+
+    <!-- Accès Nova (2026-09-23, "préparer visuellement les prochaines
+         fonctionnalités") : NovaBot/Nova Review ont une page de
+         présentation dédiée (novaFeaturePage) ; Nova AI n'en a
+         volontairement PAS (consigne explicite : jamais sur l'accueil
+         ni une page dédiée, seulement contextuel), d'où data-soon direct
+         plutôt que data-go pour ce 3e bouton. -->
+    ${novaSuiteRow([
+      { key:'novabot', page:'novabot' },
+      { key:'novareview', page:'novareview' },
+      { icon:'spark', accent:'#6d28d9', rgb:'109,40,217', title:'Nova AI',
+        soon:'Nova AI — bientôt disponible.' },
+    ])}
 
     <section class="section">
       <div class="section-h"><h2 class="h2">Évolution</h2>
@@ -18347,6 +18550,12 @@ document.addEventListener('click', e => {
 
   const nav = q('[data-go]'); if (nav){ e.preventDefault(); go(nav.dataset.go, nav.dataset.arg); return; }
   if (q('[data-back]')){ back(); return; }
+  /* data-soon (2026-09-23, passe "architecture visuelle Nova") : pour
+     un point d'accès qui n'a délibérément AUCUNE page/moteur derrière à
+     ce stade (Nova AI, "+ Ajouter des fonds"...) — un simple toast
+     honnête plutôt qu'une navigation vers du contenu qui n'existe pas
+     encore ou, pire, un faux résultat. */
+  const soon = q('[data-soon]'); if (soon){ toast(soon.dataset.soon || 'Bientôt disponible.'); return; }
   if (q('[data-close]')){ closeSheet(); return; }
   const searchOrigin = q('[data-search]');
   if (searchOrigin){
