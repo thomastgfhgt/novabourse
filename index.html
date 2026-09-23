@@ -195,8 +195,18 @@ body{
    comme le dock). Déplacée sur chaque tache (déjà floutée, bien plus
    petite) : même effet visuel de "fond qui change de couleur", sans
    jamais animer `filter` sur l'intégralité du viewport. */
+/* Flou réduit 110px -> 65px (2026-09-24, retour utilisateur : "le site
+   est super lent et manque énormément de fluidité") : ces 3 taches
+   sont PRÉSENTES SUR TOUTE PAGE (le fond de l'app entière) et animent
+   déjà transform en continu — un blur() aussi large, recalculé à
+   chaque déplacement de la tache (translate/scale, pas juste posé une
+   fois), est probablement le plus gros poste de coût GPU permanent de
+   tout le site. Les taches elles-mêmes restent énormes (55/50/38vw,
+   inchangé) : à cette échelle, 65px de flou garde le même effet "fond
+   d'ambiance diffus", vérifié en direct clair et sombre — jamais des
+   bords nets visibles. */
 .aurora-bg::before,.aurora-bg::after,.aurora-bg .aurora-3{content:"";position:absolute;border-radius:50%;
-  filter:blur(110px);opacity:.32;
+  filter:blur(65px);opacity:.32;
   animation:auroraDrift 26s ease-in-out infinite, auroraHue 60s linear infinite;
   will-change:transform}
 /* Couleurs en variables (mise à jour 2026-09-23 : "Primary = Rose
@@ -232,8 +242,8 @@ body[data-bg="account"]{--aurora-1:#8d95a4;--aurora-1b:#aeb4c0;--aurora-2:#646c7
    vert au fil du cycle. Oscillation resserrée (±18°) : le fond continue
    de "vivre" sans jamais quitter la famille de teinte de sa tache. */
 @keyframes auroraHue{
-  0%,100%{filter:blur(110px) hue-rotate(-18deg)}
-  50%{filter:blur(110px) hue-rotate(18deg)}
+  0%,100%{filter:blur(65px) hue-rotate(-18deg)}
+  50%{filter:blur(65px) hue-rotate(18deg)}
 }
 @media (prefers-reduced-motion:reduce){
   .aurora-bg::before,.aurora-bg::after,.aurora-bg .aurora-3{animation:none}
