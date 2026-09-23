@@ -1048,6 +1048,22 @@ button:active{transform:scale(.97)}
   .nova-temple{animation:none}
   .temple-part{opacity:1;animation:none}
 }
+/* CORRECTIF (2026-09-23, retour utilisateur : "quand je reviens sur
+   Accueil le temple n'est plus là et réapparaît au bout de quelques
+   secondes") : PAGES.home() reconstruit le SVG en entier à CHAQUE
+   navigation vers l'accueil (view.innerHTML remplacé, voir render()) —
+   la cascade d'entrée ci-dessus rejouait donc à chaque fois, opacity:0
+   pendant jusqu'à ~1,4s (dernier délai .78s + durée .6s), pas
+   seulement au tout premier chargement de la page. Perçu comme un bug
+   ("le temple a disparu") plutôt que comme un effet d'entrée voulu.
+   .no-intro (posée par PAGES.home() en JS, voir templeIntroPlayed) ne
+   s'applique qu'à partir de la 2e visite de l'accueil dans la même
+   session : le temple s'affiche alors directement à son état final,
+   sans repasser par opacity:0. La respiration continue (glow pulse)
+   n'est volontairement PAS coupée par .no-intro — seul le scale-in
+   ponctuel doit sauter, pas l'animation infinie. */
+.nova-temple.no-intro{animation:templeGlowPulse 4.5s ease-in-out 1s infinite}
+.nova-temple.no-intro .temple-part{opacity:1;animation:none}
 /* 4 raccourcis — verre dépoli violet transparent (brief §3/§4, teinte
    bleu électrique d'origine ; recoloré 2026-09-23 en violet, voir note
    de palette tout en haut), remplace le fond quasi-opaque
@@ -15225,16 +15241,28 @@ const NB_QUICK = [
     desc:"Prix cible, variation, actualité importante, signal Radar, etc.",
     icon:'<path d="M18 8A6 6 0 0 0 6 8C6 14 4 16 3 17H21C20 16 18 14 18 8"/><path d="M10 20Q12 22 14 20"/>' },
 ];
+/* Rejouée une seule fois par session (2026-09-23, voir .no-intro dans
+   le CSS du temple) : PAGES.home() est appelée à CHAQUE navigation vers
+   l'accueil, pas seulement au premier chargement — sans ce drapeau,
+   l'effet d'entrée du temple (cascade + scale-in, jusqu'à ~1,4s
+   d'opacity:0) rejouerait à chaque retour sur la page, perçu comme un
+   bug ("le temple a disparu") plutôt qu'un effet d'entrée voulu. Lu ET
+   mis à jour ici (avant le retour du HTML), jamais ailleurs : la
+   décision "déjà vu ou non" doit être prise au moment exact où ce HTML
+   précis est généré. */
+let templeIntroPlayed = false;
 PAGES.home = () => {
   const suivies = state.watchlist.map(id => byId[id]).filter(Boolean);
   const marche = stocks.slice(0, 6);
   const pf = portfolioValue();
   const hasPositions = state.wallet.positions.length > 0;
+  const templeSeenBefore = templeIntroPlayed;
+  templeIntroPlayed = true;
 
   return `
   <section class="nb-hero-v2">
     <section class="nova-temple-section">
-      <svg class="nova-temple" viewBox="0 0 1000 720" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Temple NovaBourse">
+      <svg class="nova-temple${templeSeenBefore ? ' no-intro' : ''}" viewBox="0 0 1000 720" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Temple NovaBourse">
         <!-- Entrée en scène par blocs (2026-09-23, "un maximum d'animation
              autour de cette architecture romaine") : chaque groupe
              ci-dessous porte sa propre classe .temple-part + un délai
