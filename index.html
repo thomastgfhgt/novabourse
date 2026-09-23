@@ -251,13 +251,24 @@ button:active{transform:scale(.97)}
   flex:0 0 auto
 }
 .flow-n,.onb-n,.av,.ai-d,.info{line-height:1}
+/* --top-fade (2026-09-23, "que le dessus s'efface progressivement en
+   descendant dans la page") : custom property globale (posée sur
+   documentElement par un seul écouteur de scroll, voir wireHeaderFade()
+   en JS — pas par page, une fois pour toute l'app) qui va de 1 (haut de
+   page) à ~.15 après ~160px de défilement. Seul le FOND du bandeau
+   s'estompe — jamais le logo/la nav/les boutons, qui restent à opacité
+   pleine : un header devenu illisible en scrollant serait un vrai
+   défaut d'accessibilité, pas juste un détail esthétique. Le flou
+   (backdrop-filter) reste constant pour garder le texte lisible même
+   quand le fond est presque transparent. */
 .top{
-  position:sticky;top:0;z-index:50;background:rgba(255,255,255,.72);
+  position:sticky;top:0;z-index:50;background:rgba(255,255,255,calc(.72 * var(--top-fade,1)));
   backdrop-filter:saturate(180%) blur(20px);-webkit-backdrop-filter:saturate(180%) blur(20px);
   border-bottom:1px solid var(--line-2);
   padding-top:env(safe-area-inset-top);
+  transition:background-color .1s linear;
 }
-[data-theme="dark"] .top{background:rgba(8,9,12,.72);border-bottom-color:rgba(255,255,255,.06)}
+[data-theme="dark"] .top{background:rgba(8,9,12,calc(.72 * var(--top-fade,1)));border-bottom-color:rgba(255,255,255,.06)}
 .top-in{max-width:1120px;margin:0 auto;padding:10px 20px;display:flex;align-items:center;
   gap:12px;min-width:0}
 .logo{display:flex;align-items:center;gap:9px;font-weight:700;font-size:17px;
@@ -17373,6 +17384,35 @@ window.addEventListener('resize', () => {
   positionDockPill();
   requestAnimationFrame(() => pill.classList.remove('no-anim'));
 });
+
+/* Fondu progressif du header au scroll (2026-09-23) — voir --top-fade
+   dans le CSS de .top. Un seul écouteur posé une fois au démarrage,
+   jamais par page : le header (<header class="top">) est dans le HTML
+   statique, en dehors de #view, donc déjà partagé par toutes les routes
+   sans câblage supplémentaire — "sur l'ensemble du site" vient de là,
+   pas d'un ajout par page. requestAnimationFrame plutôt qu'un calcul
+   direct dans le handler de scroll : évite de recalculer le style à
+   chaque événement natif (qui peut se déclencher bien plus souvent
+   qu'une fois par frame), un seul throttling déjà éprouvé ailleurs dans
+   ce fichier pour d'autres écouteurs fréquents. */
+(function wireHeaderFade(){
+  const FADE_DISTANCE = 160;  // px de scroll pour atteindre le minimum
+  const FADE_FLOOR = .15;     // jamais totalement invisible (lisibilité)
+  let ticking = false;
+  function apply(){
+    ticking = false;
+    const y = window.scrollY || document.documentElement.scrollTop || 0;
+    const t = Math.min(1, y / FADE_DISTANCE);
+    const fade = 1 - t * (1 - FADE_FLOOR);
+    document.documentElement.style.setProperty('--top-fade', fade.toFixed(3));
+  }
+  window.addEventListener('scroll', () => {
+    if (ticking) return;
+    ticking = true;
+    requestAnimationFrame(apply);
+  }, { passive:true });
+  apply();
+})();
 
 /* Curseur glissant des .seg — technique FLIP (voir le commentaire CSS sur
    .seg-pill). SEG_FROM(key) posée par le handler de clic ci-dessus ;
