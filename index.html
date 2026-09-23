@@ -17619,6 +17619,18 @@ function render(navigated = false){
     </div>`;
   }
   view.innerHTML = html;
+  /* CORRECTIF (2026-09-23, signalé "je vois le temple sur mon PC mais pas
+     sur mon téléphone") : bug WebKit/mobile connu — une animation CSS
+     posée sur des éléments insérés d'un coup via innerHTML (comme ici)
+     peut ne jamais démarrer si le navigateur ne recalcule pas la mise en
+     page ENTRE l'insertion et l'application de l'animation ; l'élément
+     reste alors figé à son état de départ (.temple-part part d'opacity:0
+     pour l'effet d'apparition en cascade) — invisible en permanence sur
+     les navigateurs concernés, alors que Chrome desktop ne montre pas ce
+     souci. Lire une propriété de mise en page (offsetHeight) force ce
+     recalcul avant que l'animation ne soit évaluée, ce qui est le
+     correctif standard pour ce bug. */
+  void view.offsetHeight;
   /* Fond ambiant par section (2026-09-21, palette officielle) : voir les
      règles body[data-bg=...] sur .aurora-bg — portfolio penche vert+orange,
      compte/réglages restent neutres, tout le reste garde le défaut
@@ -17640,6 +17652,19 @@ function render(navigated = false){
      (le DOM du temple vient d'être recréé, --temple-fade ne le "sait"
      pas tout seul). */
   updateScrollFades();
+  /* Filet de sécurité (2026-09-23, même correctif "temple invisible sur
+     téléphone" que ci-dessus) : au cas où le recalcul forcé plus haut ne
+     suffirait pas sur un navigateur/appareil imprévu, force l'état final
+     visible après le délai maximum que l'animation d'apparition peut
+     prendre (dernier delai .78s + durée .6s ≈ 1.4s, marge prise à 1.6s).
+     Ne change rien de visible quand l'animation CSS a normalement joué
+     (elle est déjà à opacity:1 à ce moment-là) ; rattrape seulement le
+     cas où elle ne s'est jamais déclenchée. */
+  if (document.querySelector('.temple-part')){
+    setTimeout(() => {
+      document.querySelectorAll('.temple-part').forEach(el => { el.style.opacity = '1'; });
+    }, 1600);
+  }
   paintNav();
   syncAllSegPills();
   /* Chargement à la demande : l'accueil/watchlist n'entraîne plus aucun
