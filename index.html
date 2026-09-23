@@ -17451,7 +17451,7 @@ PAGES.compare = () => {
 let sbClient = null;
 let AUTH_ERROR = null;
 let CONFIG = { supabaseUrl:null, supabaseAnonKey:null, marketConnected:false,
-  aiConnected:false, annualBilling:false };
+  aiConnected:false, annualBilling:false, appleEnabled:false };
 
 async function loadConfig(){
   try {
@@ -17473,6 +17473,26 @@ async function initAuth(){
             flowType:'pkce', storage:window.localStorage,
             storageKey:'novabourse-auth' },
   });
+
+  /* CORRECTIF (2026-09-24, trouvé EN TESTANT le bouton Apple en direct
+     sur la prod) : quand un provider OAuth n'est pas activé côté
+     Supabase, signInWithOAuth() ne renvoie PAS une erreur exploitable
+     côté client — il redirige (window.location) vers l'URL /authorize
+     de Supabase, qui répond alors une page JSON brute
+     ({"code":400,"error_code":"validation_failed","msg":"Unsupported
+     provider..."}) en dehors de l'app, jamais renvoyée à applySession/
+     AUTH_ERROR. Un vrai visiteur cliquant "Continuer avec Apple" avant
+     la configuration Apple Developer/Supabase tomberait donc sur une
+     page d'erreur brute illisible plutôt que de revenir dans l'app.
+     /auth/v1/settings est un endpoint PUBLIC de Supabase (pas besoin de
+     jeton) qui liste les providers OAuth réellement activés — vérifié
+     une fois ici, le bouton Apple ne s'affiche que s'il est vraiment
+     prêt (voir gateScreen()). Se met à jour tout seul le jour où Apple
+     est configuré côté tableau de bord, sans changement de code. */
+  try {
+    const r = await fetch(CONFIG.supabaseUrl + '/auth/v1/settings');
+    if (r.ok){ const s = await r.json(); CONFIG.appleEnabled = !!(s.external && s.external.apple); }
+  } catch { /* réglages indisponibles : le bouton Apple reste caché par prudence */ }
 
   try {
     const url = new URL(window.location.href);
@@ -17842,7 +17862,7 @@ function gateScreen(){
       ${gateEmailMode ? gateEmailFormHTML() : `
       <div style="margin-top:${notice?'14px':'20px'}">
         <button class="btn btn-oauth btn-google" data-signin>${GOOGLE_G} Continuer avec Google</button>
-        <button class="btn btn-oauth btn-apple" data-signin-apple>${APPLE_LOGO} Continuer avec Apple</button>
+        ${CONFIG.appleEnabled ? `<button class="btn btn-oauth btn-apple" data-signin-apple>${APPLE_LOGO} Continuer avec Apple</button>` : ''}
         <button class="btn btn-oauth btn-email" data-gate-email-open="signin">${svg(ICON.mail,2)} Continuer avec une adresse e-mail</button>
       </div>
       <p class="tiny" style="margin-top:12px">Connexion sécurisée.</p>
