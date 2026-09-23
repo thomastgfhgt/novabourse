@@ -864,20 +864,27 @@ button:active{transform:scale(.97)}
    la largeur du temple sous sa valeur voulue (min(96vw,780px)) pour le
    faire tenir dans son conteneur flex, exactement le comportement par
    défaut de flex-shrink:1 qu'aucune propriété ne neutralisait ici. */
-/* opacity (2026-09-23, ajustée deux fois le même jour) : d'abord .82,
-   jugé encore trop opaque au retour utilisateur suivant ("transparent
-   comme les 4 boutons") — les bulles elles-mêmes sont très translucides
-   (fond radial-gradient à 4-18% d'opacité). .55 rapproche le temple de
-   ce même niveau de transparence sans le faire disparaître. */
+/* opacity (2026-09-23, ajustée trois fois le même jour) : .82 → .55
+   (retour "transparent comme les 4 boutons") → maintenant multipliée
+   par --temple-fade (voir updateScrollFades() en JS, même mécanisme que
+   --top-fade du header) : la base .55 reste la transparence "au repos"
+   en haut de page, --temple-fade la réduit encore progressivement
+   quand le temple défile hors champ ("qu'il s'efface progressivement
+   quand on le dépasse en descendant"). */
 .nova-temple{display:block;width:min(96vw,780px);height:auto;overflow:visible;flex-shrink:0;
-  opacity:.55;
+  opacity:calc(.55 * var(--temple-fade,1));
   filter:drop-shadow(0 0 3px rgba(255,255,255,.20)) drop-shadow(0 0 11px rgba(71,119,255,.08))}
-.temple-line{fill:none;stroke:#ffffff;stroke-linecap:round;stroke-linejoin:round;
+/* Trait légèrement bleuté (2026-09-23, retour utilisateur : "un peu
+   bleuté") — #d6e4ff plutôt que #ffffff blanc pur, un bleu très clair
+   qui reste lisible comme "blanc" à distance mais prend clairement une
+   teinte bleue de près, cohérent avec le glow bleu déjà présent dans
+   le filter ci-dessus. */
+.temple-line{fill:none;stroke:#d6e4ff;stroke-linecap:round;stroke-linejoin:round;
   vector-effect:non-scaling-stroke}
 .temple-main{stroke-width:7}
 .temple-secondary{stroke-width:4.5}
 .temple-flute{stroke-width:2.5;opacity:.90}
-.nova-temple-brand{fill:#ffffff}
+.nova-temple-brand{fill:#d6e4ff}
 @media (max-width:600px){ .nova-temple{width:98vw;max-width:none} }
 /* 4 raccourcis — verre dépoli bleu électrique transparent (brief §3/§4),
    remplace le fond quasi-opaque rgba(20,29,58,.72) de la passe
@@ -17385,33 +17392,62 @@ window.addEventListener('resize', () => {
   requestAnimationFrame(() => pill.classList.remove('no-anim'));
 });
 
-/* Fondu progressif du header au scroll (2026-09-23) — voir --top-fade
-   dans le CSS de .top. Un seul écouteur posé une fois au démarrage,
-   jamais par page : le header (<header class="top">) est dans le HTML
-   statique, en dehors de #view, donc déjà partagé par toutes les routes
-   sans câblage supplémentaire — "sur l'ensemble du site" vient de là,
-   pas d'un ajout par page. requestAnimationFrame plutôt qu'un calcul
-   direct dans le handler de scroll : évite de recalculer le style à
-   chaque événement natif (qui peut se déclencher bien plus souvent
-   qu'une fois par frame), un seul throttling déjà éprouvé ailleurs dans
-   ce fichier pour d'autres écouteurs fréquents. */
-(function wireHeaderFade(){
-  const FADE_DISTANCE = 160;  // px de scroll pour atteindre le minimum
-  const FADE_FLOOR = .15;     // jamais totalement invisible (lisibilité)
-  let ticking = false;
-  function apply(){
-    ticking = false;
-    const y = window.scrollY || document.documentElement.scrollTop || 0;
-    const t = Math.min(1, y / FADE_DISTANCE);
-    const fade = 1 - t * (1 - FADE_FLOOR);
-    document.documentElement.style.setProperty('--top-fade', fade.toFixed(3));
+/* Fondus progressifs au scroll (2026-09-23, en 2 temps le même jour) —
+   voir --top-fade dans le CSS de .top et --temple-fade dans celui de
+   .nova-temple. Un seul écouteur/throttle partagé pour les deux plutôt
+   que deux séparés : même coût qu'un seul.
+   - Header : posé une fois au démarrage, jamais par page — le header
+     (<header class="top">) est dans le HTML statique, en dehors de
+     #view, donc déjà partagé par toutes les routes. Fondu simplement
+     lié à la position de scroll globale (0 → 160px).
+   - Temple : n'existe que sur l'accueil (PAGES.home), donc recherché à
+     chaque calcul plutôt que mis en cache — absent ailleurs, la
+     fonction sort tôt sans rien faire. Fondu lié à SA PROPRE position
+     réelle (getBoundingClientRect) plutôt qu'à une distance de scroll
+     fixe : "s'efface quand on le dépasse" doit rester correct quel que
+     soit la hauteur du temple (mobile vs desktop, tailles d'écran
+     différentes) — une distance fixe se serait déclenchée trop tôt ou
+     trop tard selon l'écran.
+   requestAnimationFrame plutôt qu'un calcul direct dans le handler de
+   scroll : évite de recalculer le style à chaque événement natif (qui
+   peut se déclencher bien plus souvent qu'une fois par frame), un seul
+   throttling déjà éprouvé ailleurs dans ce fichier pour d'autres
+   écouteurs fréquents. updateScrollFades() exposée (pas dans une IIFE)
+   pour être aussi appelée depuis render() : sans ça, arriver sur
+   l'accueil par navigation (scroll remis à 0 par render() lui-même)
+   pourrait laisser le temple visuellement figé à l'ancien niveau de
+   fondu jusqu'au prochain scroll. */
+function updateScrollFades(){
+  const HEADER_FADE_DISTANCE = 160;  // px de scroll pour atteindre le minimum
+  const HEADER_FADE_FLOOR = .15;     // jamais totalement invisible (lisibilité)
+  const y = window.scrollY || document.documentElement.scrollTop || 0;
+  const ht = Math.min(1, y / HEADER_FADE_DISTANCE);
+  const headerFade = 1 - ht * (1 - HEADER_FADE_FLOOR);
+  document.documentElement.style.setProperty('--top-fade', headerFade.toFixed(3));
+
+  const temple = document.querySelector('.nova-temple-section');
+  if (temple){
+    const TEMPLE_FADE_FLOOR = .08;
+    const rect = temple.getBoundingClientRect();
+    // Commence à s'effacer dès qu'il entame son ascension sous le
+    // header (start), atteint le plancher une fois un peu plus de la
+    // moitié de sa hauteur passée sous le haut de l'écran (end).
+    const start = rect.height * .15;
+    const end = -rect.height * .55;
+    const tt = Math.min(1, Math.max(0, (start - rect.top) / (start - end)));
+    const templeFade = 1 - tt * (1 - TEMPLE_FADE_FLOOR);
+    document.documentElement.style.setProperty('--temple-fade', templeFade.toFixed(3));
   }
+}
+(function wireScrollFades(){
+  let ticking = false;
   window.addEventListener('scroll', () => {
     if (ticking) return;
     ticking = true;
-    requestAnimationFrame(apply);
+    requestAnimationFrame(() => { ticking = false; updateScrollFades(); });
   }, { passive:true });
-  apply();
+  window.addEventListener('resize', updateScrollFades, { passive:true });
+  updateScrollFades();
 })();
 
 /* Curseur glissant des .seg — technique FLIP (voir le commentaire CSS sur
@@ -17484,6 +17520,13 @@ function render(navigated = false){
   if (navigated){
     document.documentElement.scrollTop = 0; document.body.scrollTop = 0;
   }
+  /* Recalcule les fondus header/temple (voir updateScrollFades() plus
+     bas) après CHAQUE rendu, pas seulement au scroll : sans ça, arriver
+     sur l'accueil par navigation laisserait le temple visuellement figé
+     au niveau de fondu de la page précédente jusqu'au prochain scroll
+     (le DOM du temple vient d'être recréé, --temple-fade ne le "sait"
+     pas tout seul). */
+  updateScrollFades();
   paintNav();
   syncAllSegPills();
   /* Chargement à la demande : l'accueil/watchlist n'entraîne plus aucun
