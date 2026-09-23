@@ -14618,14 +14618,19 @@ const novaFeaturePage = (key) => {
    ne se compresse ni ne chevauche jamais, quelle que soit la largeur
    d'écran (§15 du brief, testé 320-430px). `go` navigue vers une page
    de présentation existante (NovaBot/Nova Review) ; `soon` (sans page
-   dédiée, ex. Nova AI — jamais sur l'accueil ni la nav, voir consigne)
-   affiche juste un toast. */
+   dédiée) affiche juste un toast ; `attr` (retour utilisateur : "Analyser
+   une action c'est Nova AI") permet de brancher le bouton sur une action
+   RÉELLE déjà existante (ex. data-nova, l'analyse multi-IA déjà en place
+   sur la fiche action) plutôt que systématiquement data-soon — Nova AI
+   n'est fictif que là où rien de réel n'existe encore derrière. */
 const novaSuiteRow = (items) => `<div class="nova-suite" role="group" aria-label="Nova">
   ${items.map(it => {
     const f = NOVA_FEATURES[it.key];
     const icon = f ? f.icon : it.icon, accent = f ? f.accent : it.accent, rgb = f ? f.rgb : it.rgb,
       title = f ? f.title : it.title;
-    const attr = it.page ? `data-go="${it.page}"` : `data-soon="${esc(it.soon || title + ' — bientôt disponible.')}"`;
+    const attr = it.attr ? it.attr
+      : it.page ? `data-go="${it.page}"`
+      : `data-soon="${esc(it.soon || title + ' — bientôt disponible.')}"`;
     return `<button type="button" class="nova-suite-btn" ${attr}
       style="--nf-accent:${accent};--nf-accent-rgb:${rgb}">
       ${svg(ICON[icon],1.9)}<span>${esc(title)}</span></button>`;
@@ -16030,8 +16035,6 @@ PAGES.stock = (id) => {
        cette même fiche (déjà présente à côté du prix juste au-dessus) —
        gardée une seule fois, la plus visible des deux. -->
   <div class="stk-qa">
-    ${s.type === 'stock' ? `<button class="qa" data-nova="${esc(s.id)}">
-      <i>${svg(ICON.spark,2)}</i><span>Analyse</span></button>` : ''}
     <button class="qa" data-cmp="${esc(s.id)}" aria-pressed="${state.compare.includes(s.id)}">
       <i>${svg(ICON.scale,2)}</i><span>Comparer</span></button>
     <button class="qa" data-add-to-list="${esc(s.id)}" aria-pressed="${listesAvec(s.id).length > 0}">
@@ -16045,14 +16048,20 @@ PAGES.stock = (id) => {
   </div>
 
   <!-- Accès Nova (2026-09-23, "préparer visuellement les prochaines
-       fonctionnalités") : distincts des actions rapides ci-dessus
-       (existantes, réelles, inchangées) — voir novaSuiteRow() plus haut.
-       Nova AI n'a pas de page dédiée (consigne : jamais sur l'accueil ni
-       une page à elle, toujours contextuel) — soon direct. Nova Review a
-       sa page de présentation, réutilisée telle quelle. -->
+       fonctionnalités" ; mis à jour suite au retour "Analyser une action
+       c'est Nova AI") — voir novaSuiteRow() plus haut. Nova AI remplace
+       ici l'ancien bouton "Analyse" du rang d'actions rapides ci-dessus
+       (retiré, devenu redondant) : c'est la MÊME action réelle
+       (data-nova, analyse multi-IA déjà existante), seulement rebaptisée
+       et déplacée dans le nouveau rang Nova plutôt que dupliquée sous
+       deux noms différents. Réservé aux actions (s.type==='stock'),
+       comme l'était l'ancien bouton "Analyse" et comme l'est la section
+       "Analyse IA" plus bas — une paire crypto/forex n'a rien à
+       analyser de cette façon. Nova Review a sa page de présentation,
+       réutilisée telle quelle. -->
   ${novaSuiteRow([
-    { icon:'spark', accent:'#6d28d9', rgb:'109,40,217', title:'Nova AI',
-      soon:'Nova AI — bientôt disponible.' },
+    ...(s.type === 'stock' ? [{ icon:'spark', accent:'#6d28d9', rgb:'109,40,217', title:'Nova AI',
+      attr:`data-nova="${esc(s.id)}"` }] : []),
     { key:'novareview', page:'novareview' },
   ])}
   ${state.compare.length >= 2 ? `<button class="btn btn-ghost btn-sm" style="margin-top:10px" data-go="compare">
@@ -16263,10 +16272,14 @@ PAGES.stock = (id) => {
     </div>
   </section>
 
-  <!-- ANALYSE IA -->
+  <!-- NOVA AI (2026-09-23, rebaptisée depuis "Analyse IA" — retour
+       utilisateur : "Analyser une action c'est Nova AI". Fonctionnalité
+       INCHANGÉE, réelle, déjà existante — seul le nom affiché change,
+       pour ne plus coexister avec un Nova AI "bientôt disponible"
+       fictif à côté d'une analyse qui, elle, fonctionne déjà vraiment. -->
   <section class="section">
     <div class="card">
-      <p class="eyebrow">Analyse IA</p>
+      <p class="eyebrow">Nova AI</p>
       <h2 class="h2" style="margin-top:6px">Faire analyser ${esc(s.name)}</h2>
       <p class="small" style="margin-top:8px">Le modèle reçoit les chiffres de cette fiche.
         Il ne produit aucun nombre.${DATA.mode === 'live' ? ''
