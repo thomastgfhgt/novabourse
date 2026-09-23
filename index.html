@@ -14512,13 +14512,25 @@ const ICON = {
   spark:'<path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/>',
   filter:'<path d="M4 7h16M4 12h10M4 17h6"/><circle cx="17" cy="7" r="2"/><circle cx="11" cy="12" r="2"/><circle cx="7" cy="17" r="2"/>',
   /* Ajoutées 2026-09-23 pour la passe "architecture visuelle" (NovaBot/
-     Nova Review/Nova Event/Nova News/Nova AI) — Nova Review et Nova AI
-     réutilisent volontairement scale/spark, déjà dans ce fichier
-     (Comparer/Analyse), plutôt que d'en redessiner une variante quasi
-     identique sans raison. */
-  bot:'<rect x="4.5" y="9" width="15" height="10" rx="3"/><path d="M12 9V5.5"/><circle cx="12" cy="3.6" r="1.3"/><circle cx="9" cy="14" r="1.1"/><circle cx="15" cy="14" r="1.1"/><path d="M2.5 12.5v3M21.5 12.5v3"/>',
+     Nova Review/Nova Event/Nova News/Nova AI) — Nova AI réutilise
+     volontairement spark, déjà dans ce fichier (Analyse), plutôt que
+     d'en redessiner une variante quasi identique sans raison. */
   calendar:'<rect x="3.5" y="5" width="17" height="15.5" rx="2.5"/><path d="M3.5 9.8h17M8 3v4M16 3v4"/><circle cx="8.2" cy="14.2" r="1"/><circle cx="12" cy="14.2" r="1"/><circle cx="15.8" cy="14.2" r="1"/>',
   news:'<path d="M4.5 6h12a2 2 0 0 1 2 2v10a1.5 1.5 0 0 1-1.5 1.5H6.5A2 2 0 0 1 4.5 17.5z"/><path d="M18.5 9v8a1.5 1.5 0 0 0 1.5 1.5"/><path d="M8 9.6h6.5M8 12.8h6.5M8 16h4"/>',
+  /* NovaBot (2026-09-24, retour utilisateur : "mettre le logo de
+     NovaBourse en robot") — remplace le bot générique du premier jet :
+     tête TRIANGULAIRE (même silhouette que le fronton du temple/le
+     logo NovaBourse du header, jamais redessinée à l'identique faute de
+     place à cette taille, mais reconnaissable) plutôt qu'une tête
+     rectangulaire anonyme, avec 2 yeux ronds à l'intérieur, corps
+     arrondi et 2 petits bras. */
+  bot:'<path d="M12 3.5 L18 12.5 L6 12.5 Z"/><circle cx="10" cy="10.3" r=".9" fill="currentColor" stroke="none"/><circle cx="14" cy="10.3" r=".9" fill="currentColor" stroke="none"/><rect x="7" y="14" width="10" height="7" rx="2.5"/><path d="M4.5 16.5v2.5M19.5 16.5v2.5"/>',
+  /* Nova Review (2026-09-24, retour utilisateur : "une tour d'échec") —
+     remplace l'ancienne réutilisation de "scale" (toujours utilisée
+     telle quelle pour "Comparer", jamais touchée ici) : silhouette de
+     tour (crénelures en 4 créneaux simples, corps fuselé), pour évoquer
+     la stratégie/le recul plutôt qu'une simple balance. */
+  rook:'<path d="M7 3.5V7M10.33 3.5V7M13.67 3.5V7M17 3.5V7M6.2 7H17.8L16.3 18H7.7Z"/><path d="M6 20.5h12"/>',
 };
 const ICON_SHIFT = {
   home:[0.03,-1.95], list:[1.65,-3.56], wallet:[0,-0.41], star:[0,-0.46],
@@ -14573,7 +14585,7 @@ const NOVA_FEATURES = {
   novabot: { icon:'bot', accent:'#8b5cf6', rgb:'139,92,246',
     title:'NovaBot', tag:'Automatisation intelligente',
     desc:"NovaBot pourra bientôt gérer une partie de vos investissements selon des règles que vous aurez vous-même définies — jamais un ordre passé sans votre accord explicite." },
-  novareview: { icon:'scale', accent:'#ec4899', rgb:'236,72,153',
+  novareview: { icon:'rook', accent:'#ec4899', rgb:'236,72,153',
     title:'Nova Review', tag:'Revoir vos décisions',
     desc:"Nova Review reviendra sur vos décisions d'investissement passées pour vous aider à comprendre ce qui a fonctionné, ou non, et pourquoi." },
   novaevent: { icon:'calendar', accent:'#8d95a4', rgb:'141,149,164',
