@@ -2443,8 +2443,11 @@ function restoreRuntimeCatalog(){
 
 /* --------------------------------------------------------------------
    CATALOGUE MONDIAL (Explorer/Marchés) — parcours par pages de 20, jamais
-   la recherche comme seul point d'entrée. S'appuie sur /api/market/catalog
-   (voir rapport backend), lui-même alimenté par free-ticker-database.
+   la recherche comme seul point d'entrée. S'appuie sur
+   /api/market/extra?kind=catalog (2026-09-24 : fusionnée avec news.js et
+   health.js pour rester sous la limite de fonctions serverless du plan
+   Vercel — voir la note en tête d'api/market/extra.js), lui-même
+   alimenté par free-ticker-database.
 
    IMPORTANT — couverture réelle du dataset : uniquement 'stock' et 'etf'
    (colonnes asset_type constatées = Stock/ETF uniquement, aucune ligne
@@ -2477,7 +2480,7 @@ async function chargerPageCatalogue(type){
   if (st.done || st.loading) return 0;
   st.loading = true;
   try {
-    const url = '/api/market/catalog?type=' + encodeURIComponent(type)
+    const url = '/api/market/extra?kind=catalog&type=' + encodeURIComponent(type)
       + '&limit=' + CATALOG_PAGE_SIZE
       + (st.cursor ? '&cursor=' + encodeURIComponent(st.cursor) : '');
     const r = await fetch(url);
@@ -2706,7 +2709,7 @@ async function searchProviders(t){
    UI nouvelle n'est nécessaire pour ce cas. */
 async function searchCatalog(t){
   try {
-    const r = await fetch('/api/market/catalog?q=' + encodeURIComponent(t) + '&limit=8');
+    const r = await fetch('/api/market/extra?kind=catalog&q=' + encodeURIComponent(t) + '&limit=8');
     if (!r.ok) return [];
     const d = await r.json();
     const list = Array.isArray(d.results) ? d.results : [];
@@ -4005,7 +4008,7 @@ async function chargerActualites(stock){
   render();
   try {
     const exch = stock.exchangeCode || MARKET_CODE[stock.market] || '';
-    const r = await fetch(`/api/market/news?ticker=${encodeURIComponent(stock.ticker)}`
+    const r = await fetch(`/api/market/extra?kind=news&ticker=${encodeURIComponent(stock.ticker)}`
       + `&exchange=${encodeURIComponent(exch)}&type=${encodeURIComponent(stock.type || 'stock')}&limit=8`);
     if (!r.ok){
       stock.news = null;
