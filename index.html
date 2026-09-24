@@ -2749,13 +2749,25 @@ async function searchRemote(q){
   }
   return fusion.slice(0, 8);
 }
+/* CORRECTIF (audit LOT F, 2026-09-24) : les limites Free/Pro/Elite
+   (LIMITS.watchlist dans api/me.js, déjà affichées sur la page Offres)
+   n'étaient JAMAIS vérifiées ici — un compte Free pouvait suivre un
+   nombre illimité de valeurs malgré la limite annoncée à 10. `state.
+   account?.limits` peut être absent un court instant après connexion
+   (refreshAccount() pas encore résolu) : dans ce cas précis on laisse
+   passer plutôt que de bloquer une action légitime sur une simple
+   course de latence, même logique de dégradation gracieuse que
+   quotaLigne() plus haut dans ce fichier. */
 function toggleWatch(id){
   const i = state.watchlist.indexOf(id);
-  if (i >= 0){ state.watchlist.splice(i, 1); toast('Retiré de la watchlist'); }
-  else {
-    state.watchlist.push(id);
-    toast('★ ' + (byId[id] ? byId[id].name : id) + ' ajouté à votre watchlist');
+  if (i >= 0){ state.watchlist.splice(i, 1); toast('Retiré de la watchlist'); saveState(); return; }
+  const limits = state.account?.limits;
+  if (limits && !limits.watchlistUnlimited && state.watchlist.length >= limits.watchlist){
+    toast(`Watchlist limitée à ${limits.watchlist} valeurs en offre ${state.account.planLabel || 'Découverte'} — passez à l'offre supérieure pour en suivre plus.`);
+    return;
   }
+  state.watchlist.push(id);
+  toast('★ ' + (byId[id] ? byId[id].name : id) + ' ajouté à votre watchlist');
   saveState();
 }
 const inWatch = (id) => state.watchlist.includes(id);
@@ -8059,6 +8071,14 @@ document.addEventListener('click', e => {
   const createAlerte = q('[data-create-alerte]');
   if (createAlerte){
     const stockId = createAlerte.dataset.createAlerte;
+    /* CORRECTIF (audit LOT F, 2026-09-24) : même correctif que
+       toggleWatch() ci-dessus — LIMITS.alerts (api/me.js) n'était jamais
+       vérifiée avant cette création. */
+    const limits = state.account?.limits;
+    if (limits && !limits.alertsUnlimited && state.alerts.length >= limits.alerts){
+      toast(`Alertes limitées à ${limits.alerts} en offre ${state.account.planLabel || 'Découverte'} — passez à l'offre supérieure pour en créer plus.`);
+      return;
+    }
     const target = +document.getElementById('alertTarget')?.value;
     if (!Number.isFinite(target) || target <= 0){ toast('Indiquez un prix cible valide.'); return; }
     const dirBtn = document.querySelector('[data-alert-dir][aria-pressed="true"]');
