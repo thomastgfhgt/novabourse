@@ -260,6 +260,32 @@ const SUFFIX = {
      est ici identique au code EODHD, aucune traduction nécessaire. */
   TO: 'TO',
   AU: 'AU',
+
+  /* Expansion Asie/émergents (2026-09-24, LOT "couverture mondiale") :
+     vérifié EMPIRIQUEMENT en interrogeant la vraie API EODHD en production
+     (jamais deviné depuis une doc tierce) — un cours réel a été reçu pour
+     chacun de ces 6 codes :
+       0700.HK    (Tencent)         -> 438,4 HKD
+       600519.SHG (Kweichow Moutai) -> 1237 CNY
+       000001.SHE (Ping An)         -> 11,3 CNY
+       005930.KO  (Samsung, KOSPI)  -> 285500 KRW
+       PETR4.SA   (Petrobras)       -> 49,43 BRL
+       2330.TW    (TSMC)            -> 2475 TWD
+     Tokyo (essayé : T/TSE/JP/TYO), Inde (NSE/BSE) et Arabie Saoudite (SR/
+     TADAWUL) ont échoué avec des erreurs cohérentes avec un plan EODHD ne
+     couvrant pas encore ces places (403 Forbidden "contact support", ou
+     404 Ticker Not Found malgré un format de symbole par ailleurs
+     documenté comme correct) — PAS un problème de code, laissés NULL en
+     attendant soit une vérification ultérieure, soit une évolution de
+     plan. KOSDAQ (marché coréen distinct de KO/KOSPI) et TPEX (Taiwan OTC,
+     distinct de TW/TWSE) volontairement NON vérifiés dans cette passe,
+     restent NULL par prudence plutôt que supposés identiques à KO/TW. */
+  HK: 'HK',
+  SHG: 'SHG',
+  SHE: 'SHE',
+  KO: 'KO',
+  SA: 'SA',
+  TW: 'TW',
 };
 
 const eodhdSymbol = (

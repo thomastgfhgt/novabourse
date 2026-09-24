@@ -2325,6 +2325,32 @@ const REGION_OF_COUNTRY = {
   'Spain': 'Europe', 'Italy': 'Europe', 'Sweden': 'Europe', 'Denmark': 'Europe',
   'Finland': 'Europe', 'Norway': 'Europe', 'Austria': 'Europe', 'Brazil': 'Amériques',
   'China': 'Asie/Pacifique', 'Mexico': 'Amériques',
+
+  /* Expansion du catalogue mondial (2026-09-24, scripts/build-catalog.js,
+     11 243 -> 36 765 entreprises) : 34 nouveaux pays réellement présents,
+     ajoutés ici pour qu'ils restent filtrables par région plutôt que de
+     tomber silencieusement dans "Monde". Bermudes/Îles Caïmans/Îles
+     Vierges britanniques/Îles Féroé existaient déjà ci-dessus en anglais
+     (repli legacy) : ajoutées ici en français, la forme désormais utilisée
+     par catalog.json. */
+  'Bulgarie': 'Europe', 'Chypre': 'Europe', 'Gibraltar': 'Europe',
+  'Grèce': 'Europe', 'Guernesey': 'Europe', 'Hongrie': 'Europe',
+  'Jersey': 'Europe', 'Liechtenstein': 'Europe', 'Malte': 'Europe',
+  'Monaco': 'Europe', 'Roumanie': 'Europe', 'République tchèque': 'Europe',
+  'Slovénie': 'Europe', 'Île de Man': 'Europe', 'Îles Féroé': 'Europe',
+
+  'Bahamas': 'Amériques', 'Bermudes': 'Amériques', 'Chili': 'Amériques',
+  'Colombie': 'Amériques', 'Panama': 'Amériques', 'Porto Rico': 'Amériques',
+  'Pérou': 'Amériques', 'Îles Caïmans': 'Amériques',
+  'Îles Vierges britanniques': 'Amériques',
+
+  'Nouvelle-Zélande': 'Asie/Pacifique', 'Pakistan': 'Asie/Pacifique',
+  'Papouasie-Nouvelle-Guinée': 'Asie/Pacifique', 'Îles Marshall': 'Asie/Pacifique',
+  'Kazakhstan': 'Asie/Pacifique',
+
+  'Bahreïn': 'Moyen-Orient',
+
+  'Gabon': 'Afrique', 'Maurice': 'Afrique', 'Nigeria': 'Afrique', 'Égypte': 'Afrique',
 };
 const REGIONS = ['Monde','France','Europe','Amériques','Asie/Pacifique','Moyen-Orient','Afrique'];
 
@@ -8770,7 +8796,13 @@ async function runAnalysis(stockId){
 async function loadCatalog(){
   try {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 6000);
+    /* CORRECTIF (2026-09-24, expansion mondiale du catalogue, 11 243 ->
+       36 765 entreprises) : catalog.json est passé d'environ 4,7 à 15,75 Mo
+       non compressés (compressé côté Vercel, mais une connexion lente
+       reste plus longue à charger) — délai relevé de 6 à 12s pour éviter
+       un abandon prématuré sur mobile/3G, toujours dégradé gracieusement
+       (catalogue vide/partiel, voir le catch ci-dessous) si dépassé. */
+    const timeout = setTimeout(() => controller.abort(), 12000);
     const r = await fetch('/catalog.json', { signal: controller.signal });
     clearTimeout(timeout);
     if (!r.ok) return;

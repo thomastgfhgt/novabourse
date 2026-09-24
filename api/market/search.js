@@ -88,6 +88,25 @@ const EXCHANGE_ALIASES = {
   OL: 'OL',
   OSLO: 'OL',
   OSL: 'OL',
+
+  /* Expansion Asie/émergents (2026-09-24) : mêmes 6 places vérifiées
+     empiriquement que SUFFIX (_providers.js) et ALIAS_CATALOGUE
+     (_exchangeCrosswalk.js). Alias volontairement limités aux formes déjà
+     connues (code court + libellé du dataset catalogue) : une forme
+     humaine différente renvoyée un jour par /api/search (ex. "HONG KONG")
+     resterait non reconnue plutôt que devinée, jusqu'à vérification. */
+  HK: 'HK',
+  HKEX: 'HK',
+  SHG: 'SHG',
+  SSE: 'SHG',
+  SHE: 'SHE',
+  SZSE: 'SHE',
+  KO: 'KO',
+  KRX: 'KO',
+  SA: 'SA',
+  B3: 'SA',
+  TW: 'TW',
+  TWSE: 'TW',
 };
 
 function normaliserExchange(value) {

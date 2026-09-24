@@ -49,6 +49,18 @@ const ALIAS_CATALOGUE = {
      convention de symbole EODHD n'a jamais été vérifiée — resterait NULL. */
   TSX: 'TO',
   ASX: 'AU',
+
+  /* Expansion Asie/émergents (2026-09-24) : places EODHD vérifiées
+     empiriquement (voir le commentaire au-dessus de HK/SHG/SHE/KO/SA/TW
+     dans SUFFIX, _providers.js) — le dataset catalogue leur donne un nom
+     différent de celui utilisé par les symboles EODHD, simple alias comme
+     TSX/ASX ci-dessus, pas une nouvelle place non testée. */
+  HKEX: 'HK',
+  SSE: 'SHG',
+  SZSE: 'SHE',
+  KRX: 'KO',
+  B3: 'SA',
+  TWSE: 'TW',
 };
 
 /* "Euronext" est un label générique dans ce dataset qui recouvre plusieurs
