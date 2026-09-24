@@ -3111,12 +3111,105 @@ function prixDe(st){
   return q && Number.isFinite(q.price) && q.price > 0 ? q.price : null;
 }
 
-/* Identifiant local simple (jamais envoyé à aucun serveur, aucune collision
-   nécessaire au-delà de cette session/cet appareil) — même schéma que
-   creerListe() plus haut. */
+/* Identifiant local simple. Depuis la persistance serveur du portefeuille
+   (2026-09-24, LOT D — voir pushPortfolio()/syncPortfolio() plus bas), cet
+   id EST envoyé au serveur : il sert de clé d'upsert idempotente pour
+   portfolio_transactions (api/me.js, resource=portfolio), pas seulement
+   d'identifiant local — même schéma que creerListe() plus haut, réutilisé
+   par simplicité (collision négligeable, et de toute façon scopée par
+   utilisateur côté base). */
 function enregistrerTransaction(entree){
   state.transactions.push({ id: 'tx' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
     date: new Date().toISOString(), ...entree });
+  pushPortfolio();
+}
+
+/* Reconstruit cash/positions/realizedPnL depuis ZÉRO en rejouant un journal
+   de transactions dans l'ordre chronologique — même arithmétique que
+   buyStock()/sellStock() (coût moyen pondéré), mais à partir du qty/prix
+   DÉJÀ figés de chaque transaction passée (jamais recalculés depuis un
+   cours actuel, contrairement à un achat en direct). Utilisée uniquement
+   par syncPortfolio() pour fusionner l'historique local avec celui reçu du
+   serveur (ex. nouvel appareil) — jamais appelée pendant un achat/vente
+   normal, qui continue de passer par buyStock()/sellStock() ci-dessous. */
+function rejouerTransactions(transactions){
+  const wallet = { cash: DEFAULT_STATE.wallet.cash, positions: [], realizedPnL: 0 };
+  const triees = [...transactions].sort((a, b) => new Date(a.date) - new Date(b.date));
+  for (const tx of triees){
+    if (tx.type === 'buy'){
+      const pos = wallet.positions.find(p => p.id === tx.stockId);
+      if (pos){
+        const totalQty = pos.qty + tx.qty;
+        pos.avg = ((pos.avg * pos.qty) + (tx.priceLocal * tx.qty)) / totalQty;
+        pos.qty = totalQty;
+      } else {
+        wallet.positions.push({ id: tx.stockId, qty: tx.qty, avg: tx.priceLocal });
+      }
+      wallet.cash -= tx.amountEUR;
+    } else if (tx.type === 'sell'){
+      const pos = wallet.positions.find(p => p.id === tx.stockId);
+      if (pos){
+        pos.qty -= tx.qty;
+        if (pos.qty <= 0.0001) wallet.positions = wallet.positions.filter(p => p.id !== tx.stockId);
+      }
+      wallet.cash += tx.amountEUR;
+      if (Number.isFinite(tx.realizedGain)) wallet.realizedPnL += tx.realizedGain;
+    }
+  }
+  return wallet;
+}
+
+/* Envoie tout l'historique local (transactions + relevés) vers le serveur —
+   jamais un diff, l'upsert (id pour les transactions, user_id+occurred_at
+   pour les relevés, voir sql/2026-09-24_portfolio_persistence.sql) rend
+   l'opération idempotente. Silencieuse en cas d'échec (hors-ligne, non
+   connecté...) : le prochain achat/vente ou la prochaine connexion
+   réessaiera, la copie locale reste toujours la référence immédiate. */
+async function pushPortfolio(){
+  if (!sbClient || state.auth.status !== 'authenticated') return;
+  try {
+    await authFetch('/api/me?resource=portfolio', { method:'POST',
+      body: JSON.stringify({ transactions: state.transactions, snapshots: state.walletHistory }) });
+  } catch (e){ console.warn('[portfolio] envoi impossible :', e); }
+}
+
+/* Appelée une fois après connexion (voir applySession()) : récupère
+   l'historique serveur, le fusionne (dédoublonné par id/instant) avec
+   l'historique local de CET appareil — utile si l'utilisateur avait déjà
+   acheté/vendu ailleurs, ou si ce navigateur vient d'être vidé — puis
+   rejoue le journal fusionné pour reconstruire cash/positions/realizedPnL.
+   Termine en repoussant la fusion au serveur (couvre le cas d'un tout
+   premier login avec un historique local jamais encore envoyé). */
+async function syncPortfolio(){
+  if (!sbClient || state.auth.status !== 'authenticated') return;
+  try {
+    const r = await authFetch('/api/me?resource=portfolio');
+    if (!r.ok) return;
+    const data = await r.json();
+    const serverTx = Array.isArray(data.transactions) ? data.transactions : [];
+    const serverSnap = Array.isArray(data.snapshots) ? data.snapshots : [];
+    if (!serverTx.length && !serverSnap.length && !state.transactions.length){
+      return; // rien à fusionner, pousse simplement l'historique local (vide) au premier login
+    }
+
+    const txById = new Map();
+    for (const tx of state.transactions) txById.set(tx.id, tx);
+    for (const tx of serverTx) txById.set(tx.id, tx);
+    state.transactions = [...txById.values()].sort((a, b) => new Date(a.date) - new Date(b.date));
+
+    const snapByT = new Map();
+    for (const s of state.walletHistory) snapByT.set(s.t, s);
+    for (const s of serverSnap) snapByT.set(s.t, s);
+    state.walletHistory = [...snapByT.values()].sort((a, b) => a.t - b.t);
+
+    const rejoue = rejouerTransactions(state.transactions);
+    state.wallet.cash = rejoue.cash;
+    state.wallet.positions = rejoue.positions;
+    state.wallet.realizedPnL = rejoue.realizedPnL;
+    saveState();
+    render();
+  } catch (e){ console.warn('[portfolio] synchronisation impossible :', e); return; }
+  pushPortfolio();
 }
 
 /* `these` (Nova Memory, §27, optionnel) : { reason, horizon } tel que saisi
@@ -6244,6 +6337,7 @@ async function applySession(session){
   saveState();
   await refreshAccount();
   if (gen !== _sessionGen) return;   // une session plus récente a déjà pris le relais
+  syncPortfolio();   // asynchrone, non bloquant : ne re-render() que si la fusion change quelque chose
 
   if (state.account && state.account.onboarded === false && !state.onboarding.done){
     state.onboarding.step = state.onboarding.step || 1;
