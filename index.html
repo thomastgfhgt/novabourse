@@ -4402,11 +4402,100 @@ function pricingBlock(compact = false){
       Sans engagement · Paiement sécurisé</p>
   </section>`;
 }
-/* Les 4 pages de présentation Nova (2026-09-23) : purement visuelles,
-   voir novaFeaturePage() — aucune n'a besoin de logique propre, une
-   ligne chacune suffit. */
+/* Nova Review (LOT H, Étape 3, 2026-09-24) : plus une page de présentation
+   ("bientôt disponible") mais une vraie revue, construite uniquement à
+   partir de données réelles déjà en base — state.transactions (chaque
+   vente réelle, voir sellStock()/enregistrerTransaction()) et la thèse
+   Nova Memory éventuellement renseignée à l'achat (openBuyReview,
+   "Pourquoi cet achat ?", §27). Esprit "chess.com" du cahier des charges :
+   séparer la QUALITÉ DU PROCESSUS (a-t-on tenu l'horizon qu'on s'était
+   soi-même fixé ?) du RÉSULTAT (gain/perte réalisé) — jamais un jugement
+   "bonne/mauvaise décision" inventé, seulement des faits comparés à ce que
+   l'utilisateur avait lui-même déclaré. Aucune vente -> état honnête,
+   jamais un faux contenu de démonstration. */
+const HORIZON_JOURS = { court:90, moyen:365, long:Infinity };
+const HORIZON_LABEL = { court:'court terme', moyen:'moyen terme', long:'long terme' };
+/* Dernière thèse d'ACHAT renseignée pour ce titre, AVANT cette vente —
+   même logique que derniereThese() (scripts/test-nova-memory.js), bornée
+   dans le temps pour ne jamais faire remonter la thèse d'un rachat
+   POSTÉRIEUR à la vente en cours de revue. */
+function theseAvantVente(stockId, dateVente){
+  const avant = state.transactions
+    .filter(t => t.type === 'buy' && t.stockId === stockId && t.thesisReason
+      && new Date(t.date) < new Date(dateVente))
+    .sort((a, b) => new Date(b.date) - new Date(a.date));
+  return avant[0] || null;
+}
+/* Seuils "court/moyen/long terme" (en jours) : une convention NovaBourse
+   propre, jamais un fait de marché établi — sert uniquement à comparer la
+   durée de détention réelle à l'horizon que l'UTILISATEUR LUI-MÊME avait
+   choisi à l'achat (chips court/moyen/long d'openBuyReview), jamais
+   affichée comme une vérité universelle de gestion de portefeuille. */
+function compareHorizon(joursDetention, horizonKey){
+  const seuil = HORIZON_JOURS[horizonKey];
+  const label = HORIZON_LABEL[horizonKey];
+  if (!Number.isFinite(seuil) && horizonKey !== 'long') return null;
+  const j = Math.max(0, Math.round(joursDetention));
+  if (horizonKey === 'long'){
+    return j >= 365 ? { aligne:true, texte:`Conservé ${j} j — cohérent avec l'horizon « ${label} » annoncé.` }
+                     : { aligne:false, texte:`Vendu après ${j} j — plus tôt que l'horizon « ${label} » annoncé.` };
+  }
+  return j <= seuil ? { aligne:true, texte:`Conservé ${j} j — cohérent avec l'horizon « ${label} » annoncé.` }
+                     : { aligne:false, texte:`Conservé ${j} j — au-delà de l'horizon « ${label} » annoncé.` };
+}
+PAGES.novareview = () => {
+  const f = NOVA_FEATURES.novareview;
+  const ventes = state.transactions.filter(t => t.type === 'sell').slice().reverse();
+  if (!ventes.length){
+    return `<div class="page-in">
+      <button class="btn btn-g btn-sm" data-back style="margin-bottom:20px">← Retour</button>
+      <div class="empty" style="padding-top:8px">
+        <div class="empty-i" style="background:rgba(${f.rgb},.14);color:${f.accent}">${svg(ICON[f.icon],1.7)}</div>
+        <h3 style="font-size:22px;margin-top:18px">${esc(f.title)}</h3>
+        <p style="max-width:46ch">Nova Review comparera vos décisions passées — ce que vous aviez prévu à l'achat — à ce qui s'est réellement passé, dès votre première vente.</p>
+      </div>
+    </div>`;
+  }
+  return `<div class="page-in">
+    <button class="btn btn-g btn-sm" data-back style="margin-bottom:20px">← Retour</button>
+    <h1 class="title">${esc(f.title)}</h1>
+    <p class="lead measure-l" style="margin-top:10px">Ce que vous aviez prévu à l'achat, comparé à ce qui s'est réellement passé.</p>
+    <div class="card" style="margin-top:18px"><div class="rows">
+      ${ventes.map(tx => {
+        const q = queSiRienFait(tx);
+        const these = theseAvantVente(tx.stockId, tx.date);
+        const dateVente = new Date(tx.date).toLocaleDateString('fr-FR', { day:'2-digit', month:'short', year:'numeric' });
+        const gain = Number.isFinite(tx.realizedGain) ? tx.realizedGain : null;
+        let bloc = `<span class="tiny" style="color:var(--ink-4)">Aucune thèse enregistrée pour cet achat — seul le résultat est visible.</span>`;
+        if (these){
+          const jours = (new Date(tx.date) - new Date(these.date)) / 86400000;
+          const cmp = these.thesisHorizon ? compareHorizon(jours, these.thesisHorizon) : null;
+          bloc = `${these.thesisReason ? `<p class="tiny" style="color:var(--ink-3);margin:4px 0 0">« ${esc(these.thesisReason)} »</p>` : ''}
+            ${cmp ? `<span class="tiny" style="color:var(--ink-4)">${esc(cmp.texte)}</span>` : ''}`;
+        }
+        return `<div class="row" style="padding:14px 0;align-items:flex-start;flex-direction:column;gap:2px">
+          <div style="display:flex;justify-content:space-between;width:100%;align-items:flex-start;gap:10px">
+            <span class="row-main">
+              <span class="row-t">${esc(tx.name)}</span>
+              <span class="row-s">Vendu le ${dateVente} · ${fmt.eur(tx.amountEUR)} récupérés</span>
+            </span>
+            <span style="text-align:right;flex:0 0 auto">
+              ${gain === null ? '' : `<span class="tabular-nums ${gain >= 0 ? 'up-t' : 'down-t'}" style="font-size:13.5px;font-weight:600">${gain >= 0 ? '+' : ''}${fmt.eur(gain)} réalisé</span>`}
+              ${q === null ? '' : `<br><span class="tiny" style="color:var(--ink-4)">${q.difference >= 0 ? 'aurait valu ' + fmt.eur(q.difference) + ' de plus en gardant' : 'a évité ' + fmt.eur(Math.abs(q.difference)) + ' en vendant'}</span>`}
+            </span>
+          </div>
+          ${bloc}
+        </div>`;
+      }).join('')}
+    </div></div>
+  </div>`;
+};
+/* Les 3 autres pages de présentation Nova (2026-09-23) : purement
+   visuelles, voir novaFeaturePage() — aucune n'a besoin de logique propre,
+   une ligne chacune suffit. NovaBot (paper-trading) et Nova Event (agenda
+   NovaBourse) restent hors périmètre de cette passe : LOT H ne couvrait
+   que Nova Review. */
 PAGES.novabot = () => novaFeaturePage('novabot');
-PAGES.novareview = () => novaFeaturePage('novareview');
 PAGES.novaevent = () => novaFeaturePage('novaevent');
 PAGES.novanews = () => novaFeaturePage('novanews');
 PAGES.pricing = () => `
