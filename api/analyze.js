@@ -23,6 +23,28 @@ const PROVIDERS = {
 };
 const actif = () => Object.entries(PROVIDERS).filter(([, p]) => process.env[p.env]);
 
+/* ORCHESTRATION PAR TÂCHE (LOT E, Étape 3, 2026-09-24) : une seule identité
+   "Nova AI" côté utilisateur, mais le fournisseur choisi EN INTERNE peut
+   différer selon la nature de la tâche (ex. préférer un modèle plus
+   nuancé pour l'analyse en texte libre, un modèle rapide/économique pour
+   le screener qui ne produit que quelques champs structurés) plutôt qu'un
+   ordre unique pour tout. Par défaut, les deux tâches ci-dessous
+   réutilisent l'ordre de PROVIDERS (xAI d'abord, seul fournisseur
+   configuré en production à ce jour) : réordonner l'une des deux listes
+   le jour où OPENAI_API_KEY/ANTHROPIC_API_KEY seront ajoutées suffit à
+   changer le comportement réel, sans toucher à appelModeleAvecBascule()
+   ni aux appelants ci-dessous. */
+const ORDRE_TACHES = {
+  analyse: ['xai', 'openai', 'anthropic'],
+  screener: ['xai', 'openai', 'anthropic'],
+};
+function dispoPourTache(tache){
+  const configures = new Set(actif().map(([id]) => id));
+  return (ORDRE_TACHES[tache] || Object.keys(PROVIDERS))
+    .filter(id => configures.has(id))
+    .map(id => [id, PROVIDERS[id]]);
+}
+
 /* BASCULE ENTRE FOURNISSEURS (LOT E, Étape 3, 2026-09-24) — même esprit que
    le cascade de fournisseurs de données de marché (api/market/_router.js) :
    essaie chaque fournisseur CONFIGURÉ dans l'ordre de PROVIDERS (xAI ->
@@ -190,8 +212,7 @@ module.exports = async (req, res) => {
   const user = await userFromToken(req);
   if (!user) return res.status(401).json({ error: 'non_connecte' });
 
-  const dispo = actif();
-  if (!dispo.length) {
+  if (!actif().length) {
     return res.status(503).json({ error: 'aucun_modele_configure',
       message: "Aucune clé de modèle n'est configurée sur le serveur." });
   }
@@ -202,8 +223,9 @@ module.exports = async (req, res) => {
   const { plan } = await planReel(sb, user.id);
 
   if (req.body?.mode === 'screener'){
-    return screenerAnalyse(req, res, { user, plan, dispo });
+    return screenerAnalyse(req, res, { user, plan, dispo: dispoPourTache('screener') });
   }
+  const dispo = dispoPourTache('analyse');
 
   const { ticker, exchange, name, country, sector, industry, currency, mode } = req.body || {};
   /* Niveau de langage (§45 du PRD) : ajuste UNIQUEMENT le ton/vocabulaire
