@@ -23,6 +23,51 @@ const PROVIDERS = {
 };
 const actif = () => Object.entries(PROVIDERS).filter(([, p]) => process.env[p.env]);
 
+/* BASCULE ENTRE FOURNISSEURS (LOT E, Étape 3, 2026-09-24) — même esprit que
+   le cascade de fournisseurs de données de marché (api/market/_router.js) :
+   essaie chaque fournisseur CONFIGURÉ dans l'ordre de PROVIDERS (xAI ->
+   OpenAI -> Anthropic), passe au suivant sur tout échec (réseau, HTTP en
+   erreur, réponse hors-schéma), ne renvoie une erreur que si TOUS les
+   fournisseurs configurés ont échoué. Une seule identité "Nova" côté
+   utilisateur : `provider`/`model` ne sont renvoyés que pour compte-rendu
+   interne (quota, journal serveur), jamais affichés dans index.html.
+   Un seul fournisseur (xAI) est configuré en production à ce jour : cette
+   bascule ne joue donc pas encore en pratique, mais est prête sans aucun
+   changement de code le jour où OPENAI_API_KEY/ANTHROPIC_API_KEY seront
+   ajoutées — voir le blocage signalé pour ce lot. */
+async function appelModeleAvecBascule(dispo, { prompt, maxTokens, timeoutMs, validerEtNormaliser }){
+  let derniereErreur = null;
+  for (const [id, p] of dispo){
+    const key = process.env[p.env];
+    const modele = typeof p.model === 'function' ? p.model() : p.model;
+    try {
+      const body = { model: modele, max_tokens: maxTokens, messages: [{ role:'user', content: prompt }] };
+      const ctrl = new AbortController();
+      const t = setTimeout(() => ctrl.abort(), timeoutMs);
+      const r = await fetch(p.url, { method:'POST', signal: ctrl.signal,
+        headers: { 'Content-Type':'application/json', ...p.auth(key) }, body: JSON.stringify(body) });
+      clearTimeout(t);
+      const d = await r.json();
+      if (!r.ok){
+        console.error('[analyze]', id, r.status, JSON.stringify(d).slice(0, 300));
+        derniereErreur = { type:'fournisseur_en_erreur', provider:id, status:r.status,
+          detail: d?.error?.message || d?.error || null };
+        continue;
+      }
+      const brut = id === 'anthropic' ? (d.content?.[0]?.text || '') : (d.choices?.[0]?.message?.content || '');
+      const parsedBrut = JSON.parse(brut.replace(/```json|```/g, '').trim());
+      const parsed = validerEtNormaliser(parsedBrut);   // lève si hors-schéma
+      return { id, modele, parsed, usage: d.usage || null };
+    } catch (e){
+      console.error('[analyze]', id, e.message);
+      derniereErreur = { type: e.name === 'AbortError' ? 'delai_depasse' : 'reponse_illisible',
+        provider:id, detail: e.message };
+      continue;
+    }
+  }
+  throw derniereErreur || { type:'reponse_illisible', provider:null, detail:'aucun_fournisseur' };
+}
+
 /* DOIT RESTER IDENTIQUE à la liste SECTORS d'index.html (recherche "const
    SECTORS =") : sert à valider qu'un secteur renvoyé par le modèle pour le
    screener (voir screenerAnalyse ci-dessous) correspond à une valeur RÉELLE
@@ -75,9 +120,6 @@ async function screenerAnalyse(req, res, { user, plan, dispo }){
   const requete = typeof req.body?.query === 'string' ? req.body.query.trim().slice(0, 300) : '';
   if (!requete) return res.status(400).json({ error: 'requete_vide' });
 
-  const [id, p] = dispo[0];
-  const key = process.env[p.env];
-  const modele = typeof p.model === 'function' ? p.model() : p.model;
   const prompt = `${CONSIGNE_SCREENER}\n\nRequête utilisateur : "${requete}"`;
 
   const resa = await reserver(sb, user.id, plan);
@@ -98,44 +140,35 @@ async function screenerAnalyse(req, res, { user, plan, dispo }){
   const utilise = resa.used;
   const annuler = statut => cloturer(sb, reservation, statut || 'cancelled');
 
-  let parsed = null;
+  let id, modele, parsed;
   try {
-    const body = { model: modele, max_tokens: 300, messages: [{ role:'user', content: prompt }] };
-    const ctrl = new AbortController();
-    const t = setTimeout(() => ctrl.abort(), 20000);
-    const r = await fetch(p.url, { method:'POST', signal: ctrl.signal,
-      headers: { 'Content-Type':'application/json', ...p.auth(key) }, body: JSON.stringify(body) });
-    clearTimeout(t);
-    const d = await r.json();
-    if (!r.ok){
-      await annuler('cancelled');
-      return res.status(502).json({ error: 'fournisseur_en_erreur', provider: id, status: r.status });
-    }
-    const brut = id === 'anthropic' ? (d.content?.[0]?.text || '') : (d.choices?.[0]?.message?.content || '');
-    parsed = JSON.parse(brut.replace(/```json|```/g, '').trim());
-
     /* Même principe que le schéma de l'analyse d'entreprise : rejet strict
        plutôt que coercition silencieuse. "sector" DOIT être une valeur
        réelle de SECTORS (ou "tous") — jamais une catégorie inventée que le
        frontend ne saurait pas appliquer à state.filters.radarSector. */
-    if (
-      !parsed || typeof parsed !== 'object' || Array.isArray(parsed)
-      || (parsed.sector !== 'tous' && !SECTORS.includes(parsed.sector))
-      || typeof parsed.country !== 'string'
-      || !Number.isFinite(Number(parsed.scoreMin))
-      || typeof parsed.explanation !== 'string'
-    ){
-      throw new Error('schema_screener_invalide');
-    }
-    parsed = {
-      sector: parsed.sector,
-      country: parsed.country.slice(0, 60),
-      scoreMin: [0, 50, 60, 70].includes(Number(parsed.scoreMin)) ? Number(parsed.scoreMin) : 0,
-      explanation: parsed.explanation.slice(0, 200),
-    };
+    ({ id, modele, parsed } = await appelModeleAvecBascule(dispo, {
+      prompt, maxTokens: 300, timeoutMs: 20000,
+      validerEtNormaliser: (brut) => {
+        if (
+          !brut || typeof brut !== 'object' || Array.isArray(brut)
+          || (brut.sector !== 'tous' && !SECTORS.includes(brut.sector))
+          || typeof brut.country !== 'string'
+          || !Number.isFinite(Number(brut.scoreMin))
+          || typeof brut.explanation !== 'string'
+        ){
+          throw new Error('schema_screener_invalide');
+        }
+        return {
+          sector: brut.sector,
+          country: brut.country.slice(0, 60),
+          scoreMin: [0, 50, 60, 70].includes(Number(brut.scoreMin)) ? Number(brut.scoreMin) : 0,
+          explanation: brut.explanation.slice(0, 200),
+        };
+      },
+    }));
   } catch (e){
     await annuler('cancelled');
-    return res.status(502).json({ error: e.name === 'AbortError' ? 'delai_depasse' : 'reponse_illisible', detail: e.message });
+    return res.status(502).json({ error: e.type || 'reponse_illisible', provider: e.provider ?? null, detail: e.detail });
   }
 
   await cloturer(sb, reservation, 'ok', { provider:id, model:modele });
@@ -307,9 +340,6 @@ module.exports = async (req, res) => {
     },
   };
 
-  const [id, p] = dispo[0];
-  const key = process.env[p.env];
-  const modele = typeof p.model === 'function' ? p.model() : p.model;
   const prompt = `${CONSIGNE}
 
 ${niveauLangage}
@@ -354,75 +384,61 @@ jamais et ne modifies jamais de note.`;
 
   const annuler = statut => cloturer(sb, reservation, statut || 'cancelled');
 
-  let parsed = null, brut = '', usage = null;
+  /* SCHÉMA STRICT — VALIDATION AVANT NORMALISATION.
+     Un modèle peut renvoyer un JSON syntaxiquement valide mais qui ne
+     respecte pas le contrat attendu (verdict hors énumération, uncertainty
+     hors énumération, summary/positive/negative absents ou du mauvais
+     type). Une telle réponse est REJETÉE explicitement (throw), pas
+     silencieusement coercée en null/[] : si TOUS les fournisseurs
+     configurés échouent ainsi, appelModeleAvecBascule relance la dernière
+     erreur, le catch ci-dessous annule la réservation ('cancelled') et
+     renvoie 502 : aucune analyse n'est donc jamais consommée définitivement
+     dans ce cas. Seulement une fois cette validation passée, les champs
+     sont bornés en longueur et les éléments non-string filtrés des
+     tableaux — ça, c'est de la normalisation, pas une validation de
+     conformité. */
+  let id, modele, parsed, usage;
   try {
-    const body = { model: modele, max_tokens: 900,
-      messages: [{ role:'user', content: prompt }] };
-    const ctrl = new AbortController();
-    const t = setTimeout(() => ctrl.abort(), 30000);
-    const r = await fetch(p.url, { method:'POST', signal: ctrl.signal,
-      headers: { 'Content-Type':'application/json', ...p.auth(key) }, body: JSON.stringify(body) });
-    clearTimeout(t);
-    const d = await r.json();
-    if (!r.ok){
-      console.error('[analyze]', id, r.status, JSON.stringify(d).slice(0, 300));
-      await annuler('cancelled');
-      return res.status(502).json({ error: 'fournisseur_en_erreur', provider: id,
-        status: r.status, detail: d?.error?.message || d?.error || null });
-    }
-    brut = id === 'anthropic' ? (d.content?.[0]?.text || '') : (d.choices?.[0]?.message?.content || '');
-    parsed = JSON.parse(brut.replace(/```json|```/g, '').trim());
-
-    /* SCHÉMA STRICT — VALIDATION AVANT NORMALISATION.
-       Un modèle peut renvoyer un JSON syntaxiquement valide mais qui ne
-       respecte pas le contrat attendu (verdict hors énumération, uncertainty
-       hors énumération, summary/positive/negative absents ou du mauvais
-       type). Une telle réponse est REJETÉE explicitement (throw), pas
-       silencieusement coercée en null/[] : la consommer comme un "200 avec
-       verdict:null" produirait une analyse facturée au quota alors que le
-       modèle n'a en réalité pas respecté le contrat — ce que ce correctif
-       supprime. Le rejet remonte au catch englobant, qui annule la
-       réservation ('cancelled') et renvoie 502 : aucune analyse n'est donc
-       jamais consommée définitivement dans ce cas.
-       Seulement une fois cette validation passée, les champs sont bornés en
-       longueur et les éléments non-string filtrés des tableaux — ça, c'est
-       de la normalisation, pas une validation de conformité. */
-    const VERDICTS_AUTORISES = new Set(['positif', 'neutre', 'negatif', 'insuffisant']);
-    const INCERTITUDES_AUTORISEES = new Set(['faible', 'moyenne', 'elevee']);
-    if (
-      !parsed || typeof parsed !== 'object' || Array.isArray(parsed)
-      || !VERDICTS_AUTORISES.has(parsed.verdict)
-      || !INCERTITUDES_AUTORISEES.has(parsed.uncertainty)
-      || typeof parsed.summary !== 'string'
-      || !Array.isArray(parsed.positive)
-      || !Array.isArray(parsed.negative)
-    ){
-      throw new Error('schema_analyse_invalide');
-    }
-    const listeBornee = (v, maxItems, maxLen) => v
-      .filter(x => typeof x === 'string')
-      .slice(0, maxItems)
-      .map(x => x.slice(0, maxLen));
-    parsed = {
-      /* Optionnel plutôt que rejeté si absent (contrairement à
-         verdict/uncertainty/summary/positive/negative ci-dessus) : c'est un
-         nouveau champ, un modèle qui l'omettrait de temps en temps ne doit
-         pas transformer une analyse par ailleurs valide en échec facturé au
-         quota. Chaîne vide affichée comme "non fournie", jamais devinée. */
-      whatItDoes: typeof parsed.whatItDoes === 'string' ? parsed.whatItDoes.slice(0, 300) : '',
-      verdict: parsed.verdict,               // déjà validé dans l'énumération ci-dessus
-      uncertainty: parsed.uncertainty,       // déjà validé dans l'énumération ci-dessus
-      summary: parsed.summary.slice(0, 600),
-      positive: listeBornee(parsed.positive, 6, 220),
-      negative: listeBornee(parsed.negative, 6, 220),
-    };
-
-    usage = d.usage || null;
+    ({ id, modele, parsed, usage } = await appelModeleAvecBascule(dispo, {
+      prompt, maxTokens: 900, timeoutMs: 30000,
+      validerEtNormaliser: (brut) => {
+        const VERDICTS_AUTORISES = new Set(['positif', 'neutre', 'negatif', 'insuffisant']);
+        const INCERTITUDES_AUTORISEES = new Set(['faible', 'moyenne', 'elevee']);
+        if (
+          !brut || typeof brut !== 'object' || Array.isArray(brut)
+          || !VERDICTS_AUTORISES.has(brut.verdict)
+          || !INCERTITUDES_AUTORISEES.has(brut.uncertainty)
+          || typeof brut.summary !== 'string'
+          || !Array.isArray(brut.positive)
+          || !Array.isArray(brut.negative)
+        ){
+          throw new Error('schema_analyse_invalide');
+        }
+        const listeBornee = (v, maxItems, maxLen) => v
+          .filter(x => typeof x === 'string')
+          .slice(0, maxItems)
+          .map(x => x.slice(0, maxLen));
+        return {
+          /* Optionnel plutôt que rejeté si absent (contrairement à
+             verdict/uncertainty/summary/positive/negative ci-dessus) : un
+             modèle qui l'omettrait de temps en temps ne doit pas
+             transformer une analyse par ailleurs valide en échec facturé
+             au quota. Chaîne vide affichée comme "non fournie", jamais
+             devinée. */
+          whatItDoes: typeof brut.whatItDoes === 'string' ? brut.whatItDoes.slice(0, 300) : '',
+          verdict: brut.verdict,               // déjà validé dans l'énumération ci-dessus
+          uncertainty: brut.uncertainty,       // déjà validé dans l'énumération ci-dessus
+          summary: brut.summary.slice(0, 600),
+          positive: listeBornee(brut.positive, 6, 220),
+          negative: listeBornee(brut.negative, 6, 220),
+        };
+      },
+    }));
   } catch (e) {
-    console.error('[analyze]', id, e.message);
+    console.error('[analyze]', e.provider, e.detail || e.message);
     await annuler('cancelled');
-    return res.status(502).json({ error: e.name === 'AbortError' ? 'delai_depasse' : 'reponse_illisible',
-      provider: id, detail: e.message });
+    return res.status(502).json({ error: e.type || 'reponse_illisible',
+      provider: e.provider ?? null, detail: e.detail || e.message });
   }
 
   /* VERROU. Deux filtres, puis une construction explicite de la réponse.
