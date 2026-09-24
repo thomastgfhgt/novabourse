@@ -1938,6 +1938,28 @@ const DEFAULT_STATE = {
      invisible tant que l'utilisateur ne la recherche pas à nouveau. */
   runtimeCatalog:{},
 
+  /* NovaBot (LOT I, Étape 3, 2026-09-24) : SIMULATION UNIQUEMENT, jamais un
+     ordre réel sur les marchés — voir evaluerNovaBot()/novabotAcheter()/
+     novabotVendre() plus bas. wallet/transactions ISOLÉS de state.wallet/
+     state.transactions (le portefeuille réel de l'utilisateur) : les mêler
+     fausserait à la fois Nova Review (qui suppose que state.transactions ne
+     contient que des décisions VOLONTAIRES) et la valorisation du
+     portefeuille réel. N'agit QUE sur state.watchlist (jamais tout le
+     catalogue), jamais en arrière-plan côté serveur — évalué uniquement
+     pendant que la page NovaBot est consultée, même principe que le
+     rafraîchissement vivant (LIVE_MAX_SYMBOLES) et les alertes de prix
+     (verifierAlertes) : aucun serveur ne surveille les prix pour vous. */
+  novabot:{
+    enabled:false,
+    scoreAchat:70,      // NovaScore minimum pour déclencher un achat simulé
+    stopLossPct:10,     // vente simulée si une position perd ce pourcentage
+    takeProfitPct:20,   // vente simulée si une position gagne ce pourcentage
+    tradeAmountEUR:500, // montant simulé par achat
+    wallet:{ cash:10000, invested:10000, positions:[], realizedPnL:0 },
+    transactions:[],
+    lastRunAt:null,
+  },
+
   auth:{
     status:'loading',   // 'loading' | 'guest' | 'authenticated'
     signedIn:false,
@@ -2067,6 +2089,26 @@ function loadState(){
         runtimeCatalog: (saved.runtimeCatalog && typeof saved.runtimeCatalog === 'object' && !Array.isArray(saved.runtimeCatalog))
           ? saved.runtimeCatalog : {},
         onboarding:{ ...DEFAULT_STATE.onboarding, ...(saved.onboarding || {}) },
+        /* Même garde-fou champ-par-champ que `wallet` ci-dessus, appliqué au
+           portefeuille papier ISOLÉ de NovaBot (voir DEFAULT_STATE.novabot). */
+        novabot:{
+          enabled: saved.novabot?.enabled === true,
+          scoreAchat: Number.isFinite(saved.novabot?.scoreAchat) ? saved.novabot.scoreAchat : DEFAULT_STATE.novabot.scoreAchat,
+          stopLossPct: Number.isFinite(saved.novabot?.stopLossPct) ? saved.novabot.stopLossPct : DEFAULT_STATE.novabot.stopLossPct,
+          takeProfitPct: Number.isFinite(saved.novabot?.takeProfitPct) ? saved.novabot.takeProfitPct : DEFAULT_STATE.novabot.takeProfitPct,
+          tradeAmountEUR: Number.isFinite(saved.novabot?.tradeAmountEUR) ? saved.novabot.tradeAmountEUR : DEFAULT_STATE.novabot.tradeAmountEUR,
+          wallet:{
+            cash: Number.isFinite(saved.novabot?.wallet?.cash) ? saved.novabot.wallet.cash : DEFAULT_STATE.novabot.wallet.cash,
+            invested: Number.isFinite(saved.novabot?.wallet?.invested) ? saved.novabot.wallet.invested : DEFAULT_STATE.novabot.wallet.invested,
+            positions: Array.isArray(saved.novabot?.wallet?.positions) ? saved.novabot.wallet.positions : DEFAULT_STATE.novabot.wallet.positions,
+            realizedPnL: Number.isFinite(saved.novabot?.wallet?.realizedPnL) ? saved.novabot.wallet.realizedPnL : DEFAULT_STATE.novabot.wallet.realizedPnL,
+          },
+          transactions: Array.isArray(saved.novabot?.transactions)
+            ? saved.novabot.transactions.filter(t => t && typeof t.id === 'string' && (t.type === 'buy' || t.type === 'sell')
+                && Number.isFinite(t.qty) && Number.isFinite(t.amountEUR) && typeof t.date === 'string')
+            : [],
+          lastRunAt: Number.isFinite(saved.novabot?.lastRunAt) ? saved.novabot.lastRunAt : null,
+        },
       };
     }
   } catch {
@@ -2848,9 +2890,15 @@ function clearRecent(){ state.recent = []; saveState(); toast('Historique de rec
      marketValue         = quantité × cours actuel
      unrealizedPnL        = marketValue - costBasis
      unrealizedPnLPercent = unrealizedPnL / costBasis × 100 */
-function portfolioValue(){
+/* CORRECTIF (LOT I, 2026-09-24, préparation NovaBot) : paramètre `wallet`
+   ajouté avec `state.wallet` en valeur par défaut — tous les appels
+   existants (aucun ne passe d'argument) gardent exactement le même
+   comportement. Permet de réutiliser cette même valorisation pour le
+   portefeuille PAPIER isolé de NovaBot (state.novabot.wallet, voir
+   novabotPortfolioValue()) sans dupliquer cette logique. */
+function portfolioValue(wallet = state.wallet){
   let value = 0, cost = 0, unresolvedCount = 0;
-  const lines = state.wallet.positions.map(pos => {
+  const lines = wallet.positions.map(pos => {
     const st = byId[pos.id];
     if (!st){
       unresolvedCount++;
@@ -2877,12 +2925,12 @@ function portfolioValue(){
       costBasis:eurCost, marketValue:eurValue, unrealizedPnL:gain, unrealizedPnLPercent:gainPct,
       fx: FX[st.cur] };
   });
-  const total = value + state.wallet.cash;
-  const invested = cost + state.wallet.cash;
+  const total = value + wallet.cash;
+  const invested = cost + wallet.cash;
   const gain = total - invested;
-  const realizedPnL = Number.isFinite(state.wallet.realizedPnL) ? state.wallet.realizedPnL : 0;
-  const netDeposits = Number.isFinite(state.wallet.invested) ? state.wallet.invested : null;
-  return { lines, value, cost, total, cash:state.wallet.cash, invested,
+  const realizedPnL = Number.isFinite(wallet.realizedPnL) ? wallet.realizedPnL : 0;
+  const netDeposits = Number.isFinite(wallet.invested) ? wallet.invested : null;
+  return { lines, value, cost, total, cash:wallet.cash, invested,
     unresolvedCount,
     gain, gainPct: invested > 0 ? (gain / invested) * 100 : 0,
     /* unrealizedPnL du portefeuille = somme des unrealizedPnL de chaque
@@ -3307,6 +3355,149 @@ function queSiRienFait(tx){
   const difference = valeurAujourdhui - tx.amountEUR;
   return { valeurAujourdhui, montantRecu: tx.amountEUR, difference,
     differencePct: tx.amountEUR ? (difference / tx.amountEUR) * 100 : null };
+}
+
+/* ============================================================
+   NOVABOT — SIMULATION UNIQUEMENT (LOT I, Étape 3, 2026-09-24)
+   ------------------------------------------------------------
+   Aucun ordre réel sur les marchés, jamais. Portefeuille et journal
+   ISOLÉS de state.wallet/state.transactions (voir DEFAULT_STATE.novabot
+   pour la justification complète). N'agit QUE sur state.watchlist,
+   jamais en tâche de fond côté serveur : évalué uniquement pendant que
+   la page NovaBot est ouverte, sur demande explicite de l'utilisateur
+   (bouton) — jamais un minuteur invisible qui continuerait à passer des
+   ordres simulés hors de sa vue.
+   ============================================================ */
+const novabotPortfolioValue = () => portfolioValue(state.novabot.wallet);
+
+/* NovaScore RÉEL, calculé gratuitement par /api/market/company (voir le
+   champ additif `novaScore` ajouté dans api/market/company.js pour ce
+   lot) — jamais le NovaScore payant d'/api/analyze (qui appelle un
+   modèle de langage et consomme le quota d'analyses IA de
+   l'utilisateur) : NovaBot ne doit jamais consommer ce quota tout seul,
+   sans action explicite de l'utilisateur. Renvoie null si le moteur a
+   refusé de noter (couverture de données insuffisante) — jamais une
+   estimation. */
+async function novaScoreDe(st){
+  try {
+    const exch = st.exchangeCode || MARKET_CODE[st.market] || '';
+    const r = await fetch(`/api/market/company?ticker=${encodeURIComponent(st.ticker)}`
+      + `&exchange=${encodeURIComponent(exch)}&type=${encodeURIComponent(st.type || 'stock')}`);
+    if (!r.ok) return null;
+    const d = await r.json();
+    return Number.isFinite(d.novaScore?.score) ? d.novaScore.score : null;
+  } catch { return null; }
+}
+
+/* Même arithmétique que buyStock()/sellStock() (coût moyen pondéré),
+   mais écrite exclusivement dans state.novabot.wallet/transactions —
+   jamais state.wallet/state.transactions. `motif` documente la règle
+   utilisateur qui a déclenché la décision (transparence, §I du cahier
+   des charges : "explications transparentes des décisions"). */
+function novabotAcheter(id, montantEUR, prix, motif){
+  const st = byId[id];
+  if (!st) return;
+  const priceEUR = toEUR(prix, st.cur);
+  const qty = montantEUR / priceEUR;
+  if (!Number.isFinite(qty) || !(qty > 0)) return;
+  const w = state.novabot.wallet;
+  const pos = w.positions.find(p => p.id === id);
+  if (pos){
+    const totalQty = pos.qty + qty;
+    pos.avg = ((pos.avg * pos.qty) + (prix * qty)) / totalQty;
+    pos.qty = totalQty;
+  } else {
+    w.positions.push({ id, qty, avg: prix });
+  }
+  w.cash -= montantEUR;
+  state.novabot.transactions.push({ id:'nb'+Date.now().toString(36)+Math.random().toString(36).slice(2,6),
+    date:new Date().toISOString(), stockId:id, ticker:st.ticker, name:st.name, type:'buy',
+    qty, priceLocal:prix, currency:st.cur, amountEUR:montantEUR, motif });
+}
+function novabotVendre(id, prix, motif){
+  const w = state.novabot.wallet;
+  const i = w.positions.findIndex(p => p.id === id);
+  if (i < 0) return;
+  const pos = w.positions[i], st = byId[id];
+  if (!st) return;
+  const qty = pos.qty;
+  const proceeds = toEUR(prix * qty, st.cur);
+  const costBasis = toEUR(pos.avg * qty, st.cur);
+  const realizedGain = proceeds - costBasis;
+  w.positions.splice(i, 1);
+  w.cash += proceeds;
+  w.realizedPnL = (Number.isFinite(w.realizedPnL) ? w.realizedPnL : 0) + realizedGain;
+  state.novabot.transactions.push({ id:'nb'+Date.now().toString(36)+Math.random().toString(36).slice(2,6),
+    date:new Date().toISOString(), stockId:id, ticker:st.ticker, name:st.name, type:'sell',
+    qty, priceLocal:prix, currency:st.cur, amountEUR:proceeds, realizedGain, motif });
+}
+
+/* Boucle d'évaluation. Deux passes, dans cet ordre précis (sortir avant
+   d'entrer : une position en perte au-delà du stop-loss doit être
+   liquidée avant d'envisager un nouvel achat, jamais l'inverse qui
+   engagerait de nouvelles liquidités pendant qu'une perte s'aggrave) :
+     1. positions déjà détenues -> stop-loss / take-profit (aucun appel
+        réseau : prix déjà en mémoire via prixDe(), comme le reste de
+        l'app) ;
+     2. valeurs de la watchlist NON détenues -> achat simulé si le
+        NovaScore réel dépasse le seuil déclaré. Un appel réseau réel par
+        candidat (novaScoreDe) : borné à la watchlist, jamais tout le
+        catalogue, pour respecter le même esprit de budget que
+        LIVE_MAX_SYMBOLES plus haut. S'arrête dès que les liquidités
+        papier sont insuffisantes pour un achat de plus — jamais un achat
+        partiel improvisé qui déformerait tradeAmountEUR. */
+async function evaluerNovaBot(){
+  if (!state.novabot.enabled) return;
+  const cfg = state.novabot;
+  let changed = false;
+
+  for (const pos of [...cfg.wallet.positions]){
+    const st = byId[pos.id];
+    const prix = st ? prixDe(st) : null;
+    if (prix === null) continue;
+    const gainPct = ((prix - pos.avg) / pos.avg) * 100;
+    if (gainPct <= -cfg.stopLossPct){
+      novabotVendre(pos.id, prix, `Stop-loss déclenché : position à ${fmt.num(gainPct,1)} %`);
+      changed = true;
+    } else if (gainPct >= cfg.takeProfitPct){
+      novabotVendre(pos.id, prix, `Take-profit déclenché : position à +${fmt.num(gainPct,1)} %`);
+      changed = true;
+    }
+  }
+
+  const dejaDetenus = new Set(cfg.wallet.positions.map(p => p.id));
+  const candidats = state.watchlist.filter(id => !dejaDetenus.has(id));
+  for (const id of candidats){
+    if (cfg.wallet.cash < cfg.tradeAmountEUR) break;
+    const st = byId[id];
+    if (!st) continue;
+    const score = await novaScoreDe(st);
+    if (score === null || score < cfg.scoreAchat) continue;
+    const prix = prixDe(st);
+    if (prix === null) continue;
+    novabotAcheter(id, cfg.tradeAmountEUR, prix, `NovaScore ${score} ≥ seuil ${cfg.scoreAchat}`);
+    changed = true;
+  }
+
+  state.novabot.lastRunAt = Date.now();
+  saveState();
+  if (changed) render();
+}
+
+/* Bornes de saisie généreuses mais réelles (jamais un cash négatif, un
+   pourcentage aberrant, ou un NaN silencieux depuis un champ vidé) —
+   même esprit que setCapital() plus haut. Appelée par un `onchange`
+   direct depuis PAGES.novabot (cohérent avec "chaque réglage s'applique
+   immédiatement", même principe que Réglages). */
+const NOVABOT_BORNES = {
+  scoreAchat:[0,100], stopLossPct:[1,90], takeProfitPct:[1,500], tradeAmountEUR:[10,1000000],
+};
+function novabotSetRegle(cle, valeurBrute){
+  const [min, max] = NOVABOT_BORNES[cle] || [0, Infinity];
+  const v = Number(valeurBrute);
+  if (!Number.isFinite(v)) return;
+  state.novabot[cle] = Math.max(min, Math.min(max, v));
+  saveState();
 }
 
 const ICON = {
@@ -4502,12 +4693,109 @@ PAGES.novareview = () => {
     </div></div>
   </div>`;
 };
-/* Les 3 autres pages de présentation Nova (2026-09-23) : purement
+/* NovaBot (LOT I, Étape 3, 2026-09-24) : simulation de trading réelle
+   (voir evaluerNovaBot() et le bloc NOVABOT plus haut), plus une page de
+   présentation. Réutilise les mêmes composants que Réglages (settingRow)
+   et Portefeuille (.card/.rows/.row/dl/kv) plutôt que d'en inventer de
+   nouveaux. */
+PAGES.novabot = () => {
+  const f = NOVA_FEATURES.novabot;
+  const cfg = state.novabot;
+  const pf = novabotPortfolioValue();
+  const dernierPassage = cfg.lastRunAt
+    ? new Date(cfg.lastRunAt).toLocaleString('fr-FR', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' })
+    : 'jamais';
+  return `<div class="page-in">
+    <button class="btn btn-g btn-sm" data-back style="margin-bottom:20px">← Retour</button>
+    <p class="eyebrow">Simulation</p>
+    <h1 class="title">${esc(f.title)}</h1>
+    <p class="lead measure-l" style="margin-top:10px">Portefeuille entièrement simulé, isolé de votre
+      portefeuille réel — NovaBot ne place et ne placera jamais d'ordre réel sur les marchés.</p>
+
+    <section class="section">
+      <h2 class="h2">Activation</h2>
+      <div class="card" style="margin-top:14px">
+        ${settingRow('NovaBot actif', "Évalue vos règles quand vous cliquez sur « Évaluer maintenant », uniquement sur votre watchlist.",
+          `<button class="sw" data-novabot-toggle role="switch" aria-checked="${cfg.enabled}"><i></i></button>`)}
+        <p class="tiny" style="margin-top:10px;color:var(--ink-4)">Dernière évaluation : ${esc(dernierPassage)}</p>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2 class="h2">Vos règles</h2>
+      <div class="card" style="margin-top:14px">
+        ${settingRow('NovaScore minimum pour acheter', 'Sur les valeurs de votre watchlist non encore détenues (simulation).',
+          `<input type="number" class="field" style="width:76px;text-align:right" min="0" max="100" step="1"
+            value="${cfg.scoreAchat}" onchange="novabotSetRegle('scoreAchat', this.value)">`)}
+        ${settingRow('Stop-loss', 'Vend automatiquement une position simulée sous cette perte.',
+          `<input type="number" class="field" style="width:76px;text-align:right" min="1" max="90" step="1"
+            value="${cfg.stopLossPct}" onchange="novabotSetRegle('stopLossPct', this.value)"> %`)}
+        ${settingRow('Take-profit', 'Vend automatiquement une position simulée au-delà de ce gain.',
+          `<input type="number" class="field" style="width:76px;text-align:right" min="1" max="500" step="1"
+            value="${cfg.takeProfitPct}" onchange="novabotSetRegle('takeProfitPct', this.value)"> %`)}
+        ${settingRow('Montant simulé par achat', null,
+          `<input type="number" class="field" style="width:96px;text-align:right" min="10" step="10"
+            value="${cfg.tradeAmountEUR}" onchange="novabotSetRegle('tradeAmountEUR', this.value)"> €`)}
+      </div>
+      <button class="btn btn-a btn-lg" style="width:100%;margin-top:14px" data-novabot-run
+        ${state.watchlist.length ? '' : 'disabled'}>Évaluer maintenant</button>
+      ${state.watchlist.length ? '' : `<p class="tiny" style="margin-top:8px;color:var(--ink-4)">
+        Ajoutez des valeurs à votre watchlist pour que NovaBot ait quelque chose à évaluer.</p>`}
+    </section>
+
+    <section class="section">
+      <h2 class="h2">Portefeuille simulé</h2>
+      <div class="card" style="margin-top:14px">
+        <dl>
+          <div class="kv"><dt>Valeur totale</dt><dd class="tabular-nums">${fmt.eur(pf.total)}</dd></div>
+          <div class="kv"><dt>Liquidités</dt><dd class="tabular-nums">${fmt.eur(pf.cash)}</dd></div>
+          <div class="kv"><dt>Gain/perte latent</dt><dd class="tabular-nums ${pf.gain>=0?'up-t':'down-t'}">${pf.gain>=0?'+':''}${fmt.eur(pf.gain)}</dd></div>
+          <div class="kv"><dt>Gain/perte réalisé</dt><dd class="tabular-nums ${pf.realizedPnL>=0?'up-t':'down-t'}">${pf.realizedPnL>=0?'+':''}${fmt.eur(pf.realizedPnL)}</dd></div>
+        </dl>
+      </div>
+    </section>
+
+    ${pf.lines.length ? `<section class="section">
+      <h2 class="h2">Positions simulées</h2>
+      <div class="card" style="margin-top:14px"><div class="rows">
+        ${pf.lines.map(l => `<div class="row">
+          <span class="row-main"><span class="row-t">${esc(l.stock?.name || l.id)}</span>
+            <span class="row-s">${fmt.num(l.qty,4)} titre(s) · PRU ${l.stock ? fmt.cur(l.avg, l.stock.cur) : '—'}</span></span>
+          <span style="text-align:right;flex:0 0 auto">
+            <span class="tabular-nums ${l.gain>=0?'up-t':'down-t'}">${l.priceAvailable?`${l.gain>=0?'+':''}${fmt.eur(l.gain)}`:'—'}</span>
+          </span>
+        </div>`).join('')}
+      </div></div>
+    </section>` : ''}
+
+    ${cfg.transactions.length ? `<section class="section">
+      <h2 class="h2">Journal des décisions</h2>
+      <div class="card" style="margin-top:14px"><div class="rows">
+        ${cfg.transactions.slice().reverse().slice(0, 20).map(tx => {
+          const dateTx = new Date(tx.date).toLocaleDateString('fr-FR', { day:'2-digit', month:'short', year:'numeric' });
+          return `<div class="row" style="align-items:flex-start;flex-direction:column;gap:2px;padding:12px 0">
+            <div style="display:flex;justify-content:space-between;width:100%;gap:10px">
+              <span class="row-main"><span class="row-t">${tx.type==='buy'?'Achat simulé':'Vente simulée'} · ${esc(tx.name)}</span>
+                <span class="row-s">${dateTx} · ${fmt.eur(tx.amountEUR)}</span></span>
+              ${Number.isFinite(tx.realizedGain) ? `<span class="tabular-nums ${tx.realizedGain>=0?'up-t':'down-t'}" style="font-size:13.5px;font-weight:600;flex:0 0 auto">${tx.realizedGain>=0?'+':''}${fmt.eur(tx.realizedGain)}</span>` : ''}
+            </div>
+            <span class="tiny" style="color:var(--ink-4)">${esc(tx.motif || '')}</span>
+          </div>`;
+        }).join('')}
+      </div></div>
+    </section>` : `<div class="empty" style="padding-top:8px">
+      <div class="empty-i" style="background:rgba(${f.rgb},.14);color:${f.accent}">${svg(ICON[f.icon],1.7)}</div>
+      <h3 style="font-size:20px;margin-top:16px">Aucune décision simulée pour l'instant</h3>
+      <p style="max-width:46ch">Activez NovaBot, ajoutez des valeurs à votre watchlist, puis cliquez sur « Évaluer maintenant ».</p>
+    </div>`}
+
+    <p class="tiny" style="margin-top:18px;color:var(--ink-4)">NovaBot ne place jamais d'ordre réel. Ce portefeuille est entièrement simulé et distinct du vôtre.</p>
+  </div>`;
+};
+/* Les 2 autres pages de présentation Nova (2026-09-23) : purement
    visuelles, voir novaFeaturePage() — aucune n'a besoin de logique propre,
-   une ligne chacune suffit. NovaBot (paper-trading) et Nova Event (agenda
-   NovaBourse) restent hors périmètre de cette passe : LOT H ne couvrait
-   que Nova Review. */
-PAGES.novabot = () => novaFeaturePage('novabot');
+   une ligne chacune suffit. Nova Event (agenda NovaBourse) reste hors
+   périmètre de cette passe. */
 PAGES.novaevent = () => novaFeaturePage('novaevent');
 PAGES.novanews = () => novaFeaturePage('novanews');
 PAGES.pricing = () => `
@@ -7733,6 +8021,20 @@ document.addEventListener('click', e => {
     state.settings[key] = !cur;
     saveState(); applySettings();
     swBtn.setAttribute('aria-checked', String(state.settings[key]));
+    return;
+  }
+  if (q('[data-novabot-toggle]')){
+    state.novabot.enabled = !state.novabot.enabled;
+    saveState();
+    toast(state.novabot.enabled ? 'NovaBot activé — simulation uniquement' : 'NovaBot désactivé');
+    render();
+    return;
+  }
+  if (q('[data-novabot-run]')){
+    if (!state.novabot.enabled){ toast('Activez NovaBot avant de lancer une évaluation.'); return; }
+    if (!state.watchlist.length){ toast('Ajoutez des valeurs à votre watchlist.'); return; }
+    toast('NovaBot évalue vos règles…');
+    evaluerNovaBot();
     return;
   }
   if (q('[data-export]')){

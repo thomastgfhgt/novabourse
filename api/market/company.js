@@ -32,6 +32,7 @@ const {
 const { chargerBloc, historiqueValide } = require('./_marketBlock.js');
 const { resolveOrdre, noterResultat } = require('./_router.js');
 const { statutMarche } = require('./_marketHours.js');
+const { novascore } = require('./_novascore.js');
 
 const MAX_HISTORY_POINTS = 260;
 
@@ -186,11 +187,27 @@ module.exports = async (req, res) => {
   if (!aFundamentals) missing.push('fundamentals');
   if (!history) missing.push('history');
 
+  /* Ajout additif (LOT I, 2026-09-24, préparation NovaBot) : le moteur
+     NovaScore (_novascore.js) est déterministe et n'appelle aucun modèle de
+     langage — jusqu'ici il n'était calculé QUE dans api/analyze.js (payant,
+     limité par quota), alors qu'il pourrait déjà l'être ici gratuitement,
+     à partir des mêmes market/fundamentals/history déjà assemblés
+     ci-dessus. Champ additif, ne remplace ni ne modifie aucun champ
+     existant : un consommateur qui ignore `novaScore` continue de recevoir
+     exactement la même réponse qu'avant ce commit. Permet à NovaBot de
+     filtrer sur un NovaScore réel sans consommer le quota d'analyses IA de
+     l'utilisateur (voir index.html, evaluerNovaBot()). */
+  const nova = novascore({ fundamentals: aFundamentals ? f.data.fundamentals : null, market, history });
+
   return res.status(200).json({
     identity,
     market,
     fundamentals: aFundamentals ? f.data.fundamentals : null,
     history,
+    novaScore: nova.score === null ? null : {
+      engine: nova.engine, score: nova.score, coverage: nova.coverage,
+      coherence: nova.coherence, confidence: nova.confidence,
+    },
     sources: {
       quote: aMarket ? q.source : null,
       fundamentals: aFundamentals ? f.source : null,
