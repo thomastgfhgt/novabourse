@@ -997,7 +997,20 @@ button:active{transform:scale(.97)}
    triangle simplifié de la passe précédente. Dessin non modifié,
    classes/CSS repris tels quels. */
 .nova-temple-section{width:100%;display:flex;justify-content:center;align-items:center;
-  box-sizing:border-box;padding:0 4px;margin:0;overflow:visible;position:relative;z-index:1}
+  box-sizing:border-box;padding:0 4px;margin:0;overflow:visible;position:relative;z-index:1;
+  /* CORRECTIF (2026-09-25, retour utilisateur : "parfait mais plus fluide") :
+     updateScrollFades() (JS) recalcule translateY/scale à chaque frame de
+     scroll rAF-throttled, mais SANS transition CSS le navigateur appliquait
+     la nouvelle valeur instantanément à chaque appel — visible comme de
+     petits à-coups sur un scroll saccadé (molette par crans, trackpad),
+     plutôt qu'un mouvement continu. Cette transition fait "glisser" la
+     valeur affichée vers la valeur cible entre deux frames au lieu d'un
+     saut instantané. Durée courte (140ms) : assez pour lisser, assez
+     court pour ne pas sembler "traîner" derrière un scroll rapide continu. */
+  transition:transform .14s ease-out;will-change:transform}
+@media (prefers-reduced-motion:reduce){
+  .nova-temple-section{transition:none}
+}
 /* flex-shrink:0 (bug réel trouvé le 2026-09-23, passe 2) : .nova-temple-
    section est display:flex — sans ça, flexbox réduisait silencieusement
    la largeur du temple sous sa valeur voulue (min(96vw,780px)) pour le
@@ -1012,7 +1025,16 @@ button:active{transform:scale(.97)}
    quand on le dépasse en descendant"). */
 .nova-temple{display:block;width:min(96vw,780px);height:auto;overflow:visible;flex-shrink:0;
   opacity:calc(.55 * var(--temple-fade,1));
+  /* Même correctif de fluidité que .nova-temple-section ci-dessus, sur
+     l'opacity cette fois (--temple-fade change à chaque frame de scroll) —
+     transitionne UNIQUEMENT opacity : jamais transform/filter, déjà
+     couverts par les animations templeScaleIn/templeGlowPulse plus bas,
+     qu'une transition sur ces mêmes propriétés perturberait. */
+  transition:opacity .14s ease-out;
   filter:drop-shadow(0 0 3px rgba(255,255,255,.20)) drop-shadow(0 0 11px rgba(139,92,246,.08))}
+@media (prefers-reduced-motion:reduce){
+  .nova-temple{transition:none}
+}
 /* Trait légèrement violeté (2026-09-23, retour utilisateur initial : "un
    peu bleuté" — reteint la même passe en violet le même jour, retour
    utilisateur suivant : "remplace le bleu par... du violet... vraiment
