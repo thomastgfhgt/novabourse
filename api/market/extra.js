@@ -182,6 +182,20 @@ function champRss(bloc, tag) {
   return m ? decoderEntitesRss(m[1]) : null;
 }
 
+/* Image d'illustration, quand le flux en fournit une réellement — vérifié
+   empiriquement : Yahoo Finance fournit un media:content (url) sur 100 %
+   de ses items (49/49 testés), CNBC n'en fournit AUCUNE (aucune balise
+   media, enclosure ou thumbnail sur tout le flux testé). Retourne null
+   si absente : jamais une image générique/de remplacement inventée pour
+   un article qui n'en a pas réellement une. */
+function imageRss(bloc) {
+  const m = bloc.match(/<media:content\b[^>]*\burl="([^"]+)"[^>]*\/?>/i)
+    || bloc.match(/<enclosure\b[^>]*\burl="([^"]+)"[^>]*\btype="image\/[^"]*"[^>]*\/?>/i);
+  if (!m) return null;
+  const url = decoderEntitesRss(m[1]);
+  return /^https:\/\//i.test(url) ? url : null;
+}
+
 /* Parseur RSS 2.0 minimal, volontairement sans dépendance (aucune n'est
    utilisée ailleurs dans ce projet) : suffisant pour la structure
    régulière <item><title>/<link>/<pubDate></item> des flux ci-dessus,
@@ -197,7 +211,7 @@ function parserRss(xml) {
     const pubDateRaw = champRss(bloc, 'pubDate');
     const d = pubDateRaw ? new Date(pubDateRaw) : null;
     const publishedAt = d && Number.isFinite(d.getTime()) ? d.toISOString() : null;
-    items.push({ title: title.slice(0, 220), url: link, publishedAt });
+    items.push({ title: title.slice(0, 220), url: link, publishedAt, image: imageRss(bloc) });
   }
   return items;
 }

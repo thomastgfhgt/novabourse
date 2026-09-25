@@ -646,14 +646,25 @@ button:active{transform:scale(.97)}
    de son usage — mêmes jetons de design (var(--bg-2)/--line-2/--r-s...)
    que le reste du fichier, pas un style isolé. */
 .news-list{display:flex;flex-direction:column}
-.news-item{display:block;padding:16px 4px;border-bottom:1px solid var(--line-2);
-  color:inherit;text-decoration:none}
+/* .news-item-img (2026-09-25, retour utilisateur : "possibilité d'ajouter
+   des photos") : uniquement quand le flux source en fournit réellement
+   une (Yahoo Finance systématiquement, CNBC jamais — voir imageRss()
+   côté serveur) — un article sans image garde simplement le layout texte
+   seul, jamais une image de remplacement inventée. */
+.news-item{display:flex;align-items:flex-start;gap:14px;padding:16px 4px;
+  border-bottom:1px solid var(--line-2);color:inherit;text-decoration:none}
 .news-item:last-child{border-bottom:none}
 .news-item:hover{background:var(--bg-2);border-radius:var(--r-s);padding-left:12px;padding-right:12px;
   margin-left:-12px;margin-right:-12px;border-color:transparent}
+.news-item-img{width:96px;height:72px;object-fit:cover;border-radius:var(--r-s);
+  flex:0 0 auto;background:var(--bg-3)}
+.news-item-body{flex:1;min-width:0}
 .news-item-title{display:block;font-size:16px;font-weight:650;letter-spacing:-.015em;
   line-height:1.4;color:var(--ink);white-space:normal;overflow:visible}
 .news-item-meta{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:9px}
+@media (max-width:520px){
+  .news-item-img{width:72px;height:72px}
+}
 .tag-accent{background:var(--accent-soft);color:var(--accent)}
 /* CORRECTIF (audit de cohérence visuelle, 2026-09-21) : .tag-violet,
    jamais utilisé dans le balisage, référençait --violet/--violet-soft —
@@ -4879,25 +4890,59 @@ PAGES.novabot = () => {
    central). État module-level (pas dans `state`) : jamais persisté, en
    accord avec "temps réel" — rechargé à chaque visite de la page. */
 let WORLD_NEWS = { status: 'idle', items: [], sourcesUtilisees: [], asOf: null };
-async function chargerNovaNewsMonde(){
-  if (WORLD_NEWS.status === 'loaded' || WORLD_NEWS.status === 'loading') return;
-  WORLD_NEWS = { ...WORLD_NEWS, status: 'loading' };
-  render();
+/* `silencieux` (2026-09-25, retour utilisateur : "possibilité d'avoir les
+   news en temps réel") : un rafraîchissement en arrière-plan (voir
+   NOVA_NEWS_REFRESH_MS plus bas) ne doit JAMAIS faire clignoter l'écran
+   sur "Chargement…" ni remplacer une liste déjà affichée par un état
+   d'erreur — l'utilisateur garde les articles déjà visibles jusqu'à ce
+   qu'une vraie réponse plus récente arrive ; un échec silencieux
+   réessaiera simplement au prochain cycle. Seul le premier chargement
+   (silencieux:false, déclenché par go(), voir plus bas) affiche l'état
+   "Chargement…"/l'erreur explicite. */
+async function chargerNovaNewsMonde({ silencieux = false } = {}){
+  if (!silencieux && (WORLD_NEWS.status === 'loaded' || WORLD_NEWS.status === 'loading')) return;
+  if (!silencieux){ WORLD_NEWS = { ...WORLD_NEWS, status: 'loading' }; render(); }
   try {
     const r = await fetch('/api/market/extra?kind=worldnews');
-    if (!r.ok){ WORLD_NEWS = { ...WORLD_NEWS, status: 'error' }; return; }
+    if (!r.ok){ if (!silencieux) WORLD_NEWS = { ...WORLD_NEWS, status: 'error' }; return; }
     const d = await r.json();
-    WORLD_NEWS = {
-      status: (Array.isArray(d.items) && d.items.length) ? 'loaded' : 'error',
-      items: Array.isArray(d.items) ? d.items : [],
-      sourcesUtilisees: Array.isArray(d.sourcesUtilisees) ? d.sourcesUtilisees : [],
-      asOf: d.asOf || null,
-    };
+    if (Array.isArray(d.items) && d.items.length){
+      WORLD_NEWS = {
+        status: 'loaded',
+        items: d.items,
+        sourcesUtilisees: Array.isArray(d.sourcesUtilisees) ? d.sourcesUtilisees : [],
+        asOf: d.asOf || null,
+      };
+    } else if (!silencieux){
+      WORLD_NEWS = { ...WORLD_NEWS, status: 'error' };
+    }
   } catch (e){
-    WORLD_NEWS = { ...WORLD_NEWS, status: 'error' };
+    if (!silencieux) WORLD_NEWS = { ...WORLD_NEWS, status: 'error' };
   }
   render();
 }
+
+/* Rafraîchissement "temps réel" en arrière-plan pendant que Nova News est
+   affichée — même principe de garde-fou "coupé si l'onglet est masqué"
+   que demarrerRafraichissementVivant()/liveTick() plus haut (jamais de
+   requête pour un onglet que personne ne regarde). 5 min : la moitié du
+   cache serveur (10 min, voir api/market/_cache.js) — la moitié des
+   cycles obtiennent donc une réponse réellement neuve, sans jamais
+   solliciter les flux RSS sources plus souvent que le cache serveur ne
+   le permet déjà. */
+const NOVA_NEWS_REFRESH_MS = 5 * 60 * 1000;
+let novaNewsTimer = null;
+function demarrerRafraichissementNovaNews(){
+  if (novaNewsTimer) return;
+  novaNewsTimer = setInterval(() => chargerNovaNewsMonde({ silencieux: true }), NOVA_NEWS_REFRESH_MS);
+}
+function arreterRafraichissementNovaNews(){
+  if (novaNewsTimer){ clearInterval(novaNewsTimer); novaNewsTimer = null; }
+}
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) arreterRafraichissementNovaNews();
+  else if (route.page === 'novanews') demarrerRafraichissementNovaNews();
+});
 PAGES.novanews = () => {
   const f = NOVA_FEATURES.novanews;
   return `<div class="page-in">
@@ -4918,10 +4963,13 @@ PAGES.novanews = () => {
       : WORLD_NEWS.items.length ? `
         <div class="news-list">
           ${WORLD_NEWS.items.filter(a => safeHref(a.url)).map(a => `<a class="news-item" href="${esc(safeHref(a.url))}" target="_blank" rel="noopener noreferrer">
-            <span class="news-item-title">${esc(a.title)}</span>
-            <span class="news-item-meta">
-              ${a.source ? `<span class="tag tag-neutral">${esc(a.source)}</span>` : ''}
-              ${a.publishedAt ? `<span class="tiny">${esc(formatDateAffichage(a.publishedAt, 'intraday'))}</span>` : ''}
+            ${safeHref(a.image) ? `<img class="news-item-img" src="${esc(safeHref(a.image))}" alt="" loading="lazy" referrerpolicy="no-referrer">` : ''}
+            <span class="news-item-body">
+              <span class="news-item-title">${esc(a.title)}</span>
+              <span class="news-item-meta">
+                ${a.source ? `<span class="tag tag-neutral">${esc(a.source)}</span>` : ''}
+                ${a.publishedAt ? `<span class="tiny">${esc(formatDateAffichage(a.publishedAt, 'intraday'))}</span>` : ''}
+              </span>
             </span>
           </a>`).join('')}
         </div>
@@ -7753,10 +7801,16 @@ function go(page, arg){
      rendu), donc sans risque de render() imbriqué : chargerNovaNewsMonde()
      gère déjà son propre idle/loading/loaded, un appel répété (ex.
      revenir sur la page) ne redéclenche rien tant que déjà chargé. */
-  if (page === 'novanews') chargerNovaNewsMonde();
+  if (page === 'novanews'){ chargerNovaNewsMonde(); demarrerRafraichissementNovaNews(); }
+  else arreterRafraichissementNovaNews();
   render(true);
 }
-function back(){ const prev = history_.pop(); route = prev || { page:'home', arg:null }; render(true); }
+function back(){
+  const prev = history_.pop();
+  route = prev || { page:'home', arg:null };
+  if (route.page !== 'novanews') arreterRafraichissementNovaNews();
+  render(true);
+}
 
 function applySettings(){
   applyTheme();

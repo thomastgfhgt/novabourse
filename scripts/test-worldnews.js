@@ -16,6 +16,13 @@ function champRss(bloc, tag) {
   const m = bloc.match(new RegExp(`<${tag}[^>]*>([\\s\\S]*?)<\\/${tag}>`, 'i'));
   return m ? decoderEntitesRss(m[1]) : null;
 }
+function imageRss(bloc) {
+  const m = bloc.match(/<media:content\b[^>]*\burl="([^"]+)"[^>]*\/?>/i)
+    || bloc.match(/<enclosure\b[^>]*\burl="([^"]+)"[^>]*\btype="image\/[^"]*"[^>]*\/?>/i);
+  if (!m) return null;
+  const url = decoderEntitesRss(m[1]);
+  return /^https:\/\//i.test(url) ? url : null;
+}
 function parserRss(xml) {
   const items = [];
   const blocs = xml.match(/<item\b[^>]*>[\s\S]*?<\/item>/gi) || [];
@@ -26,7 +33,7 @@ function parserRss(xml) {
     const pubDateRaw = champRss(bloc, 'pubDate');
     const d = pubDateRaw ? new Date(pubDateRaw) : null;
     const publishedAt = d && Number.isFinite(d.getTime()) ? d.toISOString() : null;
-    items.push({ title: title.slice(0, 220), url: link, publishedAt });
+    items.push({ title: title.slice(0, 220), url: link, publishedAt, image: imageRss(bloc) });
   }
   return items;
 }
@@ -63,6 +70,26 @@ function check(name, cond) { results.push([name, Boolean(cond)]); }
   const items = parserRss(xml);
   check('decode &#39; en apostrophe', items[0].title.includes("'Go to Infinity'"));
   check('retire une balise HTML residuelle dans le titre', !items[0].title.includes('<b>'));
+}
+
+// --- Image (media:content), presente ou absente selon la source ---
+{
+  const xml = `<item><title>Avec image</title><link>https://example.com/img</link>
+    <media:content height="86" url="https://media.zenfs.com/x.jpg" width="130"/></item>`;
+  const items = parserRss(xml);
+  check('extrait l\'URL d\'image quand media:content est present', items[0].image === 'https://media.zenfs.com/x.jpg');
+}
+{
+  const xml = `<item><title>Sans image</title><link>https://example.com/noimg</link></item>`;
+  const items = parserRss(xml);
+  check('image null quand le flux n\'en fournit aucune (jamais devinee)', items[0].image === null);
+}
+{
+  // URL non https (ex. http:// ou javascript:) -> jamais retournee.
+  const xml = `<item><title>Image non https</title><link>https://example.com/insecure</link>
+    <media:content url="http://example.com/x.jpg"/></item>`;
+  const items = parserRss(xml);
+  check('rejette une image non https', items[0].image === null);
 }
 {
   // pubDate absente ou invalide -> publishedAt null, jamais une date inventee.
