@@ -673,6 +673,16 @@ button:active{transform:scale(.97)}
 .rows{display:flex;flex-direction:column}
 .row{display:flex;align-items:center;gap:var(--sp-2);width:100%;padding:14px 0;text-align:left;
   border-bottom:1px solid var(--line-2);min-height:var(--tap);min-width:0}
+/* CORRECTIF (2026-09-25, trouvé en testant Nova News) : `.row` sert aussi
+   bien à un <button> (navigation interne, pas de style de lien par
+   défaut) qu'à un <a href> (article de presse externe, Nova News par
+   entreprise ET accueil) — aucune règle de ce fichier ne réinitialisait
+   color/text-decoration pour ce second cas, laissant le bleu souligné
+   par défaut du navigateur transparaître, jamais voulu ici (le reste de
+   .row/.row-t est clairement conçu pour un rendu "ligne de liste", pas
+   un lien de texte classique). `.row` n'est utilisée nulle part ailleurs
+   pour un lien de texte ordinaire dans ce fichier. */
+a.row{color:inherit;text-decoration:none}
 .row:last-child{border-bottom:none}
 .row:hover{background:var(--bg-2);border-radius:var(--r-s);padding-left:10px;padding-right:10px;
   margin-left:-10px;margin-right:-10px;border-color:transparent}
@@ -4840,12 +4850,74 @@ PAGES.novabot = () => {
     <p class="tiny" style="margin-top:18px;color:var(--ink-4)">NovaBot ne place jamais d'ordre réel. Ce portefeuille est entièrement simulé et distinct du vôtre.</p>
   </div>`;
 };
-/* Les 2 autres pages de présentation Nova (2026-09-23) : purement
-   visuelles, voir novaFeaturePage() — aucune n'a besoin de logique propre,
-   une ligne chacune suffit. Nova Event (agenda NovaBourse) reste hors
-   périmètre de cette passe. */
+/* Nova News — accueil (LOT C, 2026-09-25) : actualité économique/
+   financière MONDIALE, distincte de l'actualité par entreprise (déjà
+   réelle sur la fiche action, voir chargerActualites() plus haut).
+   Sources : flux RSS publics (Yahoo Finance + CNBC), sans clé API — voir
+   api/market/extra.js (kind=worldnews). Même état à 4 valeurs et même
+   principe "chargé à la demande" que chargerActualites()/
+   chargerGraphique() (jamais un auto-fetch DANS une fonction PAGES.xxx,
+   qui provoquerait un render() imbriqué dans le render() en cours —
+   déclenché par un clic, voir data-show-worldnews dans le gestionnaire
+   central). État module-level (pas dans `state`) : jamais persisté, en
+   accord avec "temps réel" — rechargé à chaque visite de la page. */
+let WORLD_NEWS = { status: 'idle', items: [], sourcesUtilisees: [], asOf: null };
+async function chargerNovaNewsMonde(){
+  if (WORLD_NEWS.status === 'loaded' || WORLD_NEWS.status === 'loading') return;
+  WORLD_NEWS = { ...WORLD_NEWS, status: 'loading' };
+  render();
+  try {
+    const r = await fetch('/api/market/extra?kind=worldnews');
+    if (!r.ok){ WORLD_NEWS = { ...WORLD_NEWS, status: 'error' }; return; }
+    const d = await r.json();
+    WORLD_NEWS = {
+      status: (Array.isArray(d.items) && d.items.length) ? 'loaded' : 'error',
+      items: Array.isArray(d.items) ? d.items : [],
+      sourcesUtilisees: Array.isArray(d.sourcesUtilisees) ? d.sourcesUtilisees : [],
+      asOf: d.asOf || null,
+    };
+  } catch (e){
+    WORLD_NEWS = { ...WORLD_NEWS, status: 'error' };
+  }
+  render();
+}
+PAGES.novanews = () => {
+  const f = NOVA_FEATURES.novanews;
+  return `<div class="page-in">
+    <button class="btn btn-g btn-sm" data-back style="margin-bottom:20px">← Retour</button>
+    <p class="eyebrow">${esc(f.tag)}</p>
+    <h1 class="title">${esc(f.title)}</h1>
+    <p class="lead measure-l" style="margin-top:10px">Actualité économique, financière et géopolitique
+      mondiale — articles de presse externes, jamais rédigés par NovaBourse.</p>
+
+    <div class="card" style="margin-top:18px">
+      ${WORLD_NEWS.status === 'idle' ? `
+        <div style="text-align:center;padding:24px 0">
+          <p class="small" style="margin-bottom:16px">Les actualités ne sont chargées que si vous le demandez.</p>
+          <button class="btn btn-a" data-show-worldnews>Voir les actualités</button>
+        </div>`
+      : WORLD_NEWS.status === 'loading' ? `
+        <p class="small" style="padding:24px 0;text-align:center">Chargement des actualités…</p>`
+      : WORLD_NEWS.items.length ? `
+        <div class="rows">
+          ${WORLD_NEWS.items.filter(a => safeHref(a.url)).map(a => `<a class="row" href="${esc(safeHref(a.url))}" target="_blank" rel="noopener noreferrer">
+            <span class="row-main">
+              <span class="row-t">${esc(a.title)}</span>
+              <span class="row-s">${a.publishedAt ? esc(formatDateAffichage(a.publishedAt, 'intraday')) + ' · ' : ''}${esc(a.source || '')}</span>
+            </span>
+            <span style="color:var(--ink-4)">${svg(ICON.arrow,2.4)}</span>
+          </a>`).join('')}
+        </div>
+        <p class="tiny" style="margin-top:14px">Articles de presse externes, non rédigés par NovaBourse
+          · sources ${esc(WORLD_NEWS.sourcesUtilisees.join(', ') || '—')}.</p>`
+      : `<div class="notice"><b>Actualités indisponibles.</b>
+          Aucun article n'a pu être obtenu pour le moment — réessayez dans quelques minutes.</div>`}
+    </div>
+  </div>`;
+};
+/* Nova Event (agenda NovaBourse) reste une page de présentation, hors
+   périmètre de cette passe (LOT C ne couvrait que Nova News). */
 PAGES.novaevent = () => novaFeaturePage('novaevent');
-PAGES.novanews = () => novaFeaturePage('novanews');
 PAGES.pricing = () => `
   <div class="page-in">${pricingBlock(false)}
   <section class="section">
@@ -8395,6 +8467,7 @@ document.addEventListener('click', e => {
     if (st){ chargerActualites(st); render(); }
     return;
   }
+  if (q('[data-show-worldnews]')){ chargerNovaNewsMonde(); render(); return; }
 
   const cyc = q('[data-cycle]');
   if (cyc){ state.settings.cycle = cyc.dataset.cycle; saveState(); render(); return; }

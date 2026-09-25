@@ -21,6 +21,13 @@ const TTL = {
   intraday: 90000,        // 90 s — barres infra-journalières, se périment vite en séance
   news: 900000,           // 15 min
   constituents: 86400000, // 24 h — composition ETF/indice
+  /* Actualités mondiales agrégées (LOT C, 2026-09-25, Nova News accueil) —
+     flux RSS publics (Yahoo Finance/CNBC), jamais de clé API. Plus court
+     que `news` (par ticker, 15 min) : ces flux annoncent eux-mêmes un TTL
+     de 5-60 min selon la source, 10 min reste un compromis honnête entre
+     fraîcheur ("temps réel") et courtoisie envers des serveurs publics
+     gratuits, sans clé, donc sans SLA. */
+  worldnews: 600000,      // 10 min
 };
 
 /* Un nom de bloc composite ("histp:1a", "intraday:15min", ...) retombe

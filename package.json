@@ -19,7 +19,8 @@
     "test-nova-memory": "node scripts/test-nova-memory.js",
     "test-nova-review": "node scripts/test-nova-review.js",
     "test-nova-ai-bascule": "node scripts/test-nova-ai-bascule.js",
-    "test-novabot": "node scripts/test-novabot.js"
+    "test-novabot": "node scripts/test-novabot.js",
+    "test-worldnews": "node scripts/test-worldnews.js"
   },
   "dependencies": {
     "stripe": "^16.12.0"

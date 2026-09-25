@@ -46,6 +46,7 @@ const {
 const { chargerBloc, historiqueValide } = require('./_marketBlock.js');
 const { normaliserTicker, normaliserExchange } = require('./company.js');
 const { resolveOrdre, noterResultat, TYPES_AVEC_ACTUALITES } = require('./_router.js');
+const { lire, ecrire, avecVerrou } = require('./_cache.js');
 
 /* ============================================================
    kind=news — ex api/market/news.js, inchangé
@@ -143,6 +144,124 @@ function normaliserResultatCatalogue(row) {
     retrievedAt: row.retrieved_at,
     freshness: 'REFERENCE',
   };
+}
+
+/* ============================================================
+   kind=worldnews — Nova News accueil (LOT C, 2026-09-25)
+   ============================================================
+   Actualité économique/financière MONDIALE, distincte de kind=news
+   ci-dessus (par entreprise, déjà réelle). Sources : flux RSS PUBLICS,
+   sans clé API — Yahoo Finance + CNBC, vérifiés en direct avant cette
+   passe (chacun répond HTTP 200 avec du contenu réel et daté du jour
+   même). Cascade honnête : si UNE source échoue, l'autre suffit à
+   répondre ; seulement si LES DEUX échouent, l'erreur est renvoyée
+   telle quelle — jamais un article inventé pour combler. Aucune clé à
+   protéger ici (flux publics), donc aucun risque à exposer l'URL des
+   sources au client (déjà visible dans `journal`/`sourcesUtilisees`). */
+const WORLDNEWS_SOURCES = [
+  { id: 'Yahoo Finance', url: 'https://finance.yahoo.com/news/rssindex' },
+  { id: 'CNBC', url: 'https://www.cnbc.com/id/100003114/device/rss/rss.html' },
+];
+const WORLDNEWS_MAX = 40;
+const WORLDNEWS_TIMEOUT_MS = 6000;
+
+function decoderEntitesRss(valeur) {
+  return String(valeur)
+    .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1')
+    .replace(/<[^>]+>/g, '') // un <title>/<description> RSS n'est jamais censé contenir de balises ; retirées si présentes plutôt que rendues telles quelles
+    .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"').replace(/&#0?39;|&apos;/g, "'")
+    .replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(Number(n)))
+    .replace(/&#x([0-9a-f]+);/gi, (_, n) => String.fromCodePoint(parseInt(n, 16)))
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function champRss(bloc, tag) {
+  const m = bloc.match(new RegExp(`<${tag}[^>]*>([\\s\\S]*?)<\\/${tag}>`, 'i'));
+  return m ? decoderEntitesRss(m[1]) : null;
+}
+
+/* Parseur RSS 2.0 minimal, volontairement sans dépendance (aucune n'est
+   utilisée ailleurs dans ce projet) : suffisant pour la structure
+   régulière <item><title>/<link>/<pubDate></item> des flux ci-dessus,
+   vérifiée en direct avant cette passe. Une entrée sans titre NI lien
+   exploitable est ignorée, jamais complétée par une valeur devinée. */
+function parserRss(xml) {
+  const items = [];
+  const blocs = xml.match(/<item\b[^>]*>[\s\S]*?<\/item>/gi) || [];
+  for (const bloc of blocs) {
+    const title = champRss(bloc, 'title');
+    const link = champRss(bloc, 'link');
+    if (!title || !link) continue;
+    const pubDateRaw = champRss(bloc, 'pubDate');
+    const d = pubDateRaw ? new Date(pubDateRaw) : null;
+    const publishedAt = d && Number.isFinite(d.getTime()) ? d.toISOString() : null;
+    items.push({ title: title.slice(0, 220), url: link, publishedAt });
+  }
+  return items;
+}
+
+async function telechargerFlux(source) {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), WORLDNEWS_TIMEOUT_MS);
+  try {
+    const r = await fetch(source.url, {
+      signal: ctrl.signal,
+      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; NovaBourseBot/1.0; +https://www.novabourse.site)' },
+    });
+    if (!r.ok) return { ok: false, source: source.id, reason: `HTTP ${r.status}` };
+    const xml = await r.text();
+    const items = parserRss(xml).map(it => ({ ...it, source: source.id }));
+    return { ok: true, source: source.id, items };
+  } catch (e) {
+    return { ok: false, source: source.id, reason: e.name === 'AbortError' ? 'delai_depasse' : String(e.message || e) };
+  } finally {
+    clearTimeout(t);
+  }
+}
+
+async function handleWorldNews(req, res) {
+  res.setHeader('Cache-Control', 'no-store');
+  if (req.method !== 'GET') {
+    res.setHeader('Allow', 'GET');
+    return res.status(405).json({ error: 'methode_non_autorisee' });
+  }
+
+  const dejaEnCache = lire('worldnews', 'global');
+  if (dejaEnCache) {
+    return res.status(200).json({ ...dejaEnCache.valeur, cached: true });
+  }
+
+  const { value } = await avecVerrou('worldnews', 'global', async () => {
+    const resultats = await Promise.all(WORLDNEWS_SOURCES.map(telechargerFlux));
+    const journal = resultats.map(r => ({ source: r.source, ok: r.ok, reason: r.reason || null, items: r.ok ? r.items.length : 0 }));
+
+    const parUrl = new Map();
+    for (const r of resultats) {
+      if (!r.ok) continue;
+      for (const it of r.items) { if (!parUrl.has(it.url)) parUrl.set(it.url, it); }
+    }
+    const items = [...parUrl.values()]
+      .sort((a, b) => (b.publishedAt || '').localeCompare(a.publishedAt || ''))
+      .slice(0, WORLDNEWS_MAX);
+
+    const sourcesUtilisees = resultats.filter(r => r.ok).map(r => r.source);
+    const valeur = {
+      items,
+      sourcesUtilisees,
+      partial: sourcesUtilisees.length < WORLDNEWS_SOURCES.length,
+      journal,
+      asOf: new Date().toISOString(),
+    };
+    if (sourcesUtilisees.length > 0) ecrire('worldnews', 'global', valeur, 'rss');
+    return valeur;
+  });
+
+  if (!value.sourcesUtilisees.length) {
+    return res.status(502).json({ error: 'sources_indisponibles', journal: value.journal });
+  }
+  return res.status(200).json({ ...value, cached: false });
 }
 
 async function handleCatalog(req, res) {
@@ -328,8 +447,9 @@ async function handleHealth(req, res) {
 module.exports = async (req, res) => {
   const kind = String(req.query?.kind || '').toLowerCase();
   if (kind === 'news') return handleNews(req, res);
+  if (kind === 'worldnews') return handleWorldNews(req, res);
   if (kind === 'catalog') return handleCatalog(req, res);
   if (kind === 'health') return handleHealth(req, res);
   res.setHeader('Cache-Control', 'no-store');
-  return res.status(400).json({ error: 'kind_invalide', kinds_valides: ['news', 'catalog', 'health'] });
+  return res.status(400).json({ error: 'kind_invalide', kinds_valides: ['news', 'worldnews', 'catalog', 'health'] });
 };
