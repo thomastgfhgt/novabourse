@@ -7725,6 +7725,18 @@ function go(page, arg){
   if (route.page !== page || route.arg !== arg) history_.push({ ...route });
   route = { page, arg: arg ?? null };
   state.page = page; state.stockId = arg ?? null; saveState();
+  /* CORRECTIF (2026-09-25, retour utilisateur : "rien n'est affiché" sur
+     Nova News) : chargerNovaNewsMonde() lui-même reste "chargé à la
+     demande" (jamais appelé DEPUIS PAGES.novanews(), qui provoquerait un
+     render() imbriqué — voir le commentaire à sa définition), mais un
+     visiteur qui arrive sur la page voit sinon UNIQUEMENT un bouton
+     "Voir les actualités", jamais un article, ce qui ressemble à une
+     page vide/cassée pour une fonctionnalité demandée "en temps réel".
+     Déclenché ICI, depuis la navigation elle-même (jamais depuis le
+     rendu), donc sans risque de render() imbriqué : chargerNovaNewsMonde()
+     gère déjà son propre idle/loading/loaded, un appel répété (ex.
+     revenir sur la page) ne redéclenche rien tant que déjà chargé. */
+  if (page === 'novanews') chargerNovaNewsMonde();
   render(true);
 }
 function back(){ const prev = history_.pop(); route = prev || { page:'home', arg:null }; render(true); }
