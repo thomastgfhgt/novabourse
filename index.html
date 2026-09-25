@@ -7405,7 +7405,12 @@ function updateScrollFades(){
 
   const temple = document.querySelector('.nova-temple-section');
   if (temple){
-    const TEMPLE_FADE_FLOOR = .08;
+    /* CORRECTIF (2026-09-25, retour utilisateur : "le temple ne s'efface
+       pas entièrement") : plancher retiré (était .08, soit ~4,4% visible
+       en permanence une fois défilé — .55 de base × .08). Le temple
+       atteint maintenant réellement 0 à la fin de sa zone de fondu,
+       jamais un résidu visible. */
+    const TEMPLE_FADE_FLOOR = 0;
     const rect = temple.getBoundingClientRect();
     // Commence à s'effacer dès qu'il entame son ascension sous le
     // header (start), atteint le plancher une fois un peu plus de la
