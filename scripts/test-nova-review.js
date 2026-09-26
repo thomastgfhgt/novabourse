@@ -63,6 +63,61 @@ const transactions = [
   check('titre jamais achete -> null', t === null);
 }
 
+// ============================================================
+// MOTEUR DE VERDICT (2026-09-26, retour utilisateur : esprit "chess.com",
+// separer la qualite de la decision du resultat) — reproduit l'arbre de
+// decision de evaluerVente()/evaluerPositionOuverte() (index.html), pris
+// en entree deja calcule (gainPct/regretPct/processAligne/concentration)
+// pour tester l'ARBRE lui-meme independamment de ses dependances
+// (queSiRienFait/compareHorizon/rejouerTransactions, deja testees
+// ailleurs).
+const VERDICT_CONCENTRATION_RISQUEE = .35;
+const VERDICT_GAIN_EXCELLENT = .10;
+const VERDICT_REGRET_MANQUE = .15;
+
+function verdictVente({ gainPct, regretPct, processAligne, concentration }) {
+  if (regretPct !== null && regretPct >= VERDICT_REGRET_MANQUE) return 'Occasion manquée';
+  if (gainPct === null) return 'Intéressant';
+  if (gainPct >= VERDICT_GAIN_EXCELLENT && processAligne !== false) return 'Excellent coup';
+  if (gainPct >= 0 && processAligne !== false) return 'Bon coup';
+  if (gainPct >= 0 && processAligne === false) return 'Intéressant';
+  if (gainPct < 0 && concentration !== null && concentration >= VERDICT_CONCENTRATION_RISQUEE) return 'Risqué';
+  return 'Erreur à étudier';
+}
+function verdictPositionOuverte({ gainPct, concentration }) {
+  if (concentration !== null && concentration >= VERDICT_CONCENTRATION_RISQUEE) return 'Risqué';
+  if (gainPct >= VERDICT_GAIN_EXCELLENT) return 'Excellent coup';
+  if (gainPct >= 0) return 'Bon coup';
+  if (gainPct >= -.10) return 'Intéressant';
+  return 'Erreur à étudier';
+}
+
+check('gros gain + processus respecte -> Excellent coup',
+  verdictVente({ gainPct: .25, regretPct: 0, processAligne: true, concentration: .1 }) === 'Excellent coup');
+check('gain modeste + processus inconnu (pas de these) -> Bon coup',
+  verdictVente({ gainPct: .04, regretPct: 0, processAligne: null, concentration: .1 }) === 'Bon coup');
+check('gain mais processus non respecte -> Interessant (chance plutot que methode)',
+  verdictVente({ gainPct: .08, regretPct: 0, processAligne: false, concentration: .1 }) === 'Intéressant');
+check('perte + forte concentration au moment de l\'achat -> Risque',
+  verdictVente({ gainPct: -.15, regretPct: null, processAligne: null, concentration: .5 }) === 'Risqué');
+check('perte + position raisonnable -> Erreur a etudier',
+  verdictVente({ gainPct: -.15, regretPct: null, processAligne: true, concentration: .1 }) === 'Erreur à étudier');
+check('fort regret (conserver aurait bien mieux valu) -> Occasion manquee, prioritaire sur le reste',
+  verdictVente({ gainPct: .20, regretPct: .30, processAligne: true, concentration: .1 }) === 'Occasion manquée');
+check('cout inconnu (gainPct null) -> Interessant, jamais un verdict tranche sans base',
+  verdictVente({ gainPct: null, regretPct: null, processAligne: null, concentration: null }) === 'Intéressant');
+check('leger regret (<3% dans le code appelant) n\'empeche pas un Excellent coup si sous le seuil "manque"',
+  verdictVente({ gainPct: .15, regretPct: .02, processAligne: true, concentration: .1 }) === 'Excellent coup');
+
+check('position ouverte tres concentree -> Risque, prioritaire meme si gagnante',
+  verdictPositionOuverte({ gainPct: .30, concentration: .5 }) === 'Risqué');
+check('position ouverte en gain fort et peu concentree -> Excellent coup',
+  verdictPositionOuverte({ gainPct: .12, concentration: .1 }) === 'Excellent coup');
+check('position ouverte en perte moderee -> Interessant (pas encore un resultat definitif)',
+  verdictPositionOuverte({ gainPct: -.05, concentration: .1 }) === 'Intéressant');
+check('position ouverte en forte perte -> Erreur a etudier',
+  verdictPositionOuverte({ gainPct: -.25, concentration: .1 }) === 'Erreur à étudier');
+
 let allOk = true;
 for (const [name, ok] of results) {
   console.log((ok ? 'PASS' : 'FAIL') + ' - ' + name);

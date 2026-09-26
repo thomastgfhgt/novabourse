@@ -4715,6 +4715,21 @@ function theseAvantVente(stockId, dateVente){
     .sort((a, b) => new Date(b.date) - new Date(a.date));
   return avant[0] || null;
 }
+/* CORRECTIF (2026-09-26, moteur de verdict Nova Review) : même principe
+   que theseAvantVente() mais SANS exiger de thèse renseignée — sert à
+   retrouver l'achat réel qui a constitué la position (pour en évaluer la
+   concentration au moment de la décision), qu'une thèse ait été
+   renseignée ou non. theseAvantVente() reste utilisée séparément pour le
+   récit ("qu'aviez-vous déclaré ?") ; ce n'est PAS la même question que
+   "quel achat concret a créé cette position ?" — les confondre aurait
+   rendu la concentration invisible pour toute vente sans thèse
+   enregistrée, alors qu'elle reste mesurable indépendamment. */
+function dernierAchatAvant(stockId, date){
+  const avant = state.transactions
+    .filter(t => t.type === 'buy' && t.stockId === stockId && new Date(t.date) < new Date(date))
+    .sort((a, b) => new Date(b.date) - new Date(a.date));
+  return avant[0] || null;
+}
 /* Seuils "court/moyen/long terme" (en jours) : une convention NovaBourse
    propre, jamais un fait de marché établi — sert uniquement à comparer la
    durée de détention réelle à l'horizon que l'UTILISATEUR LUI-MÊME avait
@@ -4732,51 +4747,246 @@ function compareHorizon(joursDetention, horizonKey){
   return j <= seuil ? { aligne:true, texte:`Conservé ${j} j — cohérent avec l'horizon « ${label} » annoncé.` }
                      : { aligne:false, texte:`Conservé ${j} j — au-delà de l'horizon « ${label} » annoncé.` };
 }
+
+/* ============================================================
+   MOTEUR DE VERDICT — Nova Review (2026-09-26, retour utilisateur :
+   esprit "chess.com", séparer la qualité de la décision du résultat)
+   ------------------------------------------------------------
+   Chaque verdict ci-dessous est une étiquette parmi 6 (demandées
+   explicitement : Excellent coup/Bon coup/Intéressant/Risqué/Erreur à
+   étudier/Occasion manquée), choisie par un ARBRE DE DÉCISION
+   DÉTERMINISTE sur des grandeurs RÉELLEMENT CALCULÉES — jamais une
+   opinion de modèle de langage, aucun appel réseau ici, mêmes
+   garanties que _novascore.js (moteur NovaBourse propre, barèmes
+   documentés, reproductible). Les 3 seuils ci-dessous sont une
+   convention NovaBourse assumée, pas un fait de marché établi — jamais
+   présentés comme plus rigoureux qu'ils ne le sont. */
+const VERDICT_CONCENTRATION_RISQUEE = .35; // part du CAPITAL INVESTI (coût, jamais une valeur de marché historique qu'on ne connaît pas)
+const VERDICT_GAIN_EXCELLENT = .10;
+const VERDICT_REGRET_MANQUE = .15;
+
+/* Part (en coût, jamais en valeur de marché — l'historique de prix
+   n'est pas conservé à chaque instant passé) que cet achat représentait
+   dans le capital total déjà engagé au moment où il a eu lieu.
+   Reconstruit en rejouant le journal RÉEL jusqu'à (sans l'inclure)
+   cette transaction — réutilise rejouerTransactions(), déjà écrit pour
+   la fusion du portefeuille (LOT D) et vérifié par ses propres tests.
+   Renvoie null si le coût total (avant + cet achat) est nul (jamais une
+   division par zéro déguisée en 0 %). */
+function concentrationAuMomentDe(txAchat){
+  if (!txAchat) return null;
+  const avant = state.transactions.filter(t => new Date(t.date) < new Date(txAchat.date));
+  const rejoue = rejouerTransactions(avant);
+  const coutAvant = rejoue.positions.reduce((s, p) => s + toEUR(p.avg * p.qty, byId[p.id]?.cur || 'EUR'), 0);
+  const total = coutAvant + txAchat.amountEUR;
+  return total > 0 ? txAchat.amountEUR / total : null;
+}
+
+/* Verdict d'une VENTE réelle — décision fermée, résultat définitivement
+   connu. */
+function evaluerVente(tx){
+  const cout = Number.isFinite(tx.realizedGain) ? tx.amountEUR - tx.realizedGain : null;
+  const gainPct = (cout !== null && cout > 0) ? tx.realizedGain / cout : null;
+  const q = queSiRienFait(tx);
+  const regretPct = q && q.differencePct !== null ? q.differencePct / 100 : null;
+  const theseAchat = theseAvantVente(tx.stockId, tx.date);
+  let processAligne = null;
+  if (theseAchat && theseAchat.thesisHorizon){
+    const jours = (new Date(tx.date) - new Date(theseAchat.date)) / 86400000;
+    const cmp = compareHorizon(jours, theseAchat.thesisHorizon);
+    processAligne = cmp ? cmp.aligne : null;
+  }
+  const concentration = concentrationAuMomentDe(dernierAchatAvant(tx.stockId, tx.date));
+
+  const raisons = [];
+  if (gainPct !== null) raisons.push(`${gainPct >= 0 ? 'Gain' : 'Perte'} réalisé${gainPct >= 0 ? '' : 'e'} de ${fmt.pctRatio(Math.abs(gainPct), 1)}.`);
+  if (regretPct !== null && Math.abs(regretPct) >= .03){
+    raisons.push(regretPct >= 0
+      ? `Conserver aurait rapporté ${fmt.pct(regretPct * 100, 1)} de plus à ce jour.`
+      : `Vendre a évité ${fmt.pctRatio(Math.abs(regretPct), 1)} de baisse supplémentaire (valeur actuelle plus basse que le montant récupéré).`);
+  }
+  if (processAligne === true) raisons.push(`Horizon « ${esc(HORIZON_LABEL[theseAchat.thesisHorizon])} » annoncé à l'achat respecté.`);
+  if (processAligne === false) raisons.push(`Vendu en dehors de l'horizon « ${esc(HORIZON_LABEL[theseAchat.thesisHorizon])} » annoncé à l'achat.`);
+  if (!theseAchat) raisons.push(`Aucune thèse enregistrée pour l'achat correspondant.`);
+  if (concentration !== null && concentration >= VERDICT_CONCENTRATION_RISQUEE){
+    raisons.push(`Cet achat représentait ${fmt.pctRatio(concentration, 0)} du capital investi à l'époque — position concentrée.`);
+  }
+
+  let verdict;
+  if (regretPct !== null && regretPct >= VERDICT_REGRET_MANQUE) verdict = 'Occasion manquée';
+  else if (gainPct === null) verdict = 'Intéressant';
+  else if (gainPct >= VERDICT_GAIN_EXCELLENT && processAligne !== false) verdict = 'Excellent coup';
+  else if (gainPct >= 0 && processAligne !== false) verdict = 'Bon coup';
+  else if (gainPct >= 0 && processAligne === false) verdict = 'Intéressant';
+  else if (gainPct < 0 && concentration !== null && concentration >= VERDICT_CONCENTRATION_RISQUEE) verdict = 'Risqué';
+  else verdict = 'Erreur à étudier';
+
+  return { verdict, raisons, gainPct, regretPct, processAligne, concentration };
+}
+
+/* Verdict d'une position OUVERTE (achat non encore soldé) — résultat
+   PAS encore connu, seulement une lecture provisoire au cours actuel.
+   Jamais "Occasion manquée" (n'a de sens que pour un titre qu'on ne
+   détient plus, voir queSiRienFait) ni un jugement définitif — la
+   position reste ouverte, le verdict peut changer demain. */
+function evaluerPositionOuverte(pos){
+  const st = byId[pos.id];
+  const prix = st ? prixDe(st) : null;
+  if (!st || prix === null) return null;
+  const gainPct = (prix - pos.avg) / pos.avg;
+  const theseAchat = theseAvantVente(pos.id, new Date().toISOString());
+  const concentration = concentrationAuMomentDe(dernierAchatAvant(pos.id, new Date().toISOString()));
+
+  const raisons = [`Position ouverte : ${gainPct >= 0 ? 'gain' : 'perte'} latent${gainPct >= 0 ? '' : 'e'} de ${fmt.pctRatio(Math.abs(gainPct), 1)}, pas encore un résultat définitif.`];
+  if (theseAchat?.thesisReason) raisons.push(`Thèse déclarée à l'achat toujours en cours.`);
+  else raisons.push(`Aucune thèse enregistrée pour cet achat.`);
+  if (concentration !== null && concentration >= VERDICT_CONCENTRATION_RISQUEE){
+    raisons.push(`Représente ${fmt.pctRatio(concentration, 0)} du capital investi à l'achat — position concentrée.`);
+  }
+
+  let verdict;
+  if (concentration !== null && concentration >= VERDICT_CONCENTRATION_RISQUEE) verdict = 'Risqué';
+  else if (gainPct >= VERDICT_GAIN_EXCELLENT) verdict = 'Excellent coup';
+  else if (gainPct >= 0) verdict = 'Bon coup';
+  else if (gainPct >= -.10) verdict = 'Intéressant';
+  else verdict = 'Erreur à étudier';
+
+  return { verdict, raisons, gainPct, regretPct:null, processAligne:null, concentration, ouverte:true };
+}
+
+const VERDICT_STYLE = {
+  'Excellent coup':   { accent:'#16a34a', rgb:'22,163,74'  },
+  'Bon coup':         { accent:'#45D69A', rgb:'69,214,154' },
+  'Intéressant':      { accent:'#8d95a4', rgb:'141,149,164' },
+  'Risqué':           { accent:'#f59e0b', rgb:'245,158,11' },
+  'Erreur à étudier': { accent:'#FF647C', rgb:'255,100,124' },
+  'Occasion manquée': { accent:'#8b5cf6', rgb:'139,92,246' },
+};
+
+/* Bilan hebdomadaire (retour utilisateur : "performance, meilleure
+   décision, décision la plus risquée, diversification, leçon de la
+   semaine") — uniquement des faits déjà calculés ailleurs dans ce
+   fichier (walletHistory pour la performance réelle, portfolioValue()
+   pour la diversification), jamais une statistique recalculée en
+   double avec une formule différente qui pourrait diverger. null si
+   aucune transaction dans les 7 derniers jours — jamais un bilan vide
+   présenté comme une fonctionnalité active. */
+function bilanHebdomadaireNovaReview(){
+  const depuis = Date.now() - 7 * 86400000;
+  const ventes = state.transactions.filter(t => t.type === 'sell' && new Date(t.date).getTime() >= depuis);
+  const achats = state.transactions.filter(t => t.type === 'buy' && new Date(t.date).getTime() >= depuis);
+  if (!ventes.length && !achats.length) return null;
+
+  const evals = ventes.map(tx => ({ tx, ev: evaluerVente(tx) }));
+
+  const meilleure = evals.filter(e => e.ev.gainPct !== null).sort((a, b) => b.ev.gainPct - a.ev.gainPct)[0] || null;
+  const plusRisquee = evals.filter(e => e.ev.concentration !== null).sort((a, b) => b.ev.concentration - a.ev.concentration)[0] || null;
+  const aEtudier = evals.filter(e => e.ev.verdict === 'Erreur à étudier' || e.ev.verdict === 'Occasion manquée')
+    .sort((a, b) => new Date(b.tx.date) - new Date(a.tx.date))[0] || null;
+
+  const pointsRecents = state.walletHistory.filter(p => p.t >= depuis);
+  let performance = null;
+  if (pointsRecents.length >= 2){
+    const premier = pointsRecents[0], dernier = pointsRecents[pointsRecents.length - 1];
+    if (premier.totalValue > 0){
+      performance = { variation: dernier.totalValue - premier.totalValue,
+        variationPct: (dernier.totalValue / premier.totalValue - 1) * 100 };
+    }
+  }
+
+  const pf = portfolioValue();
+  const bySector = {};
+  for (const l of pf.lines){ if (l.priceAvailable && l.value > 0){ const sect = l.stock?.sector || 'Non classé'; bySector[sect] = (bySector[sect] || 0) + l.value; } }
+  const secteursDistincts = Object.keys(bySector).length;
+  const maxPositionPct = pf.value ? Math.round(Math.max(0, ...pf.lines.filter(l => l.priceAvailable).map(l => l.value)) / pf.value * 100) : 0;
+
+  let lecon = null;
+  if (aEtudier){
+    lecon = aEtudier.ev.verdict === 'Occasion manquée'
+      ? `Sur ${esc(aEtudier.tx.name)}, conserver aurait rapporté plus — vérifiez si l'horizon annoncé à l'achat était vraiment respecté avant de vendre.`
+      : `Sur ${esc(aEtudier.tx.name)}, revoyez ${aEtudier.ev.processAligne === false ? "l'écart entre l'horizon annoncé et la durée réelle de détention" : "la thèse (ou son absence) au moment de l'achat"}.`;
+  } else if (maxPositionPct >= Math.round(VERDICT_CONCENTRATION_RISQUEE * 100)){
+    lecon = `Une position représente ${maxPositionPct} % de votre portefeuille actuel — envisagez de diversifier davantage.`;
+  }
+
+  return { ventes, achats, meilleure, plusRisquee, performance, secteursDistincts, maxPositionPct, lecon };
+}
+/* Carte d'une décision (vente fermée OU position encore ouverte),
+   réutilisée par les 2 sections de PAGES.novareview ci-dessous — même
+   structure (badge de verdict + faits + raisons), seule la ligne de
+   sous-titre diffère. */
+function carteDecisionNovaReview(tx, ev){
+  const style = VERDICT_STYLE[ev.verdict];
+  const dateTx = new Date(tx.date).toLocaleDateString('fr-FR', { day:'2-digit', month:'short', year:'numeric' });
+  const sousTitre = ev.ouverte
+    ? `Acheté le ${dateTx} · ${fmt.eur(tx.amountEUR)} investis`
+    : `Vendu le ${dateTx} · ${fmt.eur(tx.amountEUR)} récupérés`;
+  return `<div class="row" style="padding:14px 0;align-items:flex-start;flex-direction:column;gap:8px">
+    <div style="display:flex;justify-content:space-between;width:100%;align-items:flex-start;gap:10px">
+      <span class="row-main">
+        <span class="row-t">${esc(tx.name)}</span>
+        <span class="row-s">${sousTitre}</span>
+      </span>
+      <span class="tag" style="flex:0 0 auto;background:rgba(${style.rgb},.14);color:${style.accent}">${esc(ev.verdict)}</span>
+    </div>
+    <ul style="margin:0;padding-left:18px;color:var(--ink-4);font-size:12.5px;line-height:1.6">
+      ${ev.raisons.map(r => `<li>${esc(r)}</li>`).join('')}
+    </ul>
+  </div>`;
+}
 PAGES.novareview = () => {
   const f = NOVA_FEATURES.novareview;
   const ventes = state.transactions.filter(t => t.type === 'sell').slice().reverse();
-  if (!ventes.length){
+  const positionsOuvertes = state.wallet.positions
+    .map(pos => ({ tx: { name: byId[pos.id]?.name || pos.id, date: (theseAvantVente(pos.id, new Date().toISOString())?.date) || new Date().toISOString(),
+        amountEUR: toEUR(pos.avg * pos.qty, byId[pos.id]?.cur || 'EUR') }, ev: evaluerPositionOuverte(pos) }))
+    .filter(x => x.ev);
+
+  if (!ventes.length && !positionsOuvertes.length){
     return `<div class="page-in">
       <button class="btn btn-g btn-sm" data-back style="margin-bottom:20px">← Retour</button>
       <div class="empty" style="padding-top:8px">
         <div class="empty-i" style="background:rgba(${f.rgb},.14);color:${f.accent}">${svg(ICON[f.icon],1.7)}</div>
         <h3 style="font-size:22px;margin-top:18px">${esc(f.title)}</h3>
-        <p style="max-width:46ch">Nova Review comparera vos décisions passées — ce que vous aviez prévu à l'achat — à ce qui s'est réellement passé, dès votre première vente.</p>
+        <p style="max-width:46ch">Nova Review comparera vos décisions passées — ce que vous aviez prévu à l'achat — à ce qui s'est réellement passé, dès votre premier achat ou votre première vente.</p>
       </div>
     </div>`;
   }
+
+  const bilan = bilanHebdomadaireNovaReview();
+
   return `<div class="page-in">
     <button class="btn btn-g btn-sm" data-back style="margin-bottom:20px">← Retour</button>
     <h1 class="title">${esc(f.title)}</h1>
-    <p class="lead measure-l" style="margin-top:10px">Ce que vous aviez prévu à l'achat, comparé à ce qui s'est réellement passé.</p>
-    <div class="card" style="margin-top:18px"><div class="rows">
-      ${ventes.map(tx => {
-        const q = queSiRienFait(tx);
-        const these = theseAvantVente(tx.stockId, tx.date);
-        const dateVente = new Date(tx.date).toLocaleDateString('fr-FR', { day:'2-digit', month:'short', year:'numeric' });
-        const gain = Number.isFinite(tx.realizedGain) ? tx.realizedGain : null;
-        let bloc = `<span class="tiny" style="color:var(--ink-4)">Aucune thèse enregistrée pour cet achat — seul le résultat est visible.</span>`;
-        if (these){
-          const jours = (new Date(tx.date) - new Date(these.date)) / 86400000;
-          const cmp = these.thesisHorizon ? compareHorizon(jours, these.thesisHorizon) : null;
-          bloc = `${these.thesisReason ? `<p class="tiny" style="color:var(--ink-3);margin:4px 0 0">« ${esc(these.thesisReason)} »</p>` : ''}
-            ${cmp ? `<span class="tiny" style="color:var(--ink-4)">${esc(cmp.texte)}</span>` : ''}`;
-        }
-        return `<div class="row" style="padding:14px 0;align-items:flex-start;flex-direction:column;gap:2px">
-          <div style="display:flex;justify-content:space-between;width:100%;align-items:flex-start;gap:10px">
-            <span class="row-main">
-              <span class="row-t">${esc(tx.name)}</span>
-              <span class="row-s">Vendu le ${dateVente} · ${fmt.eur(tx.amountEUR)} récupérés</span>
-            </span>
-            <span style="text-align:right;flex:0 0 auto">
-              ${gain === null ? '' : `<span class="tabular-nums ${gain >= 0 ? 'up-t' : 'down-t'}" style="font-size:13.5px;font-weight:600">${gain >= 0 ? '+' : ''}${fmt.eur(gain)} réalisé</span>`}
-              ${q === null ? '' : `<br><span class="tiny" style="color:var(--ink-4)">${q.difference >= 0 ? 'aurait valu ' + fmt.eur(q.difference) + ' de plus en gardant' : 'a évité ' + fmt.eur(Math.abs(q.difference)) + ' en vendant'}</span>`}
-            </span>
-          </div>
-          ${bloc}
-        </div>`;
-      }).join('')}
-    </div></div>
+    <p class="lead measure-l" style="margin-top:10px">Ce que vous aviez prévu à l'achat, comparé à ce qui s'est réellement passé — jamais un jugement inventé, seulement des faits comparés à votre propre intention déclarée.</p>
+
+    ${bilan ? `<section class="section">
+      <div class="section-h"><h2 class="h2">Bilan des 7 derniers jours</h2></div>
+      <div class="card">
+        <dl>
+          <div class="kv"><dt>Décisions</dt><dd class="tabular-nums">${bilan.achats.length} achat${bilan.achats.length>1?'s':''} · ${bilan.ventes.length} vente${bilan.ventes.length>1?'s':''}</dd></div>
+          ${bilan.performance ? `<div class="kv"><dt>Performance du portefeuille</dt><dd class="tabular-nums ${bilan.performance.variation>=0?'up-t':'down-t'}">${bilan.performance.variation>=0?'+':''}${fmt.eur(bilan.performance.variation)} (${fmt.pct(bilan.performance.variationPct,1)})</dd></div>` : ''}
+          ${bilan.meilleure ? `<div class="kv"><dt>Meilleure décision</dt><dd style="text-align:right">${esc(bilan.meilleure.tx.name)}<br><span class="tiny">${esc(bilan.meilleure.ev.verdict)}</span></dd></div>` : ''}
+          ${bilan.plusRisquee && bilan.plusRisquee.ev.concentration !== null ? `<div class="kv"><dt>Décision la plus risquée</dt><dd style="text-align:right">${esc(bilan.plusRisquee.tx.name)}<br><span class="tiny">${fmt.pctRatio(bilan.plusRisquee.ev.concentration,0)} du capital investi</span></dd></div>` : ''}
+          <div class="kv"><dt>Diversification</dt><dd class="tabular-nums">${bilan.secteursDistincts} secteur${bilan.secteursDistincts>1?'s':''} · position la + importante : ${bilan.maxPositionPct} %</dd></div>
+        </dl>
+        ${bilan.lecon ? `<p class="tiny" style="margin-top:14px;color:var(--ink-3)"><b>Leçon de la semaine :</b> ${esc(bilan.lecon)}</p>` : ''}
+      </div>
+    </section>` : ''}
+
+    ${positionsOuvertes.length ? `<section class="section">
+      <div class="section-h"><h2 class="h2">Positions en cours</h2></div>
+      <div class="card"><div class="rows">
+        ${positionsOuvertes.map(({ tx, ev }) => carteDecisionNovaReview(tx, ev)).join('')}
+      </div></div>
+    </section>` : ''}
+
+    ${ventes.length ? `<section class="section">
+      <div class="section-h"><h2 class="h2">Décisions passées</h2></div>
+      <div class="card"><div class="rows">
+        ${ventes.map(tx => carteDecisionNovaReview(tx, evaluerVente(tx))).join('')}
+      </div></div>
+    </section>` : ''}
   </div>`;
 };
 /* NovaBot (LOT I, Étape 3, 2026-09-24) : simulation de trading réelle
