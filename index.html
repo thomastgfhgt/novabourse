@@ -4911,6 +4911,77 @@ function bilanHebdomadaireNovaReview(){
 
   return { ventes, achats, meilleure, plusRisquee, performance, secteursDistincts, maxPositionPct, lecon };
 }
+
+/* Commentaire IA du bilan (2026-09-26, retour utilisateur : "je veux
+   vraiment que ce soit complet et que ce soit réalisé avec l'IA") —
+   réutilise EXACTEMENT le même mécanisme que Nova AI sur une fiche
+   action (authFetch('/api/analyze'), même quota, même identité "Nova
+   AI" unique côté utilisateur) : un NOUVEAU mode ('novareview') plutôt
+   qu'un appel par décision (20 décisions = 20 appels aurait épuisé le
+   quota d'analyses pour rien) — UN seul appel commente TOUT le bilan de
+   la semaine. Le verdict de chaque décision reste calculé par le moteur
+   déterministe ci-dessus (evaluerVente/evaluerPositionOuverte) : le
+   modèle ne fait QUE commenter ces verdicts déjà tranchés, jamais en
+   produire lui-même (verrou identique côté serveur). État module-level,
+   jamais persisté : un commentaire se régénère à chaque bilan différent. */
+let NOVA_REVIEW_IA = { status:'idle', commentaire:null };
+function construireBilanPourIA(bilan){
+  const decisions = [];
+  for (const tx of bilan.ventes){
+    const ev = evaluerVente(tx);
+    decisions.push({ nom: tx.name, type:'vente', verdict: ev.verdict,
+      gainPct: ev.gainPct !== null ? Math.round(ev.gainPct * 1000) / 10 : null,
+      regretPct: ev.regretPct !== null ? Math.round(ev.regretPct * 1000) / 10 : null,
+      concentrationPct: ev.concentration !== null ? Math.round(ev.concentration * 1000) / 10 : null,
+      raisons: ev.raisons });
+  }
+  for (const tx of bilan.achats){
+    const pos = state.wallet.positions.find(p => p.id === tx.stockId);
+    if (!pos) continue;   // déjà revendue : sa vente (si dans la fenêtre) est déjà comptée ci-dessus, jamais compter deux fois la même position
+    const ev = evaluerPositionOuverte(pos);
+    if (!ev) continue;
+    decisions.push({ nom: tx.name, type:'position_ouverte', verdict: ev.verdict,
+      gainPct: ev.gainPct !== null ? Math.round(ev.gainPct * 1000) / 10 : null,
+      regretPct: null, concentrationPct: ev.concentration !== null ? Math.round(ev.concentration * 1000) / 10 : null,
+      raisons: ev.raisons });
+  }
+  return { decisions,
+    performanceVariationPct: bilan.performance ? Math.round(bilan.performance.variationPct * 10) / 10 : null,
+    secteursDistincts: bilan.secteursDistincts,
+    maxPositionPct: bilan.maxPositionPct };
+}
+async function genererCommentaireNovaReview(){
+  if (NOVA_REVIEW_IA.status === 'loaded' || NOVA_REVIEW_IA.status === 'loading') return;
+  if (state.auth.status !== 'authenticated'){ toast('Connectez-vous pour utiliser l’IA.'); return; }
+  const bilan = bilanHebdomadaireNovaReview();
+  if (!bilan){ toast('Aucune décision cette semaine à commenter.'); return; }
+
+  NOVA_REVIEW_IA = { status:'loading', commentaire:null };
+  render();
+  let d;
+  try {
+    const r = await authFetch('/api/analyze', { method:'POST',
+      body: JSON.stringify({ mode:'novareview', bilan: construireBilanPourIA(bilan) }) });
+    d = await r.json();
+    if (!r.ok) throw Object.assign(new Error(d.error || 'erreur'), { data:d });
+  } catch (e){
+    const err = e.data || {};
+    const key = err.code || err.error;
+    const msg = { non_connecte:'Votre session a expiré. Reconnectez-vous.',
+      quota_exceeded: err.message || 'Quota mensuel atteint.',
+      aucun_modele_configure:"Aucun modèle n'est configuré sur le serveur.",
+      bilan_vide:"Aucune décision exploitable cette semaine.",
+      delai_depasse:"Le modèle n'a pas répondu à temps.",
+      fournisseur_en_erreur:`Le fournisseur a répondu ${err.status || ''}.`,
+    }[key] || "Le commentaire IA n'a pas abouti.";
+    NOVA_REVIEW_IA = { status:'error', commentaire:null, erreur: msg };
+    render();
+    return;
+  }
+  if (d.quota && state.account) Object.assign(state.account, d.quota);
+  NOVA_REVIEW_IA = { status:'loaded', commentaire: d.commentaire || null };
+  render();
+}
 /* Carte d'une décision (vente fermée OU position encore ouverte),
    réutilisée par les 2 sections de PAGES.novareview ci-dessous — même
    structure (badge de verdict + faits + raisons), seule la ligne de
@@ -4971,6 +5042,24 @@ PAGES.novareview = () => {
           <div class="kv"><dt>Diversification</dt><dd class="tabular-nums">${bilan.secteursDistincts} secteur${bilan.secteursDistincts>1?'s':''} · position la + importante : ${bilan.maxPositionPct} %</dd></div>
         </dl>
         ${bilan.lecon ? `<p class="tiny" style="margin-top:14px;color:var(--ink-3)"><b>Leçon de la semaine :</b> ${esc(bilan.lecon)}</p>` : ''}
+        <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--line-2)">
+          ${NOVA_REVIEW_IA.status === 'idle' ? `
+            <button class="btn btn-a btn-sm" data-nova-review-ia>Commenter avec Nova AI</button>`
+          : NOVA_REVIEW_IA.status === 'loading' ? `
+            <div class="spin-wrap" style="padding:12px 0">
+              <span class="nova-orb"><i></i><i></i><i></i></span>
+              <span class="spin-txt">Nova AI commente votre semaine…</span>
+            </div>`
+          : NOVA_REVIEW_IA.status === 'error' ? `
+            <div class="notice"><b>${esc(NOVA_REVIEW_IA.erreur || "Le commentaire IA n'a pas abouti.")}</b></div>`
+          : (() => { const c = NOVA_REVIEW_IA.commentaire; if (!c) return ''; return `
+            <p class="eyebrow">Nova AI</p>
+            <p class="small" style="margin-top:6px">${esc(c.resume || '')}</p>
+            ${(c.points || []).length ? `<ul class="pts good" style="margin-top:10px">
+              ${c.points.map(p => `<li><i>•</i><span>${esc(p)}</span></li>`).join('')}</ul>` : ''}
+            ${c.lecon ? `<p class="tiny" style="margin-top:10px;color:var(--ink-3)"><b>Leçon (Nova AI) :</b> ${esc(c.lecon)}</p>` : ''}
+            <p class="tiny" style="margin-top:10px">Commentaire généré à partir des verdicts calculés ci-dessus par NovaBourse — jamais l'inverse.</p>`; })()}
+        </div>
       </div>
     </section>` : ''}
 
@@ -8761,6 +8850,7 @@ document.addEventListener('click', e => {
     return;
   }
   if (q('[data-show-worldnews]')){ chargerNovaNewsMonde(); render(); return; }
+  if (q('[data-nova-review-ia]')){ genererCommentaireNovaReview(); return; }
 
   const cyc = q('[data-cycle]');
   if (cyc){ state.settings.cycle = cyc.dataset.cycle; saveState(); render(); return; }

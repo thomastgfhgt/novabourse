@@ -37,6 +37,7 @@ const actif = () => Object.entries(PROVIDERS).filter(([, p]) => process.env[p.en
 const ORDRE_TACHES = {
   analyse: ['xai', 'openai', 'anthropic'],
   screener: ['xai', 'openai', 'anthropic'],
+  novareview: ['xai', 'openai', 'anthropic'],
 };
 function dispoPourTache(tache){
   const configures = new Set(actif().map(([id]) => id));
@@ -57,6 +58,48 @@ function dispoPourTache(tache){
    bascule ne joue donc pas encore en pratique, mais est prête sans aucun
    changement de code le jour où OPENAI_API_KEY/ANTHROPIC_API_KEY seront
    ajoutées — voir le blocage signalé pour ce lot. */
+/* VERROU ANTI-HALLUCINATION EN TEXTE LIBRE — extrait (2026-09-26) du
+   verrou déjà en place pour l'analyse d'entreprise (voir plus bas) pour
+   être réutilisé tel quel par le mode novareview : construit l'ensemble
+   des nombres RÉELLEMENT présents dans `contexte` (chaque valeur, plus
+   sa forme ×100 pour couvrir un ratio cité en pourcentage, arrondie à
+   0/1/2 décimales pour tolérer un arrondi du modèle), puis renvoie une
+   fonction qui ne laisse passer, dans un texte donné, que les nombres
+   correspondant à l'une de ces valeurs autorisées — un nombre qui ne
+   correspond à rien de fourni est remplacé par un marqueur, jamais toute
+   la phrase. Comportement et compromis assumé inchangés par ce
+   déplacement — voir le commentaire original conservé plus bas où cette
+   fonction est appelée pour l'analyse d'entreprise. */
+function construireAssainisseur(contexte){
+  function nombresAutorises(valeur, acc){
+    if (typeof valeur === 'number' && Number.isFinite(valeur)){
+      for (const v of [valeur, valeur * 100]){
+        for (const d of [0, 1, 2]) acc.add(v.toFixed(d));
+      }
+    } else if (Array.isArray(valeur)){
+      valeur.forEach(v => nombresAutorises(v, acc));
+    } else if (valeur && typeof valeur === 'object'){
+      Object.values(valeur).forEach(v => nombresAutorises(v, acc));
+    }
+    return acc;
+  }
+  const autorises = nombresAutorises(contexte, new Set());
+  const compteur = { retires: 0 };
+  function assainirTexte(texte){
+    if (typeof texte !== 'string') return texte;
+    return texte.replace(/-?\d+(?:[.,]\d+)?/g, jeton => {
+      const n = Number(jeton.replace(',', '.'));
+      if (!Number.isFinite(n)) return jeton;
+      for (const d of [0, 1, 2]) {
+        if (autorises.has(n.toFixed(d))) return jeton;
+      }
+      compteur.retires++;
+      return '[donnée non vérifiée]';
+    });
+  }
+  return { assainirTexte, compteur };
+}
+
 async function appelModeleAvecBascule(dispo, { prompt, maxTokens, timeoutMs, validerEtNormaliser }){
   let derniereErreur = null;
   for (const [id, p] of dispo){
@@ -113,6 +156,25 @@ Règles :
   l'utilisateur puisse vérifier avant de lancer la recherche.
 - N'invente aucun autre champ. Si la requête ne permet de déduire aucun filtre
   pertinent, réponds {"sector":"tous","country":"tous","scoreMin":0,"explanation":"Aucun filtre déduit."}`;
+
+const CONSIGNE_NOVA_REVIEW = `Tu commentes un bilan de décisions d'investissement personnelles, dans
+l'esprit d'une analyse post-partie d'échecs (chess.com) : tu sépares la qualité du PROCESSUS de
+décision du RÉSULTAT financier final.
+Réponds en JSON strict : {"resume":"...","points":["...","..."],"lecon":"..."}
+Règles absolues :
+- Chaque décision listée ci-dessous a DÉJÀ un verdict ("Excellent coup"/"Bon coup"/"Intéressant"/
+  "Risqué"/"Erreur à étudier"/"Occasion manquée") calculé par NovaBourse à partir de chiffres réels.
+  Tu ne produis JAMAIS toi-même de verdict, de note, ni de nouveau chiffre — tu commentes et
+  expliques UNIQUEMENT ce qui est déjà donné ci-dessous.
+- N'invente AUCUN chiffre, AUCUNE société, AUCUNE décision qui ne figure pas explicitement dans le
+  bilan transmis.
+- "resume" : 1 à 2 phrases, ton direct, jamais un discours motivationnel vague.
+- "points" : 2 à 4 observations concrètes, chacune ancrée sur UNE décision ou une donnée précise du
+  bilan (nom de société, verdict, ou chiffre transmis).
+- "lecon" : une phrase actionnable qui se réfère explicitement à une décision précise du bilan,
+  jamais un conseil générique de manuel.
+- N'utilise jamais "vous devriez acheter/vendre X" — tu commentes des décisions déjà prises,
+  jamais une recommandation d'ordre futur.`;
 
 const CONSIGNE = `Tu analyses une entreprise cotée à partir des seuls chiffres fournis.
 Réponds en JSON strict : {"whatItDoes":"...","verdict":"positif|neutre|negatif|insuffisant","uncertainty":"faible|moyenne|elevee","summary":"...","positive":["..."],"negative":["..."]}
@@ -198,6 +260,116 @@ async function screenerAnalyse(req, res, { user, plan, dispo }){
   return res.status(200).json({ filters: parsed, provider: id, model: modele, quota: quotaBlock(plan, utilise) });
 }
 
+/**
+ * Mode "novareview" (2026-09-26, retour utilisateur : Nova Review "réalisé
+ * avec l'IA") — commente en langage naturel un bilan de décisions déjà
+ * calculé par le moteur de verdict déterministe côté client (voir
+ * evaluerVente()/evaluerPositionOuverte() dans index.html, LOT H).
+ *
+ * Ce mode NE calcule AUCUN verdict/chiffre lui-même : le bilan transmis
+ * par le client (ses propres transactions, jamais une donnée partagée
+ * entre utilisateurs — contrairement à l'analyse d'entreprise, il n'y a
+ * personne d'autre à tromper avec une donnée personnelle inexacte) est
+ * validé strictement en forme, puis transmis au modèle pour un
+ * COMMENTAIRE uniquement — même verrou anti-hallucination
+ * (construireAssainisseur) que l'analyse d'entreprise, pour qu'aucun
+ * nombre ne puisse être introduit par le modèle en dehors de ceux
+ * réellement transmis. Même mécanisme de quota que les autres modes.
+ */
+function texteBorne(valeur, maxLen){
+  if (typeof valeur !== 'string') return null;
+  // Retire les caracteres de controle (codes ASCII 0-31 et 127) par filtrage de code plutot que par une classe regex avec echappement unicode litteral, qui avait ete ecrit comme de vrais octets de controle dans ce fichier au lieu d etre conserve comme texte source (corrige le 2026-09-26).
+  const nettoye = valeur.split('').filter(c => { const code = c.charCodeAt(0); return code > 31 && code !== 127; }).join('').trim();
+  return nettoye ? nettoye.slice(0, maxLen) : null;
+}
+function nombreBorne(valeur){
+  return typeof valeur === 'number' && Number.isFinite(valeur) ? valeur : null;
+}
+const VERDICTS_NOVA_REVIEW = new Set(['Excellent coup', 'Bon coup', 'Intéressant', 'Risqué', 'Erreur à étudier', 'Occasion manquée']);
+
+async function novaReviewAnalyse(req, res, { user, plan, dispo }){
+  const brut = req.body?.bilan;
+  if (!brut || typeof brut !== 'object') return res.status(400).json({ error: 'bilan_invalide' });
+
+  /* Validation stricte, élément par élément — jamais un objet arbitraire
+     du client injecté tel quel dans le prompt. Une décision hors-forme
+     est retirée individuellement, jamais tout le bilan. */
+  const decisions = (Array.isArray(brut.decisions) ? brut.decisions : []).slice(0, 20)
+    .map(d => ({
+      nom: texteBorne(d?.nom, 80),
+      type: d?.type === 'position_ouverte' ? 'position_ouverte' : 'vente',
+      verdict: VERDICTS_NOVA_REVIEW.has(d?.verdict) ? d.verdict : null,
+      gainPct: nombreBorne(d?.gainPct),
+      regretPct: nombreBorne(d?.regretPct),
+      concentrationPct: nombreBorne(d?.concentrationPct),
+      raisons: (Array.isArray(d?.raisons) ? d.raisons : []).slice(0, 5)
+        .map(r => texteBorne(r, 200)).filter(Boolean),
+    }))
+    .filter(d => d.nom && d.verdict);
+  if (!decisions.length) return res.status(400).json({ error: 'bilan_vide' });
+
+  const contexte = {
+    decisions,
+    performanceVariationPct: nombreBorne(brut.performanceVariationPct),
+    secteursDistincts: nombreBorne(brut.secteursDistincts),
+    maxPositionPct: nombreBorne(brut.maxPositionPct),
+  };
+
+  const prompt = `${CONSIGNE_NOVA_REVIEW}\n\nBilan :\n${JSON.stringify(contexte, null, 1)}`;
+
+  const resa = await reserver(sb, user.id, plan);
+  if (!resa.ok){
+    if (resa.reason === 'quota_exceeded'){
+      const q = quotaBlock(plan, resa.used ?? limiteDe(plan));
+      return res.status(429).json({ error:'quota_exceeded',
+        message:`Vous avez utilisé vos ${limiteDe(plan)} analyses incluses ce mois-ci.`, ...q });
+    }
+    if (resa.reason === 'rate_limited'){
+      return res.status(429).json({ error:'rate_limited',
+        message:"Trop de requêtes lancées en peu de temps. Réessayez dans quelques minutes.", plan });
+    }
+    return res.status(503).json({ error:'quota_indisponible',
+      message:"Le compteur d'analyses est momentanément indisponible. Réessayez." });
+  }
+  const reservation = resa.reservationId;
+  const utilise = resa.used;
+  const annuler = statut => cloturer(sb, reservation, statut || 'cancelled');
+
+  let id, modele, parsed;
+  try {
+    ({ id, modele, parsed } = await appelModeleAvecBascule(dispo, {
+      prompt, maxTokens: 700, timeoutMs: 25000,
+      validerEtNormaliser: (rep) => {
+        if (
+          !rep || typeof rep !== 'object' || Array.isArray(rep)
+          || typeof rep.resume !== 'string'
+          || !Array.isArray(rep.points)
+          || typeof rep.lecon !== 'string'
+        ){
+          throw new Error('schema_novareview_invalide');
+        }
+        return {
+          resume: rep.resume.slice(0, 400),
+          points: rep.points.filter(p => typeof p === 'string').slice(0, 4).map(p => p.slice(0, 220)),
+          lecon: rep.lecon.slice(0, 300),
+        };
+      },
+    }));
+  } catch (e){
+    await annuler('cancelled');
+    return res.status(502).json({ error: e.type || 'reponse_illisible', provider: e.provider ?? null, detail: e.detail });
+  }
+
+  const { assainirTexte } = construireAssainisseur(contexte);
+  parsed.resume = assainirTexte(parsed.resume);
+  parsed.points = parsed.points.map(assainirTexte);
+  parsed.lecon = assainirTexte(parsed.lecon);
+
+  await cloturer(sb, reservation, 'ok', { provider:id, model:modele });
+  res.setHeader('Cache-Control', 'no-store');
+  return res.status(200).json({ commentaire: parsed, provider: id, model: modele, quota: quotaBlock(plan, utilise) });
+}
+
 module.exports = async (req, res) => {
   if (req.method === 'GET'){
     return res.status(200).json({
@@ -224,6 +396,9 @@ module.exports = async (req, res) => {
 
   if (req.body?.mode === 'screener'){
     return screenerAnalyse(req, res, { user, plan, dispo: dispoPourTache('screener') });
+  }
+  if (req.body?.mode === 'novareview'){
+    return novaReviewAnalyse(req, res, { user, plan, dispo: dispoPourTache('novareview') });
   }
   const dispo = dispoPourTache('analyse');
 
@@ -483,43 +658,10 @@ jamais et ne modifies jamais de note.`;
      chiffre inventé glissé dans une phrase ("summary", "positive[]",
      "negative[]"), ex. {"summary":"Le PER est de 31,4"} sans que 31,4 ne
      figure nulle part dans le contexte réellement transmis au modèle.
-     Principe : construire l'ensemble des nombres RÉELLEMENT présents dans
-     `context` (chaque valeur, plus sa forme ×100 pour couvrir un ratio cité
-     en pourcentage, arrondie à 0/1/2 décimales pour tolérer un arrondi du
-     modèle), puis, pour chaque nombre repéré dans le texte, ne le laisser
-     passer que s'il correspond à l'une de ces valeurs autorisées. Un
-     nombre qui ne correspond à rien de fourni est remplacé par un
-     marqueur — jamais toute la phrase : le modèle garde le droit de citer
-     un vrai chiffre du contexte. Compromis assumé : un nombre non financier
-     bénin (ex. "deux segments") peut être retiré s'il ne correspond à
-     aucune valeur du contexte ; c'est jugé préférable à laisser passer un
-     chiffre financier inventé. */
-  function nombresAutorises(valeur, acc){
-    if (typeof valeur === 'number' && Number.isFinite(valeur)){
-      for (const v of [valeur, valeur * 100]){
-        for (const d of [0, 1, 2]) acc.add(v.toFixed(d));
-      }
-    } else if (Array.isArray(valeur)){
-      valeur.forEach(v => nombresAutorises(v, acc));
-    } else if (valeur && typeof valeur === 'object'){
-      Object.values(valeur).forEach(v => nombresAutorises(v, acc));
-    }
-    return acc;
-  }
-  const autorises = nombresAutorises(context, new Set());
-  let nombresRetires = 0;
-  function assainirTexte(texte){
-    if (typeof texte !== 'string') return texte;
-    return texte.replace(/-?\d+(?:[.,]\d+)?/g, jeton => {
-      const n = Number(jeton.replace(',', '.'));
-      if (!Number.isFinite(n)) return jeton;
-      for (const d of [0, 1, 2]) {
-        if (autorises.has(n.toFixed(d))) return jeton;
-      }
-      nombresRetires++;
-      return '[donnée non vérifiée]';
-    });
-  }
+     construireAssainisseur() (extrait le 2026-09-26 pour être réutilisé
+     par le mode novareview, comportement inchangé — voir sa définition
+     plus haut pour le détail du principe et le compromis assumé). */
+  const { assainirTexte, compteur: compteurRetires } = construireAssainisseur(context);
   if (typeof parsed.whatItDoes === 'string') parsed.whatItDoes = assainirTexte(parsed.whatItDoes);
   if (typeof parsed.summary === 'string') parsed.summary = assainirTexte(parsed.summary);
   if (Array.isArray(parsed.positive)) parsed.positive = parsed.positive.map(assainirTexte);
@@ -551,7 +693,7 @@ jamais et ne modifies jamais de note.`;
     analysis: parsed, provider: id, model: modele, tokens: usage,
     // Nombre de chiffres en texte libre retirés faute de correspondre à une
     // valeur réellement transmise au modèle (voir verrou anti-hallucination).
-    unverifiedNumbersRemoved: nombresRetires,
+    unverifiedNumbersRemoved: compteurRetires.retires,
     // Seule note affichable : celle du moteur. Jamais celle du modèle.
     novascore: {
       engine: nova.engine, score: nova.score, coverage: nova.coverage,
