@@ -28,6 +28,15 @@ const TTL = {
      fraîcheur ("temps réel") et courtoisie envers des serveurs publics
      gratuits, sans clé, donc sans SLA. */
   worldnews: 600000,      // 10 min
+  /* SEC EDGAR (LOT "couverture mondiale de données", 2026-09-28) : deux
+     blocs distincts, voir api/market/_secEdgar.js. L'index ticker->CIK
+     (798 Ko, ~10 400 entrées) change rarement — 24h est un compromis
+     honnête entre fraîcheur et courtoisie envers un serveur public gratuit
+     sans clé. companyfacts (par CIK) suit le même TTL que les autres
+     fondamentaux (EODHD/Finnhub, 6h) : mêmes garanties de fraîcheur pour
+     un consommateur qui ignore la source exacte. */
+  secedgarCiks: 86400000,  // 24 h
+  secedgarFacts: 21600000, // 6 h
 };
 
 /* Un nom de bloc composite ("histp:1a", "intraday:15min", ...) retombe

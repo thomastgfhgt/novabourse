@@ -22,7 +22,8 @@
     "test-novabot": "node scripts/test-novabot.js",
     "test-worldnews": "node scripts/test-worldnews.js",
     "test-nova-review-ia": "node scripts/test-nova-review-ia.js",
-    "test-fundamentals-eodhd": "node scripts/test-fundamentals-eodhd.js"
+    "test-fundamentals-eodhd": "node scripts/test-fundamentals-eodhd.js",
+    "test-secedgar": "node scripts/test-secedgar.js"
   },
   "dependencies": {
     "stripe": "^16.12.0"

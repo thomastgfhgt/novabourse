@@ -79,6 +79,16 @@ const KEYS = () => ({
   eulerpool_fx:
     process.env.EULERPOOL_API_KEY
     || null,
+
+  /* SEC EDGAR (data.sec.gov) : source publique officielle du gouvernement
+     américain, aucune clé requise — uniquement un en-tête User-Agent
+     identifiable (voir _secEdgar.js). Même principe de sentinelle que
+     coingecko/frankfurter ci-dessus. SECEDGAR_DISABLED permet de le
+     couper sans toucher au code. */
+  secedgar:
+    process.env.SECEDGAR_DISABLED === '1'
+      ? null
+      : true,
 });
 
 /* ============================================================
@@ -146,7 +156,8 @@ const urlSansCle = u =>
 
 async function getJSON(
   url,
-  ms = 9000
+  ms = 9000,
+  enTetesSupplementaires = {}
 ) {
   const controller =
     new AbortController();
@@ -165,9 +176,16 @@ async function getJSON(
           signal:
             controller.signal,
 
+          /* `enTetesSupplementaires` optionnel (défaut {}) : comportement
+             strictement inchangé pour tout appelant existant. Ajouté pour
+             SEC EDGAR (_secEdgar.js), qui EXIGE contractuellement un
+             en-tête User-Agent identifiable (nom + contact) sous peine de
+             403/429 — voir https://www.sec.gov/os/webmaster-faq#developers,
+             vérifié en direct avant intégration. */
           headers: {
             accept:
               'application/json',
+            ...enTetesSupplementaires,
           },
         }
       );
@@ -1388,7 +1406,17 @@ const EULERPOOL_ISIN_OVERRIDE = {
    FONDAMENTAUX
    ============================================================ */
 
+const { secedgar } = require('./_secEdgar.js');
+
 const FUNDAMENTALS = {
+  /* Repli fondamentaux US (voir _secEdgar.js pour le détail des concepts
+     XBRL couverts/exclus et les vérifications en direct effectuées avant
+     intégration). Fonction définie dans un module séparé — SANS
+     dépendance vers ce fichier (éviterait un require circulaire, puisque
+     ce fichier-ci importe _secEdgar.js) — simplement référencée ici pour
+     rejoindre le même objet FUNDAMENTALS que les autres fournisseurs. */
+  secedgar,
+
   async eodhd(
     ticker,
     exchange,

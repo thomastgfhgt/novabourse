@@ -134,8 +134,16 @@ function ordreStatique(dataType, type, opts = {}) {
          (Hermès, LVMH, L'Oréal, SAP, Siemens...), et Finnhub ne couvre que
          les places US (finnhubAutorise) — sans Eulerpool, ces actions
          n'avaient AUCUN repli fonctionnel pour les fondamentaux, même
-         schéma de défaut que le bug crypto/forex/indices déjà corrigé. */
-      return TYPES_AVEC_FONDAMENTAUX.has(type) ? ['eodhd', 'finnhub', 'eulerpool'] : [];
+         schéma de défaut que le bug crypto/forex/indices déjà corrigé.
+         SEC EDGAR (2026-09-28, voir _secEdgar.js) inséré AVANT Eulerpool :
+         3e repli réellement indépendant pour les actions US (aucune clé,
+         source officielle, jamais de limite de plan), placé avant
+         Eulerpool qui a été vérifié/dimensionné pour les valeurs
+         européennes, pas testé pour les US. Pour un ticker non-US, l'appel
+         échoue proprement (ticker_non_reconnu_par_secedgar, aucun coût
+         réseau après le premier index mis en cache 24h) et la cascade
+         continue vers Eulerpool exactement comme avant. */
+      return TYPES_AVEC_FONDAMENTAUX.has(type) ? ['eodhd', 'finnhub', 'secedgar', 'eulerpool'] : [];
 
     case 'news':
       return TYPES_AVEC_ACTUALITES.has(type) ? ['eodhd'] : [];
