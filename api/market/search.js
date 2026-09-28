@@ -135,6 +135,10 @@ const EXCHANGE_ALIASES = {
   VN: 'VN',
   HOSE: 'VN',
   PSE: 'PSE',
+  MX: 'MX',
+  BMV: 'MX',
+  SN: 'SN',
+  SSE_CL: 'SN',
 };
 
 function normaliserExchange(value) {

@@ -145,6 +145,7 @@ const MARKET_LABEL = {
   NEO: 'Cboe Canada',
   AT: 'Athens Stock Exchange', VN: 'Ho Chi Minh Stock Exchange (HOSE)',
   PSE: 'Philippine Stock Exchange',
+  MX: 'Bolsa Mexicana de Valores', SN: 'Bolsa de Santiago',
 };
 
 /* Id court par exchangeCode (voir catalog.json existant : NASDAQ->NAS,

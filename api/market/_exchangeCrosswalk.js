@@ -94,6 +94,8 @@ const ALIAS_CATALOGUE = {
   HOSE: 'VN',
   /* PSE : AUCUNE entrée nécessaire ici — 'PSE' est déjà une clé SUFFIX
      canonique (voir _providers.js), même situation que NEO/TO/AU. */
+  BMV: 'MX',
+  SSE_CL: 'SN',
 };
 
 /* "Euronext" est un label générique dans ce dataset qui recouvre plusieurs

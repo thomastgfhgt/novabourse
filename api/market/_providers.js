@@ -391,6 +391,18 @@ const SUFFIX = {
   AT: 'AT',
   VN: 'VN',
   PSE: 'PSE',
+
+  /* Suite (2026-09-28, 4e passe) : 2 nouveaux codes vérifiés
+     EMPIRIQUEMENT :
+       AC.MX     (Arca Continental, Bolsa Mexicana de Valores) -> cotation
+         ET historique RÉELS (199,24 MXN, capitalisation réelle).
+       AAISA.SN  (Administradora Americana de Inversiones, Bourse de
+         Santiago du Chili) -> cotation ET historique RÉELS (623,08 CLP,
+         capitalisation réelle).
+     Égypte (essayé CA) et Nigeria (essayé LG) échoués (404 Ticker Not
+     Found, code incorrect) — laissés NULL plutôt que devinés davantage. */
+  MX: 'MX',
+  SN: 'SN',
 };
 
 const eodhdSymbol = (
