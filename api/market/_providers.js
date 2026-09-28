@@ -347,6 +347,21 @@ const SUFFIX = {
   V: 'V',
   WAR: 'WAR',
   KLSE: 'KLSE',
+
+  /* Suite (2026-09-28) : 2 nouveaux codes vérifiés EMPIRIQUEMENT (mêmes
+     garanties que V/WAR/KLSE ci-dessus) :
+       AADI.JK  (Adaro Andalan Indonesia, IDX) -> cotation ET historique
+         RÉELS (11 625 IDR, capitalisation réelle) — couverture complète.
+       786.KAR  (786 Investment, PSX Pakistan) -> cotation ET historique
+         RÉELS (21,35 PKR) ; fondamentaux plan-gated (403), même
+         signature que les autres places déjà documentées.
+     Tentatives infructueuses (404 "Ticker Not Found", code incorrect —
+     pas un problème de plan) volontairement NON ajoutées : TASE (Israël,
+     essayé TA/TLV/IL) et BIST (Turquie, essayé IS/IST/TR) — code EODHD
+     exact non trouvé sans accès à leur documentation complète, laissées
+     NULL plutôt que devinées davantage. */
+  JK: 'JK',
+  KAR: 'KAR',
 };
 
 const eodhdSymbol = (

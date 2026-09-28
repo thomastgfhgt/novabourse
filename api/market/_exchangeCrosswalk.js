@@ -81,6 +81,8 @@ const ALIAS_CATALOGUE = {
   WSE: 'WAR',
   BURSA: 'KLSE',
   BATS: 'US',
+  IDX: 'JK',
+  PSX: 'KAR',
 };
 
 /* "Euronext" est un label générique dans ce dataset qui recouvre plusieurs

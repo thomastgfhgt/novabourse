@@ -123,6 +123,10 @@ const EXCHANGE_ALIASES = {
   KLSE: 'KLSE',
   BURSA: 'KLSE',
   BATS: 'US',
+  JK: 'JK',
+  IDX: 'JK',
+  KAR: 'KAR',
+  PSX: 'KAR',
 };
 
 function normaliserExchange(value) {
