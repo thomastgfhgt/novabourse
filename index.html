@@ -7812,6 +7812,11 @@ function syncActiveAttr(el, shouldBeActive){
 }
 function paintNav(){
   paintSource();
+  /* Nova Explain (2026-09-28) : reflète le niveau choisi à l'onboarding
+     sur <html>, pour toute règle CSS [data-nova-level="..."] future —
+     paintNav() tourne à chaque render(), donc toujours à jour dès que
+     state.settings.mode change (segmenté Simple/Détaillé compris). */
+  document.documentElement.setAttribute('data-nova-level', novaLevel());
   const topNav = document.getElementById('topNav');
   if (!topNavBuilt){
     topNav.innerHTML = `<span class="top-nav-pill" aria-hidden="true"></span>` + NAV.map(n=>`
@@ -8841,9 +8846,16 @@ document.addEventListener('click', e => {
   const term = q('[data-term]');
   if (term){
     const g = GLOSSARY[term.dataset.term] || { court:'Aucune explication disponible.' };
-    openSheet(`<h3 id="sheetTitle">${esc(term.dataset.term)}</h3><p>${esc(g.court)}</p>
-      ${g.long?`<div class="notice" style="margin-top:18px;background:var(--bg-2);color:var(--ink-2)">
-        <b style="color:var(--ink)">Pour aller plus loin.</b> ${esc(g.long)}</div>`:''}`);
+    /* Nova Explain (2026-09-28, onboarding adaptatif) : un utilisateur
+       "débutant" voit uniquement l'explication courte — le paragraphe
+       "pour aller plus loin" (nuances, contre-exemples, mises en garde
+       plus techniques) est réservé à intermédiaire/expert, qui l'ont
+       déjà eu par défaut jusqu'ici. Rien n'est retiré pour les deux
+       autres niveaux, seul le débutant voit une version plus courte. */
+    const g2 = novaLevel() === 'debutant' ? { court:g.court, long:null } : g;
+    openSheet(`<h3 id="sheetTitle">${esc(term.dataset.term)}</h3><p>${esc(g2.court)}</p>
+      ${g2.long?`<div class="notice" style="margin-top:18px;background:var(--bg-2);color:var(--ink-2)">
+        <b style="color:var(--ink)">Pour aller plus loin.</b> ${esc(g2.long)}</div>`:''}`);
     return;
   }
 
