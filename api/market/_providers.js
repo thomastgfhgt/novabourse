@@ -279,13 +279,33 @@ const SUFFIX = {
      attendant soit une vérification ultérieure, soit une évolution de
      plan. KOSDAQ (marché coréen distinct de KO/KOSPI) et TPEX (Taiwan OTC,
      distinct de TW/TWSE) volontairement NON vérifiés dans cette passe,
-     restent NULL par prudence plutôt que supposés identiques à KO/TW. */
+     restent NULL par prudence plutôt que supposés identiques à KO/TW.
+
+     SUITE (2026-09-28, LOT "couverture mondiale de données") : KOSDAQ et
+     Taiwan OTC (laissés NULL ci-dessus) enfin vérifiés EMPIRIQUEMENT, plus
+     Afrique du Sud essayée et confirmée elle aussi plan-gated (donc
+     laissée NULL, comme Tokyo/Inde/Arabie Saoudite ci-dessus) :
+       003690.KQ  (Korean Reinsurance)  -> historique RÉEL reçu (210
+         séances), mais cotation ET fondamentaux vides/plan-gated —
+         ajoutée quand même : un graphique réel sans prix en direct reste
+         strictement plus utile qu'une place totalement non résolue
+         (cohérent avec `partial`/`missing` déjà honnêtement affichés
+         ailleurs pour ce cas).
+       6274.TWO   (Taiwan Union Tech.) -> cotation (1495 TWD), historique
+         (267 séances) ET fondamentaux (via le repli Eulerpool) TOUS
+         réels — couverture complète, pas seulement partielle.
+       SOL.SJ (Sasol, tentative JSE Afrique du Sud) -> même signature
+         d'erreur que Tokyo/Inde/Arabie Saoudite (403 Forbidden "contact
+         support" + 404 Ticker Not Found) : PAS un problème de code,
+         laissée NULL. */
   HK: 'HK',
   SHG: 'SHG',
   SHE: 'SHE',
   KO: 'KO',
   SA: 'SA',
   TW: 'TW',
+  KQ: 'KQ',
+  TWO: 'TWO',
 };
 
 const eodhdSymbol = (

@@ -107,6 +107,10 @@ const EXCHANGE_ALIASES = {
   B3: 'SA',
   TW: 'TW',
   TWSE: 'TW',
+  KQ: 'KQ',
+  KOSDAQ: 'KQ',
+  TWO: 'TWO',
+  TPEX: 'TWO',
 };
 
 function normaliserExchange(value) {

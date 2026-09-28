@@ -133,6 +133,8 @@ const MARKET_LABEL = {
   HK: 'Hong Kong Stock Exchange', SHG: 'Shanghai Stock Exchange',
   SHE: 'Shenzhen Stock Exchange', KO: 'Korea Exchange',
   SA: 'B3 (Bolsa de São Paulo)', TW: 'Taiwan Stock Exchange',
+  /* Ajoutées 2026-09-28 (vérifiées, voir _providers.js/SUFFIX). */
+  KQ: 'KOSDAQ', TWO: 'Taiwan OTC Exchange',
 };
 
 /* Id court par exchangeCode (voir catalog.json existant : NASDAQ->NAS,

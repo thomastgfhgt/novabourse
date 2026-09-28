@@ -61,6 +61,13 @@ const ALIAS_CATALOGUE = {
   KRX: 'KO',
   B3: 'SA',
   TWSE: 'TW',
+
+  /* Suite (2026-09-28) : KOSDAQ et TPEX vérifiées empiriquement (voir le
+     commentaire au-dessus de KQ/TWO dans SUFFIX, _providers.js). Le
+     dataset catalogue les nomme "KOSDAQ"/"TPEX", le code EODHD réel est
+     "KQ"/"TWO" — même situation d'alias que TSX/ASX/HKEX ci-dessus. */
+  KOSDAQ: 'KQ',
+  TPEX: 'TWO',
 };
 
 /* "Euronext" est un label générique dans ce dataset qui recouvre plusieurs
