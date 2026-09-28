@@ -994,9 +994,13 @@ a.row{color:inherit;text-decoration:none}
 .nb-hero-v2{
   width:100vw;
   margin:calc(var(--sp-3) * -1) calc(50% - 50vw) 0;padding:14px 18px 28px;
+  /* Recoloré (2026-09-28, pivot NovaTitre) : fond violet-noir -> noir
+     profond de marque (#0A0E27, voir la note de palette tout en haut),
+     halo violet -> cyan (rôle d'accent secondaire déjà tenu par le
+     violet remplacé, même principe que l'aurore de fond). */
   background:
-    radial-gradient(circle at 50% 18%, rgba(139,92,246,.14), transparent 62%),
-    linear-gradient(180deg,#14101f 0%,#0d0b14 55%,#120e1c 100%);
+    radial-gradient(circle at 50% 18%, rgba(0,212,255,.14), transparent 62%),
+    linear-gradient(180deg,#111631 0%,#0a0e27 55%,#0f1428 100%);
   position:relative
   /* PAS de overflow:hidden ici (bug réel trouvé le 2026-09-23, passe 2) :
      ça rognait silencieusement le temple, qui vise min(96vw,780px) —
@@ -1052,23 +1056,21 @@ a.row{color:inherit;text-decoration:none}
      couverts par les animations templeScaleIn/templeGlowPulse plus bas,
      qu'une transition sur ces mêmes propriétés perturberait. */
   transition:opacity .14s ease-out;
-  filter:drop-shadow(0 0 3px rgba(255,255,255,.20)) drop-shadow(0 0 11px rgba(139,92,246,.08))}
+  filter:drop-shadow(0 0 3px rgba(255,255,255,.20)) drop-shadow(0 0 11px rgba(0,212,255,.08))}
 @media (prefers-reduced-motion:reduce){
   .nova-temple{transition:none}
 }
-/* Trait légèrement violeté (2026-09-23, retour utilisateur initial : "un
-   peu bleuté" — reteint la même passe en violet le même jour, retour
-   utilisateur suivant : "remplace le bleu par... du violet... vraiment
-   tout") — #e4d9ff plutôt que #ffffff blanc pur, un violet très clair
-   qui reste lisible comme "blanc" à distance mais prend clairement une
-   teinte violette de près, cohérent avec le glow violet désormais
-   présent dans le filter ci-dessus (auparavant bleu). */
-.temple-line{fill:none;stroke:#e4d9ff;stroke-linecap:round;stroke-linejoin:round;
+/* Trait légèrement teinté (recoloré 2026-09-28, pivot NovaTitre : violet
+   -> cyan, même rôle d'accent secondaire) — #d9f6ff plutôt que #ffffff
+   blanc pur, un cyan très clair qui reste lisible comme "blanc" à
+   distance mais prend clairement une teinte cyan de près, cohérent avec
+   le glow cyan du filter ci-dessus. */
+.temple-line{fill:none;stroke:#d9f6ff;stroke-linecap:round;stroke-linejoin:round;
   vector-effect:non-scaling-stroke}
 .temple-main{stroke-width:7}
 .temple-secondary{stroke-width:4.5}
 .temple-flute{stroke-width:2.5;opacity:.90}
-.nova-temple-brand{fill:#e4d9ff}
+.nova-temple-brand{fill:#d9f6ff}
 @media (max-width:600px){
   .nova-temple{width:98vw;max-width:none}
   /* Retour utilisateur (2026-09-23) : "le temple est un peu trop épais"
@@ -1115,8 +1117,8 @@ a.row{color:inherit;text-decoration:none}
 @keyframes templeScaleIn{ from{transform:scale(.96)} to{transform:scale(1)} }
 @keyframes templePartIn{ from{opacity:0} to{opacity:1} }
 @keyframes templeGlowPulse{
-  0%,100%{ filter:drop-shadow(0 0 3px rgba(255,255,255,.20)) drop-shadow(0 0 11px rgba(139,92,246,.08)) }
-  50%{ filter:drop-shadow(0 0 7px rgba(255,255,255,.32)) drop-shadow(0 0 20px rgba(139,92,246,.20)) }
+  0%,100%{ filter:drop-shadow(0 0 3px rgba(255,255,255,.20)) drop-shadow(0 0 11px rgba(0,212,255,.08)) }
+  50%{ filter:drop-shadow(0 0 7px rgba(255,255,255,.32)) drop-shadow(0 0 20px rgba(0,212,255,.20)) }
 }
 .nova-temple{
   animation:templeScaleIn .9s cubic-bezier(.22,1,.36,1) both,
@@ -1127,7 +1129,7 @@ a.row{color:inherit;text-decoration:none}
    décoratif, jamais nécessaire pour comprendre/utiliser la page. */
 @media (hover:hover){
   .nova-temple-section:hover .nova-temple{
-    filter:drop-shadow(0 0 6px rgba(255,255,255,.30)) drop-shadow(0 0 18px rgba(139,92,246,.18));
+    filter:drop-shadow(0 0 6px rgba(255,255,255,.30)) drop-shadow(0 0 18px rgba(0,212,255,.18));
     transition:filter .3s ease-out}
 }
 @media (prefers-reduced-motion:reduce){
@@ -1177,26 +1179,31 @@ a.row{color:inherit;text-decoration:none}
    petites") ; icône réduite dans la même proportion (38 -> 29px) pour
    rester équilibrée dans le cercle plutôt que de simplement rétrécir
    le cercle autour d'une icône inchangée. */
+/* Recoloré (2026-09-28, pivot NovaTitre) : violet -> cyan (même rôle
+   d'accent secondaire), voir la note de palette tout en haut du fichier.
+   rgb(0,212,255)=--cyan-500, rgb(0,168,204)=--cyan-700, rgb(102,232,255)
+   =--cyan-300 — valeurs directement reprises de l'échelle plutôt que
+   réintroduire un jeu de couleurs séparé non maintenu par les variables. */
 .nova-action-circle{width:70px;height:70px;flex-shrink:0;border-radius:50%;
   display:flex;align-items:center;justify-content:center;
-  background:radial-gradient(circle at 50% 35%,rgba(139,92,246,.18),rgba(109,40,217,.08) 55%,rgba(109,40,217,.04) 100%);
-  border:1px solid rgba(139,92,246,.42);
+  background:radial-gradient(circle at 50% 35%,rgba(0,212,255,.18),rgba(0,168,204,.08) 55%,rgba(0,168,204,.04) 100%);
+  border:1px solid rgba(0,212,255,.42);
   backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
-  box-shadow:inset 0 0 20px rgba(139,92,246,.07),0 0 18px rgba(109,40,217,.06);
+  box-shadow:inset 0 0 20px rgba(0,212,255,.07),0 0 18px rgba(0,168,204,.06);
   transition:transform .18s ease,background .18s ease,border-color .18s ease,box-shadow .18s ease}
-.nova-action-circle svg{width:29px;height:29px;fill:none;stroke:#a78bfa;
+.nova-action-circle svg{width:29px;height:29px;fill:none;stroke:#66e8ff;
   stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 .nova-action-title{display:block;margin-top:10px;color:#fff;font-size:14px;font-weight:700;
   line-height:1.15;letter-spacing:-.01em}
 .nova-action-description{display:block;max-width:180px;margin-top:7px;
-  color:rgba(232,225,245,.62);font-size:12px;font-weight:400;line-height:1.32}
+  color:rgba(225,245,250,.62);font-size:12px;font-weight:400;line-height:1.32}
 @media (hover:hover){
   .nova-quick-action:hover .nova-action-circle{transform:translateY(-2px);
-    border-color:rgba(139,92,246,.72);background:rgba(109,40,217,.16);
-    box-shadow:inset 0 0 24px rgba(139,92,246,.10),0 7px 26px rgba(109,40,217,.13)}
+    border-color:rgba(0,212,255,.72);background:rgba(0,168,204,.16);
+    box-shadow:inset 0 0 24px rgba(0,212,255,.10),0 7px 26px rgba(0,168,204,.13)}
 }
 .nova-quick-action:active .nova-action-circle{transform:scale(.96)}
-.nova-quick-action:focus-visible .nova-action-circle{outline:2px solid #a78bfa;outline-offset:4px}
+.nova-quick-action:focus-visible .nova-action-circle{outline:2px solid #66e8ff;outline-offset:4px}
 @media (prefers-reduced-motion:reduce){
   .nova-quick-action:active .nova-action-circle,.nova-quick-action:hover .nova-action-circle{transform:none}
 }
@@ -1215,17 +1222,21 @@ a.row{color:inherit;text-decoration:none}
 .nb-cta-row{display:flex;gap:10px;margin-top:18px;position:relative;z-index:1}
 .nb-cta-a,.nb-cta-s{flex:1;height:52px;border-radius:9999px;font-size:15px;font-weight:700;
   display:flex;align-items:center;justify-content:center;gap:8px}
-.nb-cta-a{background:linear-gradient(135deg,#7c3aed 0%,#8b5cf6 100%);color:#fff;
-  box-shadow:0 8px 28px rgba(124,58,237,.24)}
+/* Recoloré (2026-09-28, pivot NovaTitre) : c'était encore le dégradé
+   violet de l'identité précédente sur le CTA PRIMAIRE de la page
+   d'accueil ("Analyser") — un oubli du reste du rebrand, corrigé ici
+   pour rejoindre le même dégradé orange que .btn-a partout ailleurs. */
+.nb-cta-a{background:linear-gradient(135deg,var(--accent) 0%,var(--orange-light) 100%);color:#fff;
+  box-shadow:0 8px 28px rgba(230,126,34,.24)}
 .nb-cta-a:active{transform:scale(.98)}
-.nb-cta-s{background:rgba(20,16,31,.55);border:1px solid rgba(255,255,255,.10);color:#fff}
-.nb-cta-s:active{background:rgba(20,16,31,.75)}
+.nb-cta-s{background:rgba(17,22,49,.55);border:1px solid rgba(255,255,255,.10);color:#fff}
+.nb-cta-s:active{background:rgba(17,22,49,.75)}
 @media (prefers-reduced-motion:reduce){ .nb-cta-a:active,.nb-quick-item:active .nb-quick-bub{transform:none} }
 /* Carte "Mes positions" v2 — hors de .nb-hero-v2 (fond normal de l'app
    en dessous, comme avant), palette propre à cette carte (brief §19). */
-.nb-pf2{background:rgba(20,16,31,.75);border:1px solid rgba(255,255,255,.10);
+.nb-pf2{background:rgba(17,22,49,.75);border:1px solid rgba(255,255,255,.10);
   border-radius:20px;padding:20px;margin-top:20px}
-.nb-pf2-eyebrow{color:#a78bfa;font-weight:700;font-size:13px}
+.nb-pf2-eyebrow{color:var(--accent);font-weight:700;font-size:13px}
 .nb-pf2-val{font-size:clamp(30px,7.5vw,38px);font-weight:700;letter-spacing:-.03em;
   color:#fff;line-height:1;margin-top:10px;font-variant-numeric:tabular-nums}
 .nb-pf2-var{font-size:14px;font-weight:600;margin-top:10px}
