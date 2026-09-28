@@ -371,81 +371,108 @@ button:active{transform:scale(.97)}
 .dock{display:none}
 @media (max-width:900px){
   .top-nav{display:none}
-  /* REFONTE PILL-SHAPED NOVATITRE (2026-09-28, pivot marque, palette/
-     dimensions imposées par la spec) — remplace la géométrie "capsule
-     Revolut" précédente (fond translucide rose/verre dépoli, 22px/11px,
-     dimensions figées le 2026-09-23 : "NE CHANGE PLUS sa taille"). C'est
-     une décision de marque neuve et explicite qui prime sur cette
-     ancienne consigne, pas un oubli. Architecture STRUCTURELLE conservée
-     à l'identique (colonnes à 20% fixes, nowrap, 2 paliers étroits,
-     mécanique de pilule glissante en JS) : c'est elle qui garantissait
-     qu'aucun libellé ("Portefeuille" en particulier) ne se coupe ni ne
-     passe en 2 lignes — seule l'habillage visuel change ici. */
+  /* REFONTE (2026-09-23, référence Revolut) — historique complet des 4
+     passes précédentes (géométrie générale, correction de surcorrection,
+     verre dépoli) conservé dans l'historique git ; résumé utile ici :
+     fond translucide rgba(10,14,35,.50) + backdrop-filter, bordure
+     rgba(255,255,255,.10), dimensions validées par l'utilisateur
+     ("la barre actuelle est bonne en dimensions, NE CHANGE PLUS sa
+     taille") — hauteur/police/icônes de la PASSE 3 (font 11px, icône
+     22px, dock padding 6px) restent donc la référence, INCHANGÉES ici.
+
+     PASSE 5 (même jour, fusion Marchés/Explorer, 6→5 onglets) — deux
+     changements structurels demandés explicitement, qui ANNULENT le
+     comportement "capsule dynamique" des passes 2-3 :
+     1) Explorer supprimée de la nav (fusionnée dans Marchés) : 6
+        destinations → 5.
+     2) Comportement de largeur inversé : "chaque position occupe 20%...
+        aucun changement de largeur de l'onglet actif... aucun
+        flex-grow dynamique" — flex:0 0 auto + padding élargi au clic
+        (qui résolvait le débordement de "Portefeuille" à 6 colonnes
+        égales) est donc retiré. flex:0 0 20% (colonnes strictement
+        égales et FIXES, jamais recalculées) remplace flex:0 0 auto ;
+        .dock button[aria-current] n'a plus de padding différent de ses
+        voisins.
+
+     Avec UNE destination de moins, "Portefeuille" retrouve assez de
+     place dans une colonne à 20% fixe SANS avoir besoin de grandir —
+     revérifié au canvas (mesure indépendante de la taille de fenêtre)
+     et par simulation de largeur de conteneur à 320/340/350/360/375/
+     390/393/414/430/768px (voir MOTION_SYSTEM.md) : la police de base
+     (11px) suffit dès 386px environ, mais tombe juste en dessous du
+     nécessaire à 360-375px avec seulement 5 colonnes fixes au lieu de
+     6 colonnes qui s'auto-dimensionnaient avant — d'où les 2 paliers
+     étroits ci-dessous (nouveaux, remplacent l'unique palier ≤350px de
+     la passe 3), chacun avec sa propre marge de sécurité mesurée, pas
+     une simple règle de trois.
+
+     RÉTABLIE (2026-09-28, retour utilisateur : "remets l'ancienne barre
+     de navigation") — la variante pill-shaped NovaTitre (dégradé bleu
+     nuit, bordure cyan, 28px, icônes 28px) est retirée ; cette géométrie
+     capsule verre dépoli reprend son rôle. Reste du rebrand (palette
+     orange/cyan, onboarding, Nova Explain, fiche action) inchangé. */
   .dock{
     display:flex;align-items:stretch;
     position:fixed;left:50%;transform:translateX(-50%);
     bottom:calc(12px + env(safe-area-inset-bottom));z-index:60;
     width:calc(100% - 20px);max-width:440px;
-    background:linear-gradient(180deg,#1e3a5f 0%,#0f1e35 100%);
-    border:1px solid #00d4ff;border-radius:28px;
-    padding:14px 16px;
-    box-shadow:0 4px 12px rgba(0,212,255,.1), 0 8px 22px rgba(2,5,14,.45)
+    background:rgba(10,14,35,.50);
+    /* Flou réduit 18px -> 13px (2026-09-24, même correctif performance
+       que .top ci-dessus, même raison : fixed + présent sur toute page
+       mobile, recalculé à chaque frame de défilement). */
+    backdrop-filter:blur(13px) saturate(120%);
+    -webkit-backdrop-filter:blur(13px) saturate(120%);
+    border:1px solid rgba(255,255,255,.10);border-radius:9999px;
+    padding:6px 6px;
+    box-shadow:0 8px 22px rgba(2,5,14,.45), 0 2px 6px rgba(10,20,45,.14)
   }
   /* 5 colonnes strictement égales et fixes (flex:0 0 20%, jamais
      recalculées selon l'onglet actif) — icône empilée sur libellé,
      c'est le PLUS LARGE des deux qui doit tenir dans 20% de la barre. */
   .dock button{
     position:relative;z-index:1;
-    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;
-    flex:0 0 20%;min-width:0;min-height:40px;padding:8px 2px;border-radius:16px;
-    color:#fff;
-    /* CORRECTIF (bug réel mesuré via scrollWidth/clientWidth, pas juste
-       visuel) : 12.5px faisait déborder "Portefeuille" de 2px à 390px
-       (70px de texte réel dans un slot de 68px) — 12px + letter-spacing
-       légèrement plus serré + 1px de padding horizontal repris rétablit
-       une marge réelle (mesurée : 66px de texte dans 69px de slot). */
-    font-size:12px;font-weight:600;letter-spacing:-.015em;
-    transition:color .25s ease-out, transform .3s ease-out, opacity .3s ease-out
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;
+    flex:0 0 20%;min-width:0;min-height:40px;padding:2px 3px;border-radius:9999px;
+    color:rgba(255,255,255,.68);
+    font-size:11px;font-weight:600;letter-spacing:-.01em;
+    transition:color .25s ease-out
   }
-  .dock button:hover:not([aria-current]){transform:scale(1.05);opacity:.8}
   /* Priorité absolue : plus jamais de libellé coupé/en 2 lignes. nowrap
      + overflow visible (jamais overflow:hidden, qui masquerait un mot
      au lieu de le montrer en entier) — garanti par les colonnes à 20%
      dimensionnées pour "Portefeuille" (voir mesures ci-dessus et
      paliers responsive plus bas). */
   .dock button span{display:block;white-space:nowrap;overflow:visible}
-  .dock button svg{width:28px;height:28px;color:inherit;
-    transition:transform .25s cubic-bezier(.22,1,.36,1),opacity .25s ease-out,filter .3s ease-out}
+  .dock button svg{width:22px;height:22px;color:inherit;
+    transition:transform .25s cubic-bezier(.22,1,.36,1),opacity .25s ease-out}
   .dock button[aria-current]{color:#fff}
-  .dock button[aria-current] svg{transform:scale(1.1);
-    filter:drop-shadow(0 0 4px rgba(0,212,255,.45));
-    animation:dockIconPop .45s cubic-bezier(.22,1,.36,1)}
+  .dock button[aria-current] svg{transform:scale(1.05);animation:dockIconPop .45s cubic-bezier(.22,1,.36,1)}
   /* Rebond quand une icône DEVIENT active (2026-09-23, "vraiment
      beaucoup d'animation") : une animation CSS démarre quand l'élément
      se met à correspondre à une règle qui en porte une — donc seulement
      au vrai changement d'onglet, jamais à un simple re-render, grâce à
      syncActiveAttr() en JS qui ne touche plus aria-current que lorsqu'il
      change réellement (voir sa note). Sans fill-mode: retombe proprement
-     sur le transform:scale(1.1) statique juste au-dessus une fois finie,
+     sur le transform:scale(1.05) statique juste au-dessus une fois finie,
      pas de saut visible. */
   @keyframes dockIconPop{
     0%{transform:scale(1)}
-    45%{transform:scale(1.28)}
-    100%{transform:scale(1.1)}
+    45%{transform:scale(1.24)}
+    100%{transform:scale(1.05)}
   }
-  .dock button:focus-visible{outline:2px solid #00d4ff;outline-offset:2px;border-radius:16px}
+  .dock button:focus-visible{outline:2px solid rgba(255,255,255,.85);outline-offset:2px;border-radius:9999px}
   /* 2 paliers étroits (voir note plus haut) : seule la police/icône/le
      padding du dock changent, jamais les colonnes à 20% ni le
      comportement "fixe" de la barre. */
   @media (max-width:385px){
-    .dock{width:calc(100% - 16px);padding:12px 12px}
-    .dock button{font-size:11px;gap:5px}
-    .dock button svg{width:25px;height:25px}
+    .dock{width:calc(100% - 16px);padding:5px 5px}
+    .dock button{font-size:10px;gap:3px}
+    .dock button svg{width:20px;height:20px}
   }
   @media (max-width:340px){
-    .dock{width:calc(100% - 14px);padding:10px 10px}
-    .dock button{font-size:10px;gap:4px}
-    .dock button svg{width:22px;height:22px}
+    .dock{width:calc(100% - 14px);padding:4px 4px}
+    .dock button{font-size:9px;gap:3px}
+    .dock button svg{width:18px;height:18px}
   }
   /* Pilule active glissante (technique inchangée depuis le 21/09, voir
      positionDockPill() en JS) : un seul élément partagé, jamais recréé,
@@ -457,10 +484,10 @@ button:active{transform:scale(.97)}
      du bouton actif, qui se trouve juste être constant maintenant.
      top/bottom:3px la garde clairement PLUS PETITE que la barre
      extérieure (respiration haut/bas, comme sur la référence). */
-  .dock-pill{position:absolute;top:3px;bottom:3px;left:0;border-radius:16px;
-    background:#2d3748;
+  .dock-pill{position:absolute;top:3px;bottom:3px;left:0;border-radius:9999px;
+    background:rgba(255,255,255,.12);
     z-index:0;pointer-events:none;
-    transition:transform .3s ease-out, width .3s ease-out;
+    transition:transform .3s cubic-bezier(.22,1,.36,1), width .3s cubic-bezier(.22,1,.36,1);
     will-change:transform,width}
   .dock-pill.no-anim{transition:none}
 }
