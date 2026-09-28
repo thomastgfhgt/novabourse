@@ -1854,6 +1854,75 @@ const FUNDAMENTALS = {
            marqué non testé en direct dans CETTE passe par prudence. */
         priceToSales:
           num(valuation.PriceSalesTTM),
+
+        /* Ajout (2026-09-28, LOT "couverture mondiale de données", point 5
+           "exploite d'abord ce que nous avons déjà") : champs identifiés
+           lors de l'audit précédent comme RÉELLEMENT présents dans cette
+           même réponse EODHD déjà appelée, mais jamais extraits jusqu'ici
+           — aucun appel réseau ni coût supplémentaire. Même prudence que
+           les champs Technicals ci-dessus (non vérifiés en direct faute
+           de clé EODHD active en sandbox) : num()/txt() renvoient null si
+           un nom de champ est faux, jamais une valeur inventée. */
+        peg:
+          num(highlights.PEGRatio),
+        sharesOutstanding:
+          num(highlights.SharesOutstanding),
+        enterpriseValue:
+          num(valuation.EnterpriseValue),
+        roa:
+          num(highlights.ReturnOnAssetsTTM),
+        /* EBITDA/EBIT : Highlights.EBITDA en priorité (agrégat déjà
+           calculé par EODHD), repli sur le compte de résultat le plus
+           récent (incomeYearly/incomeQuarterly, déjà chargés ci-dessus
+           pour revenue/netIncome) — même ordre de priorité annuel puis
+           trimestriel que netIncome/revenue plus haut, pour rester
+           cohérent avec le reste de cette fonction. EBIT n'a PAS
+           d'équivalent Highlights direct chez EODHD : uniquement le
+           compte de résultat. Aucun des deux n'est dérivé/calculé par
+           NovaBourse : ce sont des champs bruts du fournisseur, jamais
+           une approximation maison (contrairement à grossMargin/
+           currentRatio ci-dessus, explicitement dérivés eux). */
+        ebitda:
+          num(highlights.EBITDA)
+          ?? num(incomeYearly.ebitda)
+          ?? num(incomeQuarterly.ebitda)
+          ?? null,
+        ebit:
+          num(incomeYearly.ebit)
+          ?? num(incomeQuarterly.ebit)
+          ?? null,
+
+        /* Dette / fonds propres : DÉRIVÉ de deux champs déjà réels
+           (balanceSheet.shortLongTermDebtTotal — la MÊME source que le
+           champ `debt` juste au-dessus dans cet objet, recalculée ici
+           plutôt que référencée : un littéral objet ne permet pas de lire
+           la valeur d'une propriété sœur par son nom — et
+           balanceSheet.totalStockholderEquity) — même principe que
+           grossMargin/currentRatio plus haut, jamais un champ EODHD
+           "DebtToEquity" direct supposé exister. null si les fonds
+           propres manquent ou valent 0 — jamais une division par zéro
+           silencieuse. ROIC volontairement NON ajouté dans cette passe :
+           EODHD ne fournit aucun champ direct, et une formule maison
+           (NOPAT / capital investi) exigerait un taux d'imposition et une
+           définition du capital investi trop incertains pour être
+           présentés comme une donnée fiable plutôt qu'une approximation
+           risquée — laissé absent plutôt que probablement faux. */
+        debtToEquity: (() => {
+          const detteTotale = num(balanceSheet.shortLongTermDebtTotal);
+          const fondsPropres = num(balanceSheet.totalStockholderEquity);
+          return (detteTotale !== null && fondsPropres) ? detteTotale / fondsPropres : null;
+        })(),
+
+        /* Ratio de liquidité IMMÉDIATE (quick ratio) : DÉRIVÉ du même
+           bilan trimestriel que currentRatio ci-dessus, en excluant les
+           stocks (inventory) — définition standard, jamais un champ
+           EODHD direct supposé. */
+        quickRatio: (() => {
+          const actifs = num(balanceSheet.totalCurrentAssets);
+          const stocks = num(balanceSheet.inventory) ?? 0;
+          const passifs = num(balanceSheet.totalCurrentLiabilities);
+          return (actifs !== null && passifs) ? (actifs - stocks) / passifs : null;
+        })(),
       },
 
       asOf:

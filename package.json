@@ -21,7 +21,8 @@
     "test-nova-ai-bascule": "node scripts/test-nova-ai-bascule.js",
     "test-novabot": "node scripts/test-novabot.js",
     "test-worldnews": "node scripts/test-worldnews.js",
-    "test-nova-review-ia": "node scripts/test-nova-review-ia.js"
+    "test-nova-review-ia": "node scripts/test-nova-review-ia.js",
+    "test-fundamentals-eodhd": "node scripts/test-fundamentals-eodhd.js"
   },
   "dependencies": {
     "stripe": "^16.12.0"
