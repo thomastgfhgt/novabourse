@@ -68,6 +68,19 @@ const ALIAS_CATALOGUE = {
      "KQ"/"TWO" — même situation d'alias que TSX/ASX/HKEX ci-dessus. */
   KOSDAQ: 'KQ',
   TPEX: 'TWO',
+
+  /* Suite (2026-09-28) : TSXV/WSE/Bursa vérifiées empiriquement (voir le
+     commentaire au-dessus de V/WAR/KLSE dans SUFFIX, _providers.js) —
+     mêmes garanties que KOSDAQ/TPEX ci-dessus. BATS -> 'US' : PAS un
+     alias vers une place EODHD distincte (aucun code 'BATS' séparé
+     n'existe côté NovaBourse) mais vers la composite américaine déjà
+     couverte — vérifié en direct (AAAU.US, voir le commentaire SUFFIX)
+     que les titres listés "BATS" par ce catalogue s'y résolvent
+     correctement. */
+  TSXV: 'V',
+  WSE: 'WAR',
+  BURSA: 'KLSE',
+  BATS: 'US',
 };
 
 /* "Euronext" est un label générique dans ce dataset qui recouvre plusieurs

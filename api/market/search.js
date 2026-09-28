@@ -111,6 +111,18 @@ const EXCHANGE_ALIASES = {
   KOSDAQ: 'KQ',
   TWO: 'TWO',
   TPEX: 'TWO',
+
+  /* Suite (2026-09-28) : TSXV/WSE/Bursa vérifiées empiriquement (voir le
+     commentaire au-dessus de V/WAR/KLSE dans SUFFIX, _providers.js).
+     BATS -> 'US' : composite américaine déjà couverte, pas une place
+     EODHD distincte (voir le même commentaire). */
+  V: 'V',
+  TSXV: 'V',
+  WAR: 'WAR',
+  WSE: 'WAR',
+  KLSE: 'KLSE',
+  BURSA: 'KLSE',
+  BATS: 'US',
 };
 
 function normaliserExchange(value) {

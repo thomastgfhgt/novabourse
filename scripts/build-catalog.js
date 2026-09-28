@@ -135,6 +135,12 @@ const MARKET_LABEL = {
   SA: 'B3 (Bolsa de São Paulo)', TW: 'Taiwan Stock Exchange',
   /* Ajoutées 2026-09-28 (vérifiées, voir _providers.js/SUFFIX). */
   KQ: 'KOSDAQ', TWO: 'Taiwan OTC Exchange',
+  /* Suite (2026-09-28) : TSXV/WSE/Bursa (voir _providers.js/SUFFIX). BATS
+     n'a volontairement AUCUNE entrée ici : ALIAS_CATALOGUE le traduit
+     directement vers 'US' (composite déjà existante, jamais un code
+     intermédiaire 'BATS'), MARKET_LABEL['US'] restant absent, l'étiquette
+     de repli (exchangeRaw="BATS") reste honnête telle quelle. */
+  V: 'TSX Venture Exchange', WAR: 'Warsaw Stock Exchange', KLSE: 'Bursa Malaysia',
 };
 
 /* Id court par exchangeCode (voir catalog.json existant : NASDAQ->NAS,

@@ -324,6 +324,29 @@ const SUFFIX = {
   TW: 'TW',
   KQ: 'KQ',
   TWO: 'TWO',
+
+  /* SUITE (2026-09-28, chantier "couverture mondiale") : 3 nouveaux codes
+     vérifiés EMPIRIQUEMENT via l'endpoint réel /api/market/company en
+     production (jamais devinés depuis une doc tierce) :
+       AAG.V    (Aftermath Silver, TSX Venture) -> cotation ET historique
+         RÉELS (0,67 CAD, capitalisation réelle) — couverture complète.
+       11B.WAR  (11 bit studios, Bourse de Varsovie) -> cotation ET
+         historique RÉELS (118,6 PLN) ; fondamentaux plan-gated (403,
+         même signature que les autres places européennes déjà
+         documentées ci-dessus) — pas un problème de code.
+       0001.KLSE (Supercomnet Technologies, Bursa Malaysia) -> historique
+         RÉEL reçu (269 séances), cotation ET fondamentaux vides/
+         plan-gated — ajoutée quand même, même raisonnement que KQ
+         ci-dessus (un historique réel sans prix en direct reste
+         strictement plus utile qu'une place non résolue).
+     BATS (Cboe/BZX, ~1370 titres du catalogue) volontairement ABSENT
+     d'ici : vérifié en direct (AAAU.US) qu'il ne s'agit PAS d'une place
+     EODHD distincte pour les titres de ce catalogue — la composite 'US'
+     déjà mappée ci-dessus suffit (voir ALIAS_CATALOGUE, _exchangeCrosswalk.js,
+     BATS -> US). */
+  V: 'V',
+  WAR: 'WAR',
+  KLSE: 'KLSE',
 };
 
 const eodhdSymbol = (
