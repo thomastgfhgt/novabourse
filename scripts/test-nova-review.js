@@ -118,6 +118,25 @@ check('position ouverte en perte moderee -> Interessant (pas encore un resultat 
 check('position ouverte en forte perte -> Erreur a etudier',
   verdictPositionOuverte({ gainPct: -.25, concentration: .1 }) === 'Erreur à étudier');
 
+// ============================================================
+// DOUBLE-ECHAPPEMENT HTML (2026-09-28, retour utilisateur : "&"
+// s'affiche "&amp;") — reproduit la construction de `lecon`
+// (bilanHebdomadaireNovaReview() dans index.html) pour verifier qu'elle
+// ne pre-echappe JAMAIS un nom de societe : esc() ne doit s'appliquer
+// qu'UNE SEULE fois, au rendu final (PAGES.novareview), jamais ici.
+function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+function construireLecon(nomSociete) {
+  // Reproduit exactement la ligne corrigee de bilanHebdomadaireNovaReview() :
+  // plus de esc() applique ici, contrairement a l'ancien code fautif.
+  return `Sur ${nomSociete}, revoyez la thèse (ou son absence) au moment de l'achat.`;
+}
+{
+  const lecon = construireLecon('AT&T Inc.');
+  check('lecon() ne pre-echappe pas "&" (une seule couche d\'echappement, au rendu)', lecon.includes('AT&T Inc.') && !lecon.includes('&amp;'));
+  const renduFinal = esc(lecon);
+  check('apres le SEUL esc() du rendu, le "&" est correctement echappe une fois (jamais deux)', renduFinal.includes('AT&amp;T Inc.') && !renduFinal.includes('&amp;amp;'));
+}
+
 let allOk = true;
 for (const [name, ok] of results) {
   console.log((ok ? 'PASS' : 'FAIL') + ' - ' + name);

@@ -1721,7 +1721,25 @@ body.no-spark .row-spark{display:none}
   border-bottom:1px solid var(--line-2);min-width:0}
 .kv:last-child{border-bottom:none}
 .kv dt{font-size:14.5px;color:var(--ink-3);display:flex;align-items:center;gap:6px;min-width:0}
-.kv dd{font-family:var(--mono);font-size:15px;font-weight:600;flex:0 0 auto}
+/* CORRECTIF (2026-09-28, retour utilisateur : "Diversification" se
+   superposait à sa propre valeur sur mobile) — cause racine : flex:0 0
+   auto interdisait TOUTE réduction de dd, alors que .kv dt n'a lui
+   qu'un min-width:0 (rétrécit normalement). Pour un dd COURT (un prix,
+   "15 300 €"), aucune différence visible : il tient déjà dans sa largeur
+   naturelle. Mais un dd LONG sans saut de ligne prévu (ex. "0 secteur ·
+   position la + importante : 0 %", voir bilanHebdomadaireNovaReview()
+   dans index.html) forçait alors dt à se réduire jusqu'à ~1px sur un
+   écran étroit (confirmé en mesurant getBoundingClientRect() à 390px) —
+   son texte débordait alors PAR-DESSUS dd, exactement le chevauchement
+   rapporté. flex:0 1 auto (réduction autorisée) laisse dd s'enrouler
+   naturellement sur 2 lignes comme n'importe quel texte, sans jamais
+   écraser dt — vérifié sur les 2 rangées à contenu déjà multi-ligne de
+   ce fichier (elles gèrent leur propre <br>, non affectées) et sur les
+   rangées à valeur courte (aucun changement, déjà dans leur largeur
+   naturelle). text-align:right conserve l'alignement déjà voulu
+   (justify-content:space-between le donnait implicitement en 1 ligne)
+   quand le contenu s'enroule sur plusieurs lignes. */
+.kv dd{font-family:var(--mono);font-size:15px;font-weight:600;flex:0 1 auto;text-align:right}
 .info{width:19px;height:19px;border-radius:50%;background:var(--bg-3);color:var(--ink-4);
   display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex:0 0 auto}
 .info:hover{background:var(--accent);color:#fff}
@@ -4805,8 +4823,11 @@ function evaluerVente(tx){
       ? `Conserver aurait rapporté ${fmt.pct(regretPct * 100, 1)} de plus à ce jour.`
       : `Vendre a évité ${fmt.pctRatio(Math.abs(regretPct), 1)} de baisse supplémentaire (valeur actuelle plus basse que le montant récupéré).`);
   }
-  if (processAligne === true) raisons.push(`Horizon « ${esc(HORIZON_LABEL[theseAchat.thesisHorizon])} » annoncé à l'achat respecté.`);
-  if (processAligne === false) raisons.push(`Vendu en dehors de l'horizon « ${esc(HORIZON_LABEL[theseAchat.thesisHorizon])} » annoncé à l'achat.`);
+  /* HORIZON_LABEL non ré-échappé ici (même correctif que `lecon`
+     ci-dessous) : raisons[] est échappé UNE SEULE FOIS, au rendu, dans
+     carteDecisionNovaReview() ("<li>${esc(r)}</li>"). */
+  if (processAligne === true) raisons.push(`Horizon « ${HORIZON_LABEL[theseAchat.thesisHorizon]} » annoncé à l'achat respecté.`);
+  if (processAligne === false) raisons.push(`Vendu en dehors de l'horizon « ${HORIZON_LABEL[theseAchat.thesisHorizon]} » annoncé à l'achat.`);
   if (!theseAchat) raisons.push(`Aucune thèse enregistrée pour l'achat correspondant.`);
   if (concentration !== null && concentration >= VERDICT_CONCENTRATION_RISQUEE){
     raisons.push(`Cet achat représentait ${fmt.pctRatio(concentration, 0)} du capital investi à l'époque — position concentrée.`);
@@ -4900,11 +4921,22 @@ function bilanHebdomadaireNovaReview(){
   const secteursDistincts = Object.keys(bySector).length;
   const maxPositionPct = pf.value ? Math.round(Math.max(0, ...pf.lines.filter(l => l.priceAvailable).map(l => l.value)) / pf.value * 100) : 0;
 
+  /* CORRECTIF (2026-09-28, retour utilisateur : "&" s'affiche "&amp;") :
+     `lecon` reste du TEXTE BRUT ici, jamais pré-échappé — esc() n'est
+     appliqué QU'UNE SEULE FOIS, au moment du rendu (voir
+     `${esc(bilan.lecon)}` dans PAGES.novareview). Avant ce correctif,
+     esc(aEtudier.tx.name) était déjà appliqué ICI, puis bilan.lecon
+     (contenant donc déjà "&amp;" pour une société comme "AT&T") était
+     échappé UNE SECONDE FOIS au rendu — "&" devenait "&amp;" puis
+     "&amp;amp;", que le navigateur affiche littéralement "&amp;"
+     (un seul niveau de déséchappement HTML). Même règle que partout
+     ailleurs dans ce fichier : esc() uniquement à la frontière finale
+     HTML, jamais sur une valeur intermédiaire réutilisée ensuite. */
   let lecon = null;
   if (aEtudier){
     lecon = aEtudier.ev.verdict === 'Occasion manquée'
-      ? `Sur ${esc(aEtudier.tx.name)}, conserver aurait rapporté plus — vérifiez si l'horizon annoncé à l'achat était vraiment respecté avant de vendre.`
-      : `Sur ${esc(aEtudier.tx.name)}, revoyez ${aEtudier.ev.processAligne === false ? "l'écart entre l'horizon annoncé et la durée réelle de détention" : "la thèse (ou son absence) au moment de l'achat"}.`;
+      ? `Sur ${aEtudier.tx.name}, conserver aurait rapporté plus — vérifiez si l'horizon annoncé à l'achat était vraiment respecté avant de vendre.`
+      : `Sur ${aEtudier.tx.name}, revoyez ${aEtudier.ev.processAligne === false ? "l'écart entre l'horizon annoncé et la durée réelle de détention" : "la thèse (ou son absence) au moment de l'achat"}.`;
   } else if (maxPositionPct >= Math.round(VERDICT_CONCENTRATION_RISQUEE * 100)){
     lecon = `Une position représente ${maxPositionPct} % de votre portefeuille actuel — envisagez de diversifier davantage.`;
   }
