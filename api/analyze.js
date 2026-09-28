@@ -163,7 +163,7 @@ décision du RÉSULTAT financier final.
 Réponds en JSON strict : {"resume":"...","points":["...","..."],"lecon":"..."}
 Règles absolues :
 - Chaque décision listée ci-dessous a DÉJÀ un verdict ("Excellent coup"/"Bon coup"/"Intéressant"/
-  "Risqué"/"Erreur à étudier"/"Occasion manquée") calculé par NovaBourse à partir de chiffres réels.
+  "Risqué"/"Erreur à étudier"/"Occasion manquée") calculé par NovaTitre à partir de chiffres réels.
   Tu ne produis JAMAIS toi-même de verdict, de note, ni de nouveau chiffre — tu commentes et
   expliques UNIQUEMENT ce qui est déjà donné ci-dessous.
 - N'invente AUCUN chiffre, AUCUNE société, AUCUNE décision qui ne figure pas explicitement dans le
@@ -549,7 +549,7 @@ Si une donnée n'apparaît pas ci-dessus ou vaut null, elle est INDISPONIBLE :
 ne la remplace par aucune estimation, et signale-le dans "negative" si elle est
 importante pour juger l'entreprise.
 
-Le NovaScore est calculé par NovaBourse à partir de ces chiffres. Tu peux
+Le NovaScore est calculé par NovaTitre à partir de ces chiffres. Tu peux
 l'expliquer ou relever ce qui te semble en tension avec lui, mais tu ne produis
 jamais et ne modifies jamais de note.`;
 

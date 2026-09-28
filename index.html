@@ -3,21 +3,21 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>NovaBourse — Trois IA analysent les marchés. Vous décidez.</title>
-<meta name="description" content="NovaBourse analyse les entreprises cotées avec trois intelligences artificielles et un score de qualité et de risque expliqué en clair.">
+<title>NovaTitre — Trois IA analysent les marchés. Vous décidez.</title>
+<meta name="description" content="NovaTitre analyse les entreprises cotées avec trois intelligences artificielles et un score de qualité et de risque expliqué en clair.">
 <meta name="theme-color" content="#ffffff">
 <meta name="color-scheme" content="light dark">
 <meta name="supported-color-schemes" content="light dark">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" media="print" onload="this.media='all'"
-  href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap">
+  href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
 <noscript><link rel="stylesheet"
-  href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap"></noscript>
+  href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=IBM+Plex+Mono:wght@400;500;600&display=swap"></noscript>
   <script src="https://unpkg.com/lightweight-charts@5.2.1/dist/lightweight-charts.standalone.production.js"></script><style>
 :root{
   color-scheme:light;
-  /* Palette officielle NovaBourse v2 (2026-09-23, retour utilisateur :
+  /* Palette officielle NovaTitre v2 (2026-09-23, retour utilisateur :
      "remplace le orange et le bleu par rose noir blanc gris et violet
      pour l'intégralité du site, vraiment tout") — remplace la précédente
      identité orange/bleu/vert (2026-09-21/22). Rose devient l'accent
@@ -33,11 +33,11 @@
      demandé et casserait une convention que l'utilisateur attend
      probablement ailleurs dans l'app. Échelles à 6 crans (50/100/300/
      500/700/900) conservées telles quelles, seules les valeurs changent. */
-  --pink-50:#fdf2f8;  --pink-100:#fce7f3; --pink-300:#f9a8d4;
-  --pink-500:#ec4899; --pink-700:#be185d; --pink-900:#831843;
-  --pink-light:#f472b6;
-  --violet-50:#f5f3ff;  --violet-100:#ede9fe; --violet-300:#c4b5fd;
-  --violet-500:#8b5cf6; --violet-700:#6d28d9; --violet-900:#4c1d95;
+  --orange-50:#fef3e7;  --orange-100:#fce3c3; --orange-300:#f5b876;
+  --orange-500:#e67e22; --orange-700:#b85f12; --orange-900:#7a3d08;
+  --orange-light:#f39c12;
+  --cyan-50:#e5fbff;  --cyan-100:#ccf7ff; --cyan-300:#66e8ff;
+  --cyan-500:#00d4ff; --cyan-700:#00a8cc; --cyan-900:#006b85;
   --green-50:#e7fbf4;  --green-100:#c3f5e3; --green-300:#6ee7b7;
   --green-500:#10b981; --green-700:#0d9268; --green-900:#065f46;
   --bg:#ffffff;
@@ -48,15 +48,24 @@
   --ink-2:#3d4453;
   --ink-3:#6b7385;
   --ink-4:#9aa1b1;
-  --accent:var(--pink-500);
-  --accent-hover:var(--pink-700);
-  --accent-press:#a3175f;
-  --accent-soft:var(--pink-50);
+  --accent:var(--orange-500);
+  /* Sens hover/press conforme à la spec NovaTitre (dégradé bouton
+     PRIMARY : #E67E22 -> #F39C12 au survol, donc PLUS clair, pas plus
+     sombre) — inversé par rapport à la convention précédente (rose
+     s'assombrissait au survol). */
+  --accent-hover:var(--orange-light);
+  --accent-press:var(--orange-700);
+  --accent-soft:var(--orange-50);
   --accent-ink:#ffffff;
-  /* Violet réservé aux boutons SECONDAIRES uniquement (jamais un accent
-     général concurrent du rose) — voir .btn-blue plus bas (nom conservé,
-     couleur désormais violette — voir note de palette ci-dessus). */
-  --blue-accent:var(--violet-500); --blue-accent-soft:var(--violet-50);
+  /* Bleu nuit officiel NovaTitre (#0A0E27) : utilisé pour le texte sur
+     fond cyan clair (--blue-accent ci-dessous) — un texte blanc y serait
+     illisible (contraste insuffisant). Défini ici (pas seulement en
+     dark) car --blue-accent est identique en clair et en sombre. */
+  --bg-dark-ink:#0a0e27;
+  /* Cyan réservé aux boutons SECONDAIRES uniquement (jamais un accent
+     général concurrent de l'orange) — voir .btn-blue plus bas (nom
+     conservé, couleur désormais cyan — voir note de palette ci-dessus). */
+  --blue-accent:var(--cyan-500); --blue-accent-soft:var(--cyan-50);
   --up:var(--green-500);   --up-soft:var(--green-50);
   --down:#ef4444; --down-soft:#fef0ef;
   --warn:#b45309; --warn-soft:#fdf4e7;
@@ -108,7 +117,7 @@
   --lh-tight:1.06; --lh-title:1.15; --lh-body:1.6;
   --icon-box:44px; --icon-gap:16px; --card-pad:24px;
   --font:'Inter',system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
-  --mono:ui-monospace,'SF Mono',Menlo,monospace;
+  --mono:'IBM Plex Mono',ui-monospace,'SF Mono',Menlo,monospace;
   --ease:cubic-bezier(.32,.72,0,1);
   --spring:cubic-bezier(.32,.72,0,1);
   --fast:.14s; --slow:.28s;
@@ -116,32 +125,30 @@
 }
 [data-theme="dark"]{
   color-scheme:dark;
-  /* Échelle noire v2 (2026-09-23, même passe "rose/noir/blanc/gris/
-     violet partout" que la palette claire ci-dessus) : les crans
-     #0A0E27 -> #1A3050 précédents avaient une dominante BLEU nuit
-     (justement ce qui devait disparaître) — remplacés par un noir
-     légèrement teinté violet plutôt qu'un gris neutre plat, pour garder
-     une vraie personnalité de marque en sombre (même logique que la
-     dominante bleue qu'ils remplacent, simplement reteintée). --line/
-     --line-2 (bordures) alignées pour la même raison, elles avaient la
-     même dominante bleu nuit. */
-  --bg:#0d0b14; --bg-2:#141119; --bg-3:#1c1824; --bg-4:#26202f;
+  /* Échelle noire NovaTitre (2026-09-28, pivot marque "orange Hermès +
+     cyan", palette exacte imposée) : --bg reprend EXACTEMENT le "noir
+     profond domaine" #0A0E27 spécifié — un précédent passage (2026-09-23)
+     s'en était délibérément éloigné (dominante bleu nuit jugée trop
+     présente à l'époque, remplacée par un noir teinté rose/violet) ; ici
+     c'est une décision de marque neuve et explicite, pas une régression.
+     --bg-2/-3/-4 dérivés en éclaircissant progressivement la même teinte
+     (même principe relatif que l'échelle précédente), --ink inchangé
+     (déjà exactement #F3F4F6, la valeur demandée). */
+  --bg:#0a0e27; --bg-2:#111631; --bg-3:#181e3d; --bg-4:#232a4d;
   --ink:#f3f4f6; --ink-2:#d1d5db; --ink-3:#9ca3af; --ink-4:#6b7280;
-  /* Rose — MÊME teinte que le thème clair ("Primary = Rose toujours",
-     palette imposée) : #EC4899 reste assez saturé pour rester lisible
-     sur #0D0B14 sans le diluer (même raisonnement que l'orange qu'il
-     remplace). */
-  --accent:var(--pink-500); --accent-hover:var(--pink-light); --accent-press:#c9186d;
-  --accent-soft:#2a1420; --accent-ink:#ffffff;
-  /* Violet réservé aux boutons secondaires (même règle qu'en thème
+  /* Orange Hermès (#E67E22, même teinte que le thème clair, "Primary
+     toujours orange") : assez saturé pour rester lisible sur #0A0E27. */
+  --accent:var(--orange-500); --accent-hover:var(--orange-light); --accent-press:var(--orange-700);
+  --accent-soft:#2a1f14; --accent-ink:#ffffff;
+  /* Cyan réservé aux boutons secondaires (même règle qu'en thème
      clair) — jamais un accent général. */
-  --blue-accent:var(--violet-500); --blue-accent-soft:#1c1530;
+  --blue-accent:var(--cyan-500); --blue-accent-soft:#142a30;
   --up:#34d399; --up-soft:#0c2419; --down:#f87171; --down-soft:#2a1416;
   --warn:#e0a63a; --warn-soft:#2a2110;
-  --line:#2a2433; --line-2:#1e1a26;
+  --line:#2a3050; --line-2:#1a1f3d;
   --shadow-2:0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.35);
   --shadow-3:0 2px 6px rgba(0,0,0,.45), 0 24px 48px rgba(0,0,0,.45);
-  --shadow-accent:0 8px 24px rgba(236,72,153,.3);
+  --shadow-accent:0 8px 24px rgba(230,126,34,.3);
 }
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 /* overflow-x:hidden ajouté ici le 2026-09-23 (bug réel trouvé en testant
@@ -209,25 +216,22 @@ body{
   filter:blur(65px);opacity:.32;
   animation:auroraDrift 26s ease-in-out infinite, auroraHue 60s linear infinite;
   will-change:transform}
-/* Couleurs en variables (mise à jour 2026-09-23 : "Primary = Rose
-   toujours", violet réservé aux boutons secondaires — plus un accent
-   général comme avant ; recoloré depuis orange/bleu, voir note de
-   palette tout en haut du fichier). Le vert (déjà une couleur
-   fonctionnelle "hausse" ailleurs) avait été gardé ici comme touche
-   discrète lors de la première passe de recoloration — retiré à son
-   tour (retour utilisateur : "retire le vert du fond") : rose (2 tons)
-   domine, violet en 3e touche plutôt que vert, cohérent avec le reste
-   de la nouvelle identité (boutons, temple...). Toujours personnalisable
-   par section via body[data-bg=...] (paintNav()/render()). */
+/* Couleurs en variables (mise à jour 2026-09-28, pivot marque NovaTitre :
+   "Primary = Orange toujours", cyan réservé aux boutons secondaires —
+   jamais un accent général ; recoloré depuis rose/violet, voir note de
+   palette tout en haut du fichier). Orange (2 tons) domine, cyan en 3e
+   touche — même rôle structurel que le violet qu'il remplace, cohérent
+   avec le reste de la nouvelle identité (boutons, temple...). Toujours
+   personnalisable par section via body[data-bg=...] (paintNav()/render()). */
 .aurora-bg::before{width:55vw;height:55vw;top:-18vw;left:-12vw;
-  background:radial-gradient(circle,var(--aurora-1,#ec4899) 0%,var(--aurora-1b,#f472b6) 45%,transparent 72%)}
+  background:radial-gradient(circle,var(--aurora-1,#e67e22) 0%,var(--aurora-1b,#f39c12) 45%,transparent 72%)}
 .aurora-bg::after{width:50vw;height:50vw;bottom:-22vw;right:-14vw;animation-delay:-13s;
-  background:radial-gradient(circle,var(--aurora-2,#be185d) 0%,var(--aurora-2b,#ec4899) 40%,transparent 72%)}
+  background:radial-gradient(circle,var(--aurora-2,#b85f12) 0%,var(--aurora-2b,#e67e22) 40%,transparent 72%)}
 .aurora-bg .aurora-3{width:38vw;height:38vw;top:38vh;left:32vw;animation-delay:-8s;
   animation-duration:32s;opacity:.24;
-  background:radial-gradient(circle,var(--aurora-3,#6d28d9) 0%,var(--aurora-3b,#8b5cf6) 45%,transparent 72%)}
-body[data-bg="portfolio"]{--aurora-1:#6d28d9;--aurora-1b:#8b5cf6;--aurora-2:#ec4899;--aurora-2b:#f472b6;
-  --aurora-3:#be185d;--aurora-3b:#ec4899}
+  background:radial-gradient(circle,var(--aurora-3,#00a8cc) 0%,var(--aurora-3b,#00d4ff) 45%,transparent 72%)}
+body[data-bg="portfolio"]{--aurora-1:#00a8cc;--aurora-1b:#00d4ff;--aurora-2:#e67e22;--aurora-2b:#f39c12;
+  --aurora-3:#00a8cc;--aurora-3b:#00d4ff}
 body[data-bg="account"]{--aurora-1:#8d95a4;--aurora-1b:#aeb4c0;--aurora-2:#646c7c;--aurora-2b:#9aa1b1;
   --aurora-3:#8d95a4;--aurora-3b:#aeb4c0}
 @keyframes auroraDrift{
@@ -317,7 +321,7 @@ button:active{transform:scale(.97)}
    color:var(--bg), donc une case CLAIRE en thème sombre) ; l'icône
    utilise déjà fill="currentColor" sur ses <path> (voir le HTML du
    header), donc color:var(--ink) directement sur ce conteneur suffit à
-   la faire correspondre au texte "NovaBourse" juste à côté, sans fond
+   la faire correspondre au texte "NovaTitre" juste à côté, sans fond
    ni coin arrondi. */
 .logo-m{position:relative;width:40px;height:40px;display:flex;align-items:center;justify-content:center;color:var(--ink);
   transition:transform .35s cubic-bezier(.22,1,.36,1)}
@@ -367,102 +371,81 @@ button:active{transform:scale(.97)}
 .dock{display:none}
 @media (max-width:900px){
   .top-nav{display:none}
-  /* REFONTE (2026-09-23, référence Revolut) — historique complet des 4
-     passes précédentes (géométrie générale, correction de surcorrection,
-     verre dépoli) conservé dans l'historique git ; résumé utile ici :
-     fond translucide rgba(10,14,35,.50) + backdrop-filter, bordure
-     rgba(255,255,255,.10), dimensions validées par l'utilisateur
-     ("la barre actuelle est bonne en dimensions, NE CHANGE PLUS sa
-     taille") — hauteur/police/icônes de la PASSE 3 (font 11px, icône
-     22px, dock padding 6px) restent donc la référence, INCHANGÉES ici.
-
-     PASSE 5 (même jour, fusion Marchés/Explorer, 6→5 onglets) — deux
-     changements structurels demandés explicitement, qui ANNULENT le
-     comportement "capsule dynamique" des passes 2-3 :
-     1) Explorer supprimée de la nav (fusionnée dans Marchés) : 6
-        destinations → 5.
-     2) Comportement de largeur inversé : "chaque position occupe 20%...
-        aucun changement de largeur de l'onglet actif... aucun
-        flex-grow dynamique" — flex:0 0 auto + padding élargi au clic
-        (qui résolvait le débordement de "Portefeuille" à 6 colonnes
-        égales) est donc retiré. flex:0 0 20% (colonnes strictement
-        égales et FIXES, jamais recalculées) remplace flex:0 0 auto ;
-        .dock button[aria-current] n'a plus de padding différent de ses
-        voisins.
-
-     Avec UNE destination de moins, "Portefeuille" retrouve assez de
-     place dans une colonne à 20% fixe SANS avoir besoin de grandir —
-     revérifié au canvas (mesure indépendante de la taille de fenêtre)
-     et par simulation de largeur de conteneur à 320/340/350/360/375/
-     390/393/414/430/768px (voir MOTION_SYSTEM.md) : la police de base
-     (11px) suffit dès 386px environ, mais tombe juste en dessous du
-     nécessaire à 360-375px avec seulement 5 colonnes fixes au lieu de
-     6 colonnes qui s'auto-dimensionnaient avant — d'où les 2 paliers
-     étroits ci-dessous (nouveaux, remplacent l'unique palier ≤350px de
-     la passe 3), chacun avec sa propre marge de sécurité mesurée, pas
-     une simple règle de trois. */
+  /* REFONTE PILL-SHAPED NOVATITRE (2026-09-28, pivot marque, palette/
+     dimensions imposées par la spec) — remplace la géométrie "capsule
+     Revolut" précédente (fond translucide rose/verre dépoli, 22px/11px,
+     dimensions figées le 2026-09-23 : "NE CHANGE PLUS sa taille"). C'est
+     une décision de marque neuve et explicite qui prime sur cette
+     ancienne consigne, pas un oubli. Architecture STRUCTURELLE conservée
+     à l'identique (colonnes à 20% fixes, nowrap, 2 paliers étroits,
+     mécanique de pilule glissante en JS) : c'est elle qui garantissait
+     qu'aucun libellé ("Portefeuille" en particulier) ne se coupe ni ne
+     passe en 2 lignes — seule l'habillage visuel change ici. */
   .dock{
     display:flex;align-items:stretch;
     position:fixed;left:50%;transform:translateX(-50%);
     bottom:calc(12px + env(safe-area-inset-bottom));z-index:60;
     width:calc(100% - 20px);max-width:440px;
-    background:rgba(10,14,35,.50);
-    /* Flou réduit 18px -> 13px (2026-09-24, même correctif performance
-       que .top ci-dessus, même raison : fixed + présent sur toute page
-       mobile, recalculé à chaque frame de défilement). */
-    backdrop-filter:blur(13px) saturate(120%);
-    -webkit-backdrop-filter:blur(13px) saturate(120%);
-    border:1px solid rgba(255,255,255,.10);border-radius:9999px;
-    padding:6px 6px;
-    box-shadow:0 8px 22px rgba(2,5,14,.45), 0 2px 6px rgba(10,20,45,.14)
+    background:linear-gradient(180deg,#1e3a5f 0%,#0f1e35 100%);
+    border:1px solid #00d4ff;border-radius:28px;
+    padding:14px 16px;
+    box-shadow:0 4px 12px rgba(0,212,255,.1), 0 8px 22px rgba(2,5,14,.45)
   }
   /* 5 colonnes strictement égales et fixes (flex:0 0 20%, jamais
      recalculées selon l'onglet actif) — icône empilée sur libellé,
      c'est le PLUS LARGE des deux qui doit tenir dans 20% de la barre. */
   .dock button{
     position:relative;z-index:1;
-    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;
-    flex:0 0 20%;min-width:0;min-height:40px;padding:2px 3px;border-radius:9999px;
-    color:rgba(255,255,255,.68);
-    font-size:11px;font-weight:600;letter-spacing:-.01em;
-    transition:color .25s ease-out
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;
+    flex:0 0 20%;min-width:0;min-height:40px;padding:8px 2px;border-radius:16px;
+    color:#fff;
+    /* CORRECTIF (bug réel mesuré via scrollWidth/clientWidth, pas juste
+       visuel) : 12.5px faisait déborder "Portefeuille" de 2px à 390px
+       (70px de texte réel dans un slot de 68px) — 12px + letter-spacing
+       légèrement plus serré + 1px de padding horizontal repris rétablit
+       une marge réelle (mesurée : 66px de texte dans 69px de slot). */
+    font-size:12px;font-weight:600;letter-spacing:-.015em;
+    transition:color .25s ease-out, transform .3s ease-out, opacity .3s ease-out
   }
+  .dock button:hover:not([aria-current]){transform:scale(1.05);opacity:.8}
   /* Priorité absolue : plus jamais de libellé coupé/en 2 lignes. nowrap
      + overflow visible (jamais overflow:hidden, qui masquerait un mot
      au lieu de le montrer en entier) — garanti par les colonnes à 20%
      dimensionnées pour "Portefeuille" (voir mesures ci-dessus et
      paliers responsive plus bas). */
   .dock button span{display:block;white-space:nowrap;overflow:visible}
-  .dock button svg{width:22px;height:22px;color:inherit;
-    transition:transform .25s cubic-bezier(.22,1,.36,1),opacity .25s ease-out}
+  .dock button svg{width:28px;height:28px;color:inherit;
+    transition:transform .25s cubic-bezier(.22,1,.36,1),opacity .25s ease-out,filter .3s ease-out}
   .dock button[aria-current]{color:#fff}
-  .dock button[aria-current] svg{transform:scale(1.05);animation:dockIconPop .45s cubic-bezier(.22,1,.36,1)}
+  .dock button[aria-current] svg{transform:scale(1.1);
+    filter:drop-shadow(0 0 4px rgba(0,212,255,.45));
+    animation:dockIconPop .45s cubic-bezier(.22,1,.36,1)}
   /* Rebond quand une icône DEVIENT active (2026-09-23, "vraiment
      beaucoup d'animation") : une animation CSS démarre quand l'élément
      se met à correspondre à une règle qui en porte une — donc seulement
      au vrai changement d'onglet, jamais à un simple re-render, grâce à
      syncActiveAttr() en JS qui ne touche plus aria-current que lorsqu'il
      change réellement (voir sa note). Sans fill-mode: retombe proprement
-     sur le transform:scale(1.05) statique juste au-dessus une fois finie,
+     sur le transform:scale(1.1) statique juste au-dessus une fois finie,
      pas de saut visible. */
   @keyframes dockIconPop{
     0%{transform:scale(1)}
-    45%{transform:scale(1.24)}
-    100%{transform:scale(1.05)}
+    45%{transform:scale(1.28)}
+    100%{transform:scale(1.1)}
   }
-  .dock button:focus-visible{outline:2px solid rgba(255,255,255,.85);outline-offset:2px;border-radius:9999px}
+  .dock button:focus-visible{outline:2px solid #00d4ff;outline-offset:2px;border-radius:16px}
   /* 2 paliers étroits (voir note plus haut) : seule la police/icône/le
      padding du dock changent, jamais les colonnes à 20% ni le
      comportement "fixe" de la barre. */
   @media (max-width:385px){
-    .dock{width:calc(100% - 16px);padding:5px 5px}
-    .dock button{font-size:10px;gap:3px}
-    .dock button svg{width:20px;height:20px}
+    .dock{width:calc(100% - 16px);padding:12px 12px}
+    .dock button{font-size:11px;gap:5px}
+    .dock button svg{width:25px;height:25px}
   }
   @media (max-width:340px){
-    .dock{width:calc(100% - 14px);padding:4px 4px}
-    .dock button{font-size:9px;gap:3px}
-    .dock button svg{width:18px;height:18px}
+    .dock{width:calc(100% - 14px);padding:10px 10px}
+    .dock button{font-size:10px;gap:4px}
+    .dock button svg{width:22px;height:22px}
   }
   /* Pilule active glissante (technique inchangée depuis le 21/09, voir
      positionDockPill() en JS) : un seul élément partagé, jamais recréé,
@@ -474,10 +457,10 @@ button:active{transform:scale(.97)}
      du bouton actif, qui se trouve juste être constant maintenant.
      top/bottom:3px la garde clairement PLUS PETITE que la barre
      extérieure (respiration haut/bas, comme sur la référence). */
-  .dock-pill{position:absolute;top:3px;bottom:3px;left:0;border-radius:9999px;
-    background:rgba(255,255,255,.12);
+  .dock-pill{position:absolute;top:3px;bottom:3px;left:0;border-radius:16px;
+    background:#2d3748;
     z-index:0;pointer-events:none;
-    transition:transform .3s cubic-bezier(.22,1,.36,1), width .3s cubic-bezier(.22,1,.36,1);
+    transition:transform .3s ease-out, width .3s ease-out;
     will-change:transform,width}
   .dock-pill.no-anim{transition:none}
 }
@@ -528,7 +511,7 @@ button:active{transform:scale(.97)}
    toutes les animations infinies de ce fichier (la leçon du fond
    aurora, plus haut, documente pourquoi une durée quasi nulle plutôt
    qu'un arrêt franc a déjà causé un vrai bug cette session). */
-.btn-a{background:linear-gradient(135deg,var(--accent) 0%,var(--pink-light,var(--accent-hover)) 100%);
+.btn-a{background:linear-gradient(135deg,var(--accent) 0%,var(--orange-light,var(--accent-hover)) 100%);
   background-size:200% 200%;animation:gradientShift 4s ease-in-out infinite;
   color:var(--accent-ink);box-shadow:var(--shadow-accent)}
 @keyframes gradientShift{
@@ -541,17 +524,17 @@ button:active{transform:scale(.97)}
 .btn-a:active{background:var(--accent-press)}
 .btn-s{background:var(--bg-2);color:var(--ink)}
 .btn-s:hover{background:var(--bg-3)}
-/* Bouton secondaire violet (2026-09-22, composant demandé par le brief ;
-   recoloré 2026-09-23 bleu -> violet, voir note de palette tout en
-   haut) — jamais utilisé comme accent général : réservé à une action
-   secondaire précise qui mérite de se distinguer sans rivaliser avec le
-   rose primaire. Appliqué à "Vendre" sur la fiche action (voir
-   PAGES.stock) : une vraie seconde action, pas juste "moins importante
-   qu'Acheter" — le violet porte ce sens mieux qu'un simple gris.
-   color:#fff (au lieu du bleu marine #04202b d'origine, pensé pour
-   contraster avec l'ancien cyan #00D4FF) : le violet est plus foncé
-   à luminosité égale, un texte marine s'y lirait mal. */
-.btn-blue{background:var(--blue-accent);color:#fff}
+/* Bouton secondaire cyan (2026-09-22, composant demandé par le brief ;
+   recoloré 2026-09-28 pour le pivot NovaTitre : violet -> cyan #00D4FF,
+   voir note de palette tout en haut) — jamais utilisé comme accent
+   général : réservé à une action secondaire précise qui mérite de se
+   distinguer sans rivaliser avec l'orange primaire. Appliqué à "Vendre"
+   sur la fiche action (voir PAGES.stock) : une vraie seconde action, pas
+   juste "moins importante qu'Acheter" — le cyan porte ce sens mieux
+   qu'un simple gris. color:var(--bg-dark-ink) plutôt que blanc : #00D4FF
+   est trop clair pour porter un texte blanc lisible (conforme à la spec
+   NovaTitre : texte #0A0E27 sur fond cyan). */
+.btn-blue{background:var(--blue-accent);color:var(--bg-dark-ink)}
 .btn-blue:hover{filter:brightness(1.1)}
 .btn-blue-outline{background:transparent;color:var(--blue-accent);
   box-shadow:inset 0 0 0 1.5px var(--blue-accent)}
@@ -667,7 +650,7 @@ button:active{transform:scale(.97)}
 }
 .tag-accent{background:var(--accent-soft);color:var(--accent)}
 /* CORRECTIF (audit de cohérence visuelle, 2026-09-21) : .tag-violet,
-   jamais utilisé dans le balisage, référençait --violet/--violet-soft —
+   jamais utilisé dans le balisage, référençait --violet/--cyan-soft —
    également jamais définis nulle part. Contrairement à .ai-dot ci-dessus,
    rien n'indique à quoi cette variante était destinée ; .tag-accent
    couvre déjà le seul cas "puce colorée avec la couleur de marque".
@@ -1030,7 +1013,7 @@ a.row{color:inherit;text-decoration:none}
    premier jet par la structure/coordonnées exactes données cette fois
    (fronton/entablement recalculés, colonnes déplacées, classes
    renommées temple-main/temple-secondary/temple-flute) et insère le
-   VRAI logo NovaBourse (ICON.brand, déjà utilisé dans le header — voir
+   VRAI logo NovaTitre (ICON.brand, déjà utilisé dans le header — voir
    .nova-temple-brand plus bas) au centre du fronton, à la place du
    triangle simplifié de la passe précédente. Dessin non modifié,
    classes/CSS repris tels quels. */
@@ -1502,8 +1485,8 @@ a.row{color:inherit;text-decoration:none}
    alors branché à aucun balisage réel (trouvé mort par cet audit — voir
    plus bas où il est enfin utilisé, pour l'attente "Analyse IA"). */
 .nova-orb i:nth-child(1){background:radial-gradient(circle at 30% 30%,var(--green-300),var(--green-500))}
-.nova-orb i:nth-child(2){background:radial-gradient(circle at 70% 40%,var(--pink-300),var(--pink-500));animation-delay:-1.8s}
-.nova-orb i:nth-child(3){background:radial-gradient(circle at 50% 70%,var(--violet-300),var(--violet-500));animation-delay:-3.6s}
+.nova-orb i:nth-child(2){background:radial-gradient(circle at 70% 40%,var(--orange-300),var(--orange-500));animation-delay:-1.8s}
+.nova-orb i:nth-child(3){background:radial-gradient(circle at 50% 70%,var(--cyan-300),var(--cyan-500));animation-delay:-3.6s}
 @keyframes orb{
   0%,100%{transform:translate(0,0) scale(.82)}
   33%{transform:translate(7px,-5px) scale(1)}
@@ -1810,10 +1793,10 @@ table.t td:last-child,table.t th:last-child{text-align:right;padding-right:0}
 
 <header class="top">
   <div class="top-in">
-    <button class="logo" data-go="home" aria-label="NovaBourse, accueil">
+    <button class="logo" data-go="home" aria-label="NovaTitre, accueil">
       <span class="logo-m" aria-hidden="true">
         <svg viewBox="0 0 1536 1024" aria-hidden="true"><path fill="currentColor" stroke="none" d="M 770,180 L 781,283 L 781,293 L 783,303 L 784,324 L 802,500 L 803,521 L 808,559 L 808,569 L 810,583 L 815,594 L 828,607 L 1028,718 L 1125,770 L 949,475 Z"/><path fill="currentColor" stroke="none" d="M 758,181 L 616,414 L 402,770 L 410,766 L 510,699 L 615,626 L 741,535 L 754,520 L 758,508 Z"/><path fill="currentColor" stroke="none" d="M 410,774 L 1120,774 L 861,663 L 849,659 L 747,615 L 727,608 L 712,608 L 697,614 L 572,686 Z"/></svg>
-      </span>NovaBourse
+      </span>NovaTitre
     </button>
     <nav class="top-nav" id="topNav" aria-label="Navigation"></nav>
     <div class="top-act">
@@ -1867,7 +1850,7 @@ if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
    affichage normal. */
 window.scrollTo(0, 0);
 const BUILD = 'v2-9';
-console.log('%cNovaBourse ' + BUILD, 'color:#00a651;font-weight:700');
+console.log('%cNovaTitre ' + BUILD, 'color:#00a651;font-weight:700');
 
 /* ============================================================
    0. FONDATIONS RESTAURÉES
@@ -2054,7 +2037,8 @@ const DEFAULT_STATE = {
     level:null,
     goal:null,
     interests:[],
-    capital:null
+    capital:null,
+    introSlide:0
   },
 
   settings:{
@@ -2538,7 +2522,7 @@ function ensureRuntimeStock(meta, persist = true){
      (déduplication, navigation, Comparer, portefeuille cohérents). */
   const code = pickExchangeCode(meta);
   const id = remoteId(meta.ticker, code);
-  console.debug('[NovaBourse][ensureRuntimeStock]', { ticker:meta.ticker, rawExchange:meta.exchange,
+  console.debug('[NovaTitre][ensureRuntimeStock]', { ticker:meta.ticker, rawExchange:meta.exchange,
     rawExchangeCode:meta.exchangeCode, codeRetenu:code, idCalcule:id, dejaConnue:!!byId[id] });
   if (byId[id]) return byId[id];
   const s = {
@@ -2556,7 +2540,7 @@ function ensureRuntimeStock(meta, persist = true){
     sector: meta.sector || 'Non classé',
     /* industry : conservée seulement si réellement fournie par le search
        (jamais déduite) — utile pour ne pas la renvoyer null à l'analyse
-       alors que NovaBourse la connaît déjà (voir runAnalysis). */
+       alors que NovaTitre la connaît déjà (voir runAnalysis). */
     industry: meta.industry || null,
     country: meta.country || '—',
     cur: meta.currency || meta.cur || 'USD',
@@ -2709,6 +2693,18 @@ function profileOf(score){
 const scored = stocks.filter(s => Number.isFinite(s.score));
 
 const isExpert = () => state.settings.mode === 'expert';
+/* Niveau Nova Explain (2026-09-28, pivot NovaTitre — onboarding adaptatif
+   "règle tout") : state.settings.mode porte désormais les 3 valeurs
+   réelles choisies à l'onboarding ('debutant'/'intermediaire'/'expert',
+   voir ONB_LEVELS) au lieu d'être aplati en binaire — correctif au
+   passage : un utilisateur "intermédiaire" était jusqu'ici traité
+   IDENTIQUEMENT à un débutant partout où isExpert() était consulté (le
+   mode était forcé à 'debutant' dès que level !== 'expert'), perdant
+   toute distinction entre les deux. isExpert() reste valide tel quel
+   (seule la comparaison 'expert' compte pour son usage existant, non
+   affectée). novaLevel() est le nouveau point d'entrée à 3 valeurs,
+   utilisé par le système Nova Explain (popovers, [data-nova-level] CSS). */
+const novaLevel = () => state.settings.mode || 'intermediaire';
 
 /* Périodes proposées sur la fiche action. Ne couvre que ce que
    /api/market/company peut raisonnablement fournir en clôtures quotidiennes.
@@ -2840,7 +2836,7 @@ async function searchProviders(t){
     /* Diagnostic temporaire, sans effet sur l'UI : permet de retrouver dans
        la console du navigateur la forme RÉELLE renvoyée par le backend pour
        confirmer/corriger ce mapping (voir rapport — jamais vérifié avant). */
-    console.debug('[NovaBourse][searchProviders] réponse brute pour', JSON.stringify(t), ':', d);
+    console.debug('[NovaTitre][searchProviders] réponse brute pour', JSON.stringify(t), ':', d);
     return list.filter(x => x && x.ticker).slice(0, 8).map(x => {
       const code = pickExchangeCode(x);
       return {
@@ -3258,7 +3254,7 @@ function runNovaTests(){
   ok('spark ne plante pas sur des NaN', spark([100, NaN, 102]) === '');
 
   const passed = results.filter(r => r.pass).length;
-  console.group(`NovaBourse — tests internes : ${passed}/${results.length}`);
+  console.group(`NovaTitre — tests internes : ${passed}/${results.length}`);
   results.forEach(r => console[r.pass ? 'log' : 'error'](
     `${r.pass ? '✔' : '✘'} ${r.name}${r.detail ? ' — ' + r.detail : ''}`));
   console.groupEnd();
@@ -3650,9 +3646,9 @@ const ICON = {
      icône juste pour éviter d'en ajouter une. */
   mail:'<rect x="3.5" y="5.5" width="17" height="13" rx="2.5"/><path d="M4.5 7.2 12 12.5 19.5 7.2"/>',
   /* NovaBot (2026-09-24, retour utilisateur : "mettre le logo de
-     NovaBourse en robot") — remplace le bot générique du premier jet :
+     NovaTitre en robot") — remplace le bot générique du premier jet :
      tête TRIANGULAIRE (même silhouette que le fronton du temple/le
-     logo NovaBourse du header, jamais redessinée à l'identique faute de
+     logo NovaTitre du header, jamais redessinée à l'identique faute de
      place à cette taille, mais reconnaissable) plutôt qu'une tête
      rectangulaire anonyme, avec 2 yeux ronds à l'intérieur, corps
      arrondi et 2 petits bras. */
@@ -3721,8 +3717,8 @@ const NOVA_FEATURES = {
     title:'Nova Review', tag:'Revoir vos décisions',
     desc:"Nova Review reviendra sur vos décisions d'investissement passées pour vous aider à comprendre ce qui a fonctionné, ou non, et pourquoi." },
   novaevent: { icon:'calendar', accent:'#8d95a4', rgb:'141,149,164',
-    title:'Nova Event', tag:'Événements NovaBourse',
-    desc:"Nova Event rassemblera les événements propres à NovaBourse — nouveautés, temps forts, rendez-vous à ne pas manquer. Pas l'actualité des marchés : ça, c'est Nova News." },
+    title:'Nova Event', tag:'Événements NovaTitre',
+    desc:"Nova Event rassemblera les événements propres à NovaTitre — nouveautés, temps forts, rendez-vous à ne pas manquer. Pas l'actualité des marchés : ça, c'est Nova News." },
   novanews: { icon:'news', accent:'#6d28d9', rgb:'109,40,217',
     title:'Nova News', tag:"L'actualité qui compte",
     desc:"Nova News réunira l'actualité économique, financière et géopolitique susceptible d'influencer vos investissements — dans chaque fiche, l'actualité propre à l'entreprise consultée." },
@@ -4527,7 +4523,7 @@ const NB_QUICK = [
     desc:"Trouver instantanément une action, ETF, crypto ou entreprise.",
     icon:'<circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5 L21 21"/>' },
   { intent:'analyze', title:'Analyser avec l’IA',
-    desc:"Entrer un actif et lancer directement l’analyse NovaBourse.",
+    desc:"Entrer un actif et lancer directement l’analyse NovaTitre.",
     icon:'<path d="M12 2C12.8 7.2 16.8 11.2 22 12C16.8 12.8 12.8 16.8 12 22C11.2 16.8 7.2 12.8 2 12C7.2 11.2 11.2 7.2 12 2Z"/>' },
   { intent:'buy', title:'Ajouter au portefeuille',
     desc:"Ajouter rapidement une position ou un actif à suivre.",
@@ -4557,7 +4553,7 @@ PAGES.home = () => {
   return `
   <section class="nb-hero-v2">
     <section class="nova-temple-section">
-      <svg class="nova-temple${templeSeenBefore ? ' no-intro' : ''}" viewBox="0 0 1000 720" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Temple NovaBourse">
+      <svg class="nova-temple${templeSeenBefore ? ' no-intro' : ''}" viewBox="0 0 1000 720" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Temple NovaTitre">
         <!-- Entrée en scène par blocs (2026-09-23, "un maximum d'animation
              autour de cette architecture romaine") : chaque groupe
              ci-dessous porte sa propre classe .temple-part + un délai
@@ -4571,7 +4567,7 @@ PAGES.home = () => {
           <line x1="85" y1="270" x2="915" y2="270" class="temple-line temple-main"/>
           <line x1="105" y1="292" x2="895" y2="292" class="temple-line temple-secondary"/>
         </g>
-        <!-- Logo NovaBourse réel (ICON.brand, voir header) recentré/mis à
+        <!-- Logo NovaTitre réel (ICON.brand, voir header) recentré/mis à
              l'échelle autour de son propre centre géométrique (763.5,477 —
              calculé depuis ses tracés, pas estimé) pour une largeur cible
              d'environ 95px, puis positionné au centre du fronton. Jamais
@@ -4642,7 +4638,7 @@ PAGES.home = () => {
        rement APRÈS "Mes positions" plutôt qu'en tout premier : le
        contenu personnel de l'utilisateur (position, montant) prime sur
        la découverte de nouvelles fonctions. -->
-  <nav class="nova-hub" aria-label="Fonctions NovaBourse">
+  <nav class="nova-hub" aria-label="Fonctions NovaTitre">
     ${novaHubCard('novabot')}${novaHubCard('novareview')}${novaHubCard('novaevent')}${novaHubCard('novanews')}
   </nav>
 
@@ -4758,7 +4754,7 @@ function dernierAchatAvant(stockId, date){
     .sort((a, b) => new Date(b.date) - new Date(a.date));
   return avant[0] || null;
 }
-/* Seuils "court/moyen/long terme" (en jours) : une convention NovaBourse
+/* Seuils "court/moyen/long terme" (en jours) : une convention NovaTitre
    propre, jamais un fait de marché établi — sert uniquement à comparer la
    durée de détention réelle à l'horizon que l'UTILISATEUR LUI-MÊME avait
    choisi à l'achat (chips court/moyen/long d'openBuyReview), jamais
@@ -4785,9 +4781,9 @@ function compareHorizon(joursDetention, horizonKey){
    étudier/Occasion manquée), choisie par un ARBRE DE DÉCISION
    DÉTERMINISTE sur des grandeurs RÉELLEMENT CALCULÉES — jamais une
    opinion de modèle de langage, aucun appel réseau ici, mêmes
-   garanties que _novascore.js (moteur NovaBourse propre, barèmes
+   garanties que _novascore.js (moteur NovaTitre propre, barèmes
    documentés, reproductible). Les 3 seuils ci-dessous sont une
-   convention NovaBourse assumée, pas un fait de marché établi — jamais
+   convention NovaTitre assumée, pas un fait de marché établi — jamais
    présentés comme plus rigoureux qu'ils ne le sont. */
 const VERDICT_CONCENTRATION_RISQUEE = .35; // part du CAPITAL INVESTI (coût, jamais une valeur de marché historique qu'on ne connaît pas)
 const VERDICT_GAIN_EXCELLENT = .10;
@@ -5100,7 +5096,7 @@ PAGES.novareview = () => {
             ${(c.points || []).length ? `<ul class="pts good" style="margin-top:10px">
               ${c.points.map(p => `<li><i>•</i><span>${esc(p)}</span></li>`).join('')}</ul>` : ''}
             ${c.lecon ? `<p class="tiny" style="margin-top:10px;color:var(--ink-3)"><b>Leçon (Nova AI) :</b> ${esc(c.lecon)}</p>` : ''}
-            <p class="tiny" style="margin-top:10px">Commentaire généré à partir des verdicts calculés ci-dessus par NovaBourse — jamais l'inverse.</p>`; })()}
+            <p class="tiny" style="margin-top:10px">Commentaire généré à partir des verdicts calculés ci-dessus par NovaTitre — jamais l'inverse.</p>`; })()}
         </div>
       </div>
     </section>` : ''}
@@ -5291,7 +5287,7 @@ PAGES.novanews = () => {
     <p class="eyebrow">${esc(f.tag)}</p>
     <h1 class="title">${esc(f.title)}</h1>
     <p class="lead measure-l" style="margin-top:10px">Actualité économique, financière et géopolitique
-      mondiale — articles de presse externes, jamais rédigés par NovaBourse.</p>
+      mondiale — articles de presse externes, jamais rédigés par NovaTitre.</p>
 
     <div class="card" style="margin-top:18px">
       ${WORLD_NEWS.status === 'idle' ? `
@@ -5314,14 +5310,14 @@ PAGES.novanews = () => {
             </span>
           </a>`).join('')}
         </div>
-        <p class="tiny" style="margin-top:14px">Articles de presse externes, non rédigés par NovaBourse
+        <p class="tiny" style="margin-top:14px">Articles de presse externes, non rédigés par NovaTitre
           · sources ${esc(WORLD_NEWS.sourcesUtilisees.join(', ') || '—')}.</p>`
       : `<div class="notice"><b>Actualités indisponibles.</b>
           Aucun article n'a pu être obtenu pour le moment — réessayez dans quelques minutes.</div>`}
     </div>
   </div>`;
 };
-/* Nova Event (agenda NovaBourse) reste une page de présentation, hors
+/* Nova Event (agenda NovaTitre) reste une page de présentation, hors
    périmètre de cette passe (LOT C ne couvrait que Nova News). */
 PAGES.novaevent = () => novaFeaturePage('novaevent');
 PAGES.pricing = () => `
@@ -5392,7 +5388,7 @@ function parseNaturalQuery(q){
   const t = q.toLowerCase(), f = { radarMin:0, radarCountry:'tous', radarSector:'tous' };
   const applied = [];
   /* "Risque" retiré (audit "screener sans effet", 2026-09-17) : aucune
-     métrique de risque n'est réellement calculée nulle part dans NovaBourse
+     métrique de risque n'est réellement calculée nulle part dans NovaTitre
      à ce jour (s.volRisk n'est jamais assigné) — le filtre correspondant a
      été retiré de l'UI pour la même raison. Ne pas en réintroduire un ici
      sans construire d'abord le calcul réel derrière. */
@@ -6013,7 +6009,7 @@ PAGES.stock = (id) => {
             <span style="color:var(--ink-4)">${svg(ICON.arrow,2.4)}</span>
           </a>`).join('')}
         </div>
-        <p class="tiny" style="margin-top:14px">Articles de presse externes, non rédigés par NovaBourse
+        <p class="tiny" style="margin-top:14px">Articles de presse externes, non rédigés par NovaTitre
           · source ${esc(s.newsSource || '—')}.</p>`
       : `<div class="notice"><b>Actualités indisponibles.</b>
           Aucun article n'a pu être obtenu pour cette valeur pour le moment.</div>`}
@@ -6709,7 +6705,7 @@ PAGES.account = () => {
       </div></div>
     </section>
 
-    <p class="tiny" style="margin-top:24px">NovaBourse ne fournit aucun conseil en investissement
+    <p class="tiny" style="margin-top:24px">NovaTitre ne fournit aucun conseil en investissement
       personnalisé, ne collecte aucun ordre et ne détient aucun fonds. Investir comporte un risque
       de perte en capital.</p></div>`;
 };
@@ -6833,7 +6829,7 @@ PAGES.settings = () => {
       </div>
     </section>
 
-    <p class="tiny" style="margin-top:22px">NovaBourse ne fournit aucun conseil en investissement
+    <p class="tiny" style="margin-top:22px">NovaTitre ne fournit aucun conseil en investissement
       personnalisé, ne collecte aucun ordre et ne détient aucun fonds.</p>
     <p class="tiny" style="margin-top:8px">Version du fichier : <b>${esc(BUILD)}</b></p>
   </div>`;
@@ -7577,7 +7573,7 @@ function gateScreen(){
             <b>${t2}</b><span>${d}</span></div>`).join('')}
       </div>`}
 
-      <p class="tiny" style="margin-top:24px">En continuant, vous acceptez nos conditions. NovaBourse ne donne aucun conseil personnalisé.</p>
+      <p class="tiny" style="margin-top:24px">En continuant, vous acceptez nos conditions. NovaTitre ne donne aucun conseil personnalisé.</p>
     </div>
   </div>`;
 }
@@ -7628,6 +7624,19 @@ const ONB_GOALS = [
   { id:'suivre', t:'Suivre des valeurs', d:'Garder un œil sur mes favorites.' },
   { id:'portefeuille', t:'Gérer un portefeuille', d:'Tester mes idées sans risque.' },
 ];
+/* Nova Explain — découverte (2026-09-28, onboarding adaptatif) : 5
+   slides montrées UNIQUEMENT si level==='debutant' (step 1.5, entre le
+   choix de niveau et le choix d'objectif), jamais aux niveaux
+   intermédiaire/expert qui connaissent déjà ce vocabulaire — copie
+   volontairement courte (2-3 phrases), même registre que le reste de
+   l'onboarding. */
+const ONB_SLIDES = [
+  { t:"Qu'est-ce qu'une action ?", d:"Une action est un petit morceau de propriété d'une entreprise. Quand vous achetez une action Apple, vous devenez propriétaire d'une minuscule part d'Apple." },
+  { t:"Qu'est-ce qu'un ETF ?", d:"Un ETF est un panier d'actions. Au lieu d'acheter une seule entreprise, vous achetez un panier de dizaines ou de centaines d'entreprises à la fois. C'est plus diversifié." },
+  { t:"Qu'est-ce qu'un dividende ?", d:"Si vous possédez une action, l'entreprise peut vous reverser une partie de ses bénéfices chaque trimestre ou chaque année. C'est le dividende." },
+  { t:"Risques et portefeuille", d:"Investir comporte un risque. C'est pour cela qu'on diversifie : au lieu de tout miser sur une seule action, on construit un « portefeuille » avec plusieurs actions, secteurs, et types d'investissements." },
+  { t:"Comment chercher une entreprise", d:"Utilisez la recherche pour taper le nom ou le code (ticker) d'une entreprise, par exemple « Apple » ou « AAPL »." },
+];
 
 function onboardingScreen(){
   const st = state.onboarding.step;
@@ -7644,6 +7653,25 @@ function onboardingScreen(){
         <span class="onb-a">${svg(ICON.arrow,2.4)}</span></button>`).join('')}
     </div>
   </div></div>`;
+
+  if (st === 1.5){
+    const i = state.onboarding.introSlide || 0;
+    const slide = ONB_SLIDES[i];
+    return `<div class="gate"><div class="gate-card onb">
+    ${dots}
+    <h1 class="title">Découvrez NovaTitre en quelques instants</h1>
+    <p class="lead" style="margin-top:14px"><b>${esc(slide.t)}</b></p>
+    <p class="lead" style="margin-top:8px;color:var(--ink-2)">${esc(slide.d)}</p>
+    <div class="onb-dots" style="margin-top:22px">${ONB_SLIDES.map((_,j)=>
+      `<span class="${j<=i?'on':''}"></span>`).join('')}</div>
+    <div class="buttons" style="display:flex;gap:10px;margin-top:22px">
+      ${i>0?`<button class="btn btn-g" style="flex:1" data-onb-intro-prev>Précédent</button>`:''}
+      <button class="btn btn-a" style="flex:1" data-onb-intro-next>
+        ${i < ONB_SLIDES.length-1 ? 'Suivant' : 'Continuer'}</button>
+    </div>
+    </div>
+  </div></div>`;
+  }
 
   if (st === 2) return `<div class="gate"><div class="gate-card onb">
     ${dots}
@@ -7709,7 +7737,7 @@ function onboardingScreen(){
       Nous ne remplaçons jamais un chiffre absent par une estimation.
     </div>
     <button class="btn btn-a btn-lg" style="margin-top:22px;width:100%" data-onb-done>
-      Entrer dans NovaBourse</button>
+      Entrer dans NovaTitre</button>
   </div></div>`;
 }
 
@@ -7976,7 +8004,7 @@ function render(navigated = false){
       : route.page === 'listDetail' ? PAGES.listDetail(route.arg)
       : (PAGES[route.page] || PAGES.home)();
   } catch (err){
-    console.error('[NovaBourse]', err);
+    console.error('[NovaTitre]', err);
     html = `<div class="card">${emptyState('Cette section n’a pas pu s’afficher',
       'Le reste de l’application reste utilisable.', { go:'home', label:'Revenir à l’accueil' })}
       <p class="tiny" style="margin-top:18px;text-align:center;word-break:break-word">
@@ -8288,7 +8316,7 @@ function pick(h){
   pushRecent(h.title); closeSheet();
   const intent = searchIntent; searchIntent = null;
   if (h.type === 'action'){
-    console.debug('[NovaBourse][pick] résultat cliqué', h);
+    console.debug('[NovaTitre][pick] résultat cliqué', h);
     /* Une société venue de /api/market/search n'existe pas encore dans
        byId : on la matérialise (métadonnées seulement) avant d'ouvrir sa
        fiche, qui se comporte alors exactement comme pour le catalogue
@@ -8497,8 +8525,23 @@ document.addEventListener('click', e => {
   const lvl = q('[data-level]');
   if (lvl){
     state.onboarding.level = lvl.dataset.level;
-    state.settings.mode = lvl.dataset.level === 'expert' ? 'expert' : 'debutant';
+    /* CORRECTIF : conservait auparavant seulement 'expert'/'debutant'
+       (aplatissait 'intermediaire' -> 'debutant') — voir novaLevel()
+       ci-dessus. ONB_LEVELS n'a que 3 ids valides (debutant/
+       intermediaire/expert), portés tels quels désormais. */
+    state.settings.mode = lvl.dataset.level;
+    state.onboarding.introSlide = 0;
+    state.onboarding.step = lvl.dataset.level === 'debutant' ? 1.5 : 2;
+    saveState(); renderGate(); return;
+  }
+  if (q('[data-onb-intro-next]')){
+    const i = state.onboarding.introSlide || 0;
+    if (i < ONB_SLIDES.length - 1){ state.onboarding.introSlide = i + 1; saveState(); renderGate(); return; }
     state.onboarding.step = 2; saveState(); renderGate(); return;
+  }
+  if (q('[data-onb-intro-prev]')){
+    state.onboarding.introSlide = Math.max(0, (state.onboarding.introSlide || 0) - 1);
+    saveState(); renderGate(); return;
   }
   const gl = q('[data-goal]');
   if (gl){ state.onboarding.goal = gl.dataset.goal; state.onboarding.step = 3; saveState(); renderGate(); return; }
@@ -8540,7 +8583,7 @@ document.addEventListener('click', e => {
   }
   if (q('[data-guide]')){ state.onboarding.step = 6; saveState(); renderGate(); return; }
   if (q('[data-refaire-parcours]')){
-    state.onboarding = { done:false, step:1, level:null, goal:null, interests:[], capital:state.onboarding.capital };
+    state.onboarding = { done:false, step:1, level:null, goal:null, interests:[], capital:state.onboarding.capital, introSlide:0 };
     saveState(); renderGate(); return;
   }
 
@@ -8609,7 +8652,7 @@ document.addEventListener('click', e => {
     const data = JSON.stringify({ watchlist:state.watchlist, wallet:state.wallet,
       settings:state.settings }, null, 2);
     openSheet(`<h3 id="sheetTitle">Vos données</h3>
-      <p>Tout ce que NovaBourse conserve dans ce navigateur. Rien n'est envoyé ailleurs.</p>
+      <p>Tout ce que NovaTitre conserve dans ce navigateur. Rien n'est envoyé ailleurs.</p>
       <pre class="export">${esc(data)}</pre>`);
     return;
   }
@@ -9200,7 +9243,7 @@ function novascoreBloc(n){
         <b class="tabular-nums">${f.score}</b>
       </div>`).join('')}
     </div>
-    <p class="tiny" style="margin-top:12px">Calculé par NovaBourse
+    <p class="tiny" style="margin-top:12px">Calculé par NovaTitre
       (${esc(n.engine)}) à partir des données du dossier. Le modèle l'explique,
       il ne le produit pas.</p>
   </div>`;
@@ -9227,7 +9270,7 @@ async function runAnalysis(stockId){
 
   let d;
   try {
-    /* Identité déjà connue de NovaBourse (catalogue local, société créée via
+    /* Identité déjà connue de NovaTitre (catalogue local, société créée via
        /api/market/search, ou retrouvée après refresh via runtimeCatalog) :
        transmise telle quelle pour que le dossier d'analyse ne reparte pas de
        zéro sur des champs que le frontend connaît déjà. `exchange` envoie le
