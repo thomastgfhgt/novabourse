@@ -142,6 +142,7 @@ const MARKET_LABEL = {
      de repli (exchangeRaw="BATS") reste honnête telle quelle. */
   V: 'TSX Venture Exchange', WAR: 'Warsaw Stock Exchange', KLSE: 'Bursa Malaysia',
   JK: 'Indonesia Stock Exchange', KAR: 'Pakistan Stock Exchange',
+  NEO: 'Cboe Canada',
 };
 
 /* Id court par exchangeCode (voir catalog.json existant : NASDAQ->NAS,

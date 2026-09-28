@@ -127,6 +127,9 @@ const EXCHANGE_ALIASES = {
   IDX: 'JK',
   KAR: 'KAR',
   PSX: 'KAR',
+  NEO: 'NEO',
+  AMS: 'AS',
+  'NYSE MKT': 'US',
 };
 
 function normaliserExchange(value) {

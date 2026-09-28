@@ -362,6 +362,22 @@ const SUFFIX = {
      NULL plutôt que devinées davantage. */
   JK: 'JK',
   KAR: 'KAR',
+
+  /* Suite (2026-09-28, 2e passe) : 1 nouveau code vérifié EMPIRIQUEMENT :
+       ABXX.NEO (Abaxx Technologies, Cboe Canada ex-NEO Exchange) ->
+         cotation ET historique RÉELS (16,78 CAD, 274 séances) — même
+         valeur cotée en parallèle sous TO (16,75 CAD, mais seulement 89
+         séances sous ce code pour ce titre précis) : confirme qu'il
+         s'agit bien d'une place EODHD distincte de TO, pas un doublon.
+     AMS (raw label du catalogue source, ~234 titres) volontairement PAS
+     un nouveau code ici : vérifié (AALB.AS, Aalberts NV, 42,36 EUR, 279
+     séances) qu'il s'agit de la composite Amsterdam déjà mappée ('AS')
+     — voir ALIAS_CATALOGUE, _exchangeCrosswalk.js, AMS -> AS. Un titre
+     de l'échantillon (3DIS, ETP à effet de levier, ISIN Euroclear XS)
+     n'a rien renvoyé même sous 'AS' — pas un problème de code, juste un
+     instrument non couvert, laissé honnêtement absent comme les autres
+     cas similaires déjà documentés dans ce fichier. */
+  NEO: 'NEO',
 };
 
 const eodhdSymbol = (

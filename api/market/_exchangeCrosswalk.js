@@ -83,6 +83,13 @@ const ALIAS_CATALOGUE = {
   BATS: 'US',
   IDX: 'JK',
   PSX: 'KAR',
+  /* NEO : AUCUNE entrée nécessaire ici — 'NEO' est déjà une clé SUFFIX
+     canonique (voir _providers.js), donc déjà couverte par
+     CODES_CANONIQUES.has(cle) ci-dessus, même situation que TO/AU. */
+  AMS: 'AS',
+  /* Vérifié en direct (ACCS.US, ACCESS Newswire Inc., 4,79 USD) : même
+     composite américaine que BATS ci-dessus, pas une place distincte. */
+  'NYSE MKT': 'US',
 };
 
 /* "Euronext" est un label générique dans ce dataset qui recouvre plusieurs
