@@ -90,6 +90,10 @@ const ALIAS_CATALOGUE = {
   /* Vérifié en direct (ACCS.US, ACCESS Newswire Inc., 4,79 USD) : même
      composite américaine que BATS ci-dessus, pas une place distincte. */
   'NYSE MKT': 'US',
+  ATHEX: 'AT',
+  HOSE: 'VN',
+  /* PSE : AUCUNE entrée nécessaire ici — 'PSE' est déjà une clé SUFFIX
+     canonique (voir _providers.js), même situation que NEO/TO/AU. */
 };
 
 /* "Euronext" est un label générique dans ce dataset qui recouvre plusieurs

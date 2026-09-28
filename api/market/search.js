@@ -130,6 +130,11 @@ const EXCHANGE_ALIASES = {
   NEO: 'NEO',
   AMS: 'AS',
   'NYSE MKT': 'US',
+  AT: 'AT',
+  ATHEX: 'AT',
+  VN: 'VN',
+  HOSE: 'VN',
+  PSE: 'PSE',
 };
 
 function normaliserExchange(value) {

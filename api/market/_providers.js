@@ -378,6 +378,19 @@ const SUFFIX = {
      instrument non couvert, laissé honnêtement absent comme les autres
      cas similaires déjà documentés dans ce fichier. */
   NEO: 'NEO',
+
+  /* Suite (2026-09-28, 3e passe) : 3 nouveaux codes vérifiés
+     EMPIRIQUEMENT :
+       AAAK.AT   (Wool Industry Tria Alfa, Bourse d'Athènes) -> cotation
+         ET historique RÉELS (4,58 EUR, capitalisation réelle).
+       ANV.VN    (Nam Viet Corp, HOSE Vietnam) -> cotation ET historique
+         RÉELS (15 300 VND, capitalisation réelle).
+       AB.PSE    (Atok Big Wedge, Bourse des Philippines) -> historique
+         RÉEL reçu (231 séances), cotation vide/plan-gated — ajoutée
+         quand même, même raisonnement que KLSE/KOSDAQ déjà actés. */
+  AT: 'AT',
+  VN: 'VN',
+  PSE: 'PSE',
 };
 
 const eodhdSymbol = (
