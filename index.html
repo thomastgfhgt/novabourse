@@ -8449,6 +8449,12 @@ function render(navigated = false){
   if (route.page === 'markets') marketsListeVisible().slice(0, CHARGEMENT_MASSE_MAX_SYMBOLES)
     .forEach(s => { if (s) chargerGraphiquePeriode(s, '1j'); });
 
+  /* Chargement du catalogue mondial (audit performance, 2026-09-29) :
+     plus jamais chargé au démarrage (voir boot()) — seules les routes
+     qui en ont réellement besoin le déclenchent ici, à la demande. */
+  if (route.page === 'markets' || route.page === 'radar') assurerCatalogueGlobal();
+  if (route.page === 'home') assurerApercuAccueil();
+
   /* view.innerHTML vient de remplacer tout le DOM : #chart-pro (s'il existe
      dans la page courante) est un nouveau noeud, l'éventuelle instance
      Lightweight Charts précédente est donc déjà orpheline. requestAnimationFrame
@@ -9526,7 +9532,17 @@ async function loadRealQuotes(){
      suivie + le petit aperçu marché ("marche", 6 valeurs) que PAGES.home
      affiche systématiquement. Tout le reste (Marchés par catégorie,
      Comparer, une fiche...) se charge à l'ouverture de la page
-     correspondante, via assurerCotations() — jamais avant. */
+     correspondante, via assurerCotations() — jamais avant.
+     CORRECTIF (audit performance, 2026-09-29) : `stocks` n'est plus
+     rempli au démarrage (voir boot()) — sans ce await, ce tout premier
+     appel tombait quasi systématiquement AVANT que le catalogue léger
+     de l'accueil (assurerApercuAccueil(), 6 valeurs) ait fini de charger,
+     donc `stocks.slice(0,6)` était vide et cette toute première tentative
+     ne cotait rien pour l'aperçu — corrigé au rendu SUIVANT seulement
+     (route-hook de render(), voir son propre commentaire), au prix d'un
+     bref "Marché non connecté" evitable. Attendre ici élimine ce délai
+     pour le tout premier rendu de la session. */
+  await assurerApercuAccueil();
   const besoinsAccueil = [
     ...state.watchlist.map(id => byId[id]),
     ...stocks.slice(0, 6),
@@ -9733,6 +9749,52 @@ async function loadCatalog(){
   } catch (e){ console.warn('[catalog] chargement impossible, l\'app continue avec un catalogue vide/partiel', e); }
 }
 
+/* Déclenche loadCatalog() (le bloc complet, ~930 Ko compressés) AU PLUS
+   UNE FOIS, uniquement depuis les routes qui en ont réellement l'usage
+   (Marchés, Radar — voir render()) : Marchés a déjà sa propre pagination
+   fine (garantirCatalogueMarkets()/assurerCatalogueSuffisant()) et n'a
+   donc pas STRICTEMENT besoin du bloc complet, mais le déclencher ici
+   aussi ne coûte rien de plus (même résultat final, juste disponible
+   d'un coup plutôt que par pages de 20) et profite à Radar, qui lui n'a
+   pas sa propre pagination et a besoin d'un éventail large pour que son
+   filtre Pays et son tri par score restent utiles. Jamais appelé pour
+   Accueil/Auth/Compte/Portefeuille (voir assurerApercuAccueil()
+   ci-dessous pour Accueil, qui n'a besoin que de 6 valeurs). */
+let catalogueGlobalPromise = null;
+let catalogueGlobalRenderArme = false;
+function assurerCatalogueGlobal(){
+  if (!catalogueGlobalPromise) catalogueGlobalPromise = loadCatalog();
+  /* "Armé" une seule fois, jamais un .then() par appel : render() appelle
+     cette fonction à chaque affichage de Marchés/Radar tant que le
+     catalogue charge encore, réarmer un .then() à chaque fois causerait
+     une rafale de render() redondants à la résolution (même risque que
+     le livelock des logos, déjà corrigé plus haut — évité ici en amont). */
+  if (!catalogueGlobalRenderArme){
+    catalogueGlobalRenderArme = true;
+    catalogueGlobalPromise.then(() => {
+      if (route.page === 'markets' || route.page === 'radar') render();
+    });
+  }
+  return catalogueGlobalPromise;
+}
+
+/* Aperçu "Marché" de l'accueil (6 valeurs, voir PAGES.home et
+   loadRealQuotes()) : n'a besoin que d'un tout petit nombre d'entrées,
+   jamais du catalogue complet — utilise la pagination existante
+   (assurerCatalogueSuffisant(), déjà utilisée par Marchés) plutôt que
+   assurerCatalogueGlobal(). Un seul appel réseau léger (20 résultats
+   max, voir CATALOG_PAGE_SIZE), jamais répété une fois satisfait. Même
+   garde-fou "armé une seule fois" que ci-dessus. */
+let accueilApercuRenderArme = false;
+function assurerApercuAccueil(){
+  const p = assurerCatalogueSuffisant('stock', 6);
+  if (!accueilApercuRenderArme){
+    accueilApercuRenderArme = true;
+    p.then(changement => { if (changement && route.page === 'home') render(); });
+  }
+  return p;
+}
+
 function boot(){
   /* Rejoue le catalogue des sociétés hors catalogue déjà rencontrées
      (positions, sélection Comparer) AVANT tout rendu, pour que byId soit
@@ -9765,21 +9827,27 @@ function boot(){
   document.body.classList.add('gated');
   document.getElementById('view').innerHTML = loadingScreen();
 
-  /* Démarré tout de suite, EN PARALLÈLE du reste (jamais attendu ici) :
-     le catalogue et l'authentification n'ont aucune dépendance l'un sur
-     l'autre, les faire courir en même temps plutôt qu'en séquence évite
-     d'additionner leurs deux temps réseau. Seul le premier rendu
-     effectif (juste avant initAuth()) attend que le catalogue soit prêt
-     — l'authentification, elle, a presque toujours plusieurs allers-
-     retours réseau à faire (session Supabase + /api/me), le catalogue
-     est donc déjà prêt dans l'immense majorité des cas. */
-  const catalogReady = loadCatalog();
-
+  /* CORRECTIF (audit performance, 2026-09-29 : catalog.json — 46 404
+     entreprises, 20,8 Mo décompressés / ~930 Ko réellement transférés —
+     était chargé en ENTIER et INCONDITIONNELLEMENT ici, et le tout
+     premier rendu authentifié ATTENDAIT explicitement ce chargement
+     (voir l'ancien commentaire "attend que le catalogue soit prêt")
+     avant même de lancer initAuth(). Mesuré en direct : ~230-950ms
+     ajoutés au démarrage de CHAQUE session, pour Accueil/Auth/Compte/
+     Portefeuille qui n'ont jamais besoin des 46 000 entreprises pour
+     s'afficher (Accueil n'utilise que 6 valeurs + la liste suivie de
+     l'utilisateur, Compte/Portefeuille/Auth aucune du tout).
+     Le catalogue n'est plus chargé ici : chaque route qui en a
+     RÉELLEMENT besoin (Marchés, Radar, Accueil pour son aperçu 6
+     valeurs) le déclenche elle-même depuis render() — voir
+     assurerCatalogueGlobal()/assurerApercuAccueil() plus bas, même
+     philosophie "à la demande" que assurerCotations()/chargerGraphique().
+     L'authentification, elle, n'a jamais eu besoin du catalogue : elle
+     démarre donc immédiatement, sans plus rien attendre. */
   loadConfig().then(async () => {
-    await catalogReady;
     try { await initAuth(); } catch (e){ console.warn('[auth]', e); state.auth.status = 'guest'; renderGate(); }
     loadRealQuotes();
-  }).catch(async () => { await catalogReady; state.auth.status = 'guest'; renderGate(); });
+  }).catch(async () => { state.auth.status = 'guest'; renderGate(); });
 }
 boot();
 
