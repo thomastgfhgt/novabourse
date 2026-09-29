@@ -5592,13 +5592,21 @@ function marketsListeFiltree(f){
   if (region !== 'Monde') list = list.filter(s => REGION_OF_COUNTRY[s.country] === region);
   if (sector !== 'tous') list = list.filter(s => s.sector === sector);
   if (country !== 'tous') list = list.filter(s => paysAffiche(s.country) === country);
-  list.sort((a,b) => {
-    const ra = MARKETS_RANG_CONNU.get(`${a.ticker}@${a.exchangeCode}`) ?? Infinity;
-    const rb = MARKETS_RANG_CONNU.get(`${b.ticker}@${b.exchangeCode}`) ?? Infinity;
-    if (ra !== rb) return ra - rb;
-    return a.name.localeCompare(b.name,'fr');
-  });
-  return list;
+  /* CORRECTIF PERF (2026-09-29, mesuré en direct) : recalculer
+     `${ticker}@${exchangeCode}` + interroger MARKETS_RANG_CONNU À
+     CHAQUE COMPARAISON coûtait 739ms sur les ~46 000 valeurs du
+     catalogue (comparateur appelé O(n log n) fois, soit ~1,4 M
+     concaténations de chaînes) — un vrai temps de blocage synchrone à
+     chaque ouverture de Marchés, ironiquement introduit par le
+     correctif de tri précédent. Rang précalculé UNE FOIS par élément
+     (transformation de Schwartz) avant le tri : 177ms mesuré, retombe
+     quasiment au coût du tri alphabétique d'origine (134ms). */
+  const decore = list.map(s => ({
+    s,
+    rang: MARKETS_RANG_CONNU.get(`${s.ticker}@${s.exchangeCode}`) ?? Infinity,
+  }));
+  decore.sort((a,b) => a.rang !== b.rang ? a.rang - b.rang : a.s.name.localeCompare(b.s.name,'fr'));
+  return decore.map(d => d.s);
 }
 /* Exactement les instruments actuellement révélés à l'écran (après
    pagination) — c'est CETTE liste, jamais la catégorie entière, qui doit
