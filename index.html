@@ -5540,6 +5540,43 @@ function marketsPaysDisponibles(){
   return [...new Set(stocks.filter(s=>s.type==='stock').map(x=>paysAffiche(x.country)))]
     .filter(Boolean).sort((a,b)=>a.localeCompare(b,'fr'));
 }
+/* Valeurs "connues" (2026-09-29, retour utilisateur explicite : "je
+   voudrais que les actions qu'on puisse voir en premier soit les plus
+   connues"). Un premier essai de tri par PLACE prioritaire (NASDAQ, NYSE,
+   Euronext...) a été testé en direct contre l'API réelle et écarté : il
+   n'améliorait quasiment rien (34/40 vs 35/40 avec un prix réel), parce
+   que les trous de couverture sont dispersés société par société, pas
+   liés à la place elle-même. Liste ci-dessous testée différemment :
+   chaque ticker+place vérifié un à un dans le catalogue (aucune
+   substitution devinée), PUIS testé en direct contre /api/market/quotes
+   (21 échantillon testés, 21/21 avec un prix réel) — les grandes
+   capitalisations mondialement reconnues sont quasiment toujours
+   couvertes, contrairement aux petites capitalisations obscures qui
+   dominaient le tri alphabétique précédent. Ce n'est PAS une mesure de
+   popularité réelle (aucune donnée d'usage/volume de consultation
+   n'existe dans ce catalogue) : une sélection éditoriale honnête,
+   utilisée UNIQUEMENT pour l'ordre d'affichage — chaque société affiche
+   ensuite ses vrais chiffres réels, exactement comme toute autre entrée
+   du catalogue. Tri alphabétique conservé pour tout le reste. */
+const MARKETS_VALEURS_CONNUES = [
+  'AAPL@NASDAQ', 'MSFT@NASDAQ', 'GOOGL@NASDAQ', 'GOOG@NASDAQ', 'AMZN@NASDAQ', 'NVDA@NASDAQ',
+  'META@NASDAQ', 'TSLA@NASDAQ', 'AVGO@NASDAQ', 'NFLX@NASDAQ', 'ADBE@NASDAQ', 'INTC@NASDAQ',
+  'AMD@NASDAQ', 'QCOM@NASDAQ', 'CSCO@NASDAQ', 'PEP@NASDAQ', 'COST@NASDAQ', 'PYPL@NASDAQ',
+  'WMT@NASDAQ',
+  'JPM@NYSE', 'V@NYSE', 'MA@NYSE', 'BAC@NYSE', 'KO@NYSE', 'DIS@NYSE',
+  'MCD@NYSE', 'NKE@NYSE', 'XOM@NYSE', 'CVX@NYSE', 'PG@NYSE', 'JNJ@NYSE', 'UNH@NYSE',
+  'HD@NYSE', 'ORCL@NYSE', 'CRM@NYSE', 'IBM@NYSE', 'GE@NYSE', 'BA@NYSE', 'GS@NYSE',
+  'BP@NYSE',
+  'MC@PA', 'OR@PA', 'SAN@PA', 'BNP@PA', 'TTE@PA', 'SU@PA', 'CAP@PA',
+  'RMS@PA', 'DG@PA', 'EL@PA', 'SAF@PA',
+  'SAP@DE', 'SIE@DE', 'BAS@DE', 'BMW@DE', 'VOW3@DE', 'DTE@DE', 'MBG@DE',
+  'SHEL@L', 'AZN@L', 'HSBA@L', 'ULVR@L', 'GSK@L', 'RIO@L', 'DGE@L',
+  'NESN@SW', 'NOVN@SW', 'RO@SW', 'UBSG@SW',
+  'ASML@AS', 'ADYEN@AS', 'ITX@MC', 'IBE@MC',
+  '005930@KO', '2330@TW', 'SHOP@TO', 'RY@TO',
+  'BHP@AU', 'CBA@AU',
+];
+const MARKETS_RANG_CONNU = new Map(MARKETS_VALEURS_CONNUES.map((id, i) => [id, i]));
 /* Accepte un jeu de filtres optionnel (le brouillon du panneau, voir
    marketsFilterDraft) pour calculer un compte de résultats "en direct"
    SANS toucher state.filters ni re-rendre la page derrière le panneau —
@@ -5555,7 +5592,12 @@ function marketsListeFiltree(f){
   if (region !== 'Monde') list = list.filter(s => REGION_OF_COUNTRY[s.country] === region);
   if (sector !== 'tous') list = list.filter(s => s.sector === sector);
   if (country !== 'tous') list = list.filter(s => paysAffiche(s.country) === country);
-  list.sort((a,b)=>a.name.localeCompare(b.name,'fr'));
+  list.sort((a,b) => {
+    const ra = MARKETS_RANG_CONNU.get(`${a.ticker}@${a.exchangeCode}`) ?? Infinity;
+    const rb = MARKETS_RANG_CONNU.get(`${b.ticker}@${b.exchangeCode}`) ?? Infinity;
+    if (ra !== rb) return ra - rb;
+    return a.name.localeCompare(b.name,'fr');
+  });
   return list;
 }
 /* Exactement les instruments actuellement révélés à l'écran (après
