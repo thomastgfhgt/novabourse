@@ -4007,7 +4007,12 @@ function stockRow(s, opts = {}){
   const q = QUOTES.get(s.id) || null;
   const prix = q && Number.isFinite(q.price) ? q.price : null;
   const varPct = q && Number.isFinite(q.changePercent) ? q.changePercent : null;
-  const hEntry = opts.spark === true ? HIST.get(s.id) : null;
+  /* Sparkline = séance du JOUR (période "1j", intraday 5min — voir
+     chargerGraphiquePeriode() dans render()), jamais le HIST par défaut
+     (~1 an quotidien, réservé à Comparer/volatilité) : une courbe d'un an
+     pourrait monter alors que le titre est en baisse aujourd'hui,
+     contredisant visuellement sa propre couleur verte/rouge. */
+  const hEntry = opts.spark === true ? HISTP.get(cleHISTP(s.id, '1j')) : null;
   const hist = (hEntry && hEntry.status === 'ready') ? hEntry.data.map(p => p.close) : null;
   /* Fraîcheur (voir api/market/_freshness.js / FRESHNESS_LABEL) : n'affiche
      rien tant qu'aucune cotation n'a été reçue pour cette ligne (prix = —
@@ -8388,10 +8393,17 @@ function render(navigated = false){
      grille Marché n'affichait donc jamais aucune courbe, quel que soit
      l'instrument). Même philosophie "à la demande" que assurerCotations()
      ci-dessus : uniquement les lignes RÉELLEMENT visibles de la page
-     courante, jamais tout le catalogue, et chargerGraphique() dédoublonne
-     déjà lui-même (HIST_ENCOURS/HIST) — un ré-appel sur un instrument
-     déjà chargé ou en cours ne redéclenche aucune requête réseau. */
-  if (route.page === 'markets') marketsListeVisible().forEach(s => { if (s) chargerGraphique(s); });
+     courante, jamais tout le catalogue.
+     Période "1j" (intraday 5min, voir PERIOD_SPECS côté history.js) et
+     non le défaut ~260 séances/1 an de chargerGraphique() (celui-ci
+     reste réservé à Comparer/volatilité, voir son propre commentaire) :
+     demande explicite de l'utilisateur, la mini-courbe doit représenter
+     la séance du JOUR, jamais une tendance longue qui pourrait aller à
+     l'encontre de sa propre couleur (verte/rouge selon varPct du jour).
+     chargerGraphiquePeriode() dédoublonne déjà lui-même (HISTP_ENCOURS/
+     HISTP) — un ré-appel sur un instrument déjà chargé ou en cours ne
+     redéclenche aucune requête réseau. */
+  if (route.page === 'markets') marketsListeVisible().forEach(s => { if (s) chargerGraphiquePeriode(s, '1j'); });
 
   /* view.innerHTML vient de remplacer tout le DOM : #chart-pro (s'il existe
      dans la page courante) est un nouveau noeud, l'éventuelle instance
