@@ -3184,6 +3184,53 @@ const INTRADAY = {
 };
 
 /* ============================================================
+   COUPE-CIRCUIT QUOTA JOURNALIER
+   ============================================================
+   Constaté en production (2026-09-29) : Twelve Data renvoie HTTP 429
+   avec le message exact "You have run out of API credits for the day"
+   quand le quota QUOTIDIEN (pas juste la limite par minute) est épuisé
+   — un signal GLOBAL, valable pour TOUTE requête à venir aujourd'hui,
+   pas un échec ponctuel du symbole demandé. Différent de MEMOIRE
+   (_router.js), qui ne fait que réordonner un fournisseur par
+   instrument sans jamais l'écarter : sans ce coupe-circuit, chaque
+   lot/instrument continuait de retenter Twelve Data en pure perte
+   (1 aller-retour réseau voué à l'échec par appel) jusqu'à ce que le
+   quota redevienne disponible de lui-même. TTL volontairement modéré
+   (15 min, jamais "jusqu'à demain") : l'heure exacte de
+   réinitialisation du quota Twelve Data n'est pas documentée avec
+   certitude — mieux vaut redécouvrir un peu trop tôt qu'attendre sur
+   une hypothèse fausse. Générique par nom de fournisseur : s'applique
+   à n'importe lequel s'il renvoie un jour le même type de signal,
+   jamais codé en dur pour Twelve Data seul. */
+const PROVIDER_COUPE_JUSQUA = new Map();
+const COUPE_CIRCUIT_DUREE_MS = 15 * 60 * 1000;
+
+function fournisseurCoupe(nom) {
+  const jusqua = PROVIDER_COUPE_JUSQUA.get(nom);
+  if (!jusqua) return false;
+  if (Date.now() >= jusqua) {
+    PROVIDER_COUPE_JUSQUA.delete(nom);
+    return false;
+  }
+  return true;
+}
+
+/**
+ * @param {string} nom - nom du fournisseur (clé de KEYS()/table)
+ * @param {*} corpsErreur - error.body de l'appel qui a échoué
+ * @returns {boolean} true si CE signal précis (quota journalier épuisé)
+ *   a été reconnu et le coupe-circuit activé — false pour toute autre
+ *   erreur (HTTP 429 "par minute", panne réseau, etc.), qui reste gérée
+ *   normalement (nouvelle tentative au prochain appel, jamais coupée).
+ */
+function signalerQuotaEpuise(nom, corpsErreur) {
+  const texte = String(corpsErreur || '');
+  if (!/run out of API credits for the day/i.test(texte)) return false;
+  PROVIDER_COUPE_JUSQUA.set(nom, Date.now() + COUPE_CIRCUIT_DUREE_MS);
+  return true;
+}
+
+/* ============================================================
    CASCADE
    ============================================================ */
 
@@ -3208,6 +3255,11 @@ async function cascade(
       !fn
       || !keys[nom]
     ) {
+      continue;
+    }
+
+    if (fournisseurCoupe(nom)) {
+      journal.push({ bloc, provider: nom, ok: false, reason: 'quota_journalier_epuise_connu' });
       continue;
     }
 
@@ -3248,6 +3300,8 @@ async function cascade(
       };
 
     } catch (error) {
+      signalerQuotaEpuise(nom, error.body);
+
       journal.push({
         bloc,
 
@@ -3900,6 +3954,8 @@ module.exports = {
   NEWS,
 
   cascade,
+  fournisseurCoupe,
+  signalerQuotaEpuise,
 
   KEYS,
 

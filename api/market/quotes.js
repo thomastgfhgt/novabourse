@@ -1,4 +1,4 @@
-const { BATCH, HISTORY, KEYS, idDe, ajusterPenceQuote } = require('./_providers.js');
+const { BATCH, HISTORY, KEYS, idDe, ajusterPenceQuote, fournisseurCoupe, signalerQuotaEpuise } = require('./_providers.js');
 const { lire, ecrire, avecVerrou } = require('./_cache.js');
 const { freshnessCotation, FRESHNESS, SOURCE_URL_PROVIDER } = require('./_freshness.js');
 const { chargerBloc, historiqueValide } = require('./_marketBlock.js');
@@ -129,6 +129,17 @@ module.exports = async (req, res) => {
       journal.push({ provider: nom, ok: false, reason: 'cle_absente' });
       continue;
     }
+    /* Coupe-circuit quota journalier (voir _providers.js,
+       fournisseurCoupe/signalerQuotaEpuise) : évite de retenter un
+       fournisseur dont un appel PRÉCÉDENT (cette requête ou une autre,
+       l'état est partagé au niveau processus) a déjà confirmé un
+       quota quotidien épuisé — un aller-retour réseau voué à l'échec
+       par lot économisé, sans attendre la fin de journée sur une
+       hypothèse fausse (TTL 15 min, voir sa définition). */
+    if (fournisseurCoupe(nom)) {
+      journal.push({ provider: nom, ok: false, reason: 'quota_journalier_epuise_connu' });
+      continue;
+    }
     const limite = Number(BATCH.limite?.[nom]);
     if (!Number.isFinite(limite) || limite <= 0) {
       journal.push({ provider: nom, ok: false, reason: 'limite_invalide' });
@@ -188,6 +199,7 @@ module.exports = async (req, res) => {
         reste = [...nonTestes, ...dejaTestes];
 
       } catch (error) {
+        signalerQuotaEpuise(nom, error.body);
         journal.push({ provider: nom, lot: numeroLot, ok: false, demandes: lot.length, reason: error.status ? `HTTP ${error.status}` : error.message });
         break;
       }
