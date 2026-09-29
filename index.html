@@ -3783,10 +3783,18 @@ function assurerLogo(url){
   img.onload = () => { LOGO_OK.add(url); LOGO_FAILED.delete(url); render(); };
   img.src = url;
 }
-const avatar = (s) => {
+/* `eager` (2e paramètre, true par défaut) : laisse tel quel tous les
+   appels existants (fiche action, Comparer, Radar — quelques avatars à
+   la fois, jamais un souci). Passé à false par marketsRows() au-delà de
+   CHARGEMENT_MASSE_MAX_SYMBOLES lignes visibles (voir son propre
+   commentaire, même bug de fluidité que pour les sparklines) : un logo
+   DÉJÀ en cache (LOGO_OK) s'affiche quand même, seule une NOUVELLE
+   tentative de chargement est différée plutôt que lancée pour une carte
+   loin sous le pli. */
+const avatar = (s, eager = true) => {
   const url = logoUrl(s);
   const pret = url && LOGO_OK.has(url);
-  if (url && !pret && !LOGO_FAILED.has(url)) assurerLogo(url);
+  if (eager && url && !pret && !LOGO_FAILED.has(url)) assurerLogo(url);
   return `<span class="av" style="background:${SECTOR_HUE[s.sector]||'#64748b'}">${esc(s.ticker.slice(0,2))}${pret
     ? `<img src="${esc(url)}" alt="" decoding="async">` : ''}</span>`;
 };
@@ -4052,7 +4060,7 @@ function stockRow(s, opts = {}){
   return `<div class="row">
     <button style="display:flex;align-items:center;gap:10px;flex:1;min-width:0;text-align:left"
       data-stock="${esc(s.id)}">
-      ${avatar(s)}
+      ${avatar(s, opts.logo !== false)}
       <span class="row-main">
         <span class="row-t">${esc(s.ticker)}</span>
         <span class="row-s">${esc(s.name)}</span>
@@ -5748,7 +5756,12 @@ function marketsRows(){
      plus"), réinitialisé à 20 dès qu'on applique de nouveaux filtres. */
   const visibles = state.filters.marketsVisibles || 20;
   const page = list.slice(0, visibles);
-  return page.map(s=>stockRow(s, {spark:true})).join('') + (list.length > page.length
+  /* logo:false au-delà de CHARGEMENT_MASSE_MAX_SYMBOLES : même plafond
+     et même raison que pour les sparklines juste au-dessus (render()) —
+     "Voir plus" répété fait grimper `visibles` sans limite, un logo
+     encore INCONNU au-delà de ce plafond ne doit pas lancer sa propre
+     requête (un déjà en cache s'affiche quand même, voir avatar()). */
+  return page.map((s,i)=>stockRow(s, {spark:true, logo: i < CHARGEMENT_MASSE_MAX_SYMBOLES})).join('') + (list.length > page.length
     ? `<button class="btn btn-ghost btn-sm" style="width:100%;margin-top:12px" data-markets-plus="1">
         Voir plus (${list.length - page.length} restants)</button>`
     : '');
@@ -8422,8 +8435,19 @@ function render(navigated = false){
      l'encontre de sa propre couleur (verte/rouge selon varPct du jour).
      chargerGraphiquePeriode() dédoublonne déjà lui-même (HISTP_ENCOURS/
      HISTP) — un ré-appel sur un instrument déjà chargé ou en cours ne
-     redéclenche aucune requête réseau. */
-  if (route.page === 'markets') marketsListeVisible().forEach(s => { if (s) chargerGraphiquePeriode(s, '1j'); });
+     redéclenche aucune requête réseau.
+     CORRECTIF (fluidité, bug réel trouvé en test) : marketsListeVisible()
+     n'est PAS plafonnée à 20 — "Voir plus" fait grimper marketsVisibles
+     sans limite (confirmé en test : 140 après quelques clics), et
+     contrairement à assurerCotations() juste au-dessus (lots de 8, par
+     vagues plafonnées), cette boucle partait sans AUCUN plafond : 140
+     lignes visibles -> 140 requêtes /api/market/history simultanées.
+     Plafonné à CHARGEMENT_MASSE_MAX_SYMBOLES (même constante que le
+     chargement de masse ci-dessous) : au-delà, les lignes les plus bas
+     dans la page restent simplement sans sparkline plutôt que de
+     surcharger le réseau pour des cartes hors ou presque hors écran. */
+  if (route.page === 'markets') marketsListeVisible().slice(0, CHARGEMENT_MASSE_MAX_SYMBOLES)
+    .forEach(s => { if (s) chargerGraphiquePeriode(s, '1j'); });
 
   /* view.innerHTML vient de remplacer tout le DOM : #chart-pro (s'il existe
      dans la page courante) est un nouveau noeud, l'éventuelle instance
