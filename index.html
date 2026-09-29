@@ -7285,6 +7285,11 @@ async function initAuth(){
     return null;
   }
   const { createClient } = await import('https://esm.sh/@supabase/supabase-js@2');
+  /* detectSessionInUrl:true INCHANGÉ (voir correctif juste plus bas,
+     `if (url.searchParams.get('code'))`) : nécessaire aussi au flux
+     e-mail (confirmation d'inscription/réinitialisation de mot de passe,
+     signUp()/resetPasswordForEmail() plus bas, tokens en #hash) — le
+     désactiver casserait ces deux flux, pas seulement Google. */
   sbClient = createClient(CONFIG.supabaseUrl, CONFIG.supabaseAnonKey, {
     auth: { persistSession:true, autoRefreshToken:true, detectSessionInUrl:true,
             flowType:'pkce', storage:window.localStorage,
@@ -7321,8 +7326,23 @@ async function initAuth(){
       window.history.replaceState({}, '', url.pathname);
     }
     if (url.searchParams.get('code')){
-      const { error } = await sbClient.auth.exchangeCodeForSession(window.location.href);
-      if (error) console.warn('[auth] échange du code :', error.message);
+      /* CORRECTIF (2026-09-29, retour utilisateur : "on nous demande
+         parfois de nous connecter 2 fois à Google") : cet appel manuel
+         à exchangeCodeForSession() faisait DOUBLE EMPLOI avec la
+         détection automatique de detectSessionInUrl:true (client créé
+         juste au-dessus), qui traite déjà ce même `code` PKCE en
+         interne dès sa création — un vrai bug de course documenté par
+         Supabase (un code PKCE n'est échangeable qu'UNE SEULE FOIS,
+         5 minutes de validité) : selon l'ordre d'arrivée entre les deux
+         tentatives, l'une des deux échouait silencieusement ("code
+         already used"/"invalid grant"), laissant parfois l'utilisateur
+         en 'guest' après un premier clic sur "Continuer avec Google"
+         pourtant réussi côté Google — d'où la nécessité de recliquer.
+         Retiré au profit d'une simple attente (même principe que la
+         branche #access_token juste en dessous, qui s'appuyait déjà
+         SEULEMENT sur la détection automatique, jamais sur un appel
+         manuel) avant de nettoyer l'URL. */
+      await new Promise(r => setTimeout(r, 60));
       url.searchParams.delete('code');
       url.searchParams.delete('state');
       window.history.replaceState({}, '', url.pathname + url.search + url.hash);
