@@ -4011,9 +4011,29 @@ function stockRow(s, opts = {}){
      chargerGraphiquePeriode() dans render()), jamais le HIST par défaut
      (~1 an quotidien, réservé à Comparer/volatilité) : une courbe d'un an
      pourrait monter alors que le titre est en baisse aujourd'hui,
-     contredisant visuellement sa propre couleur verte/rouge. */
+     contredisant visuellement sa propre couleur verte/rouge.
+     CORRECTIF (retour utilisateur explicite : "je veux que les courbes
+     soient effectivement celle d'aujourd'hui, ne mets pas des courbes qui
+     ne sont pas celle de l'action") — vérifié en direct sur la vraie
+     réponse EODHD (fresh=1) : le fournisseur d'historique intraday de ce
+     forfait a un décalage d'environ 1 jour calendaire (la requête "1j"
+     redescend bien la fenêtre glissante des dernières 24h, mais EODHD n'a
+     pas encore publié les barres du jour même — dernier point observé à
+     la clôture d'HIER, pas la séance en cours). Twelve Data (fournisseur
+     de repli) était aussi à quota épuisé au moment du test. Plutôt que
+     d'afficher silencieusement une courbe d'hier comme si c'était
+     aujourd'hui, on vérifie explicitement que le DERNIER point reçu
+     tombe bien à la date du jour (UTC) avant de la considérer valide —
+     sinon aucune courbe n'est affichée pour cette ligne (même état
+     honnête que "pas encore chargé"), jamais une courbe du mauvais jour.
+     Dès qu'EODHD publiera les barres du jour (généralement après un
+     certain délai, parfois le lendemain), cette vérification laissera
+     la courbe réapparaître automatiquement, sans aucun changement de
+     code supplémentaire. */
   const hEntry = opts.spark === true ? HISTP.get(cleHISTP(s.id, '1j')) : null;
-  const hist = (hEntry && hEntry.status === 'ready') ? hEntry.data.map(p => p.close) : null;
+  const dernierPointEstAujourdhui = hEntry && hEntry.status === 'ready' && hEntry.data.length
+    && hEntry.data[hEntry.data.length - 1].date.slice(0, 10) === new Date().toISOString().slice(0, 10);
+  const hist = dernierPointEstAujourdhui ? hEntry.data.map(p => p.close) : null;
   /* Fraîcheur (voir api/market/_freshness.js / FRESHNESS_LABEL) : n'affiche
      rien tant qu'aucune cotation n'a été reçue pour cette ligne (prix = —
      déjà suffisamment honnête) ; sinon montre TOUJOURS le libellé exact
