@@ -5789,9 +5789,24 @@ function wireMarketsPaysSearch(){
 }
 
 /* ---------- FICHE ENTREPRISE ---------- */
+/* CORRECTIF (bug réel confirmé en test : ouvrir AAPL, cliquer l'onglet
+   "Actions" — quasi vide, seulement Comparer/Liste/Alerte — puis revenir
+   et ouvrir une AUTRE société rouvre AUSSI sur "Actions", donnant
+   l'impression que "plein d'actions n'affichent absolument rien" alors
+   que Vue d'ensemble (graphique, cours, fondamentaux) existe bel et bien
+   mais n'est jamais affiché. Cause : state.ui.stockTab est UNE SEULE
+   valeur globale persistée (localStorage), jamais réinitialisée par
+   société. derniereFicheStockId permet de ne réinitialiser sur "Vue
+   d'ensemble" QUE lors d'un changement RÉEL de société (jamais lors d'un
+   simple re-render de la même fiche, ex. rafraîchissement du cours). */
+let derniereFicheStockId = null;
 PAGES.stock = (id) => {
   const s = byId[id]; if (!s) return emptyState('Entreprise introuvable',
     'Cette entreprise ne figure pas dans le catalogue actuel.');
+  if (derniereFicheStockId !== id){
+    derniereFicheStockId = id;
+    state.ui.stockTab = 'apercu';
+  }
   const p = profileOf(s.score), pos = positionOf(s.id);
   const f = s.fundamentals;
   const strong = strengths(s), weak = weaknesses(s);
