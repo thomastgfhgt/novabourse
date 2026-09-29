@@ -726,6 +726,13 @@ a.row{color:inherit;text-decoration:none}
   margin-left:-10px;margin-right:-10px;border-color:transparent}
 .av{width:40px;height:40px;border-radius:12px;display:flex;align-items:center;justify-content:center;flex:0 0 auto;
   font-size:13px;font-weight:700;letter-spacing:-.03em;color:#fff;position:relative;overflow:hidden}
+/* Plus compact dans une ligne de liste (Marchés, Suivi, Radar...) : 40px
+   + 14px de gap y coûtait trop de largeur à côté de la sparkline et du
+   prix, au point de faire tronquer jusqu'au TICKER lui-même ("AAPL" ->
+   "AA…") sur les cartes de la grille — confirmé en test. Le grand format
+   (40px) reste réservé à l'en-tête plein-largeur de la fiche action. */
+.row .av{width:30px;height:30px;border-radius:9px;font-size:11px}
+.row .av img{padding:4px}
 /* Logo réel par-dessus les initiales (jamais à la place) : l'image est en
    position absolute, couvre tout le badge si elle charge ; onerror la
    retire du DOM (this.remove()) et les initiales déjà présentes en
@@ -1390,7 +1397,7 @@ a.row{color:inherit;text-decoration:none}
   /* auto-fit,minmax(...) : même convention que .g-2/.g-3 déjà présents
      dans ce fichier pour les grilles de cartes — colonnes fluides selon
      la largeur réelle, jamais un nombre de colonnes figé par palier. */
-  .rows-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:10px}
+  .rows-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:10px}
   .rows-grid .row{border-bottom:none;border-radius:var(--r-m);padding:14px 16px;margin:0;
     background:var(--bg-2);transition:background var(--fast) ease,transform var(--fast) var(--spring),
       box-shadow var(--fast) var(--spring)}
@@ -3748,17 +3755,40 @@ const SECTOR_HUE = { 'Technologie':'#0071e3','Finance':'#5b4ae0','Santé':'#e040
    directement exchangeCode, déjà la même convention que eodhdSymbol()
    côté serveur pour PA/MI/HK — vérifié sur MC.PA, ISP.MI, 0700.HK -> 200
    réels. Couverture partielle assumée (ex. AAPL lui-même 404 malgré sa
-   taille) : jamais bloquant, voir onerror sur l'<img> dans avatar(). */
+   taille) : jamais bloquant, voir LOGO_OK/LOGO_FAILED ci-dessous.
+   CORRECTIF (bug réel confirmé en test : image jamais chargée, case
+   blanche vide au lieu des initiales) — view.innerHTML est reconstruit en
+   entier à CHAQUE render() (confirmé : 7 fois en 3s rien qu'au premier
+   affichage de Marchés, un par cotation/graphique qui arrive). Un <img>
+   posé directement dans le HTML généré est donc détruit et recréé à
+   chaque render(), avant que sa requête réseau ait la moindre chance
+   d'aboutir — un verrou mort (livelock), jamais un simple ralentissement.
+   Solution : précharger via new Image() (objet JS détaché du DOM, jamais
+   affecté par la reconstruction de view.innerHTML), et ne poser un <img>
+   dans le template QUE lorsque l'URL est déjà confirmée en cache
+   navigateur (LOGO_OK) — le <img> alors rendu se peint instantanément
+   depuis le cache, sans nouvelle requête réseau ni risque de coupure. */
 const LOGO_PLACES_US = new Set(['NASDAQ','NYSE','NYSE ARCA','US']);
 function logoUrl(s){
   if (!s || !s.ticker || (s.type !== 'stock' && s.type !== 'etf')) return null;
   const suffixe = s.exchangeCode && !LOGO_PLACES_US.has(s.exchangeCode) ? '.' + s.exchangeCode : '';
   return `https://financialmodelingprep.com/image-stock/${encodeURIComponent(s.ticker + suffixe)}.png`;
 }
+const LOGO_OK = new Set();
+const LOGO_FAILED = new Set();
+function assurerLogo(url){
+  if (!url || LOGO_OK.has(url) || LOGO_FAILED.has(url)) return;
+  LOGO_FAILED.add(url);   // pose immédiatement : une seule tentative par URL, jamais de boucle si onload ne répond jamais
+  const img = new Image();
+  img.onload = () => { LOGO_OK.add(url); LOGO_FAILED.delete(url); render(); };
+  img.src = url;
+}
 const avatar = (s) => {
   const url = logoUrl(s);
-  return `<span class="av" style="background:${SECTOR_HUE[s.sector]||'#64748b'}">${esc(s.ticker.slice(0,2))}${url
-    ? `<img src="${esc(url)}" alt="" loading="lazy" decoding="async" onerror="this.remove()">` : ''}</span>`;
+  const pret = url && LOGO_OK.has(url);
+  if (url && !pret && !LOGO_FAILED.has(url)) assurerLogo(url);
+  return `<span class="av" style="background:${SECTOR_HUE[s.sector]||'#64748b'}">${esc(s.ticker.slice(0,2))}${pret
+    ? `<img src="${esc(url)}" alt="" decoding="async">` : ''}</span>`;
 };
 const scoreColor = (v) => v === null || v === undefined ? 'var(--ink-4)' : v >= 70 ? 'var(--up)' : v >= 50 ? 'var(--warn)' : 'var(--down)';
 
@@ -3995,7 +4025,7 @@ function stockRow(s, opts = {}){
   if (flashRow) PRICE_FLASH.delete(s.id);
 
   return `<div class="row">
-    <button style="display:flex;align-items:center;gap:14px;flex:1;min-width:0;text-align:left"
+    <button style="display:flex;align-items:center;gap:10px;flex:1;min-width:0;text-align:left"
       data-stock="${esc(s.id)}">
       ${avatar(s)}
       <span class="row-main">
