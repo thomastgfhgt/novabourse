@@ -948,11 +948,21 @@ a.row{color:inherit;text-decoration:none}
    descendre") : 140px/86px prenait à lui seul près d'un quart d'un
    écran de téléphone en hauteur avant même le titre. 64px/38px reste
    parfaitement lisible en icône de marque, sans le poids d'un hero. */
+/* Recoloré (2026-09-29, retour utilisateur : "je voudrais une animation
+   stylée d'ouverture") : anneau gris neutre (--ink-4) -> couleurs de
+   marque (orange primaire + cyan secondaire), même philosophie que le
+   commentaire ci-dessus ("aucune nouvelle animation inventée" — reste
+   le même .brand-ring partagé gate/loading, juste réaligné sur
+   l'identité NovaTitre au lieu de rester gris comme avant le pivot).
+   Halo doux ajouté (drop-shadow), même principe que le temple. */
 .brand-orbit{position:relative;display:flex;align-items:center;justify-content:center;
-  width:64px;height:64px;margin:0 auto}
-.brand-ring{position:absolute;inset:0;width:100%;height:100%;color:var(--ink-4);opacity:.4;
+  width:64px;height:64px;margin:0 auto;
+  filter:drop-shadow(0 0 10px rgba(230,126,34,.25)) drop-shadow(0 0 16px rgba(0,212,255,.15))}
+.brand-ring{position:absolute;inset:0;width:100%;height:100%;opacity:.85;
   animation:ringSpin 9s linear infinite}
-.brand-ring circle:last-child{animation:ringSpin 6s linear infinite reverse;transform-origin:60px 60px}
+.brand-ring circle:first-child{color:var(--accent)}
+.brand-ring circle:last-child{color:var(--blue-accent);
+  animation:ringSpin 6s linear infinite reverse;transform-origin:60px 60px}
 @keyframes ringSpin{to{transform:rotate(360deg)}}
 .brand-mark{display:flex;align-items:center;justify-content:center;width:38px;height:38px;
   background:none;color:var(--ink);box-shadow:none;border-radius:0;
