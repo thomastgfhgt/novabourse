@@ -1147,10 +1147,17 @@ a.row{color:inherit;text-decoration:none}
   0%,100%{ filter:drop-shadow(0 0 3px rgba(255,255,255,.20)) drop-shadow(0 0 11px rgba(0,212,255,.08)) }
   50%{ filter:drop-shadow(0 0 7px rgba(255,255,255,.32)) drop-shadow(0 0 20px rgba(0,212,255,.20)) }
 }
+/* CORRECTIF (2026-09-29, retour utilisateur : "le temple prend du temps
+   à se lancer... je voudrais une animation stylée d'ouverture") : la
+   cascade complète (dernier élément .78s + sa propre durée .6s) prenait
+   ~1,38s avant d'être entièrement visible — resserrée à ~0,77s (délais
+   des colonnes réduits de moitié, marches à .42s au lieu de .78s, durée
+   de fondu de chaque partie .35s au lieu de .6s) : même effet "le
+   temple se construit" en cascade, nettement plus vif à l'ouverture. */
 .nova-temple{
-  animation:templeScaleIn .9s cubic-bezier(.22,1,.36,1) both,
+  animation:templeScaleIn .5s cubic-bezier(.22,1,.36,1) both,
     templeGlowPulse 4.5s ease-in-out 1s infinite}
-.temple-part{opacity:0;animation:templePartIn .6s cubic-bezier(.22,1,.36,1) both}
+.temple-part{opacity:0;animation:templePartIn .35s cubic-bezier(.22,1,.36,1) both}
 /* Survol desktop uniquement (§ voir .nova-action-circle:hover plus haut
    pour le même principe) : le halo s'intensifie légèrement, purement
    décoratif, jamais nécessaire pour comprendre/utiliser la page. */
@@ -4611,14 +4618,14 @@ PAGES.home = () => {
              calculé depuis ses tracés, pas estimé) pour une largeur cible
              d'environ 95px, puis positionné au centre du fronton. Jamais
              redessiné : mêmes 3 <path> que .logo-m dans le header. -->
-        <g class="nova-temple-brand temple-part" style="animation-delay:.15s"
+        <g class="nova-temple-brand temple-part" style="animation-delay:.08s"
            transform="translate(500 170) scale(.1314) translate(-763.5 -477)">
           <path d="M 770,180 L 781,283 L 781,293 L 783,303 L 784,324 L 802,500 L 803,521 L 808,559 L 808,569 L 810,583 L 815,594 L 828,607 L 1028,718 L 1125,770 L 949,475 Z"/>
           <path d="M 758,181 L 616,414 L 402,770 L 410,766 L 510,699 L 615,626 L 741,535 L 754,520 L 758,508 Z"/>
           <path d="M 410,774 L 1120,774 L 861,663 L 849,659 L 747,615 L 727,608 L 712,608 L 697,614 L 572,686 Z"/>
         </g>
         ${[125,295,575,745].map((tx,i) => `
-        <g class="temple-col temple-part" style="animation-delay:${(.28 + i*.11).toFixed(2)}s" transform="translate(${tx} 0)">
+        <g class="temple-col temple-part" style="animation-delay:${(.15 + i*.06).toFixed(2)}s" transform="translate(${tx} 0)">
           <line x1="0" y1="305" x2="130" y2="305" class="temple-line temple-main"/>
           <line x1="12" y1="323" x2="118" y2="323" class="temple-line temple-secondary"/>
           <path d="M20 348 Q32 312 49 340 Q65 305 78 340 Q96 312 110 348" class="temple-line temple-main"/>
@@ -4630,7 +4637,7 @@ PAGES.home = () => {
           <line x1="30" y1="615" x2="100" y2="615" class="temple-line temple-secondary"/>
           <line x1="18" y1="635" x2="112" y2="635" class="temple-line temple-main"/>
         </g>`).join('')}
-        <g class="temple-steps temple-part" style="animation-delay:.78s">
+        <g class="temple-steps temple-part" style="animation-delay:.42s">
           <line x1="105" y1="655" x2="895" y2="655" class="temple-line temple-main"/>
           <line x1="75" y1="680" x2="925" y2="680" class="temple-line temple-main"/>
           <line x1="45" y1="705" x2="955" y2="705" class="temple-line temple-main"/>
@@ -8211,14 +8218,15 @@ function render(navigated = false){
      téléphone" que ci-dessus) : au cas où le recalcul forcé plus haut ne
      suffirait pas sur un navigateur/appareil imprévu, force l'état final
      visible après le délai maximum que l'animation d'apparition peut
-     prendre (dernier delai .78s + durée .6s ≈ 1.4s, marge prise à 1.6s).
+     prendre (dernier délai .42s + durée .35s ≈ 0,77s, marge prise à
+     1000ms — cascade resserrée le 2026-09-29, voir templePartIn/CSS).
      Ne change rien de visible quand l'animation CSS a normalement joué
      (elle est déjà à opacity:1 à ce moment-là) ; rattrape seulement le
      cas où elle ne s'est jamais déclenchée. */
   if (document.querySelector('.temple-part')){
     setTimeout(() => {
       document.querySelectorAll('.temple-part').forEach(el => { el.style.opacity = '1'; });
-    }, 1600);
+    }, 1000);
   }
   paintNav();
   syncAllSegPills();
