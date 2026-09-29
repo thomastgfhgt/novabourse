@@ -24,7 +24,8 @@
     "test-nova-review-ia": "node scripts/test-nova-review-ia.js",
     "test-fundamentals-eodhd": "node scripts/test-fundamentals-eodhd.js",
     "test-secedgar": "node scripts/test-secedgar.js",
-    "test-circuit-breaker": "node scripts/test-circuit-breaker.js"
+    "test-circuit-breaker": "node scripts/test-circuit-breaker.js",
+    "test-eodhd-hk-ticker": "node scripts/test-eodhd-hk-ticker.js"
   },
   "dependencies": {
     "stripe": "^16.12.0"

@@ -432,11 +432,33 @@ const eodhdSymbol = (
     );
   }
 
-  return `${ticker}.${
-    SUFFIX[exchange]
-    || exchange
-    || 'US'
-  }`;
+  const suffixeResolu = SUFFIX[exchange] || exchange || 'US';
+
+  /* CORRECTIF (2026-09-29, retour utilisateur : "plein d'actions
+     n'affichent rien du tout") — bug RÉEL trouvé en testant un échantillon
+     aléatoire de 30 valeurs du catalogue mondial (pas seulement les
+     grandes capitalisations déjà vérifiées) : 0/14 valeurs de Hong Kong
+     avaient un prix, alors que TOUTES les autres places testées étaient à
+     86-100 %. Diagnostiqué en direct contre l'API réelle : le catalogue
+     (free-ticker-database) stocke SYSTÉMATIQUEMENT les tickers HK sur 5
+     chiffres avec zéro de tête ("00001"), mais EODHD n'en reconnaît que 4
+     ("0001.HK" répond avec un prix réel, 68,25 — "00001.HK" et "1.HK"
+     échouent tous les deux, "Ticker Not Found"). Vérifié sur l'ensemble
+     du catalogue HK (2854 tickers) : seuls 4 d'entre eux (80737, 80941,
+     83168, 87001 — probablement des produits structurés/warrants,
+     convention HKEX distincte) ont réellement 5 chiffres significatifs,
+     tous les autres n'ont que des zéros de tête en trop. Number(ticker)
+     puis padStart(4,'0') traite les deux cas correctement : "00001" -> 1
+     -> "0001" (correct), "80737" -> 80737 -> "80737" (déjà ≥4 chiffres,
+     jamais tronqué) — jamais une perte de chiffre significatif. Affecte
+     UNIQUEMENT le symbole envoyé à EODHD, jamais le ticker affiché/stocké
+     ailleurs dans l'app (recherche, catalogue, affichage), qui reste la
+     forme HKEX standard à 5 chiffres. */
+  const tickerAjuste = (suffixeResolu === 'HK' && /^\d+$/.test(ticker))
+    ? String(Number(ticker)).padStart(4, '0')
+    : ticker;
+
+  return `${tickerAjuste}.${suffixeResolu}`;
 };
 
 /* ============================================================
