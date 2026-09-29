@@ -725,7 +725,14 @@ a.row{color:inherit;text-decoration:none}
 .row:hover{background:var(--bg-2);border-radius:var(--r-s);padding-left:10px;padding-right:10px;
   margin-left:-10px;margin-right:-10px;border-color:transparent}
 .av{width:40px;height:40px;border-radius:12px;display:flex;align-items:center;justify-content:center;flex:0 0 auto;
-  font-size:13px;font-weight:700;letter-spacing:-.03em;color:#fff}
+  font-size:13px;font-weight:700;letter-spacing:-.03em;color:#fff;position:relative;overflow:hidden}
+/* Logo réel par-dessus les initiales (jamais à la place) : l'image est en
+   position absolute, couvre tout le badge si elle charge ; onerror la
+   retire du DOM (this.remove()) et les initiales déjà présentes en
+   dessous redeviennent visibles sans aucun état JS à gérer — dégradation
+   gracieuse garantie même si le logo n'existe pas pour ce ticker/place. */
+.av img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;
+  background:#fff;padding:7px;box-sizing:border-box;border-radius:inherit}
 .row-main{flex:1;min-width:0}
 /* CORRECTIF (même bug que ci-dessus, vérifié en direct) : overflow:hidden
    et text-overflow:ellipsis n'ont AUCUN effet sur un élément inline (un
@@ -1362,7 +1369,7 @@ a.row{color:inherit;text-decoration:none}
    provoquant un défilement horizontal inattendu sur mobile. Supprimée
    plutôt que fusionnée : elle n'apportait rien que la première ne fasse
    déjà (même taille, même graisse, +.01em de letter-spacing négligeable). */
-.row-s{font-size:13px;color:var(--ink-3);margin-top:2px;overflow:hidden;
+.row-s{display:block;font-size:13px;color:var(--ink-3);margin-top:2px;overflow:hidden;
   text-overflow:ellipsis;white-space:nowrap}
 .row-end{display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex:0 0 auto;min-width:92px}
 .row-px{font-size:15.5px;font-weight:600;letter-spacing:-.02em}
@@ -3734,7 +3741,25 @@ const svg = (d, w = 1.8) => {
 const SECTOR_HUE = { 'Technologie':'#0071e3','Finance':'#5b4ae0','Santé':'#e0407a','Industrie':'#c47f0a',
   'Énergie':'#d2691e','Consommation':'#00a651','Automobile':'#0891b2','Luxe':'#a855c7',
   'Télécommunications':'#64748b' };
-const avatar = (s) => `<span class="av" style="background:${SECTOR_HUE[s.sector]||'#64748b'}">${esc(s.ticker.slice(0,2))}</span>`;
+/* Logo réel (financialmodelingprep.com/image-stock/, endpoint public sans
+   clé, vérifié empiriquement le 2026-09-29 : par ticker nu pour le
+   composite US ("AAPL.png" -> 200 réel, "AAPL.US.png"/"AAPL.NASDAQ.png"
+   -> 404), par "TICKER.SUFFIXE" pour les places hors US en réutilisant
+   directement exchangeCode, déjà la même convention que eodhdSymbol()
+   côté serveur pour PA/MI/HK — vérifié sur MC.PA, ISP.MI, 0700.HK -> 200
+   réels. Couverture partielle assumée (ex. AAPL lui-même 404 malgré sa
+   taille) : jamais bloquant, voir onerror sur l'<img> dans avatar(). */
+const LOGO_PLACES_US = new Set(['NASDAQ','NYSE','NYSE ARCA','US']);
+function logoUrl(s){
+  if (!s || !s.ticker || (s.type !== 'stock' && s.type !== 'etf')) return null;
+  const suffixe = s.exchangeCode && !LOGO_PLACES_US.has(s.exchangeCode) ? '.' + s.exchangeCode : '';
+  return `https://financialmodelingprep.com/image-stock/${encodeURIComponent(s.ticker + suffixe)}.png`;
+}
+const avatar = (s) => {
+  const url = logoUrl(s);
+  return `<span class="av" style="background:${SECTOR_HUE[s.sector]||'#64748b'}">${esc(s.ticker.slice(0,2))}${url
+    ? `<img src="${esc(url)}" alt="" loading="lazy" decoding="async" onerror="this.remove()">` : ''}</span>`;
+};
 const scoreColor = (v) => v === null || v === undefined ? 'var(--ink-4)' : v >= 70 ? 'var(--up)' : v >= 50 ? 'var(--warn)' : 'var(--down)';
 
 const starBtn = (id) => {
@@ -3972,6 +3997,7 @@ function stockRow(s, opts = {}){
   return `<div class="row">
     <button style="display:flex;align-items:center;gap:14px;flex:1;min-width:0;text-align:left"
       data-stock="${esc(s.id)}">
+      ${avatar(s)}
       <span class="row-main">
         <span class="row-t">${esc(s.ticker)}</span>
         <span class="row-s">${esc(s.name)}</span>
@@ -5667,7 +5693,7 @@ function marketsRows(){
      plus"), réinitialisé à 20 dès qu'on applique de nouveaux filtres. */
   const visibles = state.filters.marketsVisibles || 20;
   const page = list.slice(0, visibles);
-  return page.map(s=>stockRow(s)).join('') + (list.length > page.length
+  return page.map(s=>stockRow(s, {spark:true})).join('') + (list.length > page.length
     ? `<button class="btn btn-ghost btn-sm" style="width:100%;margin-top:12px" data-markets-plus="1">
         Voir plus (${list.length - page.length} restants)</button>`
     : '');
@@ -8325,6 +8351,17 @@ function render(navigated = false){
   if (resteACombler.length) assurerCotations(resteACombler);
   if (idsVisibles.length) demarrerRafraichissementVivant(idsVisibles);
   else arreterRafraichissementVivant();
+
+  /* Sparklines de la grille Marché (bug réel confirmé en test : stockRow()
+     sait dessiner une mini-courbe depuis longtemps via opts.spark, mais
+     RIEN dans toute l'application ne passait jamais spark:true — la
+     grille Marché n'affichait donc jamais aucune courbe, quel que soit
+     l'instrument). Même philosophie "à la demande" que assurerCotations()
+     ci-dessus : uniquement les lignes RÉELLEMENT visibles de la page
+     courante, jamais tout le catalogue, et chargerGraphique() dédoublonne
+     déjà lui-même (HIST_ENCOURS/HIST) — un ré-appel sur un instrument
+     déjà chargé ou en cours ne redéclenche aucune requête réseau. */
+  if (route.page === 'markets') marketsListeVisible().forEach(s => { if (s) chargerGraphique(s); });
 
   /* view.innerHTML vient de remplacer tout le DOM : #chart-pro (s'il existe
      dans la page courante) est un nouveau noeud, l'éventuelle instance
