@@ -5582,12 +5582,34 @@ const MARKETS_RANG_CONNU = new Map(MARKETS_VALEURS_CONNUES.map((id, i) => [id, i
    SANS toucher state.filters ni re-rendre la page derrière le panneau —
    state.filters par défaut pour tous les appels existants (liste
    affichée, pagination, rafraîchissement vivant). */
+/* CORRECTIF PERF (2026-09-29, mesuré en direct) : render() appelle
+   marketsListeFiltree() (via marketsListeFiltree()) TROIS FOIS pour un
+   seul rendu de la page Marchés — une fois dans marketsRows() (affichage),
+   une fois via listesParRoute.markets (cotations à combler) et une fois
+   via liveParRoute.markets (rafraîchissement vivant), toutes les trois
+   avec EXACTEMENT les mêmes filtres. Confirmé par compteur d'appels en
+   direct : 3 appels par navigation vers Marchés, donc 3× le coût du tri
+   (déjà optimisé, voir plus bas) pour un résultat strictement identique
+   à chaque fois. Mémoïsé ici par valeur de filtres (jamais par identité
+   d'objet, `state.filters` pouvant être muté sans être remplacé) — clé
+   incluant `stocks.length` pour invalider automatiquement si le
+   catalogue s'enrichit en cours de session (recherche/catalogue runtime),
+   jamais un résultat obsolète. Uniquement pour l'appel SANS argument
+   explicite (les filtres RÉELLEMENT actifs) : un appel avec un brouillon
+   de filtres (panneau Filtres, aperçu "en direct") n'est jamais mis en
+   cache, car chaque frappe y change potentiellement le résultat. */
+let _marketsListeCache = null;
 function marketsListeFiltree(f){
+  const utiliseFiltresCourants = !f;
   f = f || state.filters;
   const cat = f.marketsCategory || 'tous';
   const region = f.marketsRegion || 'Monde';
   const sector = f.marketsSector || 'tous';
   const country = f.marketsCountry || 'tous';
+  if (utiliseFiltresCourants){
+    const cle = `${cat}|${region}|${sector}|${country}|${stocks.length}`;
+    if (_marketsListeCache && _marketsListeCache.cle === cle) return _marketsListeCache.resultat;
+  }
   let list = cat === 'tous' ? [...stocks] : stocks.filter(s => s.type === cat);
   if (region !== 'Monde') list = list.filter(s => REGION_OF_COUNTRY[s.country] === region);
   if (sector !== 'tous') list = list.filter(s => s.sector === sector);
@@ -5606,7 +5628,11 @@ function marketsListeFiltree(f){
     rang: MARKETS_RANG_CONNU.get(`${s.ticker}@${s.exchangeCode}`) ?? Infinity,
   }));
   decore.sort((a,b) => a.rang !== b.rang ? a.rang - b.rang : a.s.name.localeCompare(b.s.name,'fr'));
-  return decore.map(d => d.s);
+  const resultat = decore.map(d => d.s);
+  if (utiliseFiltresCourants){
+    _marketsListeCache = { cle: `${cat}|${region}|${sector}|${country}|${stocks.length}`, resultat };
+  }
+  return resultat;
 }
 /* Exactement les instruments actuellement révélés à l'écran (après
    pagination) — c'est CETTE liste, jamais la catégorie entière, qui doit
