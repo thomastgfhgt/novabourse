@@ -1379,7 +1379,15 @@ a.row{color:inherit;text-decoration:none}
 @media (prefers-reduced-motion:reduce){ .row-px.flash-up,.row-px.flash-down{animation:none} }
 .row-var{font-size:14.3px;font-weight:550}
 .row-var.na{color:var(--ink-4)}
-.row-spark{flex:0 0 auto;width:80px;height:40px;overflow:hidden;margin-right:14px}
+/* CORRECTIF (bug réel mesuré en production, 2026-09-30) : 80x40 + carte
+   min-width:320px ne laissait plus que 41px pour TOUT .row-main (ticker
+   + nom empilés) -- mesuré sur "LVMH Moët Hennessy - Louis Vuitton"
+   (besoin réel 257px), tronqué à 1-2 caractères au lieu d'un ellipsis
+   lisible. Réduit à 64x32 (voir aussi minmax de .rows-grid ci-dessous,
+   320->380px) : les deux ensemble redonnent la place nécessaire au nom,
+   jamais une coupe brute (voir .row-s, déjà display:block + ellipsis,
+   inchangé). */
+.row-spark{flex:0 0 auto;width:64px;height:32px;overflow:hidden;margin-right:14px}
 @media (max-width:430px){ .row-spark{display:none} .row-end{min-width:80px} }
 /* Ajout (audit desktop, 2026-09-17) : sur grand écran, une liste de
    valeurs (.rows-grid, réservé aux listes de stockRow() — Marché,
@@ -1391,7 +1399,7 @@ a.row{color:inherit;text-decoration:none}
   /* auto-fit,minmax(...) : même convention que .g-2/.g-3 déjà présents
      dans ce fichier pour les grilles de cartes — colonnes fluides selon
      la largeur réelle, jamais un nombre de colonnes figé par palier. */
-  .rows-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:10px}
+  .rows-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(380px,1fr));gap:10px}
   .rows-grid .row{border-bottom:none;border-radius:var(--r-m);padding:14px 16px;margin:0;
     min-height:120px;align-items:center;
     background:var(--bg-2);transition:background var(--fast) ease,transform var(--fast) var(--spring),
