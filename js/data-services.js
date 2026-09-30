@@ -440,6 +440,24 @@ const HISTP_ENCOURS = new Set();
 
 function cleHISTP(stockId, period){ return `${stockId}::${period}`; }
 
+/* CORRECTIF (bug réel mesuré en test, 2026-09-30) : la grille Marchés
+   (20 lignes) déclenche jusqu'à 20 appels chargerGraphiquePeriode() en
+   parallèle (une sparkline par ligne) -- chacun appelait render() DEUX
+   fois (début et fin de chargement), soit jusqu'à 42 reconstructions
+   complètes de la page (view.innerHTML) mesurées pour une seule visite
+   de Marchés, la quasi-totalité pour un résultat visuel identique aux
+   renders juste avant/après. Les fetches eux-mêmes n'étaient PAS
+   dupliqués (vérifié : 20 requêtes réelles pour 20 lignes, aucun
+   doublon) -- uniquement le rendu. Regroupe les demandes de rendu
+   rapprochées en UN SEUL render() réel via microtask -- n'affecte QUE
+   ces deux appels, jamais render() lui-même ni ses autres appelants. */
+let _renderSparklinesPlanifie = false;
+function renderSparklinesGroupe(){
+  if (_renderSparklinesPlanifie) return;
+  _renderSparklinesPlanifie = true;
+  queueMicrotask(() => { _renderSparklinesPlanifie = false; render(); });
+}
+
 async function chargerGraphiquePeriode(stock, period){
   if (!stock || !period) return;
   const cle = cleHISTP(stock.id, period);
@@ -449,7 +467,7 @@ async function chargerGraphiquePeriode(stock, period){
 
   HISTP_ENCOURS.add(cle);
   HISTP.set(cle, { status:'loading', data:[] });
-  render();
+  renderSparklinesGroupe();
   try {
     const exch = stock.exchangeCode || MARKET_CODE[stock.market] || '';
     const r = await fetch(`/api/market/history?ticker=${encodeURIComponent(stock.ticker)}`
@@ -470,7 +488,7 @@ async function chargerGraphiquePeriode(stock, period){
     HISTP.set(cle, { status:'error', data:[] });
   } finally {
     HISTP_ENCOURS.delete(cle);
-    render();
+    renderSparklinesGroupe();
   }
 }
 

@@ -831,6 +831,16 @@ a.row{color:inherit;text-decoration:none}
   transition:opacity .35s var(--spring),transform .35s var(--spring);box-shadow:var(--shadow-3);max-width:90vw}
 .toast.on{opacity:1;transform:translate(-50%,0)}
 .chips{display:flex;gap:7px;flex-wrap:wrap}
+/* Variante défilante (puces de filtre rapide Marchés) : une seule ligne
+   qui défile horizontalement plutôt que de passer à la ligne — jamais de
+   débordement visible ni de puce coupée, y compris sur les plus petits
+   écrans (vérifié 375px). Scrollbar masquée mais navigable (molette,
+   tactile, clavier via les flèches une fois un chip focus) : masquer la
+   barre ne retire jamais la fonctionnalité de défilement elle-même. */
+.chips-scroll{flex-wrap:nowrap;overflow-x:auto;overflow-y:hidden;padding-bottom:2px;
+  -webkit-overflow-scrolling:touch;scroll-behavior:smooth;scrollbar-width:none}
+.chips-scroll::-webkit-scrollbar{display:none}
+.chips-scroll .chip{flex:0 0 auto}
 .chip{padding:9px 15px;border-radius:100px;background:var(--bg-2);font-size:13.5px;font-weight:550;
   color:var(--ink-3);min-height:38px;display:inline-flex;align-items:center;gap:6px}
 /* CORRECTIF (bug visuel réel et grave, audit complet 2026-09-17) : un

@@ -201,7 +201,7 @@ PAGES.markets = () => {
         style="flex:0 0 auto;display:inline-flex;align-items:center;gap:7px">
         ${svg(ICON.filter,2)} Filtres</button>
     </div>
-    <div class="chips" style="margin-top:14px">
+    <div class="chips chips-scroll" style="margin-top:14px">
       ${MARKETS_QUICK_FILTERS.map(f=>`<button class="chip" data-mf-quick="${f.id}"
         aria-pressed="${quickActif===f.id}">${esc(f.label)}</button>`).join('')}
     </div>
