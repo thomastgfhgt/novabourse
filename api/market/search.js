@@ -216,9 +216,25 @@ function typeAccepte(type) {
    conservateur : un type non reconnu devient 'stock' par défaut plutôt que
    d'inventer une nouvelle catégorie — cohérent avec le comportement actuel
    avant cette passe, où tout était implicitement une action. */
-function typeInterne(type) {
+function typeInterne(type, exchange) {
   const t = String(type || '').toLowerCase();
   if (/digital currency|crypto/.test(t)) return 'crypto';
+  /* CORRECTIF (bug réel confirmé en test, 2026-09-30 — retour utilisateur :
+     recherche "Bitcoin" ouvrait bien le bon instrument mais prix/graphique
+     systématiquement indisponibles) : EODHD renvoie parfois `type` = juste
+     "Currency" (sans "Digital"/"Physical") pour une CRYPTOMONNAIE — le test
+     ci-dessous (`|currency` nu) la faisait alors tomber sur 'forex' avant
+     même d'atteindre un éventuel indice crypto, et ensureRuntimeStock()
+     (js/core.js) construisait ensuite un symbole EODHD via la convention
+     Forex ("BASE/QUOTE" -> "BASEQUOTE.FOREX") sur un ticker de la forme
+     "BTC-USD" (tiret, pas "/") : aucune des deux conventions ne
+     correspond, échec garanti pour CHAQUE cryptomonnaie trouvée par
+     recherche. "CC" est la place crypto dédiée d'EODHD pour ce endpoint
+     (vérifié empiriquement : jamais utilisée par un vrai résultat Forex,
+     qui répond toujours exchange "PHYSICAL CURRENCY"/"FOREX"/etc.) —
+     signal fiable pour lever l'ambiguïté d'un type "Currency" nu, testé
+     AVANT le repli forex générique ci-dessous. */
+  if (String(exchange || '').toUpperCase() === 'CC') return 'crypto';
   if (/physical currency|forex|^fx$|currency/.test(t)) return 'forex';
   if (/^index$|indices/.test(t)) return 'index';
   if (/etf/.test(t)) return 'etf';
@@ -231,11 +247,23 @@ function typeInterne(type) {
 
 function normaliserResultat(raw, provider) {
   if (!raw || typeof raw !== 'object') return null;
-  const ticker = normaliserTicker(raw.ticker);
+  let ticker = normaliserTicker(raw.ticker);
   const name = propre(raw.name);
   if (!ticker || !name) return null;
   if (!typeAccepte(raw.type)) return null;
   const exchange = normaliserExchange(raw.exchange);
+  /* CORRECTIF (même bug que typeInterne() ci-dessus) : EODHD renvoie les
+     paires crypto de ce endpoint en "BASE-QUOTE" (ex. "BTC-USD"), jamais
+     "BASE/QUOTE" — hors c'est CETTE forme ("/") qu'attend eodhdCryptoSymbol()
+     (api/market/_providers.js) pour construire "BTC-USD.CC". Conversion
+     limitée au SEUL dernier tiret (jamais les tirets internes d'un nom
+     composé, ex. "BITCOIN-FILE-USD" -> "BITCOIN-FILE/USD", pas
+     "BITCOIN/FILE-USD") et seulement quand "CC" confirme qu'il s'agit bien
+     d'une paire crypto — jamais appliqué à un vrai ticker action/ETF qui
+     contiendrait un tiret pour une tout autre raison. */
+  if (exchange === 'CC' && /^[A-Z0-9.]+-[A-Z0-9]+$/.test(ticker)) {
+    ticker = ticker.replace(/-([A-Z0-9]+)$/, '/$1');
+  }
   return {
     ticker,
     exchange,
@@ -246,7 +274,7 @@ function normaliserResultat(raw, provider) {
     /* Taxonomie interne dérivée du type brut fournisseur (voir
        typeInterne()) — additif : ne remplace pas `type`, qui garde la
        valeur brute exacte du fournisseur pour référence/debug. */
-    assetType: typeInterne(raw.type),
+    assetType: typeInterne(raw.type, exchange),
     id: exchange ? `${ticker}@${exchange}` : ticker,
     provider,
     providers: [provider],
