@@ -337,9 +337,22 @@ async function chargerCotations(liste){
      la redemande -> chargerCotations() la re-échoue -> render() de
      nouveau : une boucle sans fin dès qu'un symbole ne se résout jamais
      (fournisseur en panne, ticker invalide, ou — comme dans ce test —
-     un mock qui ne le satisfait jamais). Un aller simple sans rien de
-     nouveau à afficher ne doit jamais redéclencher un rendu. */
-  if (reçus) render();
+     un mock qui ne le satisfait jamais).
+     CORRECTIF 2 (bug réel confirmé en test, 2026-09-30) : avec
+     COTATION_EN_COURS/"Chargement…" ci-dessus, un échec TOTAL (reçus===0)
+     a maintenant, lui aussi, quelque chose de nouveau à afficher — la ligne
+     doit repasser de "Chargement…" à "—", pas rester bloquée indéfiniment
+     sur "Chargement…" (observé en production sur HERMESC1-BVL avant ce
+     correctif). Rendre ce cas ne réintroduit PAS la boucle ci-dessus :
+     derniereTentativeEchouee est déjà posé pour restesSansPrix QUELQUES
+     LIGNES PLUS HAUT, avant ce render() -- le prochain appel à
+     assurerCotations() (déclenché depuis render(), voir index.html) verra
+     donc le cooldown actif et ne redemandera rien pour ces mêmes id avant
+     COTATION_COOLDOWN_MS. Seul un fetch qui n'a RIEN à rendre (cibles déjà
+     toutes en échec ET déjà affichées comme telles) devrait rester
+     silencieux -- cas qui ne se produit pas ici car cibles.length > 0 à
+     ce stade (retour anticipé en tout début de fonction sinon). */
+  if (reçus || restesSansPrix.length) render();
 }
 
 /* Préchargement des 7 méga-capitalisations les plus consultées, au
