@@ -9,11 +9,16 @@
 // regex-extraire un tableau qui n'existe plus en dur dans le HTML.
 const fs = require('fs');
 const path = require('path');
-const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+// CORRECTIF (audit architecture, 2026-09-30) : REGION_OF_COUNTRY vivait
+// dans le <script> inline d'index.html ; il vit maintenant dans
+// js/core.js (extraction progressive du fichier monolithique) -- lu
+// depuis son nouvel emplacement plutot que index.html, qui ne contient
+// plus ce code du tout.
+const coreJs = fs.readFileSync(path.join(__dirname, '..', 'js', 'core.js'), 'utf8');
 const catalog = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'catalog.json'), 'utf8'));
 
 const countriesInCatalog = new Set(catalog.map(s => s.country).filter(Boolean));
-const mapSection = html.slice(html.indexOf('const REGION_OF_COUNTRY'), html.indexOf('const REGIONS ='));
+const mapSection = coreJs.slice(coreJs.indexOf('const REGION_OF_COUNTRY'), coreJs.indexOf('const REGIONS ='));
 const regionMap = Object.fromEntries([...mapSection.matchAll(/'([^']+)':\s*'([^']+)'/g)].map(m => [m[1], m[2]]));
 
 const results = [];
