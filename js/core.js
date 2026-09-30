@@ -964,11 +964,39 @@ function searchAll(q){
   const t = q.trim().toLowerCase();
   if (!t) return [];
   const hits = [];
+  /* CORRECTIF (bug réel confirmé en test, 2026-09-30 — retour utilisateur :
+     "50%+ des actions sans données") : cette boucle ne classait les
+     résultats que par ORDRE D'APPARITION dans `stocks` (ordre d'import du
+     catalogue), jamais par pertinence. Conséquence mesurée : chercher
+     "RIO" remontait Azerion/Kendrion/Chariot Resources/Patriot Resources/
+     Alurion (dont le NOM contient "rio" en sous-chaîne — "chaRIOt",
+     "patRIOt"...), jamais Rio Tinto (ticker EXACT "RIO") ; chercher "SPA"
+     remontait CleanSpace/Space Hellas/IboveSPA, jamais 1Spatial (ticker
+     EXACT "SPA") ; "Unilever" ne remontait QUE des filiales sans rapport
+     (Unilever Indonesia, Pakistan...), jamais Unilever PLC elle-même.
+     L'utilisateur tombait donc sur des valeurs obscures/peu liquides
+     (souvent mal couvertes par les fournisseurs de cours, d'où le "—"),
+     alors que la société cherchée existait bel et bien dans le catalogue
+     avec une cotation fiable (vérifié : RIO-L, HSBA-L, ULVR-L, HSBC-NYS,
+     TMC-NAS ont tous un prix réel via /api/market/quotes).
+     Priorité de pertinence ajoutée ci-dessous (0 = meilleur) : ticker
+     EXACT, puis ticker qui COMMENCE par la requête, puis nom qui COMMENCE
+     par la requête, puis toute autre correspondance (comportement
+     d'origine, inchangé). Tri stable : au sein d'un même rang, l'ordre
+     d'origine (catalogue) est conservé. */
   for (const s of stocks){
+    const ticker = (s.ticker || '').toLowerCase();
+    const nom = (s.name || '').toLowerCase();
     const hay = (s.name+' '+s.ticker+' '+s.sector+' '+s.market).toLowerCase();
-    if (hay.includes(t)) hits.push({ type:'action', id:s.id, title:s.name,
+    if (!hay.includes(t)) continue;
+    const rang = ticker === t ? 0
+      : ticker.startsWith(t) ? 1
+      : nom.startsWith(t) ? 2
+      : 3;
+    hits.push({ rang, type:'action', id:s.id, title:s.name,
       sub:`${s.ticker} · ${s.sector} · ${s.market}` });
   }
+  hits.sort((a, b) => a.rang - b.rang);
   /* CORRECTIF (audit "indices sans graphique", 2026-09-17) : cette fonction
      interrogeait AUSSI l'ancien tableau INDICES (données figées en dur,
      value/chg jamais mis à jour — un reliquat de prototype) et poussait un
