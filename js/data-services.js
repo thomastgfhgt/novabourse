@@ -1,4 +1,38 @@
 const QUOTES = new Map();
+/* Cache 2 min (localStorage) : peuple QUOTES dès le chargement de ce
+   script, AVANT le tout premier rendu, pour un affichage "cache
+   d'abord" instantané avec les derniers prix connus -- chargerCotations()
+   rafraîchit ensuite normalement en arrière-plan et écrase ces valeurs
+   dès qu'une réponse fraîche arrive (jamais un remplacement du vrai
+   fetch, seulement un premier paint plus rapide). N'affecte jamais la
+   fraîcheur affichée à l'utilisateur (FRESHNESS_LABEL) : elle vient
+   toujours de la réponse serveur, jamais de ce cache local. */
+const QUOTES_CACHE_KEY = 'novabourse_quotes_cache_v1';
+const QUOTES_CACHE_TTL_MS = 120000;
+(function hydrateQuotesCache(){
+  try {
+    const raw = localStorage.getItem(QUOTES_CACHE_KEY);
+    if (!raw) return;
+    const cache = JSON.parse(raw);
+    const maintenant = Date.now();
+    for (const [id, entry] of Object.entries(cache)){
+      if (entry && entry.q && Number.isFinite(entry.at) && (maintenant - entry.at) < QUOTES_CACHE_TTL_MS){
+        QUOTES.set(id, entry.q);
+      }
+    }
+  } catch {}
+})();
+/* Écrit l'état ACTUEL de QUOTES dans le cache (jamais partiel) : un id
+   qui sort de QUOTES entre deux appels (rare, jamais aujourd'hui) sort
+   aussi du cache au prochain write, pas de désynchronisation possible. */
+function persisterQuotesCache(){
+  try {
+    const maintenant = Date.now();
+    const out = {};
+    for (const [id, q] of QUOTES.entries()) out[id] = { q, at: maintenant };
+    localStorage.setItem(QUOTES_CACHE_KEY, JSON.stringify(out));
+  } catch {}
+}
 /* HIST stocke un état explicite par société :
      { status:'loading' | 'ready' | 'empty' | 'error', data:[{date,close}] }
    'loading'  -> requête en cours ou pas encore lancée
@@ -262,6 +296,7 @@ async function chargerCotations(liste){
     DATA.covered = QUOTES.size;
     DATA.provider = source;
     DATA.at = Date.now();
+    persisterQuotesCache();
   }
   paintSource();
   /* CORRECTIF — bug réel trouvé en test : appeler render() sans condition
@@ -273,6 +308,38 @@ async function chargerCotations(liste){
      un mock qui ne le satisfait jamais). Un aller simple sans rien de
      nouveau à afficher ne doit jamais redéclencher un rendu. */
   if (reçus) render();
+}
+
+/* Préchargement des 7 méga-capitalisations les plus consultées, au
+   démarrage.
+   CORRECTIF (bug réel trouvé en test) : la première version passait par
+   ensureRuntimeStock(), qui calcule l'id via remoteId() = "TICKER-" +
+   exchangeCode ("AAPL-NASDAQ"). Mais catalog.json (vérifié directement,
+   2026-09-30) stocke ces mêmes sociétés sous "AAPL-NAS" (exchangeCode
+   déjà "NASDAQ" en toutes lettres, mais l'id lui-même abrégé -- un
+   écart préexistant entre la construction d'id du catalogue statique et
+   remoteId(), indépendant de ce préchargement). Résultat observé : DEUX
+   cartes "Apple Inc" sur Marchés (l'entrée du catalogue ET celle créée
+   ici, avec deux id différents) -- et pire, la cotation préchargée
+   n'aurait de toute façon jamais profité à la VRAIE entrée affichée
+   (clé QUOTES différente).
+   Corrigé : construit ici un objet minimal avec l'id RÉEL du catalogue
+   (vérifié empiriquement, pas deviné), jamais ajouté à stocks/byId --
+   chargerCotations() n'a besoin que de {id, ticker, exchangeCode, type}
+   pour fonctionner, pas d'une société "enregistrée". Aucun risque de
+   doublon visuel possible, et QUOTES.set(id,...) profite directement à
+   la vraie entrée du catalogue dès qu'elle charge (même id). */
+const TOP_SYMBOLES_PRECHARGES = [
+  { id:'AAPL-NAS', ticker:'AAPL', exchangeCode:'NASDAQ', type:'stock' },
+  { id:'MSFT-NAS', ticker:'MSFT', exchangeCode:'NASDAQ', type:'stock' },
+  { id:'GOOGL-NAS', ticker:'GOOGL', exchangeCode:'NASDAQ', type:'stock' },
+  { id:'AMZN-NAS', ticker:'AMZN', exchangeCode:'NASDAQ', type:'stock' },
+  { id:'NVDA-NAS', ticker:'NVDA', exchangeCode:'NASDAQ', type:'stock' },
+  { id:'TSLA-NAS', ticker:'TSLA', exchangeCode:'NASDAQ', type:'stock' },
+  { id:'META-NAS', ticker:'META', exchangeCode:'NASDAQ', type:'stock' },
+];
+function prechargerTopSymboles(){
+  chargerCotations(TOP_SYMBOLES_PRECHARGES);
 }
 
 /* Séances par période, sur des données journalières uniquement. 1J/1S

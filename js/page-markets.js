@@ -165,11 +165,31 @@ function marketsFiltresActifs(){
   if ((f.marketsCountry||'tous') !== 'tous') out.push({ key:'marketsCountry', label:f.marketsCountry });
   return out;
 }
+/* Puces de filtre rapide (demande explicite : "All | US | EU | FR | DE |
+   UK") : région pour "Tous"/"Europe" (large), pays pour le reste
+   (précis) — deux dimensions de state.filters déjà existantes
+   (marketsRegion/marketsCountry), jamais un nouvel état inventé. Noms
+   de pays/région exacts vérifiés dans REGION_OF_COUNTRY/COUNTRY_ALIASES
+   (core.js) avant de les utiliser ici. */
+const MARKETS_QUICK_FILTERS = [
+  { id:'tous', label:'Tous', region:'Monde', country:'tous' },
+  { id:'us', label:'US', region:'Monde', country:'États-Unis' },
+  { id:'eu', label:'EU', region:'Europe', country:'tous' },
+  { id:'fr', label:'FR', region:'Monde', country:'France' },
+  { id:'de', label:'DE', region:'Monde', country:'Allemagne' },
+  { id:'uk', label:'UK', region:'Monde', country:'Royaume-Uni' },
+];
+function marketsQuickFilterActif(f){
+  const region = f.marketsRegion || 'Monde', country = f.marketsCountry || 'tous';
+  const trouve = MARKETS_QUICK_FILTERS.find(q => q.region === region && q.country === country);
+  return trouve ? trouve.id : null;
+}
 PAGES.markets = () => {
   /* Déclenche (sans bloquer ce rendu) le chargement du catalogue mondial
      pour stock/etf si nécessaire — voir garantirCatalogueMarkets(). */
   garantirCatalogueMarkets();
   const chips = marketsFiltresActifs();
+  const quickActif = marketsQuickFilterActif(state.filters);
   return `<div class="page-in">
     <p class="eyebrow">Marchés</p>
     <h1 class="title">Marchés</h1>
@@ -181,7 +201,11 @@ PAGES.markets = () => {
         style="flex:0 0 auto;display:inline-flex;align-items:center;gap:7px">
         ${svg(ICON.filter,2)} Filtres</button>
     </div>
-    ${chips.length ? `<div class="chips" style="margin-top:14px">
+    <div class="chips" style="margin-top:14px">
+      ${MARKETS_QUICK_FILTERS.map(f=>`<button class="chip" data-mf-quick="${f.id}"
+        aria-pressed="${quickActif===f.id}">${esc(f.label)}</button>`).join('')}
+    </div>
+    ${chips.length ? `<div class="chips" style="margin-top:10px">
       ${chips.map(c=>`<button class="chip" aria-pressed="true" data-mf-remove="${c.key}">
         ${esc(c.label)} <span aria-hidden="true">×</span></button>`).join('')}
     </div>` : ''}

@@ -715,7 +715,7 @@ a.row{color:inherit;text-decoration:none}
    prix, au point de faire tronquer jusqu'au TICKER lui-même ("AAPL" ->
    "AA…") sur les cartes de la grille — confirmé en test. Le grand format
    (40px) reste réservé à l'en-tête plein-largeur de la fiche action. */
-.row .av{width:30px;height:30px;border-radius:9px;font-size:11px}
+.row .av{width:34px;height:34px;border-radius:10px;font-size:12px}
 .row .av img{padding:4px}
 /* Logo réel par-dessus les initiales (jamais à la place) : l'image est en
    position absolute, couvre tout le badge si elle charge ; onerror la
@@ -732,7 +732,7 @@ a.row{color:inherit;text-decoration:none}
    display:block la fait fonctionner réellement (confirmé : "Vanguard
    Total Stock Market Index Fund ETF Shares" se tronque bien en "…" après
    ce correctif, plus de défilement horizontal). */
-.row-t{display:block;font-size:15px;font-weight:600;letter-spacing:-.02em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.row-t{display:block;font-size:16.5px;font-weight:600;letter-spacing:-.02em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 /* CORRECTIF (audit complet 2026-09-17) : .row-s/.row-end/.row-spark
    avaient chacun une PREMIÈRE définition ici (mise en ligne, sans
    troncature, min-width:0) qui ne correspondait à AUCUN balisage réel
@@ -1360,16 +1360,16 @@ a.row{color:inherit;text-decoration:none}
    provoquant un défilement horizontal inattendu sur mobile. Supprimée
    plutôt que fusionnée : elle n'apportait rien que la première ne fasse
    déjà (même taille, même graisse, +.01em de letter-spacing négligeable). */
-.row-s{display:block;font-size:13px;color:var(--ink-3);margin-top:2px;overflow:hidden;
+.row-s{display:block;font-size:14.3px;color:var(--ink-3);margin-top:2px;overflow:hidden;
   text-overflow:ellipsis;white-space:nowrap}
 .row-end{display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex:0 0 auto;min-width:92px}
-.row-px{font-size:15.5px;font-weight:600;letter-spacing:-.02em}
+.row-px{font-size:17px;font-weight:600;letter-spacing:-.02em}
 .row-px.flash-up{animation:priceFlashUp .9s ease-out}
 .row-px.flash-down{animation:priceFlashDown .9s ease-out}
 @media (prefers-reduced-motion:reduce){ .row-px.flash-up,.row-px.flash-down{animation:none} }
-.row-var{font-size:13px;font-weight:550}
+.row-var{font-size:14.3px;font-weight:550}
 .row-var.na{color:var(--ink-4)}
-.row-spark{flex:0 0 auto;width:72px;height:26px;overflow:hidden;margin-right:14px}
+.row-spark{flex:0 0 auto;width:80px;height:40px;overflow:hidden;margin-right:14px}
 @media (max-width:430px){ .row-spark{display:none} .row-end{min-width:80px} }
 /* Ajout (audit desktop, 2026-09-17) : sur grand écran, une liste de
    valeurs (.rows-grid, réservé aux listes de stockRow() — Marché,
@@ -1381,8 +1381,9 @@ a.row{color:inherit;text-decoration:none}
   /* auto-fit,minmax(...) : même convention que .g-2/.g-3 déjà présents
      dans ce fichier pour les grilles de cartes — colonnes fluides selon
      la largeur réelle, jamais un nombre de colonnes figé par palier. */
-  .rows-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:10px}
+  .rows-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:10px}
   .rows-grid .row{border-bottom:none;border-radius:var(--r-m);padding:14px 16px;margin:0;
+    min-height:120px;align-items:center;
     background:var(--bg-2);transition:background var(--fast) ease,transform var(--fast) var(--spring),
       box-shadow var(--fast) var(--spring)}
   .rows-grid .row:hover{margin:0;padding-left:16px;padding-right:16px;background:var(--bg-3)}

@@ -969,6 +969,23 @@ document.addEventListener('click', e => {
     return;
   }
 
+  /* Puces de filtre rapide Marchés (Tous/US/Europe/France/Allemagne/
+     Royaume-Uni) : appliquées IMMÉDIATEMENT (comme [data-filter] sur
+     Radar), jamais via le brouillon du panneau — voir MARKETS_QUICK_FILTERS
+     dans page-markets.js pour la correspondance région/pays exacte. */
+  const mfq = q('[data-mf-quick]');
+  if (mfq){
+    const cible = MARKETS_QUICK_FILTERS.find(f => f.id === mfq.dataset.mfQuick);
+    if (cible){
+      state.filters.marketsRegion = cible.region;
+      state.filters.marketsCountry = cible.country;
+      state.filters.marketsVisibles = 20;
+      saveState();
+      render();
+    }
+    return;
+  }
+
   const flt = q('[data-filter]');
   if (flt){
     state.filters[flt.dataset.filter] = isNaN(flt.dataset.val) ? flt.dataset.val : +flt.dataset.val;
@@ -1542,6 +1559,13 @@ function boot(){
      n'ait tranché entre 'guest' et 'authenticated'. */
   document.body.classList.add('gated');
   document.getElementById('view').innerHTML = loadingScreen();
+
+  /* Préchargement des 7 méga-capitalisations (voir son propre
+     commentaire, data-services.js) : lancé tout de suite, en parallèle,
+     jamais attendu ici -- les cotations, une fois reçues, profitent au
+     cache 2 min pour TOUTE page qui affiche ensuite l'une de ces 7
+     valeurs (Marchés, Radar, recherche...), pas seulement l'accueil. */
+  prechargerTopSymboles();
 
   /* CORRECTIF (audit performance, 2026-09-29 : catalog.json — 46 404
      entreprises, 20,8 Mo décompressés / ~930 Ko réellement transférés —
