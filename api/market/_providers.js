@@ -3167,7 +3167,18 @@ const INTRADAY = {
     let lignes = normaliserIntraday(brutes);
 
     if (!lignes.length) {
-      const error = new Error(recues ? `zero_ligne_apres_normalisation (recues:${recues})` : 'aucune_ligne_recue');
+      /* Diagnostic (même logique que la section 21/quotidien ci-dessus,
+         jamais posée ici avant) : sans elle, impossible de distinguer un
+         vrai "aucun échange sur ce titre aujourd'hui" (close EODHD
+         réellement null/0 sur toutes les barres -- limite honnête du
+         fournisseur) d'un problème de FORMAT (ex. champ renommé côté
+         EODHD) qui ferait échouer normaliserIntraday() même quand des
+         cours exploitables existent bel et bien dans la réponse brute. */
+      const champs = recues ? Object.keys(d[0] || {}).join('|') : '';
+      const closesNulles = recues ? brutes.filter(b => b.close === null).length : 0;
+      const error = new Error(recues
+        ? `zero_ligne_apres_normalisation (recues:${recues}, champs:${champs}, closesNulles:${closesNulles}/${recues})`
+        : 'aucune_ligne_recue');
       error.url = urlSansCle(url);
       error.symbole = symbole;
       error.recues = recues;
