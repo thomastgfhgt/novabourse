@@ -223,6 +223,15 @@ const CHARGEMENT_MASSE_PAUSE_MS = 61000;
 const COTATION_COOLDOWN_MS = 30000;
 const derniereTentativeEchouee = new Map();
 
+/* Suivi "en cours" (distinct du cooldown ci-dessus) : permet à stockRow()
+   de savoir si l'absence de prix est un chargement RÉEL en cours (afficher
+   "Chargement…") ou un échec déjà retenté puis mis en recul (rester sur
+   "—" honnête, jamais faire croire qu'un chargement va aboutir alors
+   qu'il vient d'échouer — voir aussi console.warn ci-dessous, retour
+   utilisateur explicite : "Debug: vois ce qui se passe"). */
+const COTATION_EN_COURS = new Set();
+function cotationEnCours(id){ return COTATION_EN_COURS.has(id); }
+
 function assurerCotations(liste){
   const maintenant = Date.now();
   const manquantes = liste.filter(s => {
@@ -237,6 +246,7 @@ function assurerCotations(liste){
 async function chargerCotations(liste){
   const cibles = liste.filter(s => s && s.ticker);
   if (!cibles.length) return;
+  for (const s of cibles) COTATION_EN_COURS.add(s.id);
 
   const TAILLE_LOT = 8;
   const lots = [];
@@ -284,8 +294,30 @@ async function chargerCotations(liste){
      c'est ce qui empêche une boucle sans fin sur un symbole qui ne se
      résout jamais. */
   const maintenant = Date.now();
+  const restesSansPrix = [];
   for (const s of cibles){
-    if (!QUOTES.has(s.id)) derniereTentativeEchouee.set(s.id, maintenant);
+    COTATION_EN_COURS.delete(s.id);
+    if (!QUOTES.has(s.id)){
+      derniereTentativeEchouee.set(s.id, maintenant);
+      restesSansPrix.push(s);
+    }
+  }
+  /* Debug (retour utilisateur explicite : "vois ce qui se passe") : un
+     seul avertissement groupé plutôt qu'un par symbole, avec de quoi
+     investiguer directement -- symboleDe() donne l'exact symbole envoyé
+     au backend, et /api/market/company?ticker=X&exchange=Y&fresh=1
+     (déjà utilisé partout dans ce fichier pour diagnostiquer un fournisseur)
+     reste la seule source fiable de LA vraie raison (403/404/429/vide) :
+     /api/market/quotes ne renvoie pas ce détail par symbole, seulement
+     une liste de cotations reçues -- jamais deviner la cause ici. */
+  if (restesSansPrix.length){
+    console.warn(
+      `[NovaTitre][chargerCotations] ${restesSansPrix.length}/${cibles.length} symbole(s) sans prix après cette tentative`
+      + ` (source=${source||'aucune'}, échecs de lot=${echecs}/${totalLots}) :`,
+      restesSansPrix.map(s => ({ id:s.id, symbole:symboleDe(s) })),
+      `\nPour la vraie raison, tester : /api/market/company?ticker=${encodeURIComponent(restesSansPrix[0].ticker)}`
+      + `&exchange=${encodeURIComponent(restesSansPrix[0].exchangeCode||'')}&fresh=1`
+    );
   }
 
   if (!reçus){
@@ -468,12 +500,13 @@ async function chargerGraphiquePeriode(stock, period){
   HISTP_ENCOURS.add(cle);
   HISTP.set(cle, { status:'loading', data:[] });
   renderSparklinesGroupe();
+  const exch = stock.exchangeCode || MARKET_CODE[stock.market] || '';
   try {
-    const exch = stock.exchangeCode || MARKET_CODE[stock.market] || '';
     const r = await fetch(`/api/market/history?ticker=${encodeURIComponent(stock.ticker)}`
       + `&exchange=${encodeURIComponent(exch)}&type=${encodeURIComponent(stock.type || 'stock')}`
       + `&period=${encodeURIComponent(period)}`);
     if (!r.ok){
+      console.warn(`[NovaTitre][chargerGraphiquePeriode] HTTP ${r.status} pour ${stock.ticker}@${exch} (période ${period})`);
       HISTP.set(cle, { status:'error', data:[] });
       return;
     }
@@ -481,10 +514,14 @@ async function chargerGraphiquePeriode(stock, period){
     const points = (d.history?.ohlcv || [])
       .filter(x => x && typeof x.date === 'string' && Number.isFinite(x.close) && x.close > 0)
       .map(x => ({ date:x.date, open:x.open, high:x.high, low:x.low, close:x.close, volume:x.volume }));
+    if (points.length < 2){
+      console.warn(`[NovaTitre][chargerGraphiquePeriode] historique insuffisant pour ${stock.ticker}@${exch} (période ${period}) : ${points.length} point(s) exploitable(s)`);
+    }
     HISTP.set(cle, points.length >= 2
       ? { status:'ready', kind:d.kind || 'daily', interval:d.interval || null, source:d.source || null, data:points }
       : { status:'empty', data:[] });
-  } catch {
+  } catch (e) {
+    console.warn(`[NovaTitre][chargerGraphiquePeriode] exception pour ${stock.ticker}@${exch} (période ${period}) :`, e);
     HISTP.set(cle, { status:'error', data:[] });
   } finally {
     HISTP_ENCOURS.delete(cle);

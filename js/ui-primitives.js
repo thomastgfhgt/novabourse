@@ -375,6 +375,16 @@ function stockRow(s, opts = {}){
   const flashRow = PRICE_FLASH.get(s.id);
   if (flashRow) PRICE_FLASH.delete(s.id);
 
+  /* "Chargement…" vs "—" (retour utilisateur explicite : "Affiche
+     'Chargement...' au lieu de '-' - Si pas de prix encore") : distingue
+     un chargement RÉELLEMENT en cours (cotationEnCours(), voir
+     data-services.js) d'un échec déjà retenté puis mis en recul par
+     COTATION_COOLDOWN_MS — pour ce second cas on reste sur "—", jamais
+     "Chargement…" qui laisserait croire qu'une réponse va encore
+     arriver alors que la tentative vient d'échouer. */
+  const enChargement = prix === null && cotationEnCours(s.id);
+  const texteVide = enChargement ? 'Chargement…' : '—';
+
   return `<div class="row">
     <button style="display:flex;align-items:center;gap:10px;flex:1;min-width:0;text-align:left"
       data-stock="${esc(s.id)}">
@@ -388,9 +398,9 @@ function stockRow(s, opts = {}){
       ? `<span class="row-spark">${spark(hist, varPct !== null && varPct < 0 ? 'var(--down)' : 'var(--up)')}</span>`
       : ''}
     <span class="row-end">
-      <span class="row-px tabular-nums${flashRow ? ` flash-${flashRow}` : ''}">${prix === null ? '—' : fmt.num(prix)}</span>
+      <span class="row-px tabular-nums${flashRow ? ` flash-${flashRow}` : ''}">${prix === null ? texteVide : fmt.num(prix)}</span>
       <span class="row-var tabular-nums ${varPct === null ? 'na' : varPct >= 0 ? 'up-t' : 'down-t'}">
-        ${varPct === null ? '—' : fmt.pct(varPct)}</span>
+        ${varPct === null ? (enChargement ? '' : '—') : fmt.pct(varPct)}</span>
       ${labelFraicheur ? `<span class="tiny" style="color:var(--ink-4);display:block;text-align:right">${esc(labelFraicheur)}</span>` : ''}
     </span>
   </div>`;
