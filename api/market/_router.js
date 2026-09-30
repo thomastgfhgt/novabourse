@@ -121,6 +121,19 @@ function ordreStatique(dataType, type, opts = {}) {
          infra-journalière confirmée) — absent du chemin intraday. */
       if (type === 'forex') return ['twelvedata', 'eodhd'];
       if (type === 'index') return ['twelvedata', 'eodhd'];
+      /* CORRECTIF (bug réel confirmé en test, 2026-09-30) : TYPES_SANS_SUFFIXE_EODHD
+         ('commodity') excluait ICI eodhd à 100%, alors que les chemins quote/
+         history ci-dessus l'incluent déjà en dernier repli pour les 3 tickers
+         vérifiés (XPD/USD, XPT/USD, XBR/USD — voir EODHD_COMMODITY_FOREX dans
+         _providers.js) : la règle générale "aucune convention EODHD vérifiée
+         pour ce type" ne vaut QUE pour eodhdSymbolPourType() en général, pas
+         pour ces 3 exceptions déjà spécifiquement vérifiées. Conséquence avant
+         correctif : un sparkline pour Palladium/Platine/Brent dépendait
+         SEULEMENT de Twelve Data — le moindre quota épuisé (observé en
+         production) faisait échouer intraday_indisponible à coup sûr, alors
+         qu'eodhd aurait pu répondre. Exclusion générique conservée pour tout
+         AUTRE type sans convention EODHD (aucun changement pour eux). */
+      if (type === 'commodity') return ['twelvedata', 'eodhd'];
       if (TYPES_SANS_SUFFIXE_EODHD.has(type)) return ['twelvedata'];
       return ['twelvedata', 'eodhd'];
 
