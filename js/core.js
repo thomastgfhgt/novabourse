@@ -763,6 +763,50 @@ function restoreRuntimeCatalog(){
   Object.values(state.runtimeCatalog || {}).forEach(meta => ensureRuntimeStock(meta, false));
 }
 
+/* Indices boursiers réels — jamais dans catalog.json (bâti depuis
+   free-ticker-database, qui ne couvre que sociétés/ETF cotés, pas les
+   indices) ni renvoyés par /api/market/search pour des requêtes usuelles
+   ("CAC 40", "S&P 500"...) : avant cette liste, AUCUN indice n'était
+   accessible nulle part dans l'app, malgré un pipeline backend complet et
+   fonctionnel pour eux (eodhdIndexSymbol(), voir _providers.js) — un
+   ancien commentaire affirmait par erreur que "41 indices réels" existaient
+   déjà dans `stocks` ; vérifié empiriquement (stocks.filter(type==='index')
+   = 0) : c'était faux, jamais implémenté.
+   Chaque entrée ci-dessous est VÉRIFIÉE EMPIRIQUEMENT (2026-09-30, clé de
+   production réelle, pas "demo") : prix réel ET historique intraday du
+   jour réel reçus via /api/market/quotes et /api/market/history?period=1j
+   pour CHACUNE — jamais une convention supposée. D'autres indices (FTSE
+   100, FTSE MIB, Russell 2000 essayés) n'ont renvoyé aucune donnée
+   exploitable sous aucune convention de ticker testée : volontairement
+   absents plutôt qu'une entrée qui afficherait "—" en permanence. */
+const INDICES_VERIFIES = [
+  { ticker:'GSPC',     name:'S&P 500',                  country:'États-Unis',  cur:'USD' },
+  { ticker:'DJI',      name:'Dow Jones Industrial Average', country:'États-Unis', cur:'USD' },
+  { ticker:'IXIC',     name:'Nasdaq Composite',         country:'États-Unis',  cur:'USD' },
+  { ticker:'NDX',      name:'Nasdaq 100',               country:'États-Unis',  cur:'USD' },
+  { ticker:'VIX',      name:'CBOE Volatility Index (VIX)', country:'États-Unis', cur:'USD' },
+  { ticker:'GSPTSE',   name:'S&P/TSX Composite',        country:'Canada',      cur:'CAD' },
+  { ticker:'BVSP',     name:'Ibovespa',                 country:'Brésil',      cur:'BRL' },
+  { ticker:'FCHI',     name:'CAC 40',                   country:'France',      cur:'EUR' },
+  { ticker:'GDAXI',    name:'DAX',                      country:'Allemagne',   cur:'EUR' },
+  { ticker:'STOXX50E', name:'EURO STOXX 50',            country:'Zone euro',   cur:'EUR' },
+  { ticker:'IBEX',     name:'IBEX 35',                  country:'Espagne',     cur:'EUR' },
+  { ticker:'AEX',      name:'AEX',                      country:'Pays-Bas',    cur:'EUR' },
+  { ticker:'SSMI',     name:'Swiss Market Index (SMI)', country:'Suisse',      cur:'CHF' },
+  { ticker:'N225',     name:'Nikkei 225',               country:'Japon',       cur:'JPY' },
+  { ticker:'HSI',      name:'Hang Seng',                country:'Hong Kong',   cur:'HKD' },
+  { ticker:'KS11',     name:'KOSPI',                    country:'Corée du Sud', cur:'KRW' },
+  { ticker:'AXJO',     name:'S&P/ASX 200',              country:'Australie',   cur:'AUD' },
+];
+function seedIndices(){
+  for (const idx of INDICES_VERIFIES){
+    ensureRuntimeStock({
+      ticker: idx.ticker, name: idx.name, exchangeCode:'INDX', exchange:'Indice',
+      sector:'Indice', country: idx.country, currency: idx.cur, assetType:'index',
+    }, false);
+  }
+}
+
 /* --------------------------------------------------------------------
    CATALOGUE MONDIAL (Explorer/Marchés) — parcours par pages de 20, jamais
    la recherche comme seul point d'entrée. S'appuie sur

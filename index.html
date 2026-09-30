@@ -1534,6 +1534,11 @@ function boot(){
      complet dès la première fois que portfolioValue()/PAGES.compare() en
      ont besoin. */
   restoreRuntimeCatalog();
+  /* Indices boursiers réels (voir seedIndices(), js/core.js) : absents de
+     catalog.json et non découvrables via /api/market/search — seule façon
+     de les rendre accessibles (recherche locale, Marchés, fiche) est de
+     les enregistrer ici, une fois, avant le premier rendu. */
+  seedIndices();
 
   if (!state.settings.theme) state.settings.theme = 'light';
   applySettings();
