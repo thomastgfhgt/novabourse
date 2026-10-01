@@ -164,19 +164,16 @@ html{-webkit-text-size-adjust:100%;overflow-x:hidden}
 /* TEST PALETTE v2 (demande utilisateur, 2026-10-01 : "je veux que le
    fond de partout soit le même que celui du temple... un vrai dégradé
    du haut vers le bas avec du rose et du bleu... sur l'ensemble du
-   site") — même dégradé EXACT que .nb-hero-v2 (voir plus bas), posé ici
-   sur <html> (fond réel de toute page, body reste transparent — voir
-   note juste en dessous) pour qu'il couvre le site entier, pas
-   seulement l'accueil. Thème SOMBRE explicitement exclu (règle
-   suivante) : contrairement à .nb-hero-v2 (qui reteint TOUT son
-   contenu en encre foncée pour rester lisible sur un fond clair), les
-   cartes/surfaces du reste de l'app gardent leurs couleurs --bg-2/-3/-4
-   sombres en thème sombre — un fond <html> clair derrière laisserait
-   un liseré pastel incohérent dans chaque interstice (marges, zone
-   sous le dock...). Le thème sombre garde donc son fond uni --bg
-   habituel, inchangé. */
+   site", puis confirmé explicitement : "je ne veux pas de sombre pas
+   de noire dans le fond") — même dégradé EXACT que .nb-hero-v2 (voir
+   plus bas), posé ici sur <html> (fond réel de toute page, body reste
+   transparent — voir note juste en dessous) pour qu'il couvre le site
+   entier, AUCUNE exception de thème cette fois : une première version
+   gardait un fond sombre uni en thème sombre (protection non demandée,
+   ajoutée de ma propre initiative) — explicitement rejetée par
+   l'utilisateur, retirée ici. Le dégradé s'applique donc maintenant
+   que state.settings.theme vaille 'light', 'dark' ou 'auto'. */
 html{background:linear-gradient(180deg,var(--paleblue-50) 0%,#ffffff 50%,var(--palepink-50) 100%)}
-[data-theme="dark"]{background:var(--bg)}
 [data-theme="xxx"] body::before{
   content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
   background:
@@ -424,20 +421,24 @@ button:active{transform:scale(.97)}
      nuit, bordure cyan, 28px, icônes 28px) est retirée ; cette géométrie
      capsule verre dépoli reprend son rôle. Reste du rebrand (palette
      orange/cyan, onboarding, Nova Explain, fiche action) inchangé. */
+  /* TEST PALETTE v2 (retour utilisateur, 2026-10-01 : "je ne veux pas
+     de sombre pas de noire dans le fond") — verre dépoli sombre ->
+     clair, dimensions/géométrie INCHANGÉES (voir note "NE CHANGE PLUS
+     sa taille" ci-dessus, toujours valable, seule la couleur change). */
   .dock{
     display:flex;align-items:stretch;
     position:fixed;left:50%;transform:translateX(-50%);
     bottom:calc(12px + env(safe-area-inset-bottom));z-index:60;
     width:calc(100% - 20px);max-width:440px;
-    background:rgba(10,14,35,.50);
+    background:rgba(255,255,255,.65);
     /* Flou réduit 18px -> 13px (2026-09-24, même correctif performance
        que .top ci-dessus, même raison : fixed + présent sur toute page
        mobile, recalculé à chaque frame de défilement). */
     backdrop-filter:blur(13px) saturate(120%);
     -webkit-backdrop-filter:blur(13px) saturate(120%);
-    border:1px solid rgba(255,255,255,.10);border-radius:9999px;
+    border:1px solid rgba(124,200,240,.35);border-radius:9999px;
     padding:6px 6px;
-    box-shadow:0 8px 22px rgba(2,5,14,.45), 0 2px 6px rgba(10,20,45,.14)
+    box-shadow:0 8px 22px rgba(10,14,39,.12), 0 2px 6px rgba(10,14,39,.06)
   }
   /* 5 colonnes strictement égales et fixes (flex:0 0 20%, jamais
      recalculées selon l'onglet actif) — icône empilée sur libellé,
@@ -446,7 +447,7 @@ button:active{transform:scale(.97)}
     position:relative;z-index:1;
     display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;
     flex:0 0 20%;min-width:0;min-height:40px;padding:2px 3px;border-radius:9999px;
-    color:rgba(255,255,255,.68);
+    color:rgba(10,14,39,.55);
     font-size:11px;font-weight:600;letter-spacing:-.01em;
     transition:color .25s ease-out
   }
@@ -458,7 +459,7 @@ button:active{transform:scale(.97)}
   .dock button span{display:block;white-space:nowrap;overflow:visible}
   .dock button svg{width:22px;height:22px;color:inherit;
     transition:transform .25s cubic-bezier(.22,1,.36,1),opacity .25s ease-out}
-  .dock button[aria-current]{color:#fff}
+  .dock button[aria-current]{color:var(--bg-dark-ink)}
   .dock button[aria-current] svg{transform:scale(1.05);animation:dockIconPop .45s cubic-bezier(.22,1,.36,1)}
   /* Rebond quand une icône DEVIENT active (2026-09-23, "vraiment
      beaucoup d'animation") : une animation CSS démarre quand l'élément
@@ -498,7 +499,7 @@ button:active{transform:scale(.97)}
      top/bottom:3px la garde clairement PLUS PETITE que la barre
      extérieure (respiration haut/bas, comme sur la référence). */
   .dock-pill{position:absolute;top:3px;bottom:3px;left:0;border-radius:9999px;
-    background:rgba(255,255,255,.12);
+    background:rgba(124,200,240,.22);
     z-index:0;pointer-events:none;
     transition:transform .3s cubic-bezier(.22,1,.36,1), width .3s cubic-bezier(.22,1,.36,1);
     will-change:transform,width}
@@ -1330,20 +1331,25 @@ a.row{color:inherit;text-decoration:none}
 .nb-cta-s:active{background:rgba(255,255,255,.85)}
 @media (prefers-reduced-motion:reduce){ .nb-cta-a:active,.nb-quick-item:active .nb-quick-bub{transform:none} }
 /* Carte "Mes positions" v2 — hors de .nb-hero-v2 (fond normal de l'app
-   en dessous, comme avant), palette propre à cette carte (brief §19). */
-.nb-pf2{background:rgba(17,22,49,.75);border:1px solid rgba(255,255,255,.10);
+   en dessous, comme avant), palette propre à cette carte (brief §19).
+   TEST PALETTE v2 (retour utilisateur : "je ne veux pas de sombre pas
+   de noire dans le fond") : verre sombre -> clair, même principe que
+   .nb-cta-s juste au-dessus — cette carte était restée à part (hors de
+   .nb-hero-v2, jamais touchée par le 1er passage du test) mais reste
+   un fond sombre, à corriger pour la même raison. */
+.nb-pf2{background:rgba(255,255,255,.7);border:1px solid rgba(124,200,240,.35);
   border-radius:20px;padding:20px;margin-top:20px}
 .nb-pf2-eyebrow{color:var(--accent);font-weight:700;font-size:13px}
 .nb-pf2-val{font-size:clamp(30px,7.5vw,38px);font-weight:700;letter-spacing:-.03em;
-  color:#fff;line-height:1;margin-top:10px;font-variant-numeric:tabular-nums}
+  color:var(--bg-dark-ink);line-height:1;margin-top:10px;font-variant-numeric:tabular-nums}
 .nb-pf2-var{font-size:14px;font-weight:600;margin-top:10px}
 .nb-pf2-var.up-t{color:#45D69A}
 .nb-pf2-var.down-t{color:#FF647C}
-.nb-pf2-empty p{color:rgba(255,255,255,.65);font-size:14.5px;margin-top:8px;line-height:1.5}
+.nb-pf2-empty p{color:#5a6478;font-size:14.5px;margin-top:8px;line-height:1.5}
 .nb-pf2-detail{display:block;width:100%;margin-top:16px;padding:13px 16px;
-  border-radius:14px;background:rgba(16,35,78,.65);color:#fff;font-weight:600;font-size:14.5px;
+  border-radius:14px;background:rgba(124,200,240,.18);color:var(--bg-dark-ink);font-weight:600;font-size:14.5px;
   text-align:center}
-.nb-pf2-detail:active{background:rgba(16,35,78,.85)}
+.nb-pf2-detail:active{background:rgba(124,200,240,.32)}
 /* ============================================================
    NOVA — architecture visuelle (2026-09-23)
    ============================================================
