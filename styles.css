@@ -381,7 +381,7 @@ button:active{transform:scale(.97)}
 #srcBadge{display:flex;align-items:center;gap:6px;min-width:0;overflow:hidden}
 .icon-btn{width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:var(--ink-3);
   transition:background .2s ease,color .2s ease,transform .2s cubic-bezier(.22,1,.36,1)}
-.icon-btn:hover{background:var(--bg-2);color:var(--ink);transform:translateY(-1px) scale(1.08)}
+.icon-btn:hover{background:rgba(255,255,255,.6);color:var(--ink);transform:translateY(-1px) scale(1.08)}
 .icon-btn:active{transform:scale(.9)}
 .icon-btn svg{width:19px;height:19px}
 .dock{display:none}
@@ -569,8 +569,13 @@ button:active{transform:scale(.97)}
 @media (prefers-reduced-motion:reduce){ .btn-a{animation:none} }
 .btn-a:hover{background:var(--accent-hover)}
 .btn-a:active{background:var(--accent-press)}
-.btn-s{background:var(--bg-2);color:var(--ink)}
-.btn-s:hover{background:var(--bg-3)}
+/* TEST PALETTE v2 (retour utilisateur : "fais en sorte que tous les
+   boutons blancs soient transparent") : fond opaque -> verre clair,
+   même principe que .card/.dock/.nova-action-circle déjà passés en
+   verre clair ailleurs dans ce fichier — laisse voir le dégradé de
+   fond au travers plutôt qu'un aplat blanc. */
+.btn-s{background:rgba(255,255,255,.55);border:1px solid rgba(124,200,240,.3);color:var(--ink)}
+.btn-s:hover{background:rgba(255,255,255,.8)}
 /* Bouton secondaire cyan (2026-09-22, composant demandé par le brief ;
    recoloré 2026-09-28 pour le pivot NovaTitre : violet -> cyan #00D4FF,
    voir note de palette tout en haut) — jamais utilisé comme accent
@@ -630,7 +635,8 @@ button:active{transform:scale(.97)}
 .field:focus{outline:none;border-color:var(--accent);background:var(--bg)}
 .field::placeholder{color:var(--ink-4)}
 .field[aria-invalid="true"]{border-color:var(--down)}
-.seg{display:inline-flex;position:relative;padding:4px;background:var(--bg-2);border-radius:var(--r-pill);
+.seg{display:inline-flex;position:relative;padding:4px;background:rgba(255,255,255,.55);
+  border:1px solid rgba(124,200,240,.28);border-radius:var(--r-pill);
   gap:3px;max-width:100%;overflow-x:auto;scrollbar-width:none}
 .seg::-webkit-scrollbar{display:none}
 .seg button{position:relative;z-index:1;padding:9px 18px;border-radius:var(--r-pill);font-size:var(--t-small);
@@ -717,11 +723,11 @@ button:active{transform:scale(.97)}
 .trio-c b{display:block;font-size:15px;font-weight:650;letter-spacing:-.02em}
 .trio-c span{display:block;font-size:13px;color:var(--ink-3);margin-top:4px;line-height:1.45}
 .search-btn{display:flex;align-items:center;gap:11px;width:100%;max-width:520px;margin:var(--sp-3) auto 0;
-  padding:15px 20px;border-radius:100px;background:var(--bg-2);color:var(--ink-4);font-size:15.5px;
-  text-align:left;border:1px solid transparent;
+  padding:15px 20px;border-radius:100px;background:rgba(255,255,255,.55);color:var(--ink-4);font-size:15.5px;
+  text-align:left;border:1px solid rgba(124,200,240,.28);
   transition:background .25s var(--spring),border-color .25s var(--spring),
     box-shadow .25s var(--spring),transform .25s var(--spring)}
-.search-btn:hover{background:var(--bg);border-color:var(--line);box-shadow:var(--shadow-2);
+.search-btn:hover{background:rgba(255,255,255,.85);border-color:var(--line);box-shadow:var(--shadow-2);
   transform:translateY(-2px)}
 .search-btn:active{transform:scale(.99)}
 .search-btn svg{width:18px;height:18px;flex:0 0 auto}
@@ -851,9 +857,9 @@ a.row{color:inherit;text-decoration:none}
 .sheet-h{display:flex;align-items:flex-start;justify-content:space-between;gap:var(--sp-2);margin-bottom:var(--sp-2)}
 .sheet h3{font-size:22px;font-weight:700;letter-spacing:-.035em}
 .sheet p{font-size:15px;color:var(--ink-3);line-height:1.55;margin-top:10px}
-.x{width:34px;height:34px;border-radius:50%;background:var(--bg-2);display:flex;align-items:center;justify-content:center;
+.x{width:34px;height:34px;border-radius:50%;background:rgba(255,255,255,.55);display:flex;align-items:center;justify-content:center;
   color:var(--ink-3);flex:0 0 auto}
-.x:hover{background:var(--bg-3);color:var(--ink)}
+.x:hover{background:rgba(255,255,255,.85);color:var(--ink)}
 .x svg{width:15px;height:15px}
 @media (max-width:640px){
   .sheet-bg{align-items:flex-end;padding:0}
@@ -877,7 +883,11 @@ a.row{color:inherit;text-decoration:none}
   -webkit-overflow-scrolling:touch;scroll-behavior:smooth;scrollbar-width:none}
 .chips-scroll::-webkit-scrollbar{display:none}
 .chips-scroll .chip{flex:0 0 auto}
-.chip{padding:9px 15px;border-radius:100px;background:var(--bg-2);font-size:13.5px;font-weight:550;
+/* TEST PALETTE v2 : fond opaque -> verre clair (voir .btn-s plus haut).
+   .chip[aria-pressed="true"] (état sélectionné, encre foncée) non
+   concerné : ce n'est pas un bouton "blanc". */
+.chip{padding:9px 15px;border-radius:100px;background:rgba(255,255,255,.55);
+  border:1px solid rgba(124,200,240,.28);font-size:13.5px;font-weight:550;
   color:var(--ink-3);min-height:38px;display:inline-flex;align-items:center;gap:6px}
 /* CORRECTIF (bug visuel réel et grave, audit complet 2026-09-17) : un
    <svg> nu n'a AUCUNE taille par défaut dans un navigateur (taille de
@@ -888,7 +898,7 @@ a.row{color:inherit;text-decoration:none}
    vérifié en direct : un bouton normalement haut de 38px gonflait à la
    taille de l'icône géante et devenait un cercle énorme. */
 .chip svg{width:15px;height:15px;flex:0 0 auto}
-.chip:hover{background:var(--bg-3);color:var(--ink)}
+.chip:hover{background:rgba(255,255,255,.85);color:var(--ink)}
 .chip[aria-pressed="true"]{background:var(--ink);color:var(--bg)}
 .check-box{width:22px;height:22px;border-radius:50%;border:1.5px solid var(--line-2);
   display:flex;align-items:center;justify-content:center;flex:0 0 auto;color:var(--bg);margin-left:auto}
@@ -1530,9 +1540,10 @@ a.row{color:inherit;text-decoration:none}
 .qa{display:flex;flex-direction:column;align-items:center;gap:7px;
   background:none;color:var(--ink-2);font-size:12.5px;font-weight:600}
 .qa i{display:flex;align-items:center;justify-content:center;position:relative;
-  width:52px;height:52px;border-radius:50%;background:var(--bg-2);color:var(--ink);
+  width:52px;height:52px;border-radius:50%;background:rgba(255,255,255,.55);
+  border:1px solid rgba(124,200,240,.28);color:var(--ink);
   transition:background .2s ease-out,color .2s ease-out}
-.qa:hover i{background:var(--bg-3)}
+.qa:hover i{background:rgba(255,255,255,.85)}
 .qa[aria-pressed="true"] i{background:var(--accent);color:var(--accent-ink)}
 .qa svg{width:20px;height:20px}
 .qa-badge{position:absolute;top:-3px;right:-3px;min-width:17px;height:17px;padding:0 4px;
@@ -1679,8 +1690,8 @@ body.gated .wrap{padding:0;max-width:100%}
 .btn-google:hover{border-color:var(--ink-4);box-shadow:var(--shadow-2);transform:translateY(-2px)}
 .btn-apple{background:#000;color:#fff;margin-top:10px}
 .btn-apple:hover{background:#1a1a1a;transform:translateY(-2px)}
-.btn-email{background:var(--bg-2);color:var(--ink);margin-top:10px}
-.btn-email:hover{background:var(--bg-3);transform:translateY(-2px)}
+.btn-email{background:rgba(255,255,255,.55);border:1px solid rgba(124,200,240,.28);color:var(--ink);margin-top:10px}
+.btn-email:hover{background:rgba(255,255,255,.85);transform:translateY(-2px)}
 /* Lien texte (formulaire e-mail) — n'existait nulle part dans ce
    fichier avant cette passe (vérifié), jamais qu'un <button class="btn
    ..."> plein pour une action secondaire de type "retour"/"mot de passe
