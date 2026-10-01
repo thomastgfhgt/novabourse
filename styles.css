@@ -1064,8 +1064,8 @@ a.row{color:inherit;text-decoration:none}
      et ne lit que sur fond sombre (voir note "un fond clair casserait
      totalement la lisibilité" plus haut) — cette fois le contenu change
      AUSSI (voir .temple-line/.nova-temple-brand/.nb-hero-title/
-     .nb-hero-sub2/.nova-action-*/.nb-cta-s plus bas, tous repassés en
-     encre foncée), donc le constat d'origine ne s'applique plus. */
+     .nb-hero-sub2/.nova-action-circle/.nb-cta-s plus bas, tous repassés
+     en encre foncée), donc le constat d'origine ne s'applique plus. */
   background:
     radial-gradient(circle at 50% 18%, rgba(124,200,240,.28), transparent 62%),
     linear-gradient(180deg,var(--paleblue-50) 0%,#ffffff 50%,var(--palepink-50) 100%);
