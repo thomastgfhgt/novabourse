@@ -32,23 +32,30 @@
   --ink-2:#3d4453;
   --ink-3:#6b7385;
   --ink-4:#9aa1b1;
-  --accent:var(--orange-500);
-  /* Sens hover/press conforme à la spec NovaTitre (dégradé bouton
-     PRIMARY : #E67E22 -> #F39C12 au survol, donc PLUS clair, pas plus
-     sombre) — inversé par rapport à la convention précédente (rose
-     s'assombrissait au survol). */
-  --accent-hover:var(--orange-light);
-  --accent-press:var(--orange-700);
-  --accent-soft:var(--orange-50);
-  --accent-ink:#ffffff;
+  /* TEST PALETTE (demande utilisateur, 2026-10-01) : "seulement bleu
+     clair, noir, transparent pour l'ensemble du site" — accent PRIMAIRE
+     devient le cyan déjà défini ci-dessus (--cyan-500, auparavant réservé
+     à --blue-accent en accent secondaire) au lieu d'orange. Hausse/baisse
+     (--up/--down) et avertissement (--warn) NON concernés : couleurs
+     sémantiques (gain/perte/alerte), confirmées à conserver avec
+     l'utilisateur plutôt que suppose. --accent-ink passe à --bg-dark-ink
+     (texte foncé) au lieu de blanc : le cyan est clair/lumineux, un texte
+     blanc dessus serait peu lisible (même raison déjà documentée plus bas
+     pour --blue-accent/.btn-blue). */
+  --accent:var(--cyan-500);
+  --accent-hover:var(--cyan-300);
+  --accent-press:var(--cyan-700);
+  --accent-soft:var(--cyan-50);
+  --accent-ink:var(--bg-dark-ink);
   /* Bleu nuit officiel NovaTitre (#0A0E27) : utilisé pour le texte sur
      fond cyan clair (--blue-accent ci-dessous) — un texte blanc y serait
      illisible (contraste insuffisant). Défini ici (pas seulement en
      dark) car --blue-accent est identique en clair et en sombre. */
   --bg-dark-ink:#0a0e27;
-  /* Cyan réservé aux boutons SECONDAIRES uniquement (jamais un accent
-     général concurrent de l'orange) — voir .btn-blue plus bas (nom
-     conservé, couleur désormais cyan — voir note de palette ci-dessus). */
+  /* --blue-accent pointe désormais vers LE MÊME cyan que --accent (voir
+     note "TEST PALETTE" ci-dessus) — conservé comme variable distincte
+     (nom + .btn-blue inchangés) pour ne rien casser des usages dispersés,
+     même valeur que l'accent primaire le temps de ce test. */
   --blue-accent:var(--cyan-500); --blue-accent-soft:var(--cyan-50);
   --up:var(--green-500);   --up-soft:var(--green-50);
   --down:#ef4444; --down-soft:#fef0ef;
@@ -59,7 +66,7 @@
   --shadow-1:none;
   --shadow-2:0 1px 2px rgba(13,17,23,.04), 0 8px 24px rgba(13,17,23,.05);
   --shadow-3:0 2px 6px rgba(13,17,23,.06), 0 24px 48px rgba(13,17,23,.08);
-  --shadow-accent:0 8px 24px rgba(236,72,153,.24);
+  --shadow-accent:0 8px 24px rgba(0,212,255,.28);
   --space-2:8px;  --space-3:12px; --space-4:16px; --space-5:24px;
   --space-6:32px; --space-7:48px; --space-8:64px; --space-9:96px;
   --sp-1:8px; --sp-2:16px; --sp-3:24px; --sp-4:32px; --sp-5:48px; --sp-6:80px;
@@ -120,19 +127,19 @@
      (déjà exactement #F3F4F6, la valeur demandée). */
   --bg:#0a0e27; --bg-2:#111631; --bg-3:#181e3d; --bg-4:#232a4d;
   --ink:#f3f4f6; --ink-2:#d1d5db; --ink-3:#9ca3af; --ink-4:#6b7280;
-  /* Orange Hermès (#E67E22, même teinte que le thème clair, "Primary
-     toujours orange") : assez saturé pour rester lisible sur #0A0E27. */
-  --accent:var(--orange-500); --accent-hover:var(--orange-light); --accent-press:var(--orange-700);
-  --accent-soft:#2a1f14; --accent-ink:#ffffff;
-  /* Cyan réservé aux boutons secondaires (même règle qu'en thème
-     clair) — jamais un accent général. */
+  /* TEST PALETTE (voir note "TEST PALETTE" dans :root ci-dessus) : même
+     cyan qu'en thème clair, lisible sur #0A0E27. --accent-ink reste
+     --bg-dark-ink (déjà la bonne valeur pour du texte sur fond cyan
+     clair, qu'on soit en thème clair ou sombre). */
+  --accent:var(--cyan-500); --accent-hover:var(--cyan-300); --accent-press:var(--cyan-700);
+  --accent-soft:#142a30; --accent-ink:var(--bg-dark-ink);
   --blue-accent:var(--cyan-500); --blue-accent-soft:#142a30;
   --up:#34d399; --up-soft:#0c2419; --down:#f87171; --down-soft:#2a1416;
   --warn:#e0a63a; --warn-soft:#2a2110;
   --line:#2a3050; --line-2:#1a1f3d;
   --shadow-2:0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.35);
   --shadow-3:0 2px 6px rgba(0,0,0,.45), 0 24px 48px rgba(0,0,0,.45);
-  --shadow-accent:0 8px 24px rgba(230,126,34,.3);
+  --shadow-accent:0 8px 24px rgba(0,212,255,.35);
 }
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 /* overflow-x:hidden ajouté ici le 2026-09-23 (bug réel trouvé en testant
@@ -200,21 +207,18 @@ body{
   filter:blur(65px);opacity:.32;
   animation:auroraDrift 26s ease-in-out infinite, auroraHue 60s linear infinite;
   will-change:transform}
-/* Couleurs en variables (mise à jour 2026-09-28, pivot marque NovaTitre :
-   "Primary = Orange toujours", cyan réservé aux boutons secondaires —
-   jamais un accent général ; recoloré depuis rose/violet, voir note de
-   palette tout en haut du fichier). Orange (2 tons) domine, cyan en 3e
-   touche — même rôle structurel que le violet qu'il remplace, cohérent
-   avec le reste de la nouvelle identité (boutons, temple...). Toujours
-   personnalisable par section via body[data-bg=...] (paintNav()/render()). */
+/* TEST PALETTE (voir note dans :root) : 2 tons de bleu/cyan au lieu
+   d'orange — même structure (2 taches dominantes + 1 touche, voir plus
+   bas), toujours personnalisable par section via body[data-bg=...]
+   (paintNav()/render()). */
 .aurora-bg::before{width:55vw;height:55vw;top:-18vw;left:-12vw;
-  background:radial-gradient(circle,var(--aurora-1,#e67e22) 0%,var(--aurora-1b,#f39c12) 45%,transparent 72%)}
+  background:radial-gradient(circle,var(--aurora-1,#00a8cc) 0%,var(--aurora-1b,#00d4ff) 45%,transparent 72%)}
 .aurora-bg::after{width:50vw;height:50vw;bottom:-22vw;right:-14vw;animation-delay:-13s;
-  background:radial-gradient(circle,var(--aurora-2,#b85f12) 0%,var(--aurora-2b,#e67e22) 40%,transparent 72%)}
+  background:radial-gradient(circle,var(--aurora-2,#006b85) 0%,var(--aurora-2b,#00a8cc) 40%,transparent 72%)}
 .aurora-bg .aurora-3{width:38vw;height:38vw;top:38vh;left:32vw;animation-delay:-8s;
   animation-duration:32s;opacity:.24;
   background:radial-gradient(circle,var(--aurora-3,#00a8cc) 0%,var(--aurora-3b,#00d4ff) 45%,transparent 72%)}
-body[data-bg="portfolio"]{--aurora-1:#00a8cc;--aurora-1b:#00d4ff;--aurora-2:#e67e22;--aurora-2b:#f39c12;
+body[data-bg="portfolio"]{--aurora-1:#00a8cc;--aurora-1b:#00d4ff;--aurora-2:#006b85;--aurora-2b:#00a8cc;
   --aurora-3:#00a8cc;--aurora-3b:#00d4ff}
 body[data-bg="account"]{--aurora-1:#8d95a4;--aurora-1b:#aeb4c0;--aurora-2:#646c7c;--aurora-2b:#9aa1b1;
   --aurora-3:#8d95a4;--aurora-3b:#aeb4c0}
@@ -324,7 +328,7 @@ button:active{transform:scale(.97)}
    coût de rendu proche de zéro au lieu d'un repaint continu partout
    dans l'app. */
 .logo-m::after{content:"";position:absolute;inset:-5px;border-radius:50%;
-  box-shadow:0 0 0 5px rgba(236,72,153,.16);opacity:0;pointer-events:none;
+  box-shadow:0 0 0 5px rgba(0,212,255,.18);opacity:0;pointer-events:none;
   animation:logoGlow 4.5s ease-in-out infinite}
 @keyframes logoGlow{ 0%,100%{opacity:0} 50%{opacity:1} }
 @media (prefers-reduced-motion:reduce){ .logo-m::after{animation:none} }
@@ -522,7 +526,7 @@ button:active{transform:scale(.97)}
    toutes les animations infinies de ce fichier (la leçon du fond
    aurora, plus haut, documente pourquoi une durée quasi nulle plutôt
    qu'un arrêt franc a déjà causé un vrai bug cette session). */
-.btn-a{background:linear-gradient(135deg,var(--accent) 0%,var(--orange-light,var(--accent-hover)) 100%);
+.btn-a{background:linear-gradient(135deg,var(--accent) 0%,var(--accent-hover) 100%);
   background-size:200% 200%;animation:gradientShift 4s ease-in-out infinite;
   color:var(--accent-ink);box-shadow:var(--shadow-accent)}
 @keyframes gradientShift{
@@ -577,7 +581,7 @@ button:active{transform:scale(.97)}
 .card{background-color:rgba(255,255,255,.6);backdrop-filter:blur(16px) saturate(160%);
   -webkit-backdrop-filter:blur(16px) saturate(160%);border:1px solid rgba(255,255,255,.8);
   border-radius:var(--r-l);padding:var(--card-pad);
-  box-shadow:0 1px 2px rgba(13,17,23,.05),0 16px 40px rgba(236,72,153,.10)}
+  box-shadow:0 1px 2px rgba(13,17,23,.05),0 16px 40px rgba(0,212,255,.10)}
 [data-theme="dark"] .card{background-color:rgba(22,26,33,.6);border-color:rgba(255,255,255,.08);
   box-shadow:0 1px 2px rgba(0,0,0,.3),0 16px 40px rgba(0,0,0,.4)}
 .card-flat{background:var(--bg-2);border-radius:var(--r-l);padding:var(--card-pad)}
@@ -965,7 +969,7 @@ a.row{color:inherit;text-decoration:none}
    Halo doux ajouté (drop-shadow), même principe que le temple. */
 .brand-orbit{position:relative;display:flex;align-items:center;justify-content:center;
   width:64px;height:64px;margin:0 auto;
-  filter:drop-shadow(0 0 10px rgba(230,126,34,.25)) drop-shadow(0 0 16px rgba(0,212,255,.15))}
+  filter:drop-shadow(0 0 10px rgba(0,168,204,.25)) drop-shadow(0 0 16px rgba(0,212,255,.15))}
 .brand-ring{position:absolute;inset:0;width:100%;height:100%;opacity:.85;
   animation:ringSpin 9s linear infinite}
 .brand-ring circle:first-child{color:var(--accent)}
@@ -1278,8 +1282,8 @@ a.row{color:inherit;text-decoration:none}
    violet de l'identité précédente sur le CTA PRIMAIRE de la page
    d'accueil ("Analyser") — un oubli du reste du rebrand, corrigé ici
    pour rejoindre le même dégradé orange que .btn-a partout ailleurs. */
-.nb-cta-a{background:linear-gradient(135deg,var(--accent) 0%,var(--orange-light) 100%);color:#fff;
-  box-shadow:0 8px 28px rgba(230,126,34,.24)}
+.nb-cta-a{background:linear-gradient(135deg,var(--accent) 0%,var(--accent-hover) 100%);color:var(--accent-ink);
+  box-shadow:0 8px 28px rgba(0,212,255,.3)}
 .nb-cta-a:active{transform:scale(.98)}
 .nb-cta-s{background:rgba(17,22,49,.55);border:1px solid rgba(255,255,255,.10);color:#fff}
 .nb-cta-s:active{background:rgba(17,22,49,.75)}
@@ -1352,7 +1356,7 @@ a.row{color:inherit;text-decoration:none}
 .nova-add-funds{width:34px;height:34px;border-radius:50%;flex:0 0 auto;
   display:flex;align-items:center;justify-content:center;
   background:var(--accent);color:var(--accent-ink);
-  box-shadow:0 4px 14px rgba(236,72,153,.28);
+  box-shadow:0 4px 14px rgba(0,212,255,.3);
   transition:transform .2s cubic-bezier(.22,1,.36,1),box-shadow .2s ease}
 .nova-add-funds svg{width:18px;height:18px}
 @media (hover:hover){ .nova-add-funds:hover{transform:scale(1.08)} }
@@ -1556,8 +1560,11 @@ a.row{color:inherit;text-decoration:none}
    de palette (commit a529447), simplement parce que .nova-orb n'était
    alors branché à aucun balisage réel (trouvé mort par cet audit — voir
    plus bas où il est enfin utilisé, pour l'attente "Analyse IA"). */
-.nova-orb i:nth-child(1){background:radial-gradient(circle at 30% 30%,var(--green-300),var(--green-500))}
-.nova-orb i:nth-child(2){background:radial-gradient(circle at 70% 40%,var(--orange-300),var(--orange-500));animation-delay:-1.8s}
+/* TEST PALETTE : décoratif (3 points "Analyse IA" en attente), aucun
+   lien avec hausse/baisse — les 3 passent donc en bleu aussi, 3 teintes
+   distinctes de la même échelle cyan pour rester différenciables. */
+.nova-orb i:nth-child(1){background:radial-gradient(circle at 30% 30%,var(--cyan-100),var(--cyan-300))}
+.nova-orb i:nth-child(2){background:radial-gradient(circle at 70% 40%,var(--cyan-300),var(--cyan-700));animation-delay:-1.8s}
 .nova-orb i:nth-child(3){background:radial-gradient(circle at 50% 70%,var(--cyan-300),var(--cyan-500));animation-delay:-3.6s}
 @keyframes orb{
   0%,100%{transform:translate(0,0) scale(.82)}
@@ -1581,7 +1588,7 @@ a.row{color:inherit;text-decoration:none}
 .btn-buy:hover::after{animation:sheen 1s var(--spring)}
 @keyframes sheen{to{transform:translateX(100%)}}
 .amounts{display:flex;gap:8px;flex-wrap:wrap;margin-top:18px}
-.save{background:var(--accent);color:#fff;padding:2px 8px;border-radius:100px;font-size:11px;
+.save{background:var(--accent);color:var(--accent-ink);padding:2px 8px;border-radius:100px;font-size:11px;
   font-weight:700;margin-left:6px}
 /* (ancienne règle .dock button{transition:color .3s var(--spring)} ici
    supprimée le 2026-09-23 — doublon avec la transition déjà définie dans
@@ -1797,7 +1804,7 @@ body.no-spark .row-spark{display:none}
 .kv dd{font-family:var(--mono);font-size:15px;font-weight:600;flex:0 1 auto;text-align:right}
 .info{width:19px;height:19px;border-radius:50%;background:var(--bg-3);color:var(--ink-4);
   display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex:0 0 auto}
-.info:hover{background:var(--accent);color:#fff}
+.info:hover{background:var(--accent);color:var(--accent-ink)}
 .star{width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:var(--ink-4);flex:0 0 auto}
 .star:hover{background:var(--bg-2)}
 .star[aria-pressed="true"]{color:var(--warn)}
