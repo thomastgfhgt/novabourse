@@ -33,9 +33,20 @@
   --paleblue-50:#f0faff; --paleblue-base:#cfeeff; --paleblue-hover:#a8ddfb; --paleblue-press:#7cc8f0;
   --palepink-50:#fff5fa; --palepink-base:#ffd9ec; --palepink-hover:#ffbfe0; --palepink-press:#ff9fd0;
   --bg:#ffffff;
-  --bg-2:#faf9f8;
-  --bg-3:#f5f4f0;
-  --bg-4:#ecece8;
+  /* TEST PALETTE v2 (retour utilisateur : "fais en sorte que tout le
+     blanc soit transparent") : --bg-2/-3/-4 (jamais utilisées comme
+     `color:`, vérifié — seule --bg pure l'est, volontairement laissée
+     opaque ci-dessus pour ne rien casser) passent de gris quasi-blancs
+     opaques à du verre clair — un SEUL changement ici se propage
+     correctement à chaque carte/puce/case qui les utilise déjà comme
+     fond (cartes, champs de recherche, barres de stats, étapes
+     d'onboarding...), sans reprendre individuellement chacun des ~40
+     endroits concernés (risque d'erreur bien plus grand, voir l'incident
+     du commentaire mal fermé plus tôt). Thème sombre non concerné : ses
+     --bg-2/-3/-4 sont déjà des nuances de nuit, jamais "du blanc". */
+  --bg-2:rgba(255,255,255,.55);
+  --bg-3:rgba(255,255,255,.78);
+  --bg-4:rgba(255,255,255,.9);
   --ink:#0d1117;
   --ink-2:#3d4453;
   --ink-3:#6b7385;
@@ -624,7 +635,7 @@ button:active{transform:scale(.97)}
 .card-flat{background:var(--bg-2);border-radius:var(--r-l);padding:var(--card-pad)}
 .card-lift{transition:background var(--slow) var(--ease)}
 .card-lift:hover{background:var(--bg-3)}
-.card-white{background:var(--bg);box-shadow:var(--shadow-2)}
+.card-white{background:rgba(255,255,255,.7);box-shadow:var(--shadow-2)}
 .grid{display:grid;gap:var(--space-4)}
 .g-2{grid-template-columns:repeat(auto-fit,minmax(280px,1fr))}
 .g-3{grid-template-columns:repeat(auto-fit,minmax(230px,1fr))}
@@ -632,7 +643,7 @@ button:active{transform:scale(.97)}
 .field{width:100%;padding:15px 18px;border-radius:var(--r-s);background:var(--bg-2);
   border:1.5px solid transparent;min-height:var(--tap);font-size:var(--t-body);
   transition:border-color var(--fast) ease,background var(--fast) ease}
-.field:focus{outline:none;border-color:var(--accent);background:var(--bg)}
+.field:focus{outline:none;border-color:var(--accent);background:rgba(255,255,255,.92)}
 .field::placeholder{color:var(--ink-4)}
 .field[aria-invalid="true"]{border-color:var(--down)}
 .seg{display:inline-flex;position:relative;padding:4px;background:rgba(255,255,255,.55);
@@ -655,7 +666,7 @@ button:active{transform:scale(.97)}
    dock (élément persistant + transition passive), qui ne se serait pas
    appliqué ici. */
 .seg-pill{position:absolute;top:4px;bottom:4px;left:0;border-radius:var(--r-pill);
-  background:var(--bg);box-shadow:var(--shadow-2);z-index:0;pointer-events:none;
+  background:rgba(255,255,255,.9);box-shadow:var(--shadow-2);z-index:0;pointer-events:none;
   transition:transform .35s var(--spring),width .35s var(--spring)}
 @media (prefers-reduced-motion:reduce){ .seg-pill{transition:none} }
 /* CORRECTIF (audit complet 2026-09-17) : .sw avait une première
@@ -718,7 +729,7 @@ button:active{transform:scale(.97)}
   margin-top:var(--sp-5)}
 .trio-c{padding:var(--sp-3);border-radius:var(--r-m);background:var(--bg-2);text-align:center}
 .trio-i{width:42px;height:42px;border-radius:13px;display:flex;align-items:center;justify-content:center;margin:0 auto var(--sp-1);
-  background:var(--bg);box-shadow:var(--shadow-1);color:var(--accent)}
+  background:rgba(255,255,255,.7);box-shadow:var(--shadow-1);color:var(--accent)}
 .trio-i svg{width:21px;height:21px}
 .trio-c b{display:block;font-size:15px;font-weight:650;letter-spacing:-.02em}
 .trio-c span{display:block;font-size:13px;color:var(--ink-3);margin-top:4px;line-height:1.45}
@@ -820,7 +831,7 @@ a.row{color:inherit;text-decoration:none}
    (hover:hover)/(pointer:fine), même raison qu'ailleurs dans ce fichier
    (jamais un survol "collé" après un tap tactile). */
 .plan{position:relative;padding:var(--sp-3);border-radius:var(--r-l);border:1.5px solid var(--line);
-  display:flex;flex-direction:column;background:var(--bg);
+  display:flex;flex-direction:column;background:rgba(255,255,255,.7);
   transition:border-color .3s var(--spring),box-shadow .3s var(--spring),transform .3s var(--spring)}
 .plan:hover{border-color:var(--ink-4)}
 @media (hover:hover) and (pointer:fine){
@@ -845,7 +856,8 @@ a.row{color:inherit;text-decoration:none}
   display:none;align-items:center;justify-content:center;padding:var(--sp-2)}
 .sheet-bg.on{display:flex;animation:fade .22s ease}
 @keyframes fade{from{opacity:0}to{opacity:1}}
-.sheet{width:100%;max-width:520px;background:var(--bg);border-radius:var(--r-xl);padding:var(--sp-3);
+.sheet{width:100%;max-width:520px;background:rgba(255,255,255,.88);backdrop-filter:blur(16px) saturate(160%);
+  -webkit-backdrop-filter:blur(16px) saturate(160%);border-radius:var(--r-xl);padding:var(--sp-3);
   max-height:86vh;overflow-y:auto;box-shadow:var(--shadow-3);animation:sheetIn .42s var(--spring)}
 @keyframes sheetIn{from{transform:translateY(24px) scale(.97);opacity:0}to{transform:none;opacity:1}}
 /* Morph de la recherche : voir openSearch() (JS) pour --morph-from. Classe
@@ -1608,7 +1620,7 @@ a.row{color:inherit;text-decoration:none}
   transition:transform .35s var(--spring),background .35s var(--spring)}
 .cap:hover{background:var(--bg-3)}
 .cap-i{width:var(--icon-box);height:var(--icon-box);flex:0 0 var(--icon-box);
-  border-radius:14px;background:var(--bg);color:var(--ink-2);box-shadow:var(--shadow-1)}
+  border-radius:14px;background:rgba(255,255,255,.7);color:var(--ink-2);box-shadow:var(--shadow-1)}
 .cap-i svg{width:22px;height:22px}
 .cap-txt{flex:1 1 auto;min-width:0;text-align:left}
 .cap b{display:block;font-size:15.5px;font-weight:650;letter-spacing:-.02em}
@@ -1725,7 +1737,7 @@ body.gated .wrap{padding:0;max-width:100%}
 .onb-c{display:flex;align-items:center;gap:12px;text-align:left;padding:18px;border-radius:var(--r-m);
   background:var(--bg-2);border:1.5px solid transparent;
   transition:border-color .28s var(--spring),background .28s var(--spring),transform .28s var(--spring)}
-.onb-c:hover{border-color:var(--accent);background:var(--bg);transform:translateX(3px)}
+.onb-c:hover{border-color:var(--accent);background:rgba(255,255,255,.85);transform:translateX(3px)}
 .onb-c b{display:block;font-size:15.5px;font-weight:650;letter-spacing:-.02em}
 .onb-c span:not(.onb-a){display:block;font-size:13px;color:var(--ink-3);margin-top:3px}
 .onb-c>b,.onb-c>span:first-of-type{flex:1;min-width:0}
@@ -1735,7 +1747,7 @@ body.gated .wrap{padding:0;max-width:100%}
 .onb-step{display:flex;align-items:center;gap:12px;padding:16px;border-radius:var(--r-m);background:var(--bg-2)}
 .onb-n{width:26px;height:26px;border-radius:50%;background:var(--ink);color:var(--bg);
   font-size:13px;font-weight:700}
-.onb-i{width:34px;height:34px;border-radius:11px;background:var(--bg);display:flex;align-items:center;justify-content:center;
+.onb-i{width:34px;height:34px;border-radius:11px;background:rgba(255,255,255,.7);display:flex;align-items:center;justify-content:center;
   color:var(--accent);flex:0 0 auto;box-shadow:var(--shadow-1)}
 .onb-i svg{width:17px;height:17px}
 .onb-step b{display:block;font-size:14.5px;font-weight:650;letter-spacing:-.02em}
@@ -1794,7 +1806,7 @@ body.gated .wrap{padding:0;max-width:100%}
 .no-anim *{animation:none!important;transition:none!important}
 body.no-spark .row-spark{display:none}
 @media (max-width:520px){ .set-row{align-items:flex-start} .set-ctl{width:100%} .seg{width:100%} }
-.ai-focus{background:var(--bg);border-radius:var(--r-s);padding:9px 11px;margin-top:11px}
+.ai-focus{background:rgba(255,255,255,.7);border-radius:var(--r-s);padding:9px 11px;margin-top:11px}
 .focus-l{display:block;font-size:10.5px;font-weight:650;letter-spacing:.03em;color:var(--ink-4);
   text-transform:uppercase}
 .focus-v{display:block;font-size:13px;font-weight:650;letter-spacing:-.015em;margin-top:2px}
@@ -1883,7 +1895,7 @@ body.no-spark .row-spark{display:none}
 .flow-s{display:flex;align-items:center;gap:var(--icon-gap);padding:var(--card-pad);
   border-radius:var(--r-m);background:var(--bg-2)}
 .flow-n{width:var(--icon-box);height:var(--icon-box);flex:0 0 var(--icon-box);
-  border-radius:50%;background:var(--bg);font-size:15px;font-weight:700;
+  border-radius:50%;background:rgba(255,255,255,.7);font-size:15px;font-weight:700;
   box-shadow:var(--shadow-1);font-variant-numeric:tabular-nums;color:var(--ink-2)}
 .flow-txt{flex:1 1 auto;min-width:0;text-align:left}
 .flow-s b{display:block;font-size:14.5px;font-weight:600;letter-spacing:-.02em}
