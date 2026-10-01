@@ -32,13 +32,26 @@
      déjà quasi blanche n'a plus de marge pour s'éclaircir davantage). */
   --paleblue-50:#f0faff; --paleblue-base:#cfeeff; --paleblue-hover:#a8ddfb; --paleblue-press:#7cc8f0;
   --palepink-50:#fff5fa; --palepink-base:#ffd9ec; --palepink-hover:#ffbfe0; --palepink-press:#ff9fd0;
-  --bg:#ffffff;
+  /* 2026-10-01 (retour utilisateur : "un fond partout bleu clair ou bleu
+     foncé en fonction du thème") : --bg quitte le blanc pour un bleu
+     clair franc et visible (paleblue-base, pas le ton -50 presque
+     blanc — l'utilisateur a déjà dit vouloir que ce soit "clair"
+     [=net, visible], pas discret). Le thème sombre a déjà exactement
+     ce même principe (--bg:#0a0e27, bleu nuit) depuis le pivot de
+     marque du 2026-09-28 : les deux thèmes suivent maintenant la même
+     règle "fond = bleu clair/foncé selon le thème", symétrique. */
+  --bg:var(--paleblue-base);
   /* TEST PALETTE v2 (retour utilisateur, 2026-10-01 : "je veux qu'il
      n'y ait plus aucune couleur blanche... je veux qu'elle soit toute
      transparente") : plus de teinte blanche du tout, même légère —
      transparent pur. Toujours jamais utilisées comme `color:` (vérifié)
      — seule --bg pure l'est, reste opaque. Thème sombre non concerné
-     (ses --bg-2/-3/-4 sont des nuances de nuit, jamais "du blanc"). */
+     (ses --bg-2/-3/-4 sont des nuances de nuit, jamais "du blanc").
+     CORRECTIF (2026-10-01, retour utilisateur : "je veux que TOUS les
+     blocs, case, navigateur du haut soit TOUS transparents" — sans
+     exclure le thème sombre cette fois) : le thème sombre reçoit
+     désormais exactement le même traitement, voir [data-theme="dark"]
+     plus bas. */
   --bg-2:transparent;
   --bg-3:transparent;
   --bg-4:transparent;
@@ -143,8 +156,17 @@
      c'est une décision de marque neuve et explicite, pas une régression.
      --bg-2/-3/-4 dérivés en éclaircissant progressivement la même teinte
      (même principe relatif que l'échelle précédente), --ink inchangé
-     (déjà exactement #F3F4F6, la valeur demandée). */
-  --bg:#0a0e27; --bg-2:#111631; --bg-3:#181e3d; --bg-4:#232a4d;
+     (déjà exactement #F3F4F6, la valeur demandée).
+     CORRECTIF (2026-10-01, retour utilisateur : "je veux que TOUS les
+     blocs, case, navigateur du haut soit TOUS transparents" — le thème
+     sombre n'avait jamais reçu ce traitement jusqu'ici, contrairement
+     au thème clair : cause probable du "ce n'est pas du tout la même
+     chose entre téléphone et ordinateur" si les deux appareils n'ont
+     pas le même thème actif (state.settings.theme, stocké en
+     localStorage, n'est pas partagé entre appareils). --bg-2/-3/-4
+     passent transparent, exactement comme en thème clair — seul --bg
+     reste la vraie couleur pleine (bleu nuit) de la page. */
+  --bg:#0a0e27; --bg-2:transparent; --bg-3:transparent; --bg-4:transparent;
   --ink:#f3f4f6; --ink-2:#d1d5db; --ink-3:#9ca3af; --ink-4:#6b7280;
   /* TEST PALETTE v2 (voir note "TEST PALETTE v2" dans :root ci-dessus) :
      mêmes pastels bleu/rose qu'en thème clair — contraste excellent sur
@@ -604,18 +626,30 @@ button:active{transform:scale(.97)}
    part où "se déplacer"). Coupée sous prefers-reduced-motion comme
    toutes les animations infinies de ce fichier (la leçon du fond
    aurora, plus haut, documente pourquoi une durée quasi nulle plutôt
-   qu'un arrêt franc a déjà causé un vrai bug cette session). */
-.btn-a{background:linear-gradient(135deg,var(--accent) 0%,var(--accent-hover) 100%);
+   qu'un arrêt franc a déjà causé un vrai bug cette session).
+   CORRECTIF (2026-10-01, retour utilisateur : "je veux que uniquement
+   des boutons importants soit en orange") : .btn-a est LE bouton
+   "action primaire" générique réutilisé partout dans l'app (confirmer,
+   valider, acheter, enregistrer...) — exactement le sens de "bouton
+   important" ici. Dégradé recoloré en orange (--orange-500/-700,
+   l'échelle orange déjà définie dans :root mais plus utilisée depuis le
+   pivot rose/bleu) au lieu de var(--accent) (qui reste bleu pastel,
+   utilisé ailleurs pour des éléments qui ne sont PAS des boutons
+   importants : liens eyebrow, anneaux de focus, interrupteurs, tags —
+   volontairement non touchés, pour que l'orange reste réservé aux
+   boutons comme demandé). Texte blanc : meilleur contraste qu'une encre
+   foncée sur un orange saturé, et l'orange ne dépend pas du thème. */
+.btn-a{background:linear-gradient(135deg,var(--orange-500) 0%,var(--orange-700) 100%);
   background-size:200% 200%;animation:gradientShift 4s ease-in-out infinite;
-  color:var(--accent-ink);box-shadow:var(--shadow-accent)}
+  color:#fff;box-shadow:0 8px 24px rgba(230,126,34,.28)}
 @keyframes gradientShift{
   0%{background-position:0% 50%}
   50%{background-position:100% 50%}
   100%{background-position:0% 50%}
 }
 @media (prefers-reduced-motion:reduce){ .btn-a{animation:none} }
-.btn-a:hover{background:var(--accent-hover)}
-.btn-a:active{background:var(--accent-press)}
+.btn-a:hover{background:var(--orange-700)}
+.btn-a:active{background:var(--orange-900)}
 /* TEST PALETTE v2 (retour utilisateur : "fais en sorte que tous les
    boutons blancs soient transparent") : fond opaque -> verre clair,
    même principe que .card/.dock/.nova-action-circle déjà passés en
@@ -1150,8 +1184,14 @@ a.row{color:inherit;text-decoration:none}
      blanc") : ce dégradé local à .nb-hero-v2 était resté en place lors
      du passage au fond uni blanc de .aurora-bg (commit précédent) --
      deux déclarations de fond séparées, celle-ci oubliée. Repasse à un
-     blanc uni comme le reste du site. */
-  background:var(--bg);
+     blanc uni comme le reste du site.
+     CORRECTIF (retour utilisateur, 2026-10-01 : "je veux que le temple
+     soit visible en transparent") : transparent plutôt que var(--bg) —
+     .aurora-bg (fixed, sous tout le contenu) porte déjà la couleur
+     réelle de la page ; cette section n'a plus besoin de sa propre
+     couche de fond opaque par-dessus, elle se fond directement dans le
+     même bleu que le reste du site au lieu de former un bloc séparé. */
+  background:transparent;
   position:relative
   /* PAS de overflow:hidden ici (bug réel trouvé le 2026-09-23, passe 2) :
      ça rognait silencieusement le temple, qui vise min(96vw,780px) —
@@ -1217,12 +1257,18 @@ a.row{color:inherit;text-decoration:none}
 /* TEST PALETTE v2 : trait clair #d9f6ff -> encre foncée, le fond
    derrière le temple passe de sombre à pastel clair (voir .nb-hero-v2
    plus haut) — un trait clair y deviendrait quasi invisible. */
-.temple-line{fill:none;stroke:var(--bg-dark-ink);stroke-linecap:round;stroke-linejoin:round;
+/* CORRECTIF (2026-10-01, bug réel : --bg-dark-ink est une teinte FIXE,
+   pas liée au thème — en thème sombre, --bg vaut exactement #0A0E27, la
+   même couleur que --bg-dark-ink : le temple devenait invisible, trait
+   foncé sur fond foncé identique. var(--ink) suit le thème (noir en
+   clair, blanc en sombre), comme demandé ("texte blanc si bleu foncé,
+   texte noir si bleu clair") — s'applique aussi au dessin du temple. */
+.temple-line{fill:none;stroke:var(--ink);stroke-linecap:round;stroke-linejoin:round;
   vector-effect:non-scaling-stroke}
 .temple-main{stroke-width:7}
 .temple-secondary{stroke-width:4.5}
 .temple-flute{stroke-width:2.5;opacity:.90}
-.nova-temple-brand{fill:var(--bg-dark-ink)}
+.nova-temple-brand{fill:var(--ink)}
 @media (max-width:600px){
   .nova-temple{width:98vw;max-width:none}
   /* Retour utilisateur (2026-09-23) : "le temple est un peu trop épais"
@@ -1352,12 +1398,17 @@ a.row{color:inherit;text-decoration:none}
   backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
   box-shadow:0 2px 10px rgba(10,14,39,.07);
   transition:transform .18s ease,background .18s ease,border-color .18s ease,box-shadow .18s ease}
-.nova-action-circle svg{width:29px;height:29px;fill:none;stroke:var(--bg-dark-ink);
+/* CORRECTIF (2026-10-01, même bug que .temple-line/.nova-temple-brand
+   plus haut) : --bg-dark-ink / #5a6478 étaient fixes, invisibles ou
+   illisibles en thème sombre une fois --bg-2/-3/-4 transparents (le
+   fond redevient le bleu nuit de la page). var(--ink)/var(--ink-2)
+   suivent le thème (noir en clair, blanc/gris clair en sombre). */
+.nova-action-circle svg{width:29px;height:29px;fill:none;stroke:var(--ink);
   stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
-.nova-action-title{display:block;margin-top:10px;color:var(--bg-dark-ink);font-size:14px;font-weight:700;
+.nova-action-title{display:block;margin-top:10px;color:var(--ink);font-size:14px;font-weight:700;
   line-height:1.15;letter-spacing:-.01em}
 .nova-action-description{display:block;max-width:180px;margin-top:7px;
-  color:#5a6478;font-size:12px;font-weight:400;line-height:1.32}
+  color:var(--ink-2);font-size:12px;font-weight:400;line-height:1.32}
 @media (hover:hover){
   .nova-quick-action:hover .nova-action-circle{transform:translateY(-2px);
     border-color:rgba(124,200,240,.75);background:transparent;
@@ -1377,24 +1428,30 @@ a.row{color:inherit;text-decoration:none}
   .nova-action-description{margin-top:5px;padding:0 2px;font-size:clamp(8.5px,2.3vw,11.5px);line-height:1.28}
 }
 /* TEST PALETTE v2 : texte blanc -> encre foncée, fond pastel clair
-   désormais derrière (voir .nb-hero-v2 plus haut). */
+   désormais derrière (voir .nb-hero-v2 plus haut).
+   CORRECTIF (2026-10-01, même bug de teinte fixe que plus haut) :
+   var(--bg-dark-ink)/#5a6478 -> var(--ink)/var(--ink-2), suit le
+   thème au lieu de rester toujours foncé. */
 .nb-hero-title{margin-top:26px;font-size:clamp(30px,7.5vw,40px);font-weight:800;
-  letter-spacing:-.03em;color:var(--bg-dark-ink);line-height:1.08;position:relative;z-index:1}
-.nb-hero-sub2{margin-top:8px;font-size:clamp(15px,3.6vw,17px);color:#5a6478;
+  letter-spacing:-.03em;color:var(--ink);line-height:1.08;position:relative;z-index:1}
+.nb-hero-sub2{margin-top:8px;font-size:clamp(15px,3.6vw,17px);color:var(--ink-2);
   position:relative;z-index:1}
 .nb-cta-row{display:flex;gap:10px;margin-top:18px;position:relative;z-index:1}
 .nb-cta-a,.nb-cta-s{flex:1;height:52px;border-radius:9999px;font-size:15px;font-weight:700;
   display:flex;align-items:center;justify-content:center;gap:8px}
-/* Recoloré (2026-09-28, pivot NovaTitre) : c'était encore le dégradé
-   violet de l'identité précédente sur le CTA PRIMAIRE de la page
-   d'accueil ("Analyser") — un oubli du reste du rebrand, corrigé ici
-   pour rejoindre le même dégradé orange que .btn-a partout ailleurs. */
-.nb-cta-a{background:linear-gradient(135deg,var(--accent) 0%,var(--accent-hover) 100%);color:var(--accent-ink);
-  box-shadow:0 8px 28px rgba(124,200,240,.35)}
-.nb-cta-a:active{transform:scale(.98)}
+/* CORRECTIF (2026-10-01, retour utilisateur : "je veux que uniquement
+   des boutons importants soit en orange") : .nb-cta-a ("Analyser", le
+   CTA primaire de l'accueil) rejoint .btn-a, voir plus haut dans ce
+   fichier pour la même logique et le choix des tons --orange-500/-700/
+   -900 plutôt que var(--accent) (qui resterait bleu, utilisé ailleurs
+   pour des éléments NON "boutons importants" : liens, anneaux de focus,
+   interrupteurs — volontairement non touchés ici). */
+.nb-cta-a{background:linear-gradient(135deg,var(--orange-500) 0%,var(--orange-700) 100%);color:#fff;
+  box-shadow:0 8px 28px rgba(230,126,34,.35)}
+.nb-cta-a:active{transform:scale(.98);background:var(--orange-700)}
 /* TEST PALETTE v2 : pilule verre sombre -> verre clair, même principe
    que .nova-action-circle plus haut. */
-.nb-cta-s{background:transparent;border:1px solid rgba(124,200,240,.35);color:var(--bg-dark-ink)}
+.nb-cta-s{background:transparent;border:1px solid rgba(124,200,240,.35);color:var(--ink)}
 .nb-cta-s:active{background:transparent}
 @media (prefers-reduced-motion:reduce){ .nb-cta-a:active,.nb-quick-item:active .nb-quick-bub{transform:none} }
 /* Carte "Mes positions" v2 — hors de .nb-hero-v2 (fond normal de l'app
@@ -1737,7 +1794,9 @@ body.gated .wrap{padding:0;max-width:100%}
    une taille explicite pour toute icône générée par svg() à cet
    endroit précis. */
 .btn-oauth svg{width:18px;height:18px;flex:0 0 auto}
-.btn-google{background:var(--bg);color:var(--ink);border:1.5px solid var(--line);box-shadow:var(--shadow-1)}
+/* #fff en dur (pas var(--bg)) : bouton Google, règles de marque Google
+   imposent un fond neutre fixe — ne doit pas suivre le bleu du site. */
+.btn-google{background:#ffffff;color:#1f1f1f;border:1.5px solid var(--line);box-shadow:var(--shadow-1)}
 .btn-google:hover{border-color:var(--ink-4);box-shadow:var(--shadow-2);transform:translateY(-2px)}
 .btn-apple{background:#000;color:#fff;margin-top:10px}
 .btn-apple:hover{background:#1a1a1a;transform:translateY(-2px)}
