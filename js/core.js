@@ -807,6 +807,37 @@ function seedIndices(){
   }
 }
 
+/* Matières premières — même constat et même mécanisme que les indices
+   ci-dessus (ni dans catalog.json, ni découvrables via /api/market/search
+   pour "Gold"/"Silver"/"Crude Oil"...). Seulement 3 tickers ont une
+   convention EODHD vérifiée (EODHD_COMMODITY_FOREX, _providers.js) :
+   XPD/USD (palladium), XPT/USD (platine), XBR/USD (Brent) — Gold/Silver/
+   WTI/Copper essayés par le passé sans convention fonctionnelle trouvée,
+   volontairement exclus (même discipline que pour les indices).
+   NUANCE IMPORTANTE, vérifiée empiriquement (2026-10-01) et différente des
+   indices : le PRIX fonctionne (dérivé de la dernière clôture EODHD, même
+   mécanisme que les indices sans flux temps réel), mais le GRAPHIQUE DU
+   JOUR ne fonctionnera jamais pour ces 3 — le flux intraday d'EODHD
+   renvoie 0 ligne pour ces symboles (`aucune_ligne_recue`), quel que soit
+   le fournisseur tenté (Twelve Data n'a ces symboles qu'à partir d'un
+   forfait payant supérieur). Ajoutées quand même : un prix réel et
+   consultable vaut mieux qu'une absence totale, et c'est le même état
+   honnête ("pas de courbe aujourd'hui") que de nombreuses actions déjà
+   dans le catalogue. */
+const COMMODITIES_VERIFIEES = [
+  { ticker:'XPD/USD', name:'Palladium', country:'International', cur:'USD' },
+  { ticker:'XPT/USD', name:'Platine',   country:'International', cur:'USD' },
+  { ticker:'XBR/USD', name:'Pétrole Brent', country:'International', cur:'USD' },
+];
+function seedCommodities(){
+  for (const c of COMMODITIES_VERIFIEES){
+    ensureRuntimeStock({
+      ticker: c.ticker, name: c.name, exchangeCode:'FOREX', exchange:'Matière première',
+      sector:'Matières premières', country: c.country, currency: c.cur, assetType:'commodity',
+    }, false);
+  }
+}
+
 /* --------------------------------------------------------------------
    CATALOGUE MONDIAL (Explorer/Marchés) — parcours par pages de 20, jamais
    la recherche comme seul point d'entrée. S'appuie sur

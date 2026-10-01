@@ -1539,6 +1539,11 @@ function boot(){
      de les rendre accessibles (recherche locale, Marchés, fiche) est de
      les enregistrer ici, une fois, avant le premier rendu. */
   seedIndices();
+  /* Même constat/mécanisme pour les 3 matières premières à convention
+     EODHD vérifiée (voir seedCommodities(), js/core.js) — prix réel,
+     jamais de graphique du jour (flux intraday EODHD vide pour ces
+     symboles, vérifié empiriquement). */
+  seedCommodities();
 
   if (!state.settings.theme) state.settings.theme = 'light';
   applySettings();
