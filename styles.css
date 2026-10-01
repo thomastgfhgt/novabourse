@@ -161,7 +161,22 @@
    un vrai bug de layout) restait scrollable horizontalement au niveau
    du document malgré body{overflow-x:hidden}. */
 html{-webkit-text-size-adjust:100%;overflow-x:hidden}
-html{background:var(--bg)}
+/* TEST PALETTE v2 (demande utilisateur, 2026-10-01 : "je veux que le
+   fond de partout soit le même que celui du temple... un vrai dégradé
+   du haut vers le bas avec du rose et du bleu... sur l'ensemble du
+   site") — même dégradé EXACT que .nb-hero-v2 (voir plus bas), posé ici
+   sur <html> (fond réel de toute page, body reste transparent — voir
+   note juste en dessous) pour qu'il couvre le site entier, pas
+   seulement l'accueil. Thème SOMBRE explicitement exclu (règle
+   suivante) : contrairement à .nb-hero-v2 (qui reteint TOUT son
+   contenu en encre foncée pour rester lisible sur un fond clair), les
+   cartes/surfaces du reste de l'app gardent leurs couleurs --bg-2/-3/-4
+   sombres en thème sombre — un fond <html> clair derrière laisserait
+   un liseré pastel incohérent dans chaque interstice (marges, zone
+   sous le dock...). Le thème sombre garde donc son fond uni --bg
+   habituel, inchangé. */
+html{background:linear-gradient(180deg,var(--paleblue-50) 0%,#ffffff 50%,var(--palepink-50) 100%)}
+[data-theme="dark"]{background:var(--bg)}
 [data-theme="xxx"] body::before{
   content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
   background:
