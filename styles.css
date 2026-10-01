@@ -161,19 +161,7 @@
    un vrai bug de layout) restait scrollable horizontalement au niveau
    du document malgré body{overflow-x:hidden}. */
 html{-webkit-text-size-adjust:100%;overflow-x:hidden}
-/* TEST PALETTE v2 (demande utilisateur, 2026-10-01 : "je veux que le
-   fond de partout soit le même que celui du temple... un vrai dégradé
-   du haut vers le bas avec du rose et du bleu... sur l'ensemble du
-   site", puis confirmé explicitement : "je ne veux pas de sombre pas
-   de noire dans le fond") — même dégradé EXACT que .nb-hero-v2 (voir
-   plus bas), posé ici sur <html> (fond réel de toute page, body reste
-   transparent — voir note juste en dessous) pour qu'il couvre le site
-   entier, AUCUNE exception de thème cette fois : une première version
-   gardait un fond sombre uni en thème sombre (protection non demandée,
-   ajoutée de ma propre initiative) — explicitement rejetée par
-   l'utilisateur, retirée ici. Le dégradé s'applique donc maintenant
-   que state.settings.theme vaille 'light', 'dark' ou 'auto'. */
-html{background:linear-gradient(180deg,var(--paleblue-50) 0%,#ffffff 50%,var(--palepink-50) 100%)}
+html{background:var(--bg)}
 [data-theme="xxx"] body::before{
   content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
   background:
@@ -204,7 +192,25 @@ body{
    c'est un fond d'ambiance, pas un habillage qui prend le pas sur le
    contenu. prefers-reduced-motion coupe l'animation, jamais l'effet
    entier (le dégradé reste visible, simplement figé). */
-.aurora-bg{position:fixed;inset:0;z-index:0;overflow:hidden;pointer-events:none}
+/* TEST PALETTE v2 (demande utilisateur, 2026-10-01 : "je veux que
+   l'ensemble du fond du site soit exactement le même, pas seulement le
+   fond du temple") — BUG RÉEL trouvé et corrigé : le dégradé avait
+   d'abord été posé sur <html> (voir historique), qui s'étire par
+   défaut sur toute la HAUTEUR DE SCROLL de la page, pas sur la seule
+   hauteur d'écran — sur une page courte (Accueil/temple) le bleu->rose
+   restait bien visible sur un seul écran, mais sur une page longue
+   (Marchés, Radar...) il fallait défiler sur des milliers de pixels
+   avant d'apercevoir le rose : à l'écran, ces pages semblaient presque
+   uniformément blanches. Posé ici à la place, sur .aurora-bg
+   (position:fixed, DÉJÀ présente sur chaque page via index.html, DÉJÀ
+   dimensionnée exactement sur la fenêtre quelle que soit la hauteur de
+   la page) — le même dégradé bleu->blanc->rose tient alors toujours
+   dans un seul écran, identique sur absolument chaque page, quelle que
+   soit sa longueur. <html> repasse à son fond --bg d'origine (devient
+   invisible de toute façon, entièrement recouvert par ce calque opaque
+   fixe) ; les 3 taches animées existantes restent au-dessus, inchangées. */
+.aurora-bg{position:fixed;inset:0;z-index:0;overflow:hidden;pointer-events:none;
+  background:linear-gradient(180deg,var(--paleblue-50) 0%,#ffffff 50%,var(--palepink-50) 100%)}
 /* CORRECTIF (bug visuel réel et grave, signalé par l'utilisateur — la
    barre de navigation du bas "décrochait" de sa position fixe pendant
    le défilement) : la rotation de teinte était animée sur .aurora-bg
