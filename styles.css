@@ -222,8 +222,19 @@ body{
    soit sa longueur. <html> repasse à son fond --bg d'origine (devient
    invisible de toute façon, entièrement recouvert par ce calque opaque
    fixe) ; les 3 taches animées existantes restent au-dessus, inchangées. */
+/* DESIGN CLAIR ULTRA-PRÉCIS (retour utilisateur : "CE N'EST PAS DU TOUT
+   CE QUE J'AI DEMANDÉ") : la spec fournie liste explicitement, en
+   point 5 (structure visuelle), "[FOND BLANC - solide, ne change pas]"
+   comme élément séparé et fixe — le dégradé pastel bleu->rose posé ici
+   lors des passes précédentes du test (voir historique juste en
+   dessous) n'avait jamais été retiré en passant à cette nouvelle spec,
+   contradiction jamais explicitement résolue. Corrigé : fond SOLIDE
+   blanc uni, les 3 taches colorées animées ci-dessous (::before/
+   ::after/.aurora-3) désactivées avec lui — aucune des deux ne figure
+   dans la spec "ultra-précise", qui ne mentionne que fond blanc +
+   cadre orange + verre transparent + texte noir. */
 .aurora-bg{position:fixed;inset:0;z-index:0;overflow:hidden;pointer-events:none;
-  background:linear-gradient(180deg,var(--paleblue-50) 0%,#ffffff 50%,var(--palepink-50) 100%)}
+  background:var(--bg)}
 /* CADRE WAVY ORANGE (demande utilisateur, 2026-10-01, "DESIGN CLAIR
    ULTRA-PRÉCIS") : cadre animé autour du contenu, jamais la navbar
    (position fixe, démarre sous elle via `top`, jamais un enfant du
@@ -271,10 +282,11 @@ body::after{
    inchangé) : à cette échelle, 65px de flou garde le même effet "fond
    d'ambiance diffus", vérifié en direct clair et sombre — jamais des
    bords nets visibles. */
-.aurora-bg::before,.aurora-bg::after,.aurora-bg .aurora-3{content:"";position:absolute;border-radius:50%;
-  filter:blur(65px);opacity:.32;
-  animation:auroraDrift 26s ease-in-out infinite, auroraHue 60s linear infinite;
-  will-change:transform}
+/* DÉSACTIVÉES (voir note "DESIGN CLAIR ULTRA-PRÉCIS" ci-dessus) :
+   display:none plutôt que supprimer les règles plus bas (couleurs par
+   page, animation...) — réversible d'un mot si une passe future
+   redemande un fond pastel, sans tout réécrire. */
+.aurora-bg::before,.aurora-bg::after,.aurora-bg .aurora-3{display:none}
 /* TEST PALETTE (voir note dans :root) : 2 tons de bleu/cyan au lieu
    d'orange — même structure (2 taches dominantes + 1 touche, voir plus
    bas), toujours personnalisable par section via body[data-bg=...]
