@@ -342,7 +342,12 @@ button:active{transform:scale(.97)}
    (backdrop-filter) reste constant pour garder le texte lisible même
    quand le fond est presque transparent. */
 .top{
-  position:sticky;top:0;z-index:50;background:rgba(255,255,255,calc(.72 * var(--top-fade,1)));
+  /* TEST PALETTE v2 (retour utilisateur, 2026-10-01 : "...navigation du
+     haut... je veux qu'il deviennent tous transparente") : navbar
+     explicitement incluse cette fois (contrairement à la spec
+     précédente, "NAVBAR INTACTE", qui l'excluait) — fond transparent au
+     lieu du blanc semi-opaque + fondu au défilement (--top-fade). */
+  position:sticky;top:0;z-index:50;background:transparent;
   /* Flou réduit 20px -> 14px (2026-09-24, retour utilisateur : "le site
      est super lent et manque énormément de fluidité") : le coût GPU
      d'un backdrop-filter croît avec le rayon de flou, et ce header
@@ -362,7 +367,7 @@ button:active{transform:scale(.97)}
    lecture du contenu ; sticky+transform sont compatibles (le sticky ne
    régit que la position de scroll, pas le rendu du transform). */
 @keyframes topSlideIn{ from{transform:translateY(-14px);opacity:0} to{transform:translateY(0);opacity:1} }
-[data-theme="dark"] .top{background:rgba(8,9,12,calc(.72 * var(--top-fade,1)));border-bottom-color:rgba(255,255,255,.06)}
+[data-theme="dark"] .top{background:transparent;border-bottom-color:rgba(255,255,255,.06)}
 .top-in{max-width:1120px;margin:0 auto;padding:10px 20px;display:flex;align-items:center;
   gap:12px;min-width:0}
 .logo{display:flex;align-items:center;gap:9px;font-weight:700;font-size:17px;
