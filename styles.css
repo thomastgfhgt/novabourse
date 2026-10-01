@@ -33,25 +33,26 @@
   --paleblue-50:#f0faff; --paleblue-base:#cfeeff; --paleblue-hover:#a8ddfb; --paleblue-press:#7cc8f0;
   --palepink-50:#fff5fa; --palepink-base:#ffd9ec; --palepink-hover:#ffbfe0; --palepink-press:#ff9fd0;
   --bg:#ffffff;
-  /* TEST PALETTE v2 (retour utilisateur, répété deux fois : "toujours
-     pas fais en sorte que tous les boutons ou cases blanches soit
-     transparent") : .55/.78/.9 (passe précédente) restait trop proche
-     de l'opaque pour se voir comme "transparent" au premier coup d'œil
-     — d'autant que le dégradé de fond repasse par du blanc PUR en son
-     milieu (voir .aurora-bg : 0% bleu -> 50% #fff -> 100% rose), donc
-     une bonne partie de l'écran a déjà un fond proche du blanc, sur
-     lequel .78-.9 de surcroît ne se distinguait quasiment plus d'un
-     aplat. Opacités nettement réduites cette fois. Toujours jamais
-     utilisées comme `color:` (vérifié) — seule --bg pure l'est, reste
-     opaque. Thème sombre non concerné (ses --bg-2/-3/-4 sont des
+  /* TEST PALETTE v2 ("DESIGN CLAIR ULTRA-PRÉCIS", spec exacte fournie) :
+     valeur UNIQUE 0.15 partout au repos (0.25 au survol), plus de
+     palier .22/.4/.58 — simplifié sur demande explicite. Toujours
+     jamais utilisées comme `color:` (vérifié) — seule --bg pure l'est,
+     reste opaque. Thème sombre non concerné (ses --bg-2/-3/-4 sont des
      nuances de nuit, jamais "du blanc"). */
-  --bg-2:rgba(255,255,255,.22);
-  --bg-3:rgba(255,255,255,.4);
-  --bg-4:rgba(255,255,255,.58);
-  --ink:#0d1117;
-  --ink-2:#3d4453;
-  --ink-3:#6b7385;
-  --ink-4:#9aa1b1;
+  --bg-2:rgba(255,255,255,.15);
+  --bg-3:rgba(255,255,255,.15);
+  --bg-4:rgba(255,255,255,.15);
+  /* TEST PALETTE v2 ("DESIGN CLAIR ULTRA-PRÉCIS") : "tous les textes:
+     noir" — les 4 crans (texte principal/secondaire/tertiaire/très
+     discret) passent tous à #000 pur, plus de hiérarchie de gris.
+     --up/--down (hausse/baisse) sont des tokens SÉPARÉS, jamais
+     touchés ici — exception explicitement demandée. Thème sombre non
+     concerné (texte déjà clair sur fond sombre, aucun rapport avec
+     "noir" demandé ici). */
+  --ink:#000000;
+  --ink-2:#000000;
+  --ink-3:#000000;
+  --ink-4:#000000;
   /* TEST PALETTE v2 (demande utilisateur, 2026-10-01 : "bleu clair très
      clair ET rose très très clair, exactement") — accent PRIMAIRE = bleu
      pastel, accent SECONDAIRE (--blue-accent, déjà le bon rôle dans
@@ -223,6 +224,33 @@ body{
    fixe) ; les 3 taches animées existantes restent au-dessus, inchangées. */
 .aurora-bg{position:fixed;inset:0;z-index:0;overflow:hidden;pointer-events:none;
   background:linear-gradient(180deg,var(--paleblue-50) 0%,#ffffff 50%,var(--palepink-50) 100%)}
+/* CADRE WAVY ORANGE (demande utilisateur, 2026-10-01, "DESIGN CLAIR
+   ULTRA-PRÉCIS") : cadre animé autour du contenu, jamais la navbar
+   (position fixe, démarre sous elle via `top`, jamais un enfant du
+   header). Forme ondulée obtenue par un filtre SVG feTurbulence +
+   feDisplacementMap (technique standard pour un trait "à main levée"),
+   fourni en data-URI directement dans `filter:url()` — aucune modif
+   d'index.html nécessaire. IMPORTANT, leçon déjà tirée plus haut dans
+   ce fichier (voir le correctif .aurora-bg juste en dessous à propos
+   du dock qui "décrochait") : ANIMER le filtre lui-même (sa turbulence)
+   sur une si grande surface position:fixed est un coût de composition
+   énorme, confirmé perturber D'AUTRES éléments fixed de la page (dock,
+   notamment). La turbulence reste donc STATIQUE ; l'animation "lente,
+   fluide" demandée vient d'opacity+transform à la place (composite-only,
+   jamais de repaint), un choix délibéré, pas un oubli. */
+body::after{
+  content:'';position:fixed;top:64px;right:10px;bottom:10px;left:10px;
+  border-radius:26px;border:3px solid rgba(255,149,0,.65);
+  pointer-events:none;z-index:45;
+  filter:url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%3E%3Cfilter%20id%3D%27wavyFrameF%27%3E%3CfeTurbulence%20type%3D%27fractalNoise%27%20baseFrequency%3D%270.012%200.02%27%20numOctaves%3D%272%27%20seed%3D%274%27%20result%3D%27noise%27%2F%3E%3CfeDisplacementMap%20in%3D%27SourceGraphic%27%20in2%3D%27noise%27%20scale%3D%279%27%2F%3E%3C%2Ffilter%3E%3C%2Fsvg%3E#wavyFrameF");
+  animation:wavyFrameBreathe 3.6s ease-in-out infinite;
+  transform-origin:center;
+}
+@keyframes wavyFrameBreathe{
+  0%,100%{opacity:.65;transform:scale(1)}
+  50%{opacity:.42;transform:scale(1.004)}
+}
+@media (prefers-reduced-motion:reduce){ body::after{animation:none} }
 /* CORRECTIF (bug visuel réel et grave, signalé par l'utilisateur — la
    barre de navigation du bas "décrochait" de sa position fixe pendant
    le défilement) : la rotation de teinte était animée sur .aurora-bg
@@ -393,7 +421,7 @@ button:active{transform:scale(.97)}
 #srcBadge{display:flex;align-items:center;gap:6px;min-width:0;overflow:hidden}
 .icon-btn{width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:var(--ink-3);
   transition:background .2s ease,color .2s ease,transform .2s cubic-bezier(.22,1,.36,1)}
-.icon-btn:hover{background:rgba(255,255,255,0.27);color:var(--ink);transform:translateY(-1px) scale(1.08)}
+.icon-btn:hover{background:rgba(255,255,255,.25);color:var(--ink);transform:translateY(-1px) scale(1.08)}
 .icon-btn:active{transform:scale(.9)}
 .icon-btn svg{width:19px;height:19px}
 .dock{display:none}
@@ -448,7 +476,7 @@ button:active{transform:scale(.97)}
     position:fixed;left:50%;transform:translateX(-50%);
     bottom:calc(12px + env(safe-area-inset-bottom));z-index:60;
     width:calc(100% - 20px);max-width:440px;
-    background:rgba(255,255,255,0.29);
+    background:rgba(255,255,255,.15);
     /* Flou réduit 18px -> 13px (2026-09-24, même correctif performance
        que .top ci-dessus, même raison : fixed + présent sur toute page
        mobile, recalculé à chaque frame de défilement). */
@@ -586,8 +614,8 @@ button:active{transform:scale(.97)}
    même principe que .card/.dock/.nova-action-circle déjà passés en
    verre clair ailleurs dans ce fichier — laisse voir le dégradé de
    fond au travers plutôt qu'un aplat blanc. */
-.btn-s{background:rgba(255,255,255,0.25);border:1px solid rgba(124,200,240,.3);color:var(--ink)}
-.btn-s:hover{background:rgba(255,255,255,0.36)}
+.btn-s{background:rgba(255,255,255,.15);border:1px solid rgba(124,200,240,.3);color:var(--ink)}
+.btn-s:hover{background:rgba(255,255,255,.25)}
 /* Bouton secondaire cyan (2026-09-22, composant demandé par le brief ;
    recoloré 2026-09-28 pour le pivot NovaTitre : violet -> cyan #00D4FF,
    voir note de palette tout en haut) — jamais utilisé comme accent
@@ -627,7 +655,7 @@ button:active{transform:scale(.97)}
    page — un flou aussi large multiplié par carte est un vrai coût GPU
    cumulé. 16px garde le même effet "verre dépoli" à l'œil (vérifié en
    direct), pour une fraction du coût par carte. */
-.card{background-color:rgba(255,255,255,0.27);backdrop-filter:blur(16px) saturate(160%);
+.card{background-color:rgba(255,255,255,.15);backdrop-filter:blur(16px) saturate(160%);
   -webkit-backdrop-filter:blur(16px) saturate(160%);border:1px solid rgba(255,255,255,.8);
   border-radius:var(--r-l);padding:var(--card-pad);
   box-shadow:0 1px 2px rgba(13,17,23,.05),0 16px 40px rgba(124,200,240,.12)}
@@ -636,7 +664,7 @@ button:active{transform:scale(.97)}
 .card-flat{background:var(--bg-2);border-radius:var(--r-l);padding:var(--card-pad)}
 .card-lift{transition:background var(--slow) var(--ease)}
 .card-lift:hover{background:var(--bg-3)}
-.card-white{background:rgba(255,255,255,0.32);box-shadow:var(--shadow-2)}
+.card-white{background:rgba(255,255,255,.15);box-shadow:var(--shadow-2)}
 .grid{display:grid;gap:var(--space-4)}
 .g-2{grid-template-columns:repeat(auto-fit,minmax(280px,1fr))}
 .g-3{grid-template-columns:repeat(auto-fit,minmax(230px,1fr))}
@@ -644,10 +672,10 @@ button:active{transform:scale(.97)}
 .field{width:100%;padding:15px 18px;border-radius:var(--r-s);background:var(--bg-2);
   border:1.5px solid transparent;min-height:var(--tap);font-size:var(--t-body);
   transition:border-color var(--fast) ease,background var(--fast) ease}
-.field:focus{outline:none;border-color:var(--accent);background:rgba(255,255,255,0.41)}
+.field:focus{outline:none;border-color:var(--accent);background:rgba(255,255,255,.25)}
 .field::placeholder{color:var(--ink-4)}
 .field[aria-invalid="true"]{border-color:var(--down)}
-.seg{display:inline-flex;position:relative;padding:4px;background:rgba(255,255,255,0.25);
+.seg{display:inline-flex;position:relative;padding:4px;background:rgba(255,255,255,.15);
   border:1px solid rgba(124,200,240,.28);border-radius:var(--r-pill);
   gap:3px;max-width:100%;overflow-x:auto;scrollbar-width:none}
 .seg::-webkit-scrollbar{display:none}
@@ -667,7 +695,7 @@ button:active{transform:scale(.97)}
    dock (élément persistant + transition passive), qui ne se serait pas
    appliqué ici. */
 .seg-pill{position:absolute;top:4px;bottom:4px;left:0;border-radius:var(--r-pill);
-  background:rgba(255,255,255,0.41);box-shadow:var(--shadow-2);z-index:0;pointer-events:none;
+  background:rgba(255,255,255,.15);box-shadow:var(--shadow-2);z-index:0;pointer-events:none;
   transition:transform .35s var(--spring),width .35s var(--spring)}
 @media (prefers-reduced-motion:reduce){ .seg-pill{transition:none} }
 /* CORRECTIF (audit complet 2026-09-17) : .sw avait une première
@@ -730,16 +758,16 @@ button:active{transform:scale(.97)}
   margin-top:var(--sp-5)}
 .trio-c{padding:var(--sp-3);border-radius:var(--r-m);background:var(--bg-2);text-align:center}
 .trio-i{width:42px;height:42px;border-radius:13px;display:flex;align-items:center;justify-content:center;margin:0 auto var(--sp-1);
-  background:rgba(255,255,255,0.32);box-shadow:var(--shadow-1);color:var(--accent)}
+  background:rgba(255,255,255,.15);box-shadow:var(--shadow-1);color:var(--accent)}
 .trio-i svg{width:21px;height:21px}
 .trio-c b{display:block;font-size:15px;font-weight:650;letter-spacing:-.02em}
 .trio-c span{display:block;font-size:13px;color:var(--ink-3);margin-top:4px;line-height:1.45}
 .search-btn{display:flex;align-items:center;gap:11px;width:100%;max-width:520px;margin:var(--sp-3) auto 0;
-  padding:15px 20px;border-radius:100px;background:rgba(255,255,255,0.25);color:var(--ink-4);font-size:15.5px;
+  padding:15px 20px;border-radius:100px;background:rgba(255,255,255,.15);color:var(--ink-4);font-size:15.5px;
   text-align:left;border:1px solid rgba(124,200,240,.28);
   transition:background .25s var(--spring),border-color .25s var(--spring),
     box-shadow .25s var(--spring),transform .25s var(--spring)}
-.search-btn:hover{background:rgba(255,255,255,0.38);border-color:var(--line);box-shadow:var(--shadow-2);
+.search-btn:hover{background:rgba(255,255,255,.25);border-color:var(--line);box-shadow:var(--shadow-2);
   transform:translateY(-2px)}
 .search-btn:active{transform:scale(.99)}
 .search-btn svg{width:18px;height:18px;flex:0 0 auto}
@@ -832,7 +860,7 @@ a.row{color:inherit;text-decoration:none}
    (hover:hover)/(pointer:fine), même raison qu'ailleurs dans ce fichier
    (jamais un survol "collé" après un tap tactile). */
 .plan{position:relative;padding:var(--sp-3);border-radius:var(--r-l);border:1.5px solid var(--line);
-  display:flex;flex-direction:column;background:rgba(255,255,255,0.32);
+  display:flex;flex-direction:column;background:rgba(255,255,255,.15);
   transition:border-color .3s var(--spring),box-shadow .3s var(--spring),transform .3s var(--spring)}
 .plan:hover{border-color:var(--ink-4)}
 @media (hover:hover) and (pointer:fine){
@@ -857,7 +885,7 @@ a.row{color:inherit;text-decoration:none}
   display:none;align-items:center;justify-content:center;padding:var(--sp-2)}
 .sheet-bg.on{display:flex;animation:fade .22s ease}
 @keyframes fade{from{opacity:0}to{opacity:1}}
-.sheet{width:100%;max-width:520px;background:rgba(255,255,255,0.4);backdrop-filter:blur(16px) saturate(160%);
+.sheet{width:100%;max-width:520px;background:rgba(255,255,255,.15);backdrop-filter:blur(16px) saturate(160%);
   -webkit-backdrop-filter:blur(16px) saturate(160%);border-radius:var(--r-xl);padding:var(--sp-3);
   max-height:86vh;overflow-y:auto;box-shadow:var(--shadow-3);animation:sheetIn .42s var(--spring)}
 @keyframes sheetIn{from{transform:translateY(24px) scale(.97);opacity:0}to{transform:none;opacity:1}}
@@ -870,9 +898,9 @@ a.row{color:inherit;text-decoration:none}
 .sheet-h{display:flex;align-items:flex-start;justify-content:space-between;gap:var(--sp-2);margin-bottom:var(--sp-2)}
 .sheet h3{font-size:22px;font-weight:700;letter-spacing:-.035em}
 .sheet p{font-size:15px;color:var(--ink-3);line-height:1.55;margin-top:10px}
-.x{width:34px;height:34px;border-radius:50%;background:rgba(255,255,255,0.25);display:flex;align-items:center;justify-content:center;
+.x{width:34px;height:34px;border-radius:50%;background:rgba(255,255,255,.15);display:flex;align-items:center;justify-content:center;
   color:var(--ink-3);flex:0 0 auto}
-.x:hover{background:rgba(255,255,255,0.38);color:var(--ink)}
+.x:hover{background:rgba(255,255,255,.25);color:var(--ink)}
 .x svg{width:15px;height:15px}
 @media (max-width:640px){
   .sheet-bg{align-items:flex-end;padding:0}
@@ -899,7 +927,7 @@ a.row{color:inherit;text-decoration:none}
 /* TEST PALETTE v2 : fond opaque -> verre clair (voir .btn-s plus haut).
    .chip[aria-pressed="true"] (état sélectionné, encre foncée) non
    concerné : ce n'est pas un bouton "blanc". */
-.chip{padding:9px 15px;border-radius:100px;background:rgba(255,255,255,0.25);
+.chip{padding:9px 15px;border-radius:100px;background:rgba(255,255,255,.15);
   border:1px solid rgba(124,200,240,.28);font-size:13.5px;font-weight:550;
   color:var(--ink-3);min-height:38px;display:inline-flex;align-items:center;gap:6px}
 /* CORRECTIF (bug visuel réel et grave, audit complet 2026-09-17) : un
@@ -911,7 +939,7 @@ a.row{color:inherit;text-decoration:none}
    vérifié en direct : un bouton normalement haut de 38px gonflait à la
    taille de l'icône géante et devenait un cercle énorme. */
 .chip svg{width:15px;height:15px;flex:0 0 auto}
-.chip:hover{background:rgba(255,255,255,0.38);color:var(--ink)}
+.chip:hover{background:rgba(255,255,255,.25);color:var(--ink)}
 .chip[aria-pressed="true"]{background:var(--ink);color:var(--bg)}
 .check-box{width:22px;height:22px;border-radius:50%;border:1.5px solid var(--line-2);
   display:flex;align-items:center;justify-content:center;flex:0 0 auto;color:var(--bg);margin-left:auto}
@@ -1322,7 +1350,7 @@ a.row{color:inherit;text-decoration:none}
   color:#5a6478;font-size:12px;font-weight:400;line-height:1.32}
 @media (hover:hover){
   .nova-quick-action:hover .nova-action-circle{transform:translateY(-2px);
-    border-color:rgba(124,200,240,.75);background:rgba(255,255,255,0.43);
+    border-color:rgba(124,200,240,.75);background:rgba(255,255,255,.15);
     box-shadow:0 7px 22px rgba(10,14,39,.12)}
 }
 .nova-quick-action:active .nova-action-circle{transform:scale(.96)}
@@ -1356,8 +1384,8 @@ a.row{color:inherit;text-decoration:none}
 .nb-cta-a:active{transform:scale(.98)}
 /* TEST PALETTE v2 : pilule verre sombre -> verre clair, même principe
    que .nova-action-circle plus haut. */
-.nb-cta-s{background:rgba(255,255,255,0.27);border:1px solid rgba(124,200,240,.35);color:var(--bg-dark-ink)}
-.nb-cta-s:active{background:rgba(255,255,255,0.38)}
+.nb-cta-s{background:rgba(255,255,255,.15);border:1px solid rgba(124,200,240,.35);color:var(--bg-dark-ink)}
+.nb-cta-s:active{background:rgba(255,255,255,.25)}
 @media (prefers-reduced-motion:reduce){ .nb-cta-a:active,.nb-quick-item:active .nb-quick-bub{transform:none} }
 /* Carte "Mes positions" v2 — hors de .nb-hero-v2 (fond normal de l'app
    en dessous, comme avant), palette propre à cette carte (brief §19).
@@ -1366,7 +1394,7 @@ a.row{color:inherit;text-decoration:none}
    .nb-cta-s juste au-dessus — cette carte était restée à part (hors de
    .nb-hero-v2, jamais touchée par le 1er passage du test) mais reste
    un fond sombre, à corriger pour la même raison. */
-.nb-pf2{background:rgba(255,255,255,0.32);border:1px solid rgba(124,200,240,.35);
+.nb-pf2{background:rgba(255,255,255,.15);border:1px solid rgba(124,200,240,.35);
   border-radius:20px;padding:20px;margin-top:20px}
 .nb-pf2-eyebrow{color:var(--accent);font-weight:700;font-size:13px}
 .nb-pf2-val{font-size:clamp(30px,7.5vw,38px);font-weight:700;letter-spacing:-.03em;
@@ -1397,7 +1425,7 @@ a.row{color:inherit;text-decoration:none}
   /* Flou réduit 24px -> 16px (2026-09-24, même correctif performance que
      .card) : 4 de ces cartes s'affichent ensemble sur l'accueil, un flou
      large multiplié par 4 en même temps est un coût GPU cumulé réel. */
-  background-color:rgba(255,255,255,0.27);backdrop-filter:blur(16px) saturate(160%);
+  background-color:rgba(255,255,255,.15);backdrop-filter:blur(16px) saturate(160%);
   -webkit-backdrop-filter:blur(16px) saturate(160%);border:1px solid rgba(255,255,255,.8);
   transition:transform .25s var(--spring),background-color .25s var(--spring),box-shadow .25s var(--spring)}
 [data-theme="dark"] .nova-hub-card{background-color:rgba(22,26,33,.6);border-color:rgba(255,255,255,.08)}
@@ -1553,10 +1581,10 @@ a.row{color:inherit;text-decoration:none}
 .qa{display:flex;flex-direction:column;align-items:center;gap:7px;
   background:none;color:var(--ink-2);font-size:12.5px;font-weight:600}
 .qa i{display:flex;align-items:center;justify-content:center;position:relative;
-  width:52px;height:52px;border-radius:50%;background:rgba(255,255,255,0.25);
+  width:52px;height:52px;border-radius:50%;background:rgba(255,255,255,.15);
   border:1px solid rgba(124,200,240,.28);color:var(--ink);
   transition:background .2s ease-out,color .2s ease-out}
-.qa:hover i{background:rgba(255,255,255,0.38)}
+.qa:hover i{background:rgba(255,255,255,.25)}
 .qa[aria-pressed="true"] i{background:var(--accent);color:var(--accent-ink)}
 .qa svg{width:20px;height:20px}
 .qa-badge{position:absolute;top:-3px;right:-3px;min-width:17px;height:17px;padding:0 4px;
@@ -1621,7 +1649,7 @@ a.row{color:inherit;text-decoration:none}
   transition:transform .35s var(--spring),background .35s var(--spring)}
 .cap:hover{background:var(--bg-3)}
 .cap-i{width:var(--icon-box);height:var(--icon-box);flex:0 0 var(--icon-box);
-  border-radius:14px;background:rgba(255,255,255,0.32);color:var(--ink-2);box-shadow:var(--shadow-1)}
+  border-radius:14px;background:rgba(255,255,255,.15);color:var(--ink-2);box-shadow:var(--shadow-1)}
 .cap-i svg{width:22px;height:22px}
 .cap-txt{flex:1 1 auto;min-width:0;text-align:left}
 .cap b{display:block;font-size:15.5px;font-weight:650;letter-spacing:-.02em}
@@ -1703,8 +1731,8 @@ body.gated .wrap{padding:0;max-width:100%}
 .btn-google:hover{border-color:var(--ink-4);box-shadow:var(--shadow-2);transform:translateY(-2px)}
 .btn-apple{background:#000;color:#fff;margin-top:10px}
 .btn-apple:hover{background:#1a1a1a;transform:translateY(-2px)}
-.btn-email{background:rgba(255,255,255,0.25);border:1px solid rgba(124,200,240,.28);color:var(--ink);margin-top:10px}
-.btn-email:hover{background:rgba(255,255,255,0.38);transform:translateY(-2px)}
+.btn-email{background:rgba(255,255,255,.15);border:1px solid rgba(124,200,240,.28);color:var(--ink);margin-top:10px}
+.btn-email:hover{background:rgba(255,255,255,.25);transform:translateY(-2px)}
 /* Lien texte (formulaire e-mail) — n'existait nulle part dans ce
    fichier avant cette passe (vérifié), jamais qu'un <button class="btn
    ..."> plein pour une action secondaire de type "retour"/"mot de passe
@@ -1738,7 +1766,7 @@ body.gated .wrap{padding:0;max-width:100%}
 .onb-c{display:flex;align-items:center;gap:12px;text-align:left;padding:18px;border-radius:var(--r-m);
   background:var(--bg-2);border:1.5px solid transparent;
   transition:border-color .28s var(--spring),background .28s var(--spring),transform .28s var(--spring)}
-.onb-c:hover{border-color:var(--accent);background:rgba(255,255,255,0.38);transform:translateX(3px)}
+.onb-c:hover{border-color:var(--accent);background:rgba(255,255,255,.25);transform:translateX(3px)}
 .onb-c b{display:block;font-size:15.5px;font-weight:650;letter-spacing:-.02em}
 .onb-c span:not(.onb-a){display:block;font-size:13px;color:var(--ink-3);margin-top:3px}
 .onb-c>b,.onb-c>span:first-of-type{flex:1;min-width:0}
@@ -1748,7 +1776,7 @@ body.gated .wrap{padding:0;max-width:100%}
 .onb-step{display:flex;align-items:center;gap:12px;padding:16px;border-radius:var(--r-m);background:var(--bg-2)}
 .onb-n{width:26px;height:26px;border-radius:50%;background:var(--ink);color:var(--bg);
   font-size:13px;font-weight:700}
-.onb-i{width:34px;height:34px;border-radius:11px;background:rgba(255,255,255,0.32);display:flex;align-items:center;justify-content:center;
+.onb-i{width:34px;height:34px;border-radius:11px;background:rgba(255,255,255,.15);display:flex;align-items:center;justify-content:center;
   color:var(--accent);flex:0 0 auto;box-shadow:var(--shadow-1)}
 .onb-i svg{width:17px;height:17px}
 .onb-step b{display:block;font-size:14.5px;font-weight:650;letter-spacing:-.02em}
@@ -1807,7 +1835,7 @@ body.gated .wrap{padding:0;max-width:100%}
 .no-anim *{animation:none!important;transition:none!important}
 body.no-spark .row-spark{display:none}
 @media (max-width:520px){ .set-row{align-items:flex-start} .set-ctl{width:100%} .seg{width:100%} }
-.ai-focus{background:rgba(255,255,255,0.32);border-radius:var(--r-s);padding:9px 11px;margin-top:11px}
+.ai-focus{background:rgba(255,255,255,.15);border-radius:var(--r-s);padding:9px 11px;margin-top:11px}
 .focus-l{display:block;font-size:10.5px;font-weight:650;letter-spacing:.03em;color:var(--ink-4);
   text-transform:uppercase}
 .focus-v{display:block;font-size:13px;font-weight:650;letter-spacing:-.015em;margin-top:2px}
@@ -1896,7 +1924,7 @@ body.no-spark .row-spark{display:none}
 .flow-s{display:flex;align-items:center;gap:var(--icon-gap);padding:var(--card-pad);
   border-radius:var(--r-m);background:var(--bg-2)}
 .flow-n{width:var(--icon-box);height:var(--icon-box);flex:0 0 var(--icon-box);
-  border-radius:50%;background:rgba(255,255,255,0.32);font-size:15px;font-weight:700;
+  border-radius:50%;background:rgba(255,255,255,.15);font-size:15px;font-weight:700;
   box-shadow:var(--shadow-1);font-variant-numeric:tabular-nums;color:var(--ink-2)}
 .flow-txt{flex:1 1 auto;min-width:0;text-align:left}
 .flow-s b{display:block;font-size:14.5px;font-weight:600;letter-spacing:-.02em}
