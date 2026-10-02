@@ -24,14 +24,21 @@
   --cyan-500:#00d4ff; --cyan-700:#00a8cc; --cyan-900:#006b85;
   --green-50:#e7fbf4;  --green-100:#c3f5e3; --green-300:#6ee7b7;
   --green-500:#10b981; --green-700:#0d9268; --green-900:#065f46;
+  /* CORRECTIF (2026-10-02, retour utilisateur : "fond soit seulement
+     blanc et toute les écriture soit noire") : --bg/-2/-3/-4 et
+     --ink/-2/-3/-4 passent en noir/blanc purs — demande explicite de
+     "change uniquement ça et rien d'autre". La barre de navigation du
+     haut (.top) n'est PAS concernée : elle n'utilise jamais ces tokens,
+     son propre fond (rgba(255,255,255,...)/rgba(8,9,12,...) selon le
+     thème) reste intact, volontairement non touché ici. */
   --bg:#ffffff;
-  --bg-2:#faf9f8;
-  --bg-3:#f5f4f0;
-  --bg-4:#ecece8;
-  --ink:#0d1117;
-  --ink-2:#3d4453;
-  --ink-3:#6b7385;
-  --ink-4:#9aa1b1;
+  --bg-2:#ffffff;
+  --bg-3:#ffffff;
+  --bg-4:#ffffff;
+  --ink:#000000;
+  --ink-2:#000000;
+  --ink-3:#000000;
+  --ink-4:#000000;
   --accent:var(--orange-500);
   /* Sens hover/press conforme à la spec NovaTitre (dégradé bouton
      PRIMARY : #E67E22 -> #F39C12 au survol, donc PLUS clair, pas plus
@@ -117,9 +124,13 @@
      c'est une décision de marque neuve et explicite, pas une régression.
      --bg-2/-3/-4 dérivés en éclaircissant progressivement la même teinte
      (même principe relatif que l'échelle précédente), --ink inchangé
-     (déjà exactement #F3F4F6, la valeur demandée). */
-  --bg:#0a0e27; --bg-2:#111631; --bg-3:#181e3d; --bg-4:#232a4d;
-  --ink:#f3f4f6; --ink-2:#d1d5db; --ink-3:#9ca3af; --ink-4:#6b7280;
+     (déjà exactement #F3F4F6, la valeur demandée).
+     CORRECTIF (2026-10-02, retour utilisateur : "fond completement en
+     noire pour la session sombre et toute les écriture en blanc") :
+     noir/blanc purs, même principe que le thème clair ci-dessus. .top
+     (nav du haut) non concernée, voir sa note. */
+  --bg:#000000; --bg-2:#000000; --bg-3:#000000; --bg-4:#000000;
+  --ink:#ffffff; --ink-2:#ffffff; --ink-3:#ffffff; --ink-4:#ffffff;
   /* Orange Hermès (#E67E22, même teinte que le thème clair, "Primary
      toujours orange") : assez saturé pour rester lisible sur #0A0E27. */
   --accent:var(--orange-500); --accent-hover:var(--orange-light); --accent-press:var(--orange-700);
