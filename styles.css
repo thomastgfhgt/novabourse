@@ -24,89 +24,32 @@
   --cyan-500:#00d4ff; --cyan-700:#00a8cc; --cyan-900:#006b85;
   --green-50:#e7fbf4;  --green-100:#c3f5e3; --green-300:#6ee7b7;
   --green-500:#10b981; --green-700:#0d9268; --green-900:#065f46;
-  /* TEST PALETTE v2 (demande utilisateur, 2026-10-01 : "bleu clair très
-     clair ET rose très très clair, exactement") — remplace le cyan vif
-     (--cyan-500) de la v1 du test par deux tons PASTEL dédiés. Échelle à
-     3 crans (50 = fond très doux / base = accent / hover = un peu plus
-     saturé pour rester perceptible au survol, PAS plus clair : une base
-     déjà quasi blanche n'a plus de marge pour s'éclaircir davantage). */
-  --paleblue-50:#f0faff; --paleblue-base:#cfeeff; --paleblue-hover:#a8ddfb; --paleblue-press:#7cc8f0;
-  --palepink-50:#fff5fa; --palepink-base:#ffd9ec; --palepink-hover:#ffbfe0; --palepink-press:#ff9fd0;
-  /* 2026-10-01 (retour utilisateur : "un fond partout bleu clair ou bleu
-     foncé en fonction du thème") : --bg quitte le blanc pour un bleu
-     clair franc et visible (paleblue-base, pas le ton -50 presque
-     blanc — l'utilisateur a déjà dit vouloir que ce soit "clair"
-     [=net, visible], pas discret). Le thème sombre a déjà exactement
-     ce même principe (--bg:#0a0e27, bleu nuit) depuis le pivot de
-     marque du 2026-09-28 : les deux thèmes suivent maintenant la même
-     règle "fond = bleu clair/foncé selon le thème", symétrique. */
-  --bg:var(--paleblue-base);
-  /* TEST PALETTE v2 (retour utilisateur, 2026-10-01 : "je veux qu'il
-     n'y ait plus aucune couleur blanche... je veux qu'elle soit toute
-     transparente") : plus de teinte blanche du tout, même légère —
-     transparent pur. Toujours jamais utilisées comme `color:` (vérifié)
-     — seule --bg pure l'est, reste opaque. Thème sombre non concerné
-     (ses --bg-2/-3/-4 sont des nuances de nuit, jamais "du blanc").
-     CORRECTIF (2026-10-01, retour utilisateur : "je veux que TOUS les
-     blocs, case, navigateur du haut soit TOUS transparents" — sans
-     exclure le thème sombre cette fois) : le thème sombre reçoit
-     désormais exactement le même traitement, voir [data-theme="dark"]
-     plus bas.
-     CORRECTIF (2026-10-02, BUG RÉEL ET GRAVE, retour utilisateur :
-     "plein de fonctionnalité et texte ne sont plus visible mais sont
-     encore présente parce que on peut encore cliquer... même si il est
-     pas visible") : transparent (0% opacité, pas juste "non-blanc")
-     cassait TOUS les composants qui s'appuient sur --bg-2/--bg-3 comme
-     SURFACE FONCTIONNELLE, pas comme simple décor — .field (fond des
-     champs de saisie), .sw (piste des interrupteurs), .bar-track/
-     .gauge/.quota-bar/.conf-b (pistes de barres de progression),
-     .stat/.ai-card/.avg/.trio-c (encadrés de données), .ring .bg
-     (anneau de score), .sk (squelette de chargement), .empty-i, .onb-*
-     — des dizaines d'endroits au total (voir grep var(--bg-2)/var(--bg-3)
-     dans tout le fichier). Zéro opacité = zéro surface visible, tout en
-     restant cliquable/sélectionnable (le DOM est intact, seul le rendu
-     disparaît) — exactement le symptôme décrit. rgba(255,255,255,X)
-     remplace transparent : garde l'effet "verre dépoli", jamais de
-     blanc solide, mais une surface réellement visible à faible opacité
-     — c'est d'ailleurs la valeur du tout premier brief ("DESIGN CLAIR
-     ULTRA-PRÉCIS" : rgba(255,255,255,.15), pas 0). */
-  --bg-2:rgba(255,255,255,.35);
-  --bg-3:rgba(255,255,255,.5);
-  --bg-4:rgba(255,255,255,.65);
-  /* TEST PALETTE v2 ("DESIGN CLAIR ULTRA-PRÉCIS") : "tous les textes:
-     noir" — les 4 crans (texte principal/secondaire/tertiaire/très
-     discret) passent tous à #000 pur, plus de hiérarchie de gris.
-     --up/--down (hausse/baisse) sont des tokens SÉPARÉS, jamais
-     touchés ici — exception explicitement demandée. Thème sombre non
-     concerné (texte déjà clair sur fond sombre, aucun rapport avec
-     "noir" demandé ici). */
-  --ink:#000000;
-  --ink-2:#000000;
-  --ink-3:#000000;
-  --ink-4:#000000;
-  /* TEST PALETTE v2 (demande utilisateur, 2026-10-01 : "bleu clair très
-     clair ET rose très très clair, exactement") — accent PRIMAIRE = bleu
-     pastel, accent SECONDAIRE (--blue-accent, déjà le bon rôle dans
-     l'architecture existante) = rose pastel. Hausse/baisse (--up/--down)
-     et avertissement (--warn) toujours NON concernés — confirmé avec
-     l'utilisateur. --accent-ink reste --bg-dark-ink (texte foncé) : un
-     fond quasi blanc/pastel a encore moins de marge de contraste pour du
-     texte blanc qu'un cyan vif. */
-  --accent:var(--paleblue-base);
-  --accent-hover:var(--paleblue-hover);
-  --accent-press:var(--paleblue-press);
-  --accent-soft:var(--paleblue-50);
-  --accent-ink:var(--bg-dark-ink);
+  --bg:#ffffff;
+  --bg-2:#faf9f8;
+  --bg-3:#f5f4f0;
+  --bg-4:#ecece8;
+  --ink:#0d1117;
+  --ink-2:#3d4453;
+  --ink-3:#6b7385;
+  --ink-4:#9aa1b1;
+  --accent:var(--orange-500);
+  /* Sens hover/press conforme à la spec NovaTitre (dégradé bouton
+     PRIMARY : #E67E22 -> #F39C12 au survol, donc PLUS clair, pas plus
+     sombre) — inversé par rapport à la convention précédente (rose
+     s'assombrissait au survol). */
+  --accent-hover:var(--orange-light);
+  --accent-press:var(--orange-700);
+  --accent-soft:var(--orange-50);
+  --accent-ink:#ffffff;
   /* Bleu nuit officiel NovaTitre (#0A0E27) : utilisé pour le texte sur
-     fond clair (accent/accent secondaire) — un texte blanc y serait
+     fond cyan clair (--blue-accent ci-dessous) — un texte blanc y serait
      illisible (contraste insuffisant). Défini ici (pas seulement en
-     dark) car réutilisé identique en clair et en sombre. */
+     dark) car --blue-accent est identique en clair et en sombre. */
   --bg-dark-ink:#0a0e27;
-  /* --blue-accent devient le rose pastel (accent SECONDAIRE) — nom de
-     variable et classes .btn-blue/.btn-blue-outline conservés tels quels
-     (déjà le cas lors du pivot précédent, voir historique du fichier) :
-     c'est la VALEUR qui compte, pas le mot "bleu" du nom. */
-  --blue-accent:var(--palepink-base); --blue-accent-soft:var(--palepink-50);
+  /* Cyan réservé aux boutons SECONDAIRES uniquement (jamais un accent
+     général concurrent de l'orange) — voir .btn-blue plus bas (nom
+     conservé, couleur désormais cyan — voir note de palette ci-dessus). */
+  --blue-accent:var(--cyan-500); --blue-accent-soft:var(--cyan-50);
   --up:var(--green-500);   --up-soft:var(--green-50);
   --down:#ef4444; --down-soft:#fef0ef;
   --warn:#b45309; --warn-soft:#fdf4e7;
@@ -116,7 +59,7 @@
   --shadow-1:none;
   --shadow-2:0 1px 2px rgba(13,17,23,.04), 0 8px 24px rgba(13,17,23,.05);
   --shadow-3:0 2px 6px rgba(13,17,23,.06), 0 24px 48px rgba(13,17,23,.08);
-  --shadow-accent:0 8px 24px rgba(0,212,255,.28);
+  --shadow-accent:0 8px 24px rgba(236,72,153,.24);
   --space-2:8px;  --space-3:12px; --space-4:16px; --space-5:24px;
   --space-6:32px; --space-7:48px; --space-8:64px; --space-9:96px;
   --sp-1:8px; --sp-2:16px; --sp-3:24px; --sp-4:32px; --sp-5:48px; --sp-6:80px;
@@ -174,43 +117,22 @@
      c'est une décision de marque neuve et explicite, pas une régression.
      --bg-2/-3/-4 dérivés en éclaircissant progressivement la même teinte
      (même principe relatif que l'échelle précédente), --ink inchangé
-     (déjà exactement #F3F4F6, la valeur demandée).
-     CORRECTIF (2026-10-01, retour utilisateur : "je veux que TOUS les
-     blocs, case, navigateur du haut soit TOUS transparents" — le thème
-     sombre n'avait jamais reçu ce traitement jusqu'ici, contrairement
-     au thème clair : cause probable du "ce n'est pas du tout la même
-     chose entre téléphone et ordinateur" si les deux appareils n'ont
-     pas le même thème actif (state.settings.theme, stocké en
-     localStorage, n'est pas partagé entre appareils). --bg-2/-3/-4
-     passent transparent, exactement comme en thème clair — seul --bg
-     reste la vraie couleur pleine (bleu nuit) de la page.
-     CORRECTIF (2026-10-02, BUG RÉEL ET GRAVE — voir la note complète
-     dans :root ci-dessus, même raison exacte) : transparent (0%) cassait
-     visuellement tous les composants qui utilisent --bg-2/--bg-3 comme
-     surface réelle (champs de saisie, interrupteurs, pistes de
-     progression, encadrés de données...), restés cliquables/
-     sélectionnables mais invisibles. rgba(255,255,255,X) à faible
-     opacité (effet "verre dépoli clair" sur fond nuit, cohérent avec le
-     reste du thème sombre) remplace le 0% pur. */
-  --bg:#0a0e27; --bg-2:rgba(255,255,255,.08); --bg-3:rgba(255,255,255,.14); --bg-4:rgba(255,255,255,.2);
+     (déjà exactement #F3F4F6, la valeur demandée). */
+  --bg:#0a0e27; --bg-2:#111631; --bg-3:#181e3d; --bg-4:#232a4d;
   --ink:#f3f4f6; --ink-2:#d1d5db; --ink-3:#9ca3af; --ink-4:#6b7280;
-  /* TEST PALETTE v2 (voir note "TEST PALETTE v2" dans :root ci-dessus) :
-     mêmes pastels bleu/rose qu'en thème clair — contraste excellent sur
-     #0A0E27 (bien meilleur qu'en thème clair, où ils se fondent presque
-     dans un fond blanc : à surveiller là-bas). --accent-ink reste
-     --bg-dark-ink, qu'on soit en thème clair ou sombre. Fonds "soft"
-     restent sombres (jamais les tons quasi-blancs des échelles -50, qui
-     trancheraient violemment sur fond sombre) — simplement retintés vers
-     la bonne teinte (bleu pour accent, rose pour --blue-accent). */
-  --accent:var(--paleblue-base); --accent-hover:var(--paleblue-hover); --accent-press:var(--paleblue-press);
-  --accent-soft:#142a30; --accent-ink:var(--bg-dark-ink);
-  --blue-accent:var(--palepink-base); --blue-accent-soft:#2a1420;
+  /* Orange Hermès (#E67E22, même teinte que le thème clair, "Primary
+     toujours orange") : assez saturé pour rester lisible sur #0A0E27. */
+  --accent:var(--orange-500); --accent-hover:var(--orange-light); --accent-press:var(--orange-700);
+  --accent-soft:#2a1f14; --accent-ink:#ffffff;
+  /* Cyan réservé aux boutons secondaires (même règle qu'en thème
+     clair) — jamais un accent général. */
+  --blue-accent:var(--cyan-500); --blue-accent-soft:#142a30;
   --up:#34d399; --up-soft:#0c2419; --down:#f87171; --down-soft:#2a1416;
   --warn:#e0a63a; --warn-soft:#2a2110;
   --line:#2a3050; --line-2:#1a1f3d;
   --shadow-2:0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.35);
   --shadow-3:0 2px 6px rgba(0,0,0,.45), 0 24px 48px rgba(0,0,0,.45);
-  --shadow-accent:0 8px 24px rgba(124,200,240,.35);
+  --shadow-accent:0 8px 24px rgba(230,126,34,.3);
 }
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 /* overflow-x:hidden ajouté ici le 2026-09-23 (bug réel trouvé en testant
@@ -221,14 +143,7 @@
    document.documentElement.clientWidth est un artefact CSS connu, pas
    un vrai bug de layout) restait scrollable horizontalement au niveau
    du document malgré body{overflow-x:hidden}. */
-/* 2026-10-01 : hidden -> clip sur html ET body. "overflow-x:hidden" sans
-   overflow-y explicite force overflow-y à "auto" (règle CSS), ce qui
-   transforme html ET body en deux scroll containers empilés ; .top
-   (position:sticky) résolvait son ancrage contre body, qui ne scrolle
-   jamais réellement (le scroll visuel a lieu sur html), donc la nav
-   disparaissait au scroll au lieu de rester fixée. "clip" bloque le
-   débordement horizontal sans créer de scroll container. */
-html{-webkit-text-size-adjust:100%;overflow-x:clip}
+html{-webkit-text-size-adjust:100%;overflow-x:hidden}
 html{background:var(--bg)}
 [data-theme="xxx"] body::before{
   content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
@@ -246,7 +161,7 @@ body{
      uni de body pour son opacité, vérifié avant ce changement. */
   background:transparent;color:var(--ink);max-width:100vw;
   forced-color-adjust:none;font-family:var(--font);font-size:16px;line-height:1.5;
-  -webkit-font-smoothing:antialiased;overflow-x:clip;letter-spacing:-.011em;
+  -webkit-font-smoothing:antialiased;overflow-x:hidden;letter-spacing:-.011em;
   transition:background .3s var(--spring),color .3s var(--spring);
 }
 /* Fond animé (§2 du PRD : "un fond qui change de couleur, de belles
@@ -260,46 +175,7 @@ body{
    c'est un fond d'ambiance, pas un habillage qui prend le pas sur le
    contenu. prefers-reduced-motion coupe l'animation, jamais l'effet
    entier (le dégradé reste visible, simplement figé). */
-/* TEST PALETTE v2 (demande utilisateur, 2026-10-01 : "je veux que
-   l'ensemble du fond du site soit exactement le même, pas seulement le
-   fond du temple") — BUG RÉEL trouvé et corrigé : le dégradé avait
-   d'abord été posé sur <html> (voir historique), qui s'étire par
-   défaut sur toute la HAUTEUR DE SCROLL de la page, pas sur la seule
-   hauteur d'écran — sur une page courte (Accueil/temple) le bleu->rose
-   restait bien visible sur un seul écran, mais sur une page longue
-   (Marchés, Radar...) il fallait défiler sur des milliers de pixels
-   avant d'apercevoir le rose : à l'écran, ces pages semblaient presque
-   uniformément blanches. Posé ici à la place, sur .aurora-bg
-   (position:fixed, DÉJÀ présente sur chaque page via index.html, DÉJÀ
-   dimensionnée exactement sur la fenêtre quelle que soit la hauteur de
-   la page) — le même dégradé bleu->blanc->rose tient alors toujours
-   dans un seul écran, identique sur absolument chaque page, quelle que
-   soit sa longueur. <html> repasse à son fond --bg d'origine (devient
-   invisible de toute façon, entièrement recouvert par ce calque opaque
-   fixe) ; les 3 taches animées existantes restent au-dessus, inchangées. */
-/* DESIGN CLAIR ULTRA-PRÉCIS (retour utilisateur : "CE N'EST PAS DU TOUT
-   CE QUE J'AI DEMANDÉ") : la spec fournie liste explicitement, en
-   point 5 (structure visuelle), "[FOND BLANC - solide, ne change pas]"
-   comme élément séparé et fixe — le dégradé pastel bleu->rose posé ici
-   lors des passes précédentes du test (voir historique juste en
-   dessous) n'avait jamais été retiré en passant à cette nouvelle spec,
-   contradiction jamais explicitement résolue. Corrigé : fond SOLIDE
-   blanc uni, les 3 taches colorées animées ci-dessous (::before/
-   ::after/.aurora-3) désactivées avec lui — aucune des deux ne figure
-   dans la spec "ultra-précise", qui ne mentionne que fond blanc +
-   cadre orange + verre transparent + texte noir. */
-.aurora-bg{position:fixed;inset:0;z-index:0;overflow:hidden;pointer-events:none;
-  background:var(--bg)}
-/* CADRE WAVY ORANGE : RETIRÉ (retour utilisateur explicite, 2026-10-01 :
-   "retire tous le orange") — probablement aussi la cause du "temple ne
-   zoom plus sur ordinateur" signalé dans le même message : ce cadre
-   combinait filter:url(svg) + animation:transform sur un position:fixed
-   couvrant presque tout le viewport, exactement le schéma déjà identifié
-   plus haut dans ce fichier comme cause du bug "le dock décroche" — la
-   même interférence de composition a plausiblement perturbé l'animation
-   templeScaleIn (voir plus bas) d'une façon ou d'une autre. Règle
-   entièrement supprimée plutôt que désactivée : demande explicite de
-   retrait, pas de pause. */
+.aurora-bg{position:fixed;inset:0;z-index:0;overflow:hidden;pointer-events:none}
 /* CORRECTIF (bug visuel réel et grave, signalé par l'utilisateur — la
    barre de navigation du bas "décrochait" de sa position fixe pendant
    le défilement) : la rotation de teinte était animée sur .aurora-bg
@@ -320,24 +196,26 @@ body{
    inchangé) : à cette échelle, 65px de flou garde le même effet "fond
    d'ambiance diffus", vérifié en direct clair et sombre — jamais des
    bords nets visibles. */
-/* DÉSACTIVÉES (voir note "DESIGN CLAIR ULTRA-PRÉCIS" ci-dessus) :
-   display:none plutôt que supprimer les règles plus bas (couleurs par
-   page, animation...) — réversible d'un mot si une passe future
-   redemande un fond pastel, sans tout réécrire. */
-.aurora-bg::before,.aurora-bg::after,.aurora-bg .aurora-3{display:none}
-/* TEST PALETTE (voir note dans :root) : 2 tons de bleu/cyan au lieu
-   d'orange — même structure (2 taches dominantes + 1 touche, voir plus
-   bas), toujours personnalisable par section via body[data-bg=...]
-   (paintNav()/render()). */
+.aurora-bg::before,.aurora-bg::after,.aurora-bg .aurora-3{content:"";position:absolute;border-radius:50%;
+  filter:blur(65px);opacity:.32;
+  animation:auroraDrift 26s ease-in-out infinite, auroraHue 60s linear infinite;
+  will-change:transform}
+/* Couleurs en variables (mise à jour 2026-09-28, pivot marque NovaTitre :
+   "Primary = Orange toujours", cyan réservé aux boutons secondaires —
+   jamais un accent général ; recoloré depuis rose/violet, voir note de
+   palette tout en haut du fichier). Orange (2 tons) domine, cyan en 3e
+   touche — même rôle structurel que le violet qu'il remplace, cohérent
+   avec le reste de la nouvelle identité (boutons, temple...). Toujours
+   personnalisable par section via body[data-bg=...] (paintNav()/render()). */
 .aurora-bg::before{width:55vw;height:55vw;top:-18vw;left:-12vw;
-  background:radial-gradient(circle,var(--aurora-1,#7cc8f0) 0%,var(--aurora-1b,#cfeeff) 45%,transparent 72%)}
+  background:radial-gradient(circle,var(--aurora-1,#e67e22) 0%,var(--aurora-1b,#f39c12) 45%,transparent 72%)}
 .aurora-bg::after{width:50vw;height:50vw;bottom:-22vw;right:-14vw;animation-delay:-13s;
-  background:radial-gradient(circle,var(--aurora-2,#ff9fd0) 0%,var(--aurora-2b,#ffd9ec) 40%,transparent 72%)}
+  background:radial-gradient(circle,var(--aurora-2,#b85f12) 0%,var(--aurora-2b,#e67e22) 40%,transparent 72%)}
 .aurora-bg .aurora-3{width:38vw;height:38vw;top:38vh;left:32vw;animation-delay:-8s;
   animation-duration:32s;opacity:.24;
-  background:radial-gradient(circle,var(--aurora-3,#7cc8f0) 0%,var(--aurora-3b,#cfeeff) 45%,transparent 72%)}
-body[data-bg="portfolio"]{--aurora-1:#7cc8f0;--aurora-1b:#cfeeff;--aurora-2:#ff9fd0;--aurora-2b:#ffd9ec;
-  --aurora-3:#7cc8f0;--aurora-3b:#cfeeff}
+  background:radial-gradient(circle,var(--aurora-3,#00a8cc) 0%,var(--aurora-3b,#00d4ff) 45%,transparent 72%)}
+body[data-bg="portfolio"]{--aurora-1:#00a8cc;--aurora-1b:#00d4ff;--aurora-2:#e67e22;--aurora-2b:#f39c12;
+  --aurora-3:#00a8cc;--aurora-3b:#00d4ff}
 body[data-bg="account"]{--aurora-1:#8d95a4;--aurora-1b:#aeb4c0;--aurora-2:#646c7c;--aurora-2b:#9aa1b1;
   --aurora-3:#8d95a4;--aurora-3b:#aeb4c0}
 @keyframes auroraDrift{
@@ -397,12 +275,7 @@ button:active{transform:scale(.97)}
    (backdrop-filter) reste constant pour garder le texte lisible même
    quand le fond est presque transparent. */
 .top{
-  /* TEST PALETTE v2 (retour utilisateur, 2026-10-01 : "...navigation du
-     haut... je veux qu'il deviennent tous transparente") : navbar
-     explicitement incluse cette fois (contrairement à la spec
-     précédente, "NAVBAR INTACTE", qui l'excluait) — fond transparent au
-     lieu du blanc semi-opaque + fondu au défilement (--top-fade). */
-  position:sticky;top:0;z-index:50;background:transparent;
+  position:sticky;top:0;z-index:50;background:rgba(255,255,255,calc(.72 * var(--top-fade,1)));
   /* Flou réduit 20px -> 14px (2026-09-24, retour utilisateur : "le site
      est super lent et manque énormément de fluidité") : le coût GPU
      d'un backdrop-filter croît avec le rayon de flou, et ce header
@@ -422,7 +295,7 @@ button:active{transform:scale(.97)}
    lecture du contenu ; sticky+transform sont compatibles (le sticky ne
    régit que la position de scroll, pas le rendu du transform). */
 @keyframes topSlideIn{ from{transform:translateY(-14px);opacity:0} to{transform:translateY(0);opacity:1} }
-[data-theme="dark"] .top{background:transparent;border-bottom-color:rgba(255,255,255,.06)}
+[data-theme="dark"] .top{background:rgba(8,9,12,calc(.72 * var(--top-fade,1)));border-bottom-color:rgba(255,255,255,.06)}
 .top-in{max-width:1120px;margin:0 auto;padding:10px 20px;display:flex;align-items:center;
   gap:12px;min-width:0}
 .logo{display:flex;align-items:center;gap:9px;font-weight:700;font-size:17px;
@@ -451,7 +324,7 @@ button:active{transform:scale(.97)}
    coût de rendu proche de zéro au lieu d'un repaint continu partout
    dans l'app. */
 .logo-m::after{content:"";position:absolute;inset:-5px;border-radius:50%;
-  box-shadow:0 0 0 5px rgba(124,200,240,.22);opacity:0;pointer-events:none;
+  box-shadow:0 0 0 5px rgba(236,72,153,.16);opacity:0;pointer-events:none;
   animation:logoGlow 4.5s ease-in-out infinite}
 @keyframes logoGlow{ 0%,100%{opacity:0} 50%{opacity:1} }
 @media (prefers-reduced-motion:reduce){ .logo-m::after{animation:none} }
@@ -476,7 +349,7 @@ button:active{transform:scale(.97)}
 #srcBadge{display:flex;align-items:center;gap:6px;min-width:0;overflow:hidden}
 .icon-btn{width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:var(--ink-3);
   transition:background .2s ease,color .2s ease,transform .2s cubic-bezier(.22,1,.36,1)}
-.icon-btn:hover{background:transparent;color:var(--ink);transform:translateY(-1px) scale(1.08)}
+.icon-btn:hover{background:var(--bg-2);color:var(--ink);transform:translateY(-1px) scale(1.08)}
 .icon-btn:active{transform:scale(.9)}
 .icon-btn svg{width:19px;height:19px}
 .dock{display:none}
@@ -522,45 +395,31 @@ button:active{transform:scale(.97)}
      nuit, bordure cyan, 28px, icônes 28px) est retirée ; cette géométrie
      capsule verre dépoli reprend son rôle. Reste du rebrand (palette
      orange/cyan, onboarding, Nova Explain, fiche action) inchangé. */
-  /* TEST PALETTE v2 (retour utilisateur, 2026-10-01 : "je ne veux pas
-     de sombre pas de noire dans le fond") — verre dépoli sombre ->
-     clair, dimensions/géométrie INCHANGÉES (voir note "NE CHANGE PLUS
-     sa taille" ci-dessus, toujours valable, seule la couleur change). */
   .dock{
     display:flex;align-items:stretch;
     position:fixed;left:50%;transform:translateX(-50%);
     bottom:calc(12px + env(safe-area-inset-bottom));z-index:60;
     width:calc(100% - 20px);max-width:440px;
-    background:transparent;
+    background:rgba(10,14,35,.50);
     /* Flou réduit 18px -> 13px (2026-09-24, même correctif performance
        que .top ci-dessus, même raison : fixed + présent sur toute page
        mobile, recalculé à chaque frame de défilement). */
     backdrop-filter:blur(13px) saturate(120%);
     -webkit-backdrop-filter:blur(13px) saturate(120%);
-    border:1px solid rgba(124,200,240,.35);border-radius:9999px;
+    border:1px solid rgba(255,255,255,.10);border-radius:9999px;
     padding:6px 6px;
-    box-shadow:0 8px 22px rgba(10,14,39,.12), 0 2px 6px rgba(10,14,39,.06)
+    box-shadow:0 8px 22px rgba(2,5,14,.45), 0 2px 6px rgba(10,20,45,.14)
   }
   /* 5 colonnes strictement égales et fixes (flex:0 0 20%, jamais
      recalculées selon l'onglet actif) — icône empilée sur libellé,
      c'est le PLUS LARGE des deux qui doit tenir dans 20% de la barre. */
-  /* CORRECTIF (2026-10-02, bug réel grave signalé par l'utilisateur :
-     "plein de fonctionnalités qui sont présentes mais qu'on ne voit
-     plus") : color était une teinte FIXE (rgba(10,14,39,...), bleu nuit)
-     jamais liée au thème. En thème sombre, le dock (fond transparent,
-     donc le bleu nuit de la page derrière) rendait TOUTE la navigation
-     mobile du bas (Accueil/Marchés/Radar/Portefeuille/Compte) quasi
-     invisible — texte et icônes foncés sur fond foncé. var(--ink) avec
-     opacity réduit reproduit le même effet "atténué" visuellement
-     (55%) tout en suivant le thème (noir atténué en clair, blanc
-     atténué en sombre). */
   .dock button{
     position:relative;z-index:1;
     display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;
     flex:0 0 20%;min-width:0;min-height:40px;padding:2px 3px;border-radius:9999px;
-    color:var(--ink);opacity:.55;
+    color:rgba(255,255,255,.68);
     font-size:11px;font-weight:600;letter-spacing:-.01em;
-    transition:color .25s ease-out,opacity .25s ease-out
+    transition:color .25s ease-out
   }
   /* Priorité absolue : plus jamais de libellé coupé/en 2 lignes. nowrap
      + overflow visible (jamais overflow:hidden, qui masquerait un mot
@@ -570,7 +429,7 @@ button:active{transform:scale(.97)}
   .dock button span{display:block;white-space:nowrap;overflow:visible}
   .dock button svg{width:22px;height:22px;color:inherit;
     transition:transform .25s cubic-bezier(.22,1,.36,1),opacity .25s ease-out}
-  .dock button[aria-current]{color:var(--ink);opacity:1}
+  .dock button[aria-current]{color:#fff}
   .dock button[aria-current] svg{transform:scale(1.05);animation:dockIconPop .45s cubic-bezier(.22,1,.36,1)}
   /* Rebond quand une icône DEVIENT active (2026-09-23, "vraiment
      beaucoup d'animation") : une animation CSS démarre quand l'élément
@@ -610,7 +469,7 @@ button:active{transform:scale(.97)}
      top/bottom:3px la garde clairement PLUS PETITE que la barre
      extérieure (respiration haut/bas, comme sur la référence). */
   .dock-pill{position:absolute;top:3px;bottom:3px;left:0;border-radius:9999px;
-    background:rgba(124,200,240,.22);
+    background:rgba(255,255,255,.12);
     z-index:0;pointer-events:none;
     transition:transform .3s cubic-bezier(.22,1,.36,1), width .3s cubic-bezier(.22,1,.36,1);
     will-change:transform,width}
@@ -662,37 +521,20 @@ button:active{transform:scale(.97)}
    part où "se déplacer"). Coupée sous prefers-reduced-motion comme
    toutes les animations infinies de ce fichier (la leçon du fond
    aurora, plus haut, documente pourquoi une durée quasi nulle plutôt
-   qu'un arrêt franc a déjà causé un vrai bug cette session).
-   CORRECTIF (2026-10-01, retour utilisateur : "je veux que uniquement
-   des boutons importants soit en orange") : .btn-a est LE bouton
-   "action primaire" générique réutilisé partout dans l'app (confirmer,
-   valider, acheter, enregistrer...) — exactement le sens de "bouton
-   important" ici. Dégradé recoloré en orange (--orange-500/-700,
-   l'échelle orange déjà définie dans :root mais plus utilisée depuis le
-   pivot rose/bleu) au lieu de var(--accent) (qui reste bleu pastel,
-   utilisé ailleurs pour des éléments qui ne sont PAS des boutons
-   importants : liens eyebrow, anneaux de focus, interrupteurs, tags —
-   volontairement non touchés, pour que l'orange reste réservé aux
-   boutons comme demandé). Texte blanc : meilleur contraste qu'une encre
-   foncée sur un orange saturé, et l'orange ne dépend pas du thème. */
-.btn-a{background:linear-gradient(135deg,var(--orange-500) 0%,var(--orange-700) 100%);
+   qu'un arrêt franc a déjà causé un vrai bug cette session). */
+.btn-a{background:linear-gradient(135deg,var(--accent) 0%,var(--orange-light,var(--accent-hover)) 100%);
   background-size:200% 200%;animation:gradientShift 4s ease-in-out infinite;
-  color:#fff;box-shadow:0 8px 24px rgba(230,126,34,.28)}
+  color:var(--accent-ink);box-shadow:var(--shadow-accent)}
 @keyframes gradientShift{
   0%{background-position:0% 50%}
   50%{background-position:100% 50%}
   100%{background-position:0% 50%}
 }
 @media (prefers-reduced-motion:reduce){ .btn-a{animation:none} }
-.btn-a:hover{background:var(--orange-700)}
-.btn-a:active{background:var(--orange-900)}
-/* TEST PALETTE v2 (retour utilisateur : "fais en sorte que tous les
-   boutons blancs soient transparent") : fond opaque -> verre clair,
-   même principe que .card/.dock/.nova-action-circle déjà passés en
-   verre clair ailleurs dans ce fichier — laisse voir le dégradé de
-   fond au travers plutôt qu'un aplat blanc. */
-.btn-s{background:transparent;border:1px solid rgba(124,200,240,.3);color:var(--ink)}
-.btn-s:hover{background:transparent}
+.btn-a:hover{background:var(--accent-hover)}
+.btn-a:active{background:var(--accent-press)}
+.btn-s{background:var(--bg-2);color:var(--ink)}
+.btn-s:hover{background:var(--bg-3)}
 /* Bouton secondaire cyan (2026-09-22, composant demandé par le brief ;
    recoloré 2026-09-28 pour le pivot NovaTitre : violet -> cyan #00D4FF,
    voir note de palette tout en haut) — jamais utilisé comme accent
@@ -732,21 +574,16 @@ button:active{transform:scale(.97)}
    page — un flou aussi large multiplié par carte est un vrai coût GPU
    cumulé. 16px garde le même effet "verre dépoli" à l'œil (vérifié en
    direct), pour une fraction du coût par carte. */
-.card{background-color:transparent;backdrop-filter:blur(16px) saturate(160%);
+.card{background-color:rgba(255,255,255,.6);backdrop-filter:blur(16px) saturate(160%);
   -webkit-backdrop-filter:blur(16px) saturate(160%);border:1px solid rgba(255,255,255,.8);
   border-radius:var(--r-l);padding:var(--card-pad);
-  box-shadow:0 1px 2px rgba(13,17,23,.05),0 16px 40px rgba(124,200,240,.12)}
-/* CORRECTIF (2026-10-02, retour utilisateur : "pour toute les
-   fonctionnalité je veux que ce soit transparent") : .card est LE
-   composant le plus répété du fichier — cette surcharge le laissait
-   semi-opaque (60%) en thème sombre uniquement, jamais vraiment
-   transparent comme en thème clair. Alignée sur le même principe. */
-[data-theme="dark"] .card{background-color:transparent;border-color:rgba(255,255,255,.08);
+  box-shadow:0 1px 2px rgba(13,17,23,.05),0 16px 40px rgba(236,72,153,.10)}
+[data-theme="dark"] .card{background-color:rgba(22,26,33,.6);border-color:rgba(255,255,255,.08);
   box-shadow:0 1px 2px rgba(0,0,0,.3),0 16px 40px rgba(0,0,0,.4)}
 .card-flat{background:var(--bg-2);border-radius:var(--r-l);padding:var(--card-pad)}
 .card-lift{transition:background var(--slow) var(--ease)}
 .card-lift:hover{background:var(--bg-3)}
-.card-white{background:transparent;box-shadow:var(--shadow-2)}
+.card-white{background:var(--bg);box-shadow:var(--shadow-2)}
 .grid{display:grid;gap:var(--space-4)}
 .g-2{grid-template-columns:repeat(auto-fit,minmax(280px,1fr))}
 .g-3{grid-template-columns:repeat(auto-fit,minmax(230px,1fr))}
@@ -754,11 +591,10 @@ button:active{transform:scale(.97)}
 .field{width:100%;padding:15px 18px;border-radius:var(--r-s);background:var(--bg-2);
   border:1.5px solid transparent;min-height:var(--tap);font-size:var(--t-body);
   transition:border-color var(--fast) ease,background var(--fast) ease}
-.field:focus{outline:none;border-color:var(--accent);background:transparent}
+.field:focus{outline:none;border-color:var(--accent);background:var(--bg)}
 .field::placeholder{color:var(--ink-4)}
 .field[aria-invalid="true"]{border-color:var(--down)}
-.seg{display:inline-flex;position:relative;padding:4px;background:transparent;
-  border:1px solid rgba(124,200,240,.28);border-radius:var(--r-pill);
+.seg{display:inline-flex;position:relative;padding:4px;background:var(--bg-2);border-radius:var(--r-pill);
   gap:3px;max-width:100%;overflow-x:auto;scrollbar-width:none}
 .seg::-webkit-scrollbar{display:none}
 .seg button{position:relative;z-index:1;padding:9px 18px;border-radius:var(--r-pill);font-size:var(--t-small);
@@ -777,7 +613,7 @@ button:active{transform:scale(.97)}
    dock (élément persistant + transition passive), qui ne se serait pas
    appliqué ici. */
 .seg-pill{position:absolute;top:4px;bottom:4px;left:0;border-radius:var(--r-pill);
-  background:transparent;box-shadow:var(--shadow-2);z-index:0;pointer-events:none;
+  background:var(--bg);box-shadow:var(--shadow-2);z-index:0;pointer-events:none;
   transition:transform .35s var(--spring),width .35s var(--spring)}
 @media (prefers-reduced-motion:reduce){ .seg-pill{transition:none} }
 /* CORRECTIF (audit complet 2026-09-17) : .sw avait une première
@@ -840,16 +676,16 @@ button:active{transform:scale(.97)}
   margin-top:var(--sp-5)}
 .trio-c{padding:var(--sp-3);border-radius:var(--r-m);background:var(--bg-2);text-align:center}
 .trio-i{width:42px;height:42px;border-radius:13px;display:flex;align-items:center;justify-content:center;margin:0 auto var(--sp-1);
-  background:transparent;box-shadow:var(--shadow-1);color:var(--accent)}
+  background:var(--bg);box-shadow:var(--shadow-1);color:var(--accent)}
 .trio-i svg{width:21px;height:21px}
 .trio-c b{display:block;font-size:15px;font-weight:650;letter-spacing:-.02em}
 .trio-c span{display:block;font-size:13px;color:var(--ink-3);margin-top:4px;line-height:1.45}
 .search-btn{display:flex;align-items:center;gap:11px;width:100%;max-width:520px;margin:var(--sp-3) auto 0;
-  padding:15px 20px;border-radius:100px;background:transparent;color:var(--ink-4);font-size:15.5px;
-  text-align:left;border:1px solid rgba(124,200,240,.28);
+  padding:15px 20px;border-radius:100px;background:var(--bg-2);color:var(--ink-4);font-size:15.5px;
+  text-align:left;border:1px solid transparent;
   transition:background .25s var(--spring),border-color .25s var(--spring),
     box-shadow .25s var(--spring),transform .25s var(--spring)}
-.search-btn:hover{background:transparent;border-color:var(--line);box-shadow:var(--shadow-2);
+.search-btn:hover{background:var(--bg);border-color:var(--line);box-shadow:var(--shadow-2);
   transform:translateY(-2px)}
 .search-btn:active{transform:scale(.99)}
 .search-btn svg{width:18px;height:18px;flex:0 0 auto}
@@ -942,7 +778,7 @@ a.row{color:inherit;text-decoration:none}
    (hover:hover)/(pointer:fine), même raison qu'ailleurs dans ce fichier
    (jamais un survol "collé" après un tap tactile). */
 .plan{position:relative;padding:var(--sp-3);border-radius:var(--r-l);border:1.5px solid var(--line);
-  display:flex;flex-direction:column;background:transparent;
+  display:flex;flex-direction:column;background:var(--bg);
   transition:border-color .3s var(--spring),box-shadow .3s var(--spring),transform .3s var(--spring)}
 .plan:hover{border-color:var(--ink-4)}
 @media (hover:hover) and (pointer:fine){
@@ -967,8 +803,7 @@ a.row{color:inherit;text-decoration:none}
   display:none;align-items:center;justify-content:center;padding:var(--sp-2)}
 .sheet-bg.on{display:flex;animation:fade .22s ease}
 @keyframes fade{from{opacity:0}to{opacity:1}}
-.sheet{width:100%;max-width:520px;background:transparent;backdrop-filter:blur(16px) saturate(160%);
-  -webkit-backdrop-filter:blur(16px) saturate(160%);border-radius:var(--r-xl);padding:var(--sp-3);
+.sheet{width:100%;max-width:520px;background:var(--bg);border-radius:var(--r-xl);padding:var(--sp-3);
   max-height:86vh;overflow-y:auto;box-shadow:var(--shadow-3);animation:sheetIn .42s var(--spring)}
 @keyframes sheetIn{from{transform:translateY(24px) scale(.97);opacity:0}to{transform:none;opacity:1}}
 /* Morph de la recherche : voir openSearch() (JS) pour --morph-from. Classe
@@ -980,9 +815,9 @@ a.row{color:inherit;text-decoration:none}
 .sheet-h{display:flex;align-items:flex-start;justify-content:space-between;gap:var(--sp-2);margin-bottom:var(--sp-2)}
 .sheet h3{font-size:22px;font-weight:700;letter-spacing:-.035em}
 .sheet p{font-size:15px;color:var(--ink-3);line-height:1.55;margin-top:10px}
-.x{width:34px;height:34px;border-radius:50%;background:transparent;display:flex;align-items:center;justify-content:center;
+.x{width:34px;height:34px;border-radius:50%;background:var(--bg-2);display:flex;align-items:center;justify-content:center;
   color:var(--ink-3);flex:0 0 auto}
-.x:hover{background:transparent;color:var(--ink)}
+.x:hover{background:var(--bg-3);color:var(--ink)}
 .x svg{width:15px;height:15px}
 @media (max-width:640px){
   .sheet-bg{align-items:flex-end;padding:0}
@@ -1006,11 +841,7 @@ a.row{color:inherit;text-decoration:none}
   -webkit-overflow-scrolling:touch;scroll-behavior:smooth;scrollbar-width:none}
 .chips-scroll::-webkit-scrollbar{display:none}
 .chips-scroll .chip{flex:0 0 auto}
-/* TEST PALETTE v2 : fond opaque -> verre clair (voir .btn-s plus haut).
-   .chip[aria-pressed="true"] (état sélectionné, encre foncée) non
-   concerné : ce n'est pas un bouton "blanc". */
-.chip{padding:9px 15px;border-radius:100px;background:transparent;
-  border:1px solid rgba(124,200,240,.28);font-size:13.5px;font-weight:550;
+.chip{padding:9px 15px;border-radius:100px;background:var(--bg-2);font-size:13.5px;font-weight:550;
   color:var(--ink-3);min-height:38px;display:inline-flex;align-items:center;gap:6px}
 /* CORRECTIF (bug visuel réel et grave, audit complet 2026-09-17) : un
    <svg> nu n'a AUCUNE taille par défaut dans un navigateur (taille de
@@ -1021,7 +852,7 @@ a.row{color:inherit;text-decoration:none}
    vérifié en direct : un bouton normalement haut de 38px gonflait à la
    taille de l'icône géante et devenait un cercle énorme. */
 .chip svg{width:15px;height:15px;flex:0 0 auto}
-.chip:hover{background:transparent;color:var(--ink)}
+.chip:hover{background:var(--bg-3);color:var(--ink)}
 .chip[aria-pressed="true"]{background:var(--ink);color:var(--bg)}
 .check-box{width:22px;height:22px;border-radius:50%;border:1.5px solid var(--line-2);
   display:flex;align-items:center;justify-content:center;flex:0 0 auto;color:var(--bg);margin-left:auto}
@@ -1134,7 +965,7 @@ a.row{color:inherit;text-decoration:none}
    Halo doux ajouté (drop-shadow), même principe que le temple. */
 .brand-orbit{position:relative;display:flex;align-items:center;justify-content:center;
   width:64px;height:64px;margin:0 auto;
-  filter:drop-shadow(0 0 10px rgba(255,159,208,.2)) drop-shadow(0 0 16px rgba(124,200,240,.2))}
+  filter:drop-shadow(0 0 10px rgba(230,126,34,.25)) drop-shadow(0 0 16px rgba(0,212,255,.15))}
 .brand-ring{position:absolute;inset:0;width:100%;height:100%;opacity:.85;
   animation:ringSpin 9s linear infinite}
 .brand-ring circle:first-child{color:var(--accent)}
@@ -1208,31 +1039,13 @@ a.row{color:inherit;text-decoration:none}
 .nb-hero-v2{
   width:100vw;
   margin:calc(var(--sp-3) * -1) calc(50% - 50vw) 0;padding:14px 18px 28px;
-  /* TEST PALETTE v2 (demande utilisateur, 2026-10-01 : "je veux que ce
-     soit le même fond que celui derrière le temple" + bleu/rose très
-     très clairs) : CORRECTIF cette fois d'un fond TOUJOURS SOMBRE
-     (indépendant du thème, voir note juste au-dessus dans l'historique
-     du fichier) vers un dégradé pastel bleu->blanc->rose, mêmes tons
-     "50" (les plus clairs) que le reste de la palette test. Ce fond
-     n'était PAS transparent jusqu'ici précisément parce que tout le
-     contenu de cette section (temple, titre, CTA, bulles) est en blanc
-     et ne lit que sur fond sombre (voir note "un fond clair casserait
-     totalement la lisibilité" plus haut) — cette fois le contenu change
-     AUSSI (voir .temple-line/.nova-temple-brand/.nb-hero-title/
-     .nb-hero-sub2/.nova-action-circle/.nb-cta-s plus bas, tous repassés
-     en encre foncée), donc le constat d'origine ne s'applique plus.
-     CORRECTIF (retour utilisateur, 2026-10-01 : "le fond complètement
-     blanc") : ce dégradé local à .nb-hero-v2 était resté en place lors
-     du passage au fond uni blanc de .aurora-bg (commit précédent) --
-     deux déclarations de fond séparées, celle-ci oubliée. Repasse à un
-     blanc uni comme le reste du site.
-     CORRECTIF (retour utilisateur, 2026-10-01 : "je veux que le temple
-     soit visible en transparent") : transparent plutôt que var(--bg) —
-     .aurora-bg (fixed, sous tout le contenu) porte déjà la couleur
-     réelle de la page ; cette section n'a plus besoin de sa propre
-     couche de fond opaque par-dessus, elle se fond directement dans le
-     même bleu que le reste du site au lieu de former un bloc séparé. */
-  background:transparent;
+  /* Recoloré (2026-09-28, pivot NovaTitre) : fond violet-noir -> noir
+     profond de marque (#0A0E27, voir la note de palette tout en haut),
+     halo violet -> cyan (rôle d'accent secondaire déjà tenu par le
+     violet remplacé, même principe que l'aurore de fond). */
+  background:
+    radial-gradient(circle at 50% 18%, rgba(0,212,255,.14), transparent 62%),
+    linear-gradient(180deg,#111631 0%,#0a0e27 55%,#0f1428 100%);
   position:relative
   /* PAS de overflow:hidden ici (bug réel trouvé le 2026-09-23, passe 2) :
      ça rognait silencieusement le temple, qui vise min(96vw,780px) —
@@ -1288,28 +1101,21 @@ a.row{color:inherit;text-decoration:none}
      couverts par les animations templeScaleIn/templeGlowPulse plus bas,
      qu'une transition sur ces mêmes propriétés perturberait. */
   transition:opacity .14s ease-out;
-  /* TEST PALETTE v2 : un halo blanc/cyan clair sur un fond désormais
-     clair aussi serait invisible — ombre portée foncée légère à la
-     place, pour garder un peu de profondeur au trait. */
-  filter:drop-shadow(0 1px 2px rgba(10,14,39,.12))}
+  filter:drop-shadow(0 0 3px rgba(255,255,255,.20)) drop-shadow(0 0 11px rgba(0,212,255,.08))}
 @media (prefers-reduced-motion:reduce){
   .nova-temple{transition:none}
 }
-/* TEST PALETTE v2 : trait clair #d9f6ff -> encre foncée, le fond
-   derrière le temple passe de sombre à pastel clair (voir .nb-hero-v2
-   plus haut) — un trait clair y deviendrait quasi invisible. */
-/* CORRECTIF (2026-10-01, bug réel : --bg-dark-ink est une teinte FIXE,
-   pas liée au thème — en thème sombre, --bg vaut exactement #0A0E27, la
-   même couleur que --bg-dark-ink : le temple devenait invisible, trait
-   foncé sur fond foncé identique. var(--ink) suit le thème (noir en
-   clair, blanc en sombre), comme demandé ("texte blanc si bleu foncé,
-   texte noir si bleu clair") — s'applique aussi au dessin du temple. */
-.temple-line{fill:none;stroke:var(--ink);stroke-linecap:round;stroke-linejoin:round;
+/* Trait légèrement teinté (recoloré 2026-09-28, pivot NovaTitre : violet
+   -> cyan, même rôle d'accent secondaire) — #d9f6ff plutôt que #ffffff
+   blanc pur, un cyan très clair qui reste lisible comme "blanc" à
+   distance mais prend clairement une teinte cyan de près, cohérent avec
+   le glow cyan du filter ci-dessus. */
+.temple-line{fill:none;stroke:#d9f6ff;stroke-linecap:round;stroke-linejoin:round;
   vector-effect:non-scaling-stroke}
 .temple-main{stroke-width:7}
 .temple-secondary{stroke-width:4.5}
 .temple-flute{stroke-width:2.5;opacity:.90}
-.nova-temple-brand{fill:var(--ink)}
+.nova-temple-brand{fill:#d9f6ff}
 @media (max-width:600px){
   .nova-temple{width:98vw;max-width:none}
   /* Retour utilisateur (2026-09-23) : "le temple est un peu trop épais"
@@ -1355,12 +1161,9 @@ a.row{color:inherit;text-decoration:none}
    sans pulsation continue. */
 @keyframes templeScaleIn{ from{transform:scale(.96)} to{transform:scale(1)} }
 @keyframes templePartIn{ from{opacity:0} to{opacity:1} }
-/* TEST PALETTE v2 : glow blanc/cyan -> légère ombre portée foncée qui
-   "respire" (même idée, même rythme), un glow clair ne se verrait plus
-   sur le nouveau fond pastel clair. */
 @keyframes templeGlowPulse{
-  0%,100%{ filter:drop-shadow(0 1px 2px rgba(10,14,39,.10)) }
-  50%{ filter:drop-shadow(0 2px 5px rgba(10,14,39,.18)) }
+  0%,100%{ filter:drop-shadow(0 0 3px rgba(255,255,255,.20)) drop-shadow(0 0 11px rgba(0,212,255,.08)) }
+  50%{ filter:drop-shadow(0 0 7px rgba(255,255,255,.32)) drop-shadow(0 0 20px rgba(0,212,255,.20)) }
 }
 /* CORRECTIF (2026-09-29, retour utilisateur : "le temple prend du temps
    à se lancer... je voudrais une animation stylée d'ouverture") : la
@@ -1378,7 +1181,7 @@ a.row{color:inherit;text-decoration:none}
    décoratif, jamais nécessaire pour comprendre/utiliser la page. */
 @media (hover:hover){
   .nova-temple-section:hover .nova-temple{
-    filter:drop-shadow(0 3px 7px rgba(10,14,39,.22));
+    filter:drop-shadow(0 0 6px rgba(255,255,255,.30)) drop-shadow(0 0 18px rgba(0,212,255,.18));
     transition:filter .3s ease-out}
 }
 @media (prefers-reduced-motion:reduce){
@@ -1428,35 +1231,31 @@ a.row{color:inherit;text-decoration:none}
    petites") ; icône réduite dans la même proportion (38 -> 29px) pour
    rester équilibrée dans le cercle plutôt que de simplement rétrécir
    le cercle autour d'une icône inchangée. */
-/* TEST PALETTE v2 : verre dépoli SOMBRE (fait pour un fond nuit) ->
-   verre dépoli CLAIR (fond blanc semi-transparent + liseré pastel bleu,
-   même principe que .card plus haut dans ce fichier) — le fond derrière
-   est désormais pastel clair, pas nuit. */
+/* Recoloré (2026-09-28, pivot NovaTitre) : violet -> cyan (même rôle
+   d'accent secondaire), voir la note de palette tout en haut du fichier.
+   rgb(0,212,255)=--cyan-500, rgb(0,168,204)=--cyan-700, rgb(102,232,255)
+   =--cyan-300 — valeurs directement reprises de l'échelle plutôt que
+   réintroduire un jeu de couleurs séparé non maintenu par les variables. */
 .nova-action-circle{width:70px;height:70px;flex-shrink:0;border-radius:50%;
   display:flex;align-items:center;justify-content:center;
-  background:radial-gradient(circle at 50% 35%,rgba(255,255,255,.85),rgba(255,255,255,.55) 55%,rgba(255,255,255,.35) 100%);
-  border:1px solid rgba(124,200,240,.45);
+  background:radial-gradient(circle at 50% 35%,rgba(0,212,255,.18),rgba(0,168,204,.08) 55%,rgba(0,168,204,.04) 100%);
+  border:1px solid rgba(0,212,255,.42);
   backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
-  box-shadow:0 2px 10px rgba(10,14,39,.07);
+  box-shadow:inset 0 0 20px rgba(0,212,255,.07),0 0 18px rgba(0,168,204,.06);
   transition:transform .18s ease,background .18s ease,border-color .18s ease,box-shadow .18s ease}
-/* CORRECTIF (2026-10-01, même bug que .temple-line/.nova-temple-brand
-   plus haut) : --bg-dark-ink / #5a6478 étaient fixes, invisibles ou
-   illisibles en thème sombre une fois --bg-2/-3/-4 transparents (le
-   fond redevient le bleu nuit de la page). var(--ink)/var(--ink-2)
-   suivent le thème (noir en clair, blanc/gris clair en sombre). */
-.nova-action-circle svg{width:29px;height:29px;fill:none;stroke:var(--ink);
+.nova-action-circle svg{width:29px;height:29px;fill:none;stroke:#66e8ff;
   stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
-.nova-action-title{display:block;margin-top:10px;color:var(--ink);font-size:14px;font-weight:700;
+.nova-action-title{display:block;margin-top:10px;color:#fff;font-size:14px;font-weight:700;
   line-height:1.15;letter-spacing:-.01em}
 .nova-action-description{display:block;max-width:180px;margin-top:7px;
-  color:var(--ink-2);font-size:12px;font-weight:400;line-height:1.32}
+  color:rgba(225,245,250,.62);font-size:12px;font-weight:400;line-height:1.32}
 @media (hover:hover){
   .nova-quick-action:hover .nova-action-circle{transform:translateY(-2px);
-    border-color:rgba(124,200,240,.75);background:transparent;
-    box-shadow:0 7px 22px rgba(10,14,39,.12)}
+    border-color:rgba(0,212,255,.72);background:rgba(0,168,204,.16);
+    box-shadow:inset 0 0 24px rgba(0,212,255,.10),0 7px 26px rgba(0,168,204,.13)}
 }
 .nova-quick-action:active .nova-action-circle{transform:scale(.96)}
-.nova-quick-action:focus-visible .nova-action-circle{outline:2px solid var(--paleblue-press);outline-offset:4px}
+.nova-quick-action:focus-visible .nova-action-circle{outline:2px solid #66e8ff;outline-offset:4px}
 @media (prefers-reduced-motion:reduce){
   .nova-quick-action:active .nova-action-circle,.nova-quick-action:hover .nova-action-circle{transform:none}
 }
@@ -1468,58 +1267,38 @@ a.row{color:inherit;text-decoration:none}
   .nova-action-title{margin-top:8px;font-size:clamp(10px,2.75vw,13px);line-height:1.12}
   .nova-action-description{margin-top:5px;padding:0 2px;font-size:clamp(8.5px,2.3vw,11.5px);line-height:1.28}
 }
-/* TEST PALETTE v2 : texte blanc -> encre foncée, fond pastel clair
-   désormais derrière (voir .nb-hero-v2 plus haut).
-   CORRECTIF (2026-10-01, même bug de teinte fixe que plus haut) :
-   var(--bg-dark-ink)/#5a6478 -> var(--ink)/var(--ink-2), suit le
-   thème au lieu de rester toujours foncé. */
 .nb-hero-title{margin-top:26px;font-size:clamp(30px,7.5vw,40px);font-weight:800;
-  letter-spacing:-.03em;color:var(--ink);line-height:1.08;position:relative;z-index:1}
-.nb-hero-sub2{margin-top:8px;font-size:clamp(15px,3.6vw,17px);color:var(--ink-2);
+  letter-spacing:-.03em;color:#fff;line-height:1.08;position:relative;z-index:1}
+.nb-hero-sub2{margin-top:8px;font-size:clamp(15px,3.6vw,17px);color:rgba(255,255,255,.65);
   position:relative;z-index:1}
 .nb-cta-row{display:flex;gap:10px;margin-top:18px;position:relative;z-index:1}
 .nb-cta-a,.nb-cta-s{flex:1;height:52px;border-radius:9999px;font-size:15px;font-weight:700;
   display:flex;align-items:center;justify-content:center;gap:8px}
-/* CORRECTIF (2026-10-01, retour utilisateur : "je veux que uniquement
-   des boutons importants soit en orange") : .nb-cta-a ("Analyser", le
-   CTA primaire de l'accueil) rejoint .btn-a, voir plus haut dans ce
-   fichier pour la même logique et le choix des tons --orange-500/-700/
-   -900 plutôt que var(--accent) (qui resterait bleu, utilisé ailleurs
-   pour des éléments NON "boutons importants" : liens, anneaux de focus,
-   interrupteurs — volontairement non touchés ici). */
-.nb-cta-a{background:linear-gradient(135deg,var(--orange-500) 0%,var(--orange-700) 100%);color:#fff;
-  box-shadow:0 8px 28px rgba(230,126,34,.35)}
-.nb-cta-a:active{transform:scale(.98);background:var(--orange-700)}
-/* TEST PALETTE v2 : pilule verre sombre -> verre clair, même principe
-   que .nova-action-circle plus haut. */
-.nb-cta-s{background:transparent;border:1px solid rgba(124,200,240,.35);color:var(--ink)}
-.nb-cta-s:active{background:transparent}
+/* Recoloré (2026-09-28, pivot NovaTitre) : c'était encore le dégradé
+   violet de l'identité précédente sur le CTA PRIMAIRE de la page
+   d'accueil ("Analyser") — un oubli du reste du rebrand, corrigé ici
+   pour rejoindre le même dégradé orange que .btn-a partout ailleurs. */
+.nb-cta-a{background:linear-gradient(135deg,var(--accent) 0%,var(--orange-light) 100%);color:#fff;
+  box-shadow:0 8px 28px rgba(230,126,34,.24)}
+.nb-cta-a:active{transform:scale(.98)}
+.nb-cta-s{background:rgba(17,22,49,.55);border:1px solid rgba(255,255,255,.10);color:#fff}
+.nb-cta-s:active{background:rgba(17,22,49,.75)}
 @media (prefers-reduced-motion:reduce){ .nb-cta-a:active,.nb-quick-item:active .nb-quick-bub{transform:none} }
 /* Carte "Mes positions" v2 — hors de .nb-hero-v2 (fond normal de l'app
-   en dessous, comme avant), palette propre à cette carte (brief §19).
-   TEST PALETTE v2 (retour utilisateur : "je ne veux pas de sombre pas
-   de noire dans le fond") : verre sombre -> clair, même principe que
-   .nb-cta-s juste au-dessus — cette carte était restée à part (hors de
-   .nb-hero-v2, jamais touchée par le 1er passage du test) mais reste
-   un fond sombre, à corriger pour la même raison. */
-.nb-pf2{background:transparent;border:1px solid rgba(124,200,240,.35);
+   en dessous, comme avant), palette propre à cette carte (brief §19). */
+.nb-pf2{background:rgba(17,22,49,.75);border:1px solid rgba(255,255,255,.10);
   border-radius:20px;padding:20px;margin-top:20px}
 .nb-pf2-eyebrow{color:var(--accent);font-weight:700;font-size:13px}
-/* CORRECTIF (2026-10-02, même bug que le dock/temple plus haut) : .nb-pf2
-   a background:transparent (montre le fond de la page, bleu nuit en
-   thème sombre) mais sa valeur chiffrée et son message vide restaient en
-   teinte fixe foncée -> invisibles en thème sombre. var(--ink)/
-   var(--ink-2) suivent le thème. */
 .nb-pf2-val{font-size:clamp(30px,7.5vw,38px);font-weight:700;letter-spacing:-.03em;
-  color:var(--ink);line-height:1;margin-top:10px;font-variant-numeric:tabular-nums}
+  color:#fff;line-height:1;margin-top:10px;font-variant-numeric:tabular-nums}
 .nb-pf2-var{font-size:14px;font-weight:600;margin-top:10px}
 .nb-pf2-var.up-t{color:#45D69A}
 .nb-pf2-var.down-t{color:#FF647C}
-.nb-pf2-empty p{color:var(--ink-2);font-size:14.5px;margin-top:8px;line-height:1.5}
+.nb-pf2-empty p{color:rgba(255,255,255,.65);font-size:14.5px;margin-top:8px;line-height:1.5}
 .nb-pf2-detail{display:block;width:100%;margin-top:16px;padding:13px 16px;
-  border-radius:14px;background:rgba(124,200,240,.18);color:var(--bg-dark-ink);font-weight:600;font-size:14.5px;
+  border-radius:14px;background:rgba(16,35,78,.65);color:#fff;font-weight:600;font-size:14.5px;
   text-align:center}
-.nb-pf2-detail:active{background:rgba(124,200,240,.32)}
+.nb-pf2-detail:active{background:rgba(16,35,78,.85)}
 /* ============================================================
    NOVA — architecture visuelle (2026-09-23)
    ============================================================
@@ -1538,10 +1317,10 @@ a.row{color:inherit;text-decoration:none}
   /* Flou réduit 24px -> 16px (2026-09-24, même correctif performance que
      .card) : 4 de ces cartes s'affichent ensemble sur l'accueil, un flou
      large multiplié par 4 en même temps est un coût GPU cumulé réel. */
-  background-color:transparent;backdrop-filter:blur(16px) saturate(160%);
+  background-color:rgba(255,255,255,.6);backdrop-filter:blur(16px) saturate(160%);
   -webkit-backdrop-filter:blur(16px) saturate(160%);border:1px solid rgba(255,255,255,.8);
   transition:transform .25s var(--spring),background-color .25s var(--spring),box-shadow .25s var(--spring)}
-[data-theme="dark"] .nova-hub-card{background-color:transparent;border-color:rgba(255,255,255,.08)}
+[data-theme="dark"] .nova-hub-card{background-color:rgba(22,26,33,.6);border-color:rgba(255,255,255,.08)}
 .nova-hub-card:hover{transform:translateY(-3px);box-shadow:var(--shadow-2)}
 .nova-hub-card:active{transform:scale(.98)}
 .nova-hub-i{width:36px;height:36px;border-radius:11px;display:flex;align-items:center;justify-content:center;
@@ -1573,7 +1352,7 @@ a.row{color:inherit;text-decoration:none}
 .nova-add-funds{width:34px;height:34px;border-radius:50%;flex:0 0 auto;
   display:flex;align-items:center;justify-content:center;
   background:var(--accent);color:var(--accent-ink);
-  box-shadow:0 4px 14px rgba(124,200,240,.35);
+  box-shadow:0 4px 14px rgba(236,72,153,.28);
   transition:transform .2s cubic-bezier(.22,1,.36,1),box-shadow .2s ease}
 .nova-add-funds svg{width:18px;height:18px}
 @media (hover:hover){ .nova-add-funds:hover{transform:scale(1.08)} }
@@ -1694,10 +1473,9 @@ a.row{color:inherit;text-decoration:none}
 .qa{display:flex;flex-direction:column;align-items:center;gap:7px;
   background:none;color:var(--ink-2);font-size:12.5px;font-weight:600}
 .qa i{display:flex;align-items:center;justify-content:center;position:relative;
-  width:52px;height:52px;border-radius:50%;background:transparent;
-  border:1px solid rgba(124,200,240,.28);color:var(--ink);
+  width:52px;height:52px;border-radius:50%;background:var(--bg-2);color:var(--ink);
   transition:background .2s ease-out,color .2s ease-out}
-.qa:hover i{background:transparent}
+.qa:hover i{background:var(--bg-3)}
 .qa[aria-pressed="true"] i{background:var(--accent);color:var(--accent-ink)}
 .qa svg{width:20px;height:20px}
 .qa-badge{position:absolute;top:-3px;right:-3px;min-width:17px;height:17px;padding:0 4px;
@@ -1762,7 +1540,7 @@ a.row{color:inherit;text-decoration:none}
   transition:transform .35s var(--spring),background .35s var(--spring)}
 .cap:hover{background:var(--bg-3)}
 .cap-i{width:var(--icon-box);height:var(--icon-box);flex:0 0 var(--icon-box);
-  border-radius:14px;background:transparent;color:var(--ink-2);box-shadow:var(--shadow-1)}
+  border-radius:14px;background:var(--bg);color:var(--ink-2);box-shadow:var(--shadow-1)}
 .cap-i svg{width:22px;height:22px}
 .cap-txt{flex:1 1 auto;min-width:0;text-align:left}
 .cap b{display:block;font-size:15.5px;font-weight:650;letter-spacing:-.02em}
@@ -1778,12 +1556,9 @@ a.row{color:inherit;text-decoration:none}
    de palette (commit a529447), simplement parce que .nova-orb n'était
    alors branché à aucun balisage réel (trouvé mort par cet audit — voir
    plus bas où il est enfin utilisé, pour l'attente "Analyse IA"). */
-/* TEST PALETTE v2 : décoratif (3 points "Analyse IA" en attente), aucun
-   lien avec hausse/baisse — pastel bleu/rose comme le reste, 3 teintes
-   pour rester différenciables malgré la palette restreinte. */
-.nova-orb i:nth-child(1){background:radial-gradient(circle at 30% 30%,var(--paleblue-50),var(--paleblue-base))}
-.nova-orb i:nth-child(2){background:radial-gradient(circle at 70% 40%,var(--palepink-base),var(--palepink-press));animation-delay:-1.8s}
-.nova-orb i:nth-child(3){background:radial-gradient(circle at 50% 70%,var(--paleblue-base),var(--paleblue-press));animation-delay:-3.6s}
+.nova-orb i:nth-child(1){background:radial-gradient(circle at 30% 30%,var(--green-300),var(--green-500))}
+.nova-orb i:nth-child(2){background:radial-gradient(circle at 70% 40%,var(--orange-300),var(--orange-500));animation-delay:-1.8s}
+.nova-orb i:nth-child(3){background:radial-gradient(circle at 50% 70%,var(--cyan-300),var(--cyan-500));animation-delay:-3.6s}
 @keyframes orb{
   0%,100%{transform:translate(0,0) scale(.82)}
   33%{transform:translate(7px,-5px) scale(1)}
@@ -1806,7 +1581,7 @@ a.row{color:inherit;text-decoration:none}
 .btn-buy:hover::after{animation:sheen 1s var(--spring)}
 @keyframes sheen{to{transform:translateX(100%)}}
 .amounts{display:flex;gap:8px;flex-wrap:wrap;margin-top:18px}
-.save{background:var(--accent);color:var(--accent-ink);padding:2px 8px;border-radius:100px;font-size:11px;
+.save{background:var(--accent);color:#fff;padding:2px 8px;border-radius:100px;font-size:11px;
   font-weight:700;margin-left:6px}
 /* (ancienne règle .dock button{transition:color .3s var(--spring)} ici
    supprimée le 2026-09-23 — doublon avec la transition déjà définie dans
@@ -1840,14 +1615,12 @@ body.gated .wrap{padding:0;max-width:100%}
    une taille explicite pour toute icône générée par svg() à cet
    endroit précis. */
 .btn-oauth svg{width:18px;height:18px;flex:0 0 auto}
-/* #fff en dur (pas var(--bg)) : bouton Google, règles de marque Google
-   imposent un fond neutre fixe — ne doit pas suivre le bleu du site. */
-.btn-google{background:#ffffff;color:#1f1f1f;border:1.5px solid var(--line);box-shadow:var(--shadow-1)}
+.btn-google{background:var(--bg);color:var(--ink);border:1.5px solid var(--line);box-shadow:var(--shadow-1)}
 .btn-google:hover{border-color:var(--ink-4);box-shadow:var(--shadow-2);transform:translateY(-2px)}
 .btn-apple{background:#000;color:#fff;margin-top:10px}
 .btn-apple:hover{background:#1a1a1a;transform:translateY(-2px)}
-.btn-email{background:transparent;border:1px solid rgba(124,200,240,.28);color:var(--ink);margin-top:10px}
-.btn-email:hover{background:transparent;transform:translateY(-2px)}
+.btn-email{background:var(--bg-2);color:var(--ink);margin-top:10px}
+.btn-email:hover{background:var(--bg-3);transform:translateY(-2px)}
 /* Lien texte (formulaire e-mail) — n'existait nulle part dans ce
    fichier avant cette passe (vérifié), jamais qu'un <button class="btn
    ..."> plein pour une action secondaire de type "retour"/"mot de passe
@@ -1881,7 +1654,7 @@ body.gated .wrap{padding:0;max-width:100%}
 .onb-c{display:flex;align-items:center;gap:12px;text-align:left;padding:18px;border-radius:var(--r-m);
   background:var(--bg-2);border:1.5px solid transparent;
   transition:border-color .28s var(--spring),background .28s var(--spring),transform .28s var(--spring)}
-.onb-c:hover{border-color:var(--accent);background:transparent;transform:translateX(3px)}
+.onb-c:hover{border-color:var(--accent);background:var(--bg);transform:translateX(3px)}
 .onb-c b{display:block;font-size:15.5px;font-weight:650;letter-spacing:-.02em}
 .onb-c span:not(.onb-a){display:block;font-size:13px;color:var(--ink-3);margin-top:3px}
 .onb-c>b,.onb-c>span:first-of-type{flex:1;min-width:0}
@@ -1891,7 +1664,7 @@ body.gated .wrap{padding:0;max-width:100%}
 .onb-step{display:flex;align-items:center;gap:12px;padding:16px;border-radius:var(--r-m);background:var(--bg-2)}
 .onb-n{width:26px;height:26px;border-radius:50%;background:var(--ink);color:var(--bg);
   font-size:13px;font-weight:700}
-.onb-i{width:34px;height:34px;border-radius:11px;background:transparent;display:flex;align-items:center;justify-content:center;
+.onb-i{width:34px;height:34px;border-radius:11px;background:var(--bg);display:flex;align-items:center;justify-content:center;
   color:var(--accent);flex:0 0 auto;box-shadow:var(--shadow-1)}
 .onb-i svg{width:17px;height:17px}
 .onb-step b{display:block;font-size:14.5px;font-weight:650;letter-spacing:-.02em}
@@ -1950,7 +1723,7 @@ body.gated .wrap{padding:0;max-width:100%}
 .no-anim *{animation:none!important;transition:none!important}
 body.no-spark .row-spark{display:none}
 @media (max-width:520px){ .set-row{align-items:flex-start} .set-ctl{width:100%} .seg{width:100%} }
-.ai-focus{background:transparent;border-radius:var(--r-s);padding:9px 11px;margin-top:11px}
+.ai-focus{background:var(--bg);border-radius:var(--r-s);padding:9px 11px;margin-top:11px}
 .focus-l{display:block;font-size:10.5px;font-weight:650;letter-spacing:.03em;color:var(--ink-4);
   text-transform:uppercase}
 .focus-v{display:block;font-size:13px;font-weight:650;letter-spacing:-.015em;margin-top:2px}
@@ -2024,7 +1797,7 @@ body.no-spark .row-spark{display:none}
 .kv dd{font-family:var(--mono);font-size:15px;font-weight:600;flex:0 1 auto;text-align:right}
 .info{width:19px;height:19px;border-radius:50%;background:var(--bg-3);color:var(--ink-4);
   display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex:0 0 auto}
-.info:hover{background:var(--accent);color:var(--accent-ink)}
+.info:hover{background:var(--accent);color:#fff}
 .star{width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:var(--ink-4);flex:0 0 auto}
 .star:hover{background:var(--bg-2)}
 .star[aria-pressed="true"]{color:var(--warn)}
@@ -2039,7 +1812,7 @@ body.no-spark .row-spark{display:none}
 .flow-s{display:flex;align-items:center;gap:var(--icon-gap);padding:var(--card-pad);
   border-radius:var(--r-m);background:var(--bg-2)}
 .flow-n{width:var(--icon-box);height:var(--icon-box);flex:0 0 var(--icon-box);
-  border-radius:50%;background:transparent;font-size:15px;font-weight:700;
+  border-radius:50%;background:var(--bg);font-size:15px;font-weight:700;
   box-shadow:var(--shadow-1);font-variant-numeric:tabular-nums;color:var(--ink-2)}
 .flow-txt{flex:1 1 auto;min-width:0;text-align:left}
 .flow-s b{display:block;font-size:14.5px;font-weight:600;letter-spacing:-.02em}
