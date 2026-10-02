@@ -518,13 +518,23 @@ button:active{transform:scale(.97)}
   /* 5 colonnes strictement égales et fixes (flex:0 0 20%, jamais
      recalculées selon l'onglet actif) — icône empilée sur libellé,
      c'est le PLUS LARGE des deux qui doit tenir dans 20% de la barre. */
+  /* CORRECTIF (2026-10-02, bug réel grave signalé par l'utilisateur :
+     "plein de fonctionnalités qui sont présentes mais qu'on ne voit
+     plus") : color était une teinte FIXE (rgba(10,14,39,...), bleu nuit)
+     jamais liée au thème. En thème sombre, le dock (fond transparent,
+     donc le bleu nuit de la page derrière) rendait TOUTE la navigation
+     mobile du bas (Accueil/Marchés/Radar/Portefeuille/Compte) quasi
+     invisible — texte et icônes foncés sur fond foncé. var(--ink) avec
+     opacity réduit reproduit le même effet "atténué" visuellement
+     (55%) tout en suivant le thème (noir atténué en clair, blanc
+     atténué en sombre). */
   .dock button{
     position:relative;z-index:1;
     display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;
     flex:0 0 20%;min-width:0;min-height:40px;padding:2px 3px;border-radius:9999px;
-    color:rgba(10,14,39,.55);
+    color:var(--ink);opacity:.55;
     font-size:11px;font-weight:600;letter-spacing:-.01em;
-    transition:color .25s ease-out
+    transition:color .25s ease-out,opacity .25s ease-out
   }
   /* Priorité absolue : plus jamais de libellé coupé/en 2 lignes. nowrap
      + overflow visible (jamais overflow:hidden, qui masquerait un mot
@@ -534,7 +544,7 @@ button:active{transform:scale(.97)}
   .dock button span{display:block;white-space:nowrap;overflow:visible}
   .dock button svg{width:22px;height:22px;color:inherit;
     transition:transform .25s cubic-bezier(.22,1,.36,1),opacity .25s ease-out}
-  .dock button[aria-current]{color:var(--bg-dark-ink)}
+  .dock button[aria-current]{color:var(--ink);opacity:1}
   .dock button[aria-current] svg{transform:scale(1.05);animation:dockIconPop .45s cubic-bezier(.22,1,.36,1)}
   /* Rebond quand une icône DEVIENT active (2026-09-23, "vraiment
      beaucoup d'animation") : une animation CSS démarre quand l'élément
@@ -700,7 +710,12 @@ button:active{transform:scale(.97)}
   -webkit-backdrop-filter:blur(16px) saturate(160%);border:1px solid rgba(255,255,255,.8);
   border-radius:var(--r-l);padding:var(--card-pad);
   box-shadow:0 1px 2px rgba(13,17,23,.05),0 16px 40px rgba(124,200,240,.12)}
-[data-theme="dark"] .card{background-color:rgba(22,26,33,.6);border-color:rgba(255,255,255,.08);
+/* CORRECTIF (2026-10-02, retour utilisateur : "pour toute les
+   fonctionnalité je veux que ce soit transparent") : .card est LE
+   composant le plus répété du fichier — cette surcharge le laissait
+   semi-opaque (60%) en thème sombre uniquement, jamais vraiment
+   transparent comme en thème clair. Alignée sur le même principe. */
+[data-theme="dark"] .card{background-color:transparent;border-color:rgba(255,255,255,.08);
   box-shadow:0 1px 2px rgba(0,0,0,.3),0 16px 40px rgba(0,0,0,.4)}
 .card-flat{background:var(--bg-2);border-radius:var(--r-l);padding:var(--card-pad)}
 .card-lift{transition:background var(--slow) var(--ease)}
@@ -1464,12 +1479,17 @@ a.row{color:inherit;text-decoration:none}
 .nb-pf2{background:transparent;border:1px solid rgba(124,200,240,.35);
   border-radius:20px;padding:20px;margin-top:20px}
 .nb-pf2-eyebrow{color:var(--accent);font-weight:700;font-size:13px}
+/* CORRECTIF (2026-10-02, même bug que le dock/temple plus haut) : .nb-pf2
+   a background:transparent (montre le fond de la page, bleu nuit en
+   thème sombre) mais sa valeur chiffrée et son message vide restaient en
+   teinte fixe foncée -> invisibles en thème sombre. var(--ink)/
+   var(--ink-2) suivent le thème. */
 .nb-pf2-val{font-size:clamp(30px,7.5vw,38px);font-weight:700;letter-spacing:-.03em;
-  color:var(--bg-dark-ink);line-height:1;margin-top:10px;font-variant-numeric:tabular-nums}
+  color:var(--ink);line-height:1;margin-top:10px;font-variant-numeric:tabular-nums}
 .nb-pf2-var{font-size:14px;font-weight:600;margin-top:10px}
 .nb-pf2-var.up-t{color:#45D69A}
 .nb-pf2-var.down-t{color:#FF647C}
-.nb-pf2-empty p{color:#5a6478;font-size:14.5px;margin-top:8px;line-height:1.5}
+.nb-pf2-empty p{color:var(--ink-2);font-size:14.5px;margin-top:8px;line-height:1.5}
 .nb-pf2-detail{display:block;width:100%;margin-top:16px;padding:13px 16px;
   border-radius:14px;background:rgba(124,200,240,.18);color:var(--bg-dark-ink);font-weight:600;font-size:14.5px;
   text-align:center}
@@ -1495,7 +1515,7 @@ a.row{color:inherit;text-decoration:none}
   background-color:transparent;backdrop-filter:blur(16px) saturate(160%);
   -webkit-backdrop-filter:blur(16px) saturate(160%);border:1px solid rgba(255,255,255,.8);
   transition:transform .25s var(--spring),background-color .25s var(--spring),box-shadow .25s var(--spring)}
-[data-theme="dark"] .nova-hub-card{background-color:rgba(22,26,33,.6);border-color:rgba(255,255,255,.08)}
+[data-theme="dark"] .nova-hub-card{background-color:transparent;border-color:rgba(255,255,255,.08)}
 .nova-hub-card:hover{transform:translateY(-3px);box-shadow:var(--shadow-2)}
 .nova-hub-card:active{transform:scale(.98)}
 .nova-hub-i{width:36px;height:36px;border-radius:11px;display:flex;align-items:center;justify-content:center;
