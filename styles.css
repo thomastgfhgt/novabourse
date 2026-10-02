@@ -546,6 +546,16 @@ button:active{transform:scale(.97)}
 .btn-a:active{background:var(--accent-press)}
 .btn-s{background:var(--bg-2);color:var(--ink)}
 .btn-s:hover{background:var(--bg-3)}
+/* CORRECTIF (2026-10-02, retour utilisateur : "le fond soit entierement
+   noire et sans autre couleur [...] tous les boutons soit tous blanc et
+   tous les textes soit blanc", confirmé pour TOUS les boutons y compris
+   les CTA orange) : en thème sombre, tout bouton plein devient blanc/
+   texte noir, plus aucune couleur d'accent (orange/cyan) — survol/appui
+   via opacity uniquement, jamais une autre teinte. */
+[data-theme="dark"] .btn-a{background:#fff;color:#000;animation:none}
+[data-theme="dark"] .btn-a:hover,[data-theme="dark"] .btn-a:active{background:#fff;opacity:.85}
+[data-theme="dark"] .btn-s{background:#fff;color:#000}
+[data-theme="dark"] .btn-s:hover{background:#fff;opacity:.85}
 /* Bouton secondaire cyan (2026-09-22, composant demandé par le brief ;
    recoloré 2026-09-28 pour le pivot NovaTitre : violet -> cyan #00D4FF,
    voir note de palette tout en haut) — jamais utilisé comme accent
@@ -566,6 +576,14 @@ button:active{transform:scale(.97)}
 .btn-g:hover,.btn-ghost:hover{background:var(--bg-2);color:var(--ink)}
 .btn-p{background:var(--ink);color:var(--bg)}
 .btn-p:hover{opacity:.88}
+/* CORRECTIF (2026-10-02) : voir la note complète plus haut (.btn-a/
+   .btn-s) — même principe pour les boutons secondaires/outline/ghost. */
+[data-theme="dark"] .btn-blue{background:#fff;color:#000}
+[data-theme="dark"] .btn-blue:hover{background:#fff;opacity:.85;filter:none}
+[data-theme="dark"] .btn-blue-outline{color:#fff;box-shadow:inset 0 0 0 1.5px #fff}
+[data-theme="dark"] .btn-blue-outline:hover{background:rgba(255,255,255,.12)}
+[data-theme="dark"] .btn-g,[data-theme="dark"] .btn-ghost{color:#fff;box-shadow:inset 0 0 0 1px #fff}
+[data-theme="dark"] .btn-g:hover,[data-theme="dark"] .btn-ghost:hover{background:rgba(255,255,255,.12);color:#fff}
 .btn-sm{min-height:38px;padding:9px 18px;font-size:var(--t-small)}
 .btns{display:flex;gap:10px;flex-wrap:wrap}
 /* CORRECTIF DESIGN (2026-09-17) : vérifié en direct sur www.novabourse.site
@@ -1298,6 +1316,12 @@ a.row{color:inherit;text-decoration:none}
 .nb-cta-s{background:rgba(17,22,49,.55);border:1px solid rgba(255,255,255,.10);color:#fff}
 .nb-cta-s:active{background:rgba(17,22,49,.75)}
 @media (prefers-reduced-motion:reduce){ .nb-cta-a:active,.nb-quick-item:active .nb-quick-bub{transform:none} }
+/* CORRECTIF (2026-10-02) : même principe que .btn-a plus haut — les 2
+   CTA de l'accueil (primaire "Analyser" + secondaire) deviennent blancs
+   en thème sombre, plus aucune couleur orange/bleu nuit ici. */
+[data-theme="dark"] .nb-cta-a{background:#fff;color:#000;box-shadow:none}
+[data-theme="dark"] .nb-cta-s{background:#fff;color:#000;border-color:#fff}
+[data-theme="dark"] .nb-cta-s:active{background:#fff;opacity:.85}
 /* Carte "Mes positions" v2 — hors de .nb-hero-v2 (fond normal de l'app
    en dessous, comme avant), palette propre à cette carte (brief §19). */
 .nb-pf2{background:rgba(17,22,49,.75);border:1px solid rgba(255,255,255,.10);
@@ -1606,6 +1630,11 @@ body.gated .top,body.gated .dock{display:none}
 body.gated .wrap{padding:0;max-width:100%}
 .gate{min-height:calc(100vh - 40px);display:flex;align-items:center;justify-content:center;padding:var(--space-md) 20px;
   background:radial-gradient(120% 90% at 50% 0%,var(--accent-soft),transparent 58%)}
+/* CORRECTIF (2026-10-02) : même demande ("fond sans autre couleur") —
+   le halo radial de cette page (écran de connexion) partait de
+   --accent-soft (teinte orange en thème sombre), neutralisé en blanc
+   translucide pour rester strictement noir/blanc. */
+[data-theme="dark"] .gate{background:radial-gradient(120% 90% at 50% 0%,rgba(255,255,255,.06),transparent 58%)}
 .gate-card{width:100%;max-width:520px;text-align:center;animation:gateIn .7s var(--spring)}
 @keyframes gateIn{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:none}}
 /* CORRECTIF (audit de cohérence visuelle, 2026-09-21) : .gate-orb —
@@ -1633,8 +1662,18 @@ body.gated .wrap{padding:0;max-width:100%}
 .btn-google:hover{border-color:var(--ink-4);box-shadow:var(--shadow-2);transform:translateY(-2px)}
 .btn-apple{background:#000;color:#fff;margin-top:10px}
 .btn-apple:hover{background:#1a1a1a;transform:translateY(-2px)}
+/* CORRECTIF (2026-10-02) : .btn-google héritait de var(--bg)/var(--ink)
+   — en thème sombre ça donnait un bouton NOIR à texte blanc, l'inverse
+   de "tous les boutons blancs". .btn-apple est fixe #000 dans les deux
+   thèmes : invisible sur un fond désormais noir lui aussi. Les deux
+   passent blanc/texte noir, même principe que les autres boutons. */
+[data-theme="dark"] .btn-google{background:#fff;color:#000}
+[data-theme="dark"] .btn-apple{background:#fff;color:#000}
+[data-theme="dark"] .btn-apple:hover{background:#fff;opacity:.85}
 .btn-email{background:var(--bg-2);color:var(--ink);margin-top:10px}
 .btn-email:hover{background:var(--bg-3);transform:translateY(-2px)}
+[data-theme="dark"] .btn-email{background:#fff;color:#000}
+[data-theme="dark"] .btn-email:hover{background:#fff;opacity:.85}
 /* Lien texte (formulaire e-mail) — n'existait nulle part dans ce
    fichier avant cette passe (vérifié), jamais qu'un <button class="btn
    ..."> plein pour une action secondaire de type "retour"/"mot de passe
