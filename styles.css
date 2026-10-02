@@ -51,10 +51,28 @@
      blocs, case, navigateur du haut soit TOUS transparents" — sans
      exclure le thème sombre cette fois) : le thème sombre reçoit
      désormais exactement le même traitement, voir [data-theme="dark"]
-     plus bas. */
-  --bg-2:transparent;
-  --bg-3:transparent;
-  --bg-4:transparent;
+     plus bas.
+     CORRECTIF (2026-10-02, BUG RÉEL ET GRAVE, retour utilisateur :
+     "plein de fonctionnalité et texte ne sont plus visible mais sont
+     encore présente parce que on peut encore cliquer... même si il est
+     pas visible") : transparent (0% opacité, pas juste "non-blanc")
+     cassait TOUS les composants qui s'appuient sur --bg-2/--bg-3 comme
+     SURFACE FONCTIONNELLE, pas comme simple décor — .field (fond des
+     champs de saisie), .sw (piste des interrupteurs), .bar-track/
+     .gauge/.quota-bar/.conf-b (pistes de barres de progression),
+     .stat/.ai-card/.avg/.trio-c (encadrés de données), .ring .bg
+     (anneau de score), .sk (squelette de chargement), .empty-i, .onb-*
+     — des dizaines d'endroits au total (voir grep var(--bg-2)/var(--bg-3)
+     dans tout le fichier). Zéro opacité = zéro surface visible, tout en
+     restant cliquable/sélectionnable (le DOM est intact, seul le rendu
+     disparaît) — exactement le symptôme décrit. rgba(255,255,255,X)
+     remplace transparent : garde l'effet "verre dépoli", jamais de
+     blanc solide, mais une surface réellement visible à faible opacité
+     — c'est d'ailleurs la valeur du tout premier brief ("DESIGN CLAIR
+     ULTRA-PRÉCIS" : rgba(255,255,255,.15), pas 0). */
+  --bg-2:rgba(255,255,255,.35);
+  --bg-3:rgba(255,255,255,.5);
+  --bg-4:rgba(255,255,255,.65);
   /* TEST PALETTE v2 ("DESIGN CLAIR ULTRA-PRÉCIS") : "tous les textes:
      noir" — les 4 crans (texte principal/secondaire/tertiaire/très
      discret) passent tous à #000 pur, plus de hiérarchie de gris.
@@ -165,8 +183,16 @@
      pas le même thème actif (state.settings.theme, stocké en
      localStorage, n'est pas partagé entre appareils). --bg-2/-3/-4
      passent transparent, exactement comme en thème clair — seul --bg
-     reste la vraie couleur pleine (bleu nuit) de la page. */
-  --bg:#0a0e27; --bg-2:transparent; --bg-3:transparent; --bg-4:transparent;
+     reste la vraie couleur pleine (bleu nuit) de la page.
+     CORRECTIF (2026-10-02, BUG RÉEL ET GRAVE — voir la note complète
+     dans :root ci-dessus, même raison exacte) : transparent (0%) cassait
+     visuellement tous les composants qui utilisent --bg-2/--bg-3 comme
+     surface réelle (champs de saisie, interrupteurs, pistes de
+     progression, encadrés de données...), restés cliquables/
+     sélectionnables mais invisibles. rgba(255,255,255,X) à faible
+     opacité (effet "verre dépoli clair" sur fond nuit, cohérent avec le
+     reste du thème sombre) remplace le 0% pur. */
+  --bg:#0a0e27; --bg-2:rgba(255,255,255,.08); --bg-3:rgba(255,255,255,.14); --bg-4:rgba(255,255,255,.2);
   --ink:#f3f4f6; --ink-2:#d1d5db; --ink-3:#9ca3af; --ink-4:#6b7280;
   /* TEST PALETTE v2 (voir note "TEST PALETTE v2" dans :root ci-dessus) :
      mêmes pastels bleu/rose qu'en thème clair — contraste excellent sur
