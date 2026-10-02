@@ -187,6 +187,16 @@ body{
    contenu. prefers-reduced-motion coupe l'animation, jamais l'effet
    entier (le dégradé reste visible, simplement figé). */
 .aurora-bg{position:fixed;inset:0;z-index:0;overflow:hidden;pointer-events:none}
+/* CORRECTIF (2026-10-02, retour utilisateur : "un vrai fond complètement
+   et seulement noire/blanche sur l'ensemble du site, sans rien
+   d'autre") : ces 3 taches orange/cyan (::before/::after/.aurora-3,
+   juste en dessous) dérivent sur TOUTE page, au-dessus du noir/blanc
+   pur de html/body — c'est exactement la "couleur en plus" qui
+   empêchait un fond vraiment uni. Désactivées (display:none, pas
+   supprimées : réversible d'un mot si redemandé un jour) plutôt que
+   recolorées, car aucune teinte de dégradé n'aurait satisfait "sans
+   rien d'autre" — seule leur disparition le fait. */
+.aurora-bg::before,.aurora-bg::after,.aurora-bg .aurora-3{display:none}
 /* CORRECTIF (bug visuel réel et grave, signalé par l'utilisateur — la
    barre de navigation du bas "décrochait" de sa position fixe pendant
    le défilement) : la rotation de teinte était animée sur .aurora-bg
