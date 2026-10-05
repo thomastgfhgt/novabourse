@@ -128,8 +128,15 @@
      CORRECTIF (2026-10-02, retour utilisateur : "fond completement en
      noire pour la session sombre et toute les écriture en blanc") :
      noir/blanc purs, même principe que le thème clair ci-dessus. .top
-     (nav du haut) non concernée, voir sa note. */
-  --bg:#000000; --bg-2:#000000; --bg-3:#000000; --bg-4:#000000;
+     (nav du haut) non concernée, voir sa note.
+     CORRECTIF (2026-10-05, retour utilisateur : "a la place du noir
+     dans le fond, du bleu marine") : #0A0E27, le "bleu nuit officiel
+     NovaTitre" déjà utilisé ailleurs dans ce fichier (--bg-dark-ink,
+     voir plus bas) — réutilisé ici plutôt qu'une nouvelle teinte
+     arbitraire. Reste uniforme sur les 4 crans, comme demandé ("juste
+     ça"). Texte blanc et boutons blancs (voir plus bas) non concernés,
+     déjà conformes sur ce fond aussi. */
+  --bg:#0a0e27; --bg-2:#0a0e27; --bg-3:#0a0e27; --bg-4:#0a0e27;
   --ink:#ffffff; --ink-2:#ffffff; --ink-3:#ffffff; --ink-4:#ffffff;
   /* Orange Hermès (#E67E22, même teinte que le thème clair, "Primary
      toujours orange") : assez saturé pour rester lisible sur #0A0E27. */
