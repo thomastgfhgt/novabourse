@@ -23,20 +23,28 @@ const PROVIDERS = {
 };
 const actif = () => Object.entries(PROVIDERS).filter(([, p]) => process.env[p.env]);
 
-/* ORCHESTRATION PAR TÂCHE (LOT E, Étape 3, 2026-09-24) : une seule identité
+/* ORCHESTRATION PAR TÂCHE (LOT E, Étape 3, 2026-09-24 ; différenciée
+   2026-10-05, §3 du prompt maître NovaTitre : "je ne veux PAS appeler
+   systématiquement le modèle le plus puissant et le plus cher [...]
+   question très simple : modèle rapide/économique"). Une seule identité
    "Nova AI" côté utilisateur, mais le fournisseur choisi EN INTERNE peut
-   différer selon la nature de la tâche (ex. préférer un modèle plus
-   nuancé pour l'analyse en texte libre, un modèle rapide/économique pour
-   le screener qui ne produit que quelques champs structurés) plutôt qu'un
-   ordre unique pour tout. Par défaut, les deux tâches ci-dessous
-   réutilisent l'ordre de PROVIDERS (xAI d'abord, seul fournisseur
-   configuré en production à ce jour) : réordonner l'une des deux listes
-   le jour où OPENAI_API_KEY/ANTHROPIC_API_KEY seront ajoutées suffit à
-   changer le comportement réel, sans toucher à appelModeleAvecBascule()
-   ni aux appelants ci-dessous. */
+   différer selon la nature de la tâche :
+   - 'screener' : transforme une phrase en 4 champs structurés courts
+     (voir CONSIGNE_SCREENER, maxTokens:300 plus bas) — exactement
+     l'exemple "question très simple" du §3. gpt-4.1-mini (OpenAI) est
+     EXPLICITEMENT le modèle économique/rapide par son propre nom ("mini")
+     : placé en premier ici, sans avoir à deviner un classement de
+     puissance entre fournisseurs.
+   - 'analyse'/'novareview' : texte libre, analyse financière ou retour
+     sur des décisions réelles — les deux cas "modèle plus puissant" du
+     §3. Ordre INCHANGÉ (xAI d'abord) : c'était déjà un choix délibéré de
+     déploiement ("c'est la couche qu'on valide en premier", voir plus
+     bas), pas un oubli — rien dans ce repo ne permet de classer
+     objectivement grok-4.6 contre claude-sonnet-4-5 en puissance, donc
+     aucune des deux n'est réordonnée sans base solide pour le faire. */
 const ORDRE_TACHES = {
   analyse: ['xai', 'openai', 'anthropic'],
-  screener: ['xai', 'openai', 'anthropic'],
+  screener: ['openai', 'xai', 'anthropic'],
   novareview: ['xai', 'openai', 'anthropic'],
 };
 function dispoPourTache(tache){
