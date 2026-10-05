@@ -654,6 +654,60 @@ function openSellReview(st){
   </div>`);
 }
 
+/* Dépôt/retrait de liquidités (§35 du prompt maître NovaTitre, 2026-10-05) :
+   même schéma en 2 écrans (montant -> vérification) qu'openBuyAmount/
+   openBuyReview ci-dessus, volontairement plus simple (pas de titre, pas de
+   quantité/cours à afficher). 'kind' = 'deposit' | 'withdraw' ; le montant
+   choisi reste affiché/modifiable tant que l'utilisateur n'a pas confirmé,
+   même logique que data-buy-back pour l'achat. */
+function openCashFlowAmount(kind, initial){
+  const isWithdraw = kind === 'withdraw';
+  const max = isWithdraw ? Math.floor(state.wallet.cash) : 100000;
+  const v = Math.min(initial || Math.min(100, Math.max(10, max)), Math.max(10, max));
+  const chips = (isWithdraw ? [50,100,500,1000].filter(a=>a<=max) : [50,100,500,1000]);
+  openSheet(`<div class="buy">
+    <h3 id="sheetTitle" class="buy-title">${isWithdraw ? 'Retirer des fonds' : 'Déposer des fonds'}</h3>
+    <div class="buy-big"><span id="cfBig">${fmt.int(v)}</span><small>€</small></div>
+    <input class="buy-range" id="cfAmt" type="range" min="10" max="${Math.max(10,max)}"
+      step="10" value="${v}" aria-label="Montant">
+    <div class="buy-chips">
+      ${chips.map(a=>`<button class="chip" data-cf-amount="${a}">${a} €</button>`).join('')}
+      ${isWithdraw ? `<button class="chip" data-cf-amount="${max}">Max</button>` : ''}
+    </div>
+    ${isWithdraw ? `<p class="buy-cash">${fmt.eur(state.wallet.cash)} disponibles</p>` : ''}
+    <button class="btn btn-a btn-lg buy-cta" data-cf-next="${kind}">Continuer</button>
+    ${!isWithdraw ? `<button class="btn btn-g" style="width:100%;margin-top:10px" data-cashflow-open="withdraw">Retirer des fonds à la place</button>` : ''}
+  </div>`);
+  const input = document.getElementById('cfAmt');
+  const sync = () => setCashFlowAmount(+input.value, max, false);
+  input.addEventListener('input', sync);
+  sync();
+}
+function setCashFlowAmount(value, max, moveSlider = true){
+  const input = document.getElementById('cfAmt');
+  if (!input) return;
+  const v = Math.max(0, Math.min(max, value));
+  if (moveSlider) input.value = v;
+  document.getElementById('cfBig').textContent = fmt.int(v);
+  document.querySelectorAll('[data-cf-amount]').forEach(b =>
+    b.setAttribute('aria-pressed', String(+b.dataset.cfAmount === v)));
+}
+function openCashFlowReview(kind, amount){
+  const isWithdraw = kind === 'withdraw';
+  openSheet(`<div class="buy">
+    <h3 id="sheetTitle" class="buy-title">Vérifiez l'opération</h3>
+    <dl class="buy-rows">
+      <div><dt>Type</dt><dd>${isWithdraw ? 'Retrait' : 'Dépôt'}</dd></div>
+      <div class="buy-total"><dt>Montant</dt><dd>${fmt.eur(amount)}</dd></div>
+    </dl>
+    <p class="buy-note">Portefeuille virtuel.</p>
+    <button class="btn btn-a btn-lg buy-cta" data-cf-ok="${kind}" data-value="${amount}">
+      Confirmer ${isWithdraw ? 'le retrait' : 'le dépôt'}</button>
+    <button class="btn btn-g" style="width:100%;margin-top:10px"
+      data-cf-back="${kind}" data-value="${amount}">Modifier le montant</button>
+  </div>`);
+}
+
 /* ---------- événements ---------- */
 document.addEventListener('click', e => {
   const q = sel => e.target.closest(sel);
@@ -689,6 +743,37 @@ document.addEventListener('click', e => {
   const backBtn = q('[data-buy-back]');
   if (backBtn){ const st = byId[backBtn.dataset.buyBack];
     if (st) openBuyAmount(st, +backBtn.dataset.value || 0); return; }
+
+  /* Dépôt/retrait (§35 du prompt maître, 2026-10-05) — même séquence que
+     les 4 handlers data-buy-* ci-dessus, pour data-cf-*. */
+  const cfOpen = q('[data-cashflow-open]');
+  if (cfOpen){ openCashFlowAmount(cfOpen.dataset.cashflowOpen); return; }
+
+  const cfAmt = q('[data-cf-amount]');
+  if (cfAmt){
+    const max = document.getElementById('cfAmt') ? +document.getElementById('cfAmt').max : 100000;
+    setCashFlowAmount(+cfAmt.dataset.cfAmount, max); return; }
+
+  const cfNext = q('[data-cf-next]');
+  if (cfNext){
+    const kind = cfNext.dataset.cfNext;
+    const v = +(document.getElementById('cfAmt')?.value || 0);
+    if (!(v > 0)) { toast('Choisissez un montant.'); return; }
+    if (kind === 'withdraw' && v > state.wallet.cash){ toast('Liquidités insuffisantes.'); return; }
+    openCashFlowReview(kind, v); return; }
+
+  const cfBack = q('[data-cf-back]');
+  if (cfBack){ openCashFlowAmount(cfBack.dataset.cfBack, +cfBack.dataset.value || 0); return; }
+
+  const cfOk = q('[data-cf-ok]');
+  if (cfOk){
+    if (cfOk.disabled) return;
+    cfOk.disabled = true;
+    const kind = cfOk.dataset.cfOk, amount = +cfOk.dataset.value;
+    const r = kind === 'withdraw' ? withdrawCash(amount) : depositCash(amount);
+    toast(r.msg);
+    if (r.ok){ haptics.success(); closeSheet(); render(); } else { haptics.error(); cfOk.disabled = false; }
+    return; }
 
   const thesisHorizon = q('[data-thesis-horizon]');
   if (thesisHorizon){

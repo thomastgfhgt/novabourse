@@ -39,8 +39,8 @@ PAGES.portfolio = () => {
     <div class="card" style="margin-top:22px">
       <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px">
         <p class="small">Valeur totale</p>
-        <button type="button" class="nova-add-funds" data-soon="Ajout de fonds — bientôt disponible."
-          aria-label="Ajouter des fonds">${svg(ICON.plus,2.4)}</button>
+        <button type="button" class="nova-add-funds" data-cashflow-open="deposit"
+          aria-label="Déposer ou retirer des fonds">${svg(ICON.plus,2.4)}</button>
       </div>
       <p class="price" style="font-size:clamp(34px,7vw,52px);margin-top:4px">${fmt.eur(pf.total)}</p>
       <span class="tag ${pf.gain>=0?'tag-up':'tag-down'}" style="margin-top:10px">

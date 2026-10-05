@@ -527,35 +527,45 @@ async function handlePortfolio(req, res, user) {
     return Number.isFinite(d.getTime()) ? d.toISOString() : null;
   };
 
+  const TYPES_TITRE = ['buy', 'sell'];
+  const TYPES_FLUX = ['deposit', 'withdraw', 'fee'];
   const transactions = [];
   for (const tx of txIn) {
     const id = str(tx?.id, 64);
     const occurredAt = isoDate(tx?.date);
-    const type = tx?.type === 'buy' || tx?.type === 'sell' ? tx.type : null;
-    const qty = num(tx?.qty);
-    const priceLocal = num(tx?.priceLocal);
+    const type = TYPES_TITRE.includes(tx?.type) || TYPES_FLUX.includes(tx?.type) ? tx.type : null;
     const amountEUR = num(tx?.amountEUR);
-    const currency = str(tx?.currency, 8);
-    const stockId = str(tx?.stockId, 40);
-    if (!id || !occurredAt || !type || qty === null || qty <= 0 || priceLocal === null || amountEUR === null || !currency || !stockId) {
-      continue;
+    if (!id || !occurredAt || !type || amountEUR === null) continue;
+
+    if (TYPES_TITRE.includes(type)) {
+      // Achat/vente : un titre, une quantité, un prix — comme avant.
+      const qty = num(tx?.qty);
+      const priceLocal = num(tx?.priceLocal);
+      const currency = str(tx?.currency, 8);
+      const stockId = str(tx?.stockId, 40);
+      if (qty === null || qty <= 0 || priceLocal === null || !currency || !stockId) continue;
+      transactions.push({
+        id, user_id: user.id, stock_id: stockId,
+        ticker: str(tx?.ticker, 20) || stockId,
+        name: str(tx?.name, 200) || stockId,
+        type, qty, price_local: priceLocal, currency, amount_eur: amountEUR,
+        realized_gain: num(tx?.realizedGain),
+        thesis_reason: str(tx?.thesisReason, 500) || null,
+        thesis_horizon: str(tx?.thesisHorizon, 40) || null,
+        occurred_at: occurredAt,
+      });
+    } else {
+      // Dépôt/retrait/frais (§35 du prompt maître, 2026-10-05) : aucun titre
+      // concerné — stock_id/ticker/qty/price_local/currency restent null
+      // (colonnes rendues nullable par sql/2026-10-05_portfolio_cash_flows.sql).
+      transactions.push({
+        id, user_id: user.id, stock_id: null, ticker: null,
+        name: str(tx?.name, 200) || null,
+        type, qty: null, price_local: null, currency: null, amount_eur: amountEUR,
+        realized_gain: null, thesis_reason: null, thesis_horizon: null,
+        occurred_at: occurredAt,
+      });
     }
-    transactions.push({
-      id,
-      user_id: user.id,
-      stock_id: stockId,
-      ticker: str(tx?.ticker, 20) || stockId,
-      name: str(tx?.name, 200) || stockId,
-      type,
-      qty,
-      price_local: priceLocal,
-      currency,
-      amount_eur: amountEUR,
-      realized_gain: num(tx?.realizedGain),
-      thesis_reason: str(tx?.thesisReason, 500) || null,
-      thesis_horizon: str(tx?.thesisHorizon, 40) || null,
-      occurred_at: occurredAt,
-    });
   }
 
   const snapshots = [];

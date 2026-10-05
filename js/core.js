@@ -319,10 +319,16 @@ function loadState(){
         walletHistory: Array.isArray(saved.walletHistory) ? saved.walletHistory : DEFAULT_STATE.walletHistory,
         /* Même garde-fou élément par élément que `lists` plus haut : une
            entrée corrompue/incomplète est retirée individuellement, jamais
-           tout le journal. */
+           tout le journal. 'deposit'/'withdraw'/'fee' (§35 du prompt maître,
+           2026-10-05) n'ont ni qty ni stockId (aucun titre concerné) : exiger
+           Number.isFinite(t.qty) pour ces types aurait silencieusement
+           effacé tout dépôt/retrait à chaque rechargement de page — bug
+           réel trouvé en écrivant ce correctif, pas seulement théorique. */
         transactions: Array.isArray(saved.transactions)
-          ? saved.transactions.filter(t => t && typeof t.id === 'string' && (t.type === 'buy' || t.type === 'sell')
-              && Number.isFinite(t.qty) && Number.isFinite(t.amountEUR) && typeof t.date === 'string')
+          ? saved.transactions.filter(t => t && typeof t.id === 'string' && typeof t.date === 'string'
+              && Number.isFinite(t.amountEUR)
+              && (((t.type === 'buy' || t.type === 'sell') && Number.isFinite(t.qty))
+                || ((t.type === 'deposit' || t.type === 'withdraw' || t.type === 'fee'))))
           : [],
         /* Validation stricte élément par élément : un stockage corrompu/ancien
            (avant l'ajout de cette fonctionnalité) ne doit jamais produire une
@@ -1595,7 +1601,7 @@ function enregistrerTransaction(entree){
    serveur (ex. nouvel appareil) — jamais appelée pendant un achat/vente
    normal, qui continue de passer par buyStock()/sellStock() ci-dessous. */
 function rejouerTransactions(transactions){
-  const wallet = { cash: DEFAULT_STATE.wallet.cash, positions: [], realizedPnL: 0 };
+  const wallet = { cash: DEFAULT_STATE.wallet.cash, invested: DEFAULT_STATE.wallet.invested, positions: [], realizedPnL: 0 };
   const triees = [...transactions].sort((a, b) => new Date(a.date) - new Date(b.date));
   for (const tx of triees){
     if (tx.type === 'buy'){
@@ -1616,6 +1622,24 @@ function rejouerTransactions(transactions){
       }
       wallet.cash += tx.amountEUR;
       if (Number.isFinite(tx.realizedGain)) wallet.realizedPnL += tx.realizedGain;
+    } else if (tx.type === 'deposit'){
+      /* §35 du prompt maître NovaTitre : un dépôt est un flux de trésorerie
+         apporté par l'utilisateur, jamais une performance — augmente le
+         cash ET le capital net apporté (netDeposits/wallet.invested) à
+         parts égales, pour que portfolioValue() continue de pouvoir
+         distinguer gain réel et argent simplement déposé (§36). */
+      wallet.cash += tx.amountEUR;
+      wallet.invested += tx.amountEUR;
+    } else if (tx.type === 'withdraw'){
+      wallet.cash -= tx.amountEUR;
+      wallet.invested -= tx.amountEUR;
+    } else if (tx.type === 'fee'){
+      /* Un frais est un COÛT, pas un retrait voulu par l'utilisateur : sort
+         du cash uniquement, jamais du capital net apporté (le faire
+         sortirait aussi de netDeposits ferait disparaître le coût de la
+         mesure de performance au lieu de l'y faire apparaître comme une
+         perte, voir §36). */
+      wallet.cash -= tx.amountEUR;
     }
   }
   return wallet;
@@ -1666,6 +1690,7 @@ async function syncPortfolio(){
 
     const rejoue = rejouerTransactions(state.transactions);
     state.wallet.cash = rejoue.cash;
+    state.wallet.invested = rejoue.invested;
     state.wallet.positions = rejoue.positions;
     state.wallet.realizedPnL = rejoue.realizedPnL;
     saveState();
@@ -1736,6 +1761,47 @@ function sellStock(id, part = 1){
   return { ok:true, msg:`Vente de ${fmt.num(qty,2)} titre(s) · ${fmt.eur(proceeds)} récupérés `
     + `· ${realizedGain >= 0 ? 'gain réalisé de ' + fmt.eur(realizedGain) : 'perte réalisée de ' + fmt.eur(Math.abs(realizedGain))}`,
     realizedGain };
+}
+/* Dépôt/retrait/frais (§35 du prompt maître NovaTitre, 2026-10-05) : le
+   portefeuille ne connaissait jusqu'ici que 'buy'/'sell' — tout capital de
+   départ était une valeur fictive figée (DEFAULT_STATE.wallet), jamais un
+   vrai flux saisi par l'utilisateur, ce qui empêchait de distinguer
+   proprement performance et argent simplement apporté/retiré (§36). Même
+   discipline que buyStock()/sellStock() : code déterministe, jamais de
+   LLM dans ce calcul (§47), écriture immédiate via flushSaveState(). */
+function depositCash(amountEUR){
+  if (!(amountEUR > 0)) return { ok:false, msg:'Montant invalide' };
+  state.wallet.cash += amountEUR;
+  state.wallet.invested = (Number.isFinite(state.wallet.invested) ? state.wallet.invested : 0) + amountEUR;
+  snapshotPortfolio('deposit');
+  enregistrerTransaction({ type:'deposit', amountEUR });
+  flushSaveState();
+  return { ok:true, msg:`${fmt.eur(amountEUR)} déposés` };
+}
+function withdrawCash(amountEUR){
+  if (!(amountEUR > 0)) return { ok:false, msg:'Montant invalide' };
+  if (amountEUR > state.wallet.cash) return { ok:false, msg:'Liquidités insuffisantes' };
+  state.wallet.cash -= amountEUR;
+  state.wallet.invested = (Number.isFinite(state.wallet.invested) ? state.wallet.invested : 0) - amountEUR;
+  snapshotPortfolio('withdraw');
+  enregistrerTransaction({ type:'withdraw', amountEUR });
+  flushSaveState();
+  return { ok:true, msg:`${fmt.eur(amountEUR)} retirés` };
+}
+/* Un frais est un coût, jamais un flux voulu par l'utilisateur — ne touche
+   jamais wallet.invested (voir la note correspondante dans
+   rejouerTransactions() plus haut). Aucun déclencheur UI pour l'instant
+   (aucun courtier réel connecté, voir §49 du prompt maître) : fonction et
+   schéma prêts pour quand un frais réel (courtage, tenue de compte) devra
+   être journalisé. */
+function payFee(amountEUR, label){
+  if (!(amountEUR > 0)) return { ok:false, msg:'Montant invalide' };
+  if (amountEUR > state.wallet.cash) return { ok:false, msg:'Liquidités insuffisantes' };
+  state.wallet.cash -= amountEUR;
+  snapshotPortfolio('fee');
+  enregistrerTransaction({ type:'fee', amountEUR, name: label || 'Frais' });
+  flushSaveState();
+  return { ok:true, msg:`${fmt.eur(amountEUR)} de frais enregistrés` };
 }
 const positionOf = (id) => state.wallet.positions.find(p => p.id === id) || null;
 
