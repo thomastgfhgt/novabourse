@@ -171,6 +171,19 @@ module.exports = async (req, res) => {
     return handlePortfolio(req, res, user);
   }
 
+  /* ---------- ressource Nova Core : conversations (2026-10-05) ----------
+     Repliée ici plutôt que dans son propre fichier api/nova/conversations.js
+     (tenté une première fois, déploiement en échec) : le plan Vercel
+     Hobby de ce projet plafonne à 12 Fonctions Serverless par déploiement
+     — exactement le compte de fichiers routables sous api/ AVANT cet
+     ajout (voir la liste dans l'historique git). Même principe déjà en
+     place juste au-dessus pour le portefeuille (?resource=portfolio) :
+     une ressource de plus sur une fonction existante, zéro fonction
+     serverless supplémentaire. */
+  if (req.query?.resource === 'conversations') {
+    return handleNovaConversations(req, res, user);
+  }
+
   /* =========================================================
      POST — profil investisseur / onboarding
      ========================================================= */
@@ -613,6 +626,118 @@ async function handlePortfolio(req, res, user) {
     transactionsSynced: transactions.length,
     snapshotsSynced: snapshots.length,
   });
+}
+
+/**
+ * GET/POST /api/me?resource=conversations — Nova Core : conversations et
+ * messages (§4, §8 du prompt maître NovaTitre). Voir
+ * sql/2026-10-05_nova_core_conversations.sql pour le schéma (une seule
+ * table de conversations partagée entre tous les modules Nova, pas une
+ * par module — "une mémoire commune").
+ *
+ * GET  ?resource=conversations            — liste les conversations de
+ *   l'utilisateur (triées par updated_at desc), sans leurs messages.
+ * GET  ?resource=conversations&id=X        — une conversation + tous ses
+ *   messages, dans l'ordre chronologique.
+ * POST ?resource=conversations             — crée une conversation
+ *   { module, title?, context? } -> { id }.
+ * POST ?resource=conversations&id=X&action=message — ajoute un message à
+ *   une conversation existante { role, content, metadata? }.
+ *
+ * Repliée dans ce fichier plutôt que api/nova/conversations.js (voir la
+ * note au-dessus de l'appel ?resource=conversations plus haut) : limite
+ * de 12 Fonctions Serverless du plan Vercel Hobby de ce projet.
+ */
+const CONV_ROLES = ['user', 'assistant', 'system'];
+async function handleNovaConversations(req, res, user) {
+  const id = typeof req.query?.id === 'string' ? req.query.id : null;
+
+  if (req.method === 'GET') {
+    try {
+      if (id) {
+        const convRows = await sb(
+          `nova_conversations?id=eq.${encodeURIComponent(id)}&user_id=eq.${encodeURIComponent(user.id)}&select=*`
+        );
+        if (!convRows.length) return res.status(404).json({ error: 'conversation_introuvable' });
+        const msgRows = await sb(
+          `nova_messages?conversation_id=eq.${encodeURIComponent(id)}&select=id,role,content,metadata,created_at&order=created_at.asc`
+        );
+        const c = convRows[0];
+        return res.status(200).json({
+          id: c.id, module: c.module, title: c.title, context: c.context,
+          createdAt: c.created_at, updatedAt: c.updated_at,
+          messages: msgRows.map(m => ({ id: m.id, role: m.role, content: m.content, metadata: m.metadata, date: m.created_at })),
+        });
+      }
+      const rows = await sb(
+        `nova_conversations?user_id=eq.${encodeURIComponent(user.id)}&select=id,module,title,context,created_at,updated_at&order=updated_at.desc&limit=200`
+      );
+      return res.status(200).json({
+        conversations: rows.map(c => ({
+          id: c.id, module: c.module, title: c.title, context: c.context,
+          createdAt: c.created_at, updatedAt: c.updated_at,
+        })),
+      });
+    } catch (e) {
+      console.error('[me] lecture conversations :', e.message);
+      return res.status(503).json({ error: 'lecture_impossible' });
+    }
+  }
+
+  if (req.method !== 'POST') {
+    res.setHeader('Allow', 'GET, POST');
+    return res.status(405).json({ error: 'methode_non_autorisee' });
+  }
+
+  const body = req.body || {};
+  const str = (v, max) => (typeof v === 'string' ? v.trim().slice(0, max) : '');
+
+  /* ---------- ajout d'un message à une conversation existante ---------- */
+  if (id && body.action === 'message') {
+    const role = CONV_ROLES.includes(body.role) ? body.role : null;
+    const content = str(body.content, 20000);
+    if (!role || !content) return res.status(400).json({ error: 'message_invalide' });
+    try {
+      const convRows = await sb(
+        `nova_conversations?id=eq.${encodeURIComponent(id)}&user_id=eq.${encodeURIComponent(user.id)}&select=id`
+      );
+      if (!convRows.length) return res.status(404).json({ error: 'conversation_introuvable' });
+
+      const metadata = body.metadata && typeof body.metadata === 'object' && !Array.isArray(body.metadata)
+        ? body.metadata : null;
+      const [msg] = await sb('nova_messages', {
+        method: 'POST',
+        body: JSON.stringify([{ conversation_id: id, user_id: user.id, role, content, metadata }]),
+      });
+      await sb(`nova_conversations?id=eq.${encodeURIComponent(id)}`, {
+        method: 'PATCH',
+        headers: { Prefer: 'return=minimal' },
+        body: JSON.stringify({ updated_at: new Date().toISOString() }),
+      });
+      return res.status(200).json({ id: msg.id, date: msg.created_at });
+    } catch (e) {
+      console.error('[me] ajout message :', e.message);
+      return res.status(503).json({ error: 'ecriture_impossible' });
+    }
+  }
+
+  /* ---------- création d'une conversation ---------- */
+  const moduleId = str(body.module, 40);
+  if (!moduleId) return res.status(400).json({ error: 'module_requis' });
+  const title = str(body.title, 200) || null;
+  const context = body.context && typeof body.context === 'object' && !Array.isArray(body.context)
+    ? body.context : null;
+
+  try {
+    const [conv] = await sb('nova_conversations', {
+      method: 'POST',
+      body: JSON.stringify([{ user_id: user.id, module: moduleId, title, context }]),
+    });
+    return res.status(200).json({ id: conv.id, createdAt: conv.created_at, updatedAt: conv.updated_at });
+  } catch (e) {
+    console.error('[me] création conversation :', e.message);
+    return res.status(503).json({ error: 'ecriture_impossible' });
+  }
 }
 
 module.exports.userFromToken =

@@ -1838,11 +1838,20 @@ function queSiRienFait(tx){
    Portée minimale pour l'instant (§87) : créer, lister, charger, envoyer
    un message — aucun module réel ne les appelle encore dans cette passe,
    c'est le socle sur lequel le premier module Nova connecté à une vraie
-   conversation (prochaine étape) s'appuiera. */
+   conversation (prochaine étape) s'appuiera.
+   CORRECTIF (2026-10-05) : ces 4 fonctions appelaient d'abord un fichier
+   dédié api/nova/conversations.js — déploiement en échec silencieux
+   (build OK, mais échoue à l'étape "Deploying outputs", jamais une
+   erreur de code) : le plan Vercel Hobby de ce projet plafonne à 12
+   Fonctions Serverless par déploiement, exactement le compte déjà
+   atteint sans ce fichier. Repliée dans /api/me?resource=conversations
+   à la place (même fonction serverless existante que le portefeuille,
+   voir handleNovaConversations() dans api/me.js) — zéro fonction
+   supplémentaire, même logique, seule l'URL change ici. */
 async function novaConversationCreer(moduleId, { title, context } = {}){
   if (!sbClient || state.auth.status !== 'authenticated') return null;
   try {
-    const r = await authFetch('/api/nova/conversations', { method:'POST',
+    const r = await authFetch('/api/me?resource=conversations', { method:'POST',
       body: JSON.stringify({ module: moduleId, title: title || null, context: context || null }) });
     if (!r.ok) return null;
     return await r.json(); // { id, createdAt, updatedAt }
@@ -1851,7 +1860,7 @@ async function novaConversationCreer(moduleId, { title, context } = {}){
 async function novaMessageEnvoyer(conversationId, role, content, metadata){
   if (!sbClient || state.auth.status !== 'authenticated') return null;
   try {
-    const r = await authFetch(`/api/nova/conversations?id=${encodeURIComponent(conversationId)}&action=message`,
+    const r = await authFetch(`/api/me?resource=conversations&id=${encodeURIComponent(conversationId)}&action=message`,
       { method:'POST', body: JSON.stringify({ role, content, metadata: metadata || null }) });
     if (!r.ok) return null;
     return await r.json(); // { id, date }
@@ -1860,7 +1869,7 @@ async function novaMessageEnvoyer(conversationId, role, content, metadata){
 async function novaConversationsLister(){
   if (!sbClient || state.auth.status !== 'authenticated') return [];
   try {
-    const r = await authFetch('/api/nova/conversations');
+    const r = await authFetch('/api/me?resource=conversations');
     if (!r.ok) return [];
     const d = await r.json();
     return Array.isArray(d.conversations) ? d.conversations : [];
@@ -1869,7 +1878,7 @@ async function novaConversationsLister(){
 async function novaConversationCharger(conversationId){
   if (!sbClient || state.auth.status !== 'authenticated') return null;
   try {
-    const r = await authFetch(`/api/nova/conversations?id=${encodeURIComponent(conversationId)}`);
+    const r = await authFetch(`/api/me?resource=conversations&id=${encodeURIComponent(conversationId)}`);
     if (!r.ok) return null;
     return await r.json(); // { id, module, title, context, messages:[...] }
   } catch (e){ console.warn('[nova] chargement conversation impossible :', e); return null; }
