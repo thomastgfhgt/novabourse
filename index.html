@@ -31,7 +31,6 @@
     <div class="top-act">
       <span id="srcBadge"></span>
       <button class="icon-btn" data-search aria-label="Rechercher"></button>
-      <button class="icon-btn" data-theme-toggle aria-label="Changer de thème"></button>
       <button class="btn btn-a btn-sm cta-offres" data-go="pricing">
         <span class="cta-full">Voir les offres</span><span class="cta-short">Offres</span></button>
     </div>
@@ -127,8 +126,6 @@ function paintNav(){
   dock.querySelectorAll('button[data-go]').forEach(b => syncActiveAttr(b, b.dataset.go === route.page));
   positionDockPill();
   document.querySelector('[data-search]').innerHTML = svg(ICON.search);
-  document.querySelector('[data-theme-toggle]').innerHTML =
-    svg(state.settings.theme === 'dark' ? ICON.sun : ICON.moon);
 }
 function positionDockPill(){
   const dock = document.getElementById('dock');
@@ -860,20 +857,18 @@ document.addEventListener('click', e => {
     return;
   }
 
+  /* CORRECTIF (2026-10-05, retour utilisateur : "la version claire
+     uniquement depuis les paramètres et sur demande") : l'icône de
+     bascule rapide dans la barre du haut (data-theme-toggle) a été
+     retirée du balisage — seul [data-set-theme] (Compte > Préférences
+     > Thème) change encore le thème. Ce handler ('[data-set-theme]')
+     reprend telle quelle la logique de rafraîchissement du graphique
+     pro qu'avait l'ancien toggle (mountChartPro() sans passer par un
+     render() complet), pour ne rien perdre de ce correctif-là. */
   const th = q('[data-set-theme]');
-  if (th){ state.settings.theme = th.dataset.setTheme; saveState(); applyTheme(); render(); return; }
-  if (q('[data-theme-toggle]')){
-    const order = ['light','dark','auto'];
-    state.settings.theme = order[(order.indexOf(state.settings.theme) + 1) % 3];
-    saveState(); applySettings(); paintNav();
-    /* applySettings() ne repasse pas par render() (bascule volontairement
-       légère, sans reconstruire toute la page) : le graphique professionnel,
-       lui, dessine sur un canvas avec des couleurs déjà résolues au moment
-       de sa création — il ne suivrait donc pas le changement de thème tout
-       seul comme le fait le CSS. Remonté explicitement ici, sans passer par
-       un render() complet. */
-    mountChartPro();
-    toast({ light:'Thème clair', dark:'Thème sombre', auto:'Thème système' }[state.settings.theme]);
+  if (th){
+    state.settings.theme = th.dataset.setTheme;
+    saveState(); applyTheme(); render(); mountChartPro();
     return;
   }
 
@@ -1545,7 +1540,7 @@ function boot(){
      symboles, vérifié empiriquement). */
   seedCommodities();
 
-  if (!state.settings.theme) state.settings.theme = 'light';
+  if (!state.settings.theme) state.settings.theme = 'dark';
   applySettings();
   if (window.matchMedia){
     window.matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', () => {

@@ -225,7 +225,14 @@ const DEFAULT_STATE = {
   settings:{
     level:'debutant',
     mode:'debutant',
-    theme:'light',
+    /* Retour utilisateur (2026-10-05) : "la version bleu marine activée
+       en premier sur tout le site lorsqu'on rentre dessus pour la
+       première fois" — thème sombre par défaut pour tout nouveau
+       visiteur (aucun state.settings sauvegardé en localStorage). Le
+       thème clair reste disponible, mais seulement si l'utilisateur le
+       choisit explicitement dans les paramètres (voir applyTheme() /
+       le cycle du bouton data-theme-toggle dans index.html). */
+    theme:'dark',
     currency:'EUR',
     lang:'fr',
     plan:'free',
