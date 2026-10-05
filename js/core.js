@@ -1826,6 +1826,56 @@ function queSiRienFait(tx){
 }
 
 /* ============================================================
+   NOVA CORE — conversations (§4, §8, 2026-10-05)
+   ------------------------------------------------------------
+   "Une seule intelligence Nova [...] une mémoire commune." Socle partagé
+   par tous les modules Nova (Review/NovaBot/News/Event/fiche action) —
+   aucune de ces 4 fonctions n'est propre à un module en particulier,
+   voir sql/2026-10-05_nova_core_conversations.sql. Même discipline que
+   pushPortfolio()/syncPortfolio() plus haut : échec silencieux (hors
+   ligne, non connecté...), jamais une exception qui casserait l'appelant
+   — c'est à l'appelant de décider quoi faire d'un retour null.
+   Portée minimale pour l'instant (§87) : créer, lister, charger, envoyer
+   un message — aucun module réel ne les appelle encore dans cette passe,
+   c'est le socle sur lequel le premier module Nova connecté à une vraie
+   conversation (prochaine étape) s'appuiera. */
+async function novaConversationCreer(moduleId, { title, context } = {}){
+  if (!sbClient || state.auth.status !== 'authenticated') return null;
+  try {
+    const r = await authFetch('/api/nova/conversations', { method:'POST',
+      body: JSON.stringify({ module: moduleId, title: title || null, context: context || null }) });
+    if (!r.ok) return null;
+    return await r.json(); // { id, createdAt, updatedAt }
+  } catch (e){ console.warn('[nova] création conversation impossible :', e); return null; }
+}
+async function novaMessageEnvoyer(conversationId, role, content, metadata){
+  if (!sbClient || state.auth.status !== 'authenticated') return null;
+  try {
+    const r = await authFetch(`/api/nova/conversations?id=${encodeURIComponent(conversationId)}&action=message`,
+      { method:'POST', body: JSON.stringify({ role, content, metadata: metadata || null }) });
+    if (!r.ok) return null;
+    return await r.json(); // { id, date }
+  } catch (e){ console.warn('[nova] envoi message impossible :', e); return null; }
+}
+async function novaConversationsLister(){
+  if (!sbClient || state.auth.status !== 'authenticated') return [];
+  try {
+    const r = await authFetch('/api/nova/conversations');
+    if (!r.ok) return [];
+    const d = await r.json();
+    return Array.isArray(d.conversations) ? d.conversations : [];
+  } catch (e){ console.warn('[nova] liste conversations impossible :', e); return []; }
+}
+async function novaConversationCharger(conversationId){
+  if (!sbClient || state.auth.status !== 'authenticated') return null;
+  try {
+    const r = await authFetch(`/api/nova/conversations?id=${encodeURIComponent(conversationId)}`);
+    if (!r.ok) return null;
+    return await r.json(); // { id, module, title, context, messages:[...] }
+  } catch (e){ console.warn('[nova] chargement conversation impossible :', e); return null; }
+}
+
+/* ============================================================
    NOVABOT — SIMULATION UNIQUEMENT (LOT I, Étape 3, 2026-09-24)
    ------------------------------------------------------------
    Aucun ordre réel sur les marchés, jamais. Portefeuille et journal
