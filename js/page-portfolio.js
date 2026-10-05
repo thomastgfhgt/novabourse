@@ -28,8 +28,14 @@ PAGES.portfolio = () => {
      portefeuille. Le badge du bloc "Valeur totale" ci-dessus, lui, reste le
      gain latent total depuis l'ouverture (pf.gain), toujours visible quelle
      que soit la période choisie ci-dessous — deux informations différentes,
-     jamais confondues. */
-  const periodeGain = (first && last) ? last.totalValue - first.totalValue : null;
+     jamais confondues.
+     CORRECTIF (2026-10-05, §36 du prompt maître) : la variation brute
+     (last - first) comptait tout dépôt/retrait survenu PENDANT la période
+     comme si c'était un gain/perte de marché — fluxNetPeriode() (voir
+     page-watchlist.js, à côté de walletHistoryPourPeriode) retire cet
+     effet avant de calculer la performance de la période. */
+  const fluxPeriode = (first && last) ? fluxNetPeriode(first.t, last.t) : 0;
+  const periodeGain = (first && last) ? (last.totalValue - first.totalValue) - fluxPeriode : null;
   const periodePct = (first && last && first.totalValue) ? (periodeGain / first.totalValue) * 100 : null;
 
   return `<div class="page-in">
@@ -82,7 +88,10 @@ PAGES.portfolio = () => {
             <div><span class="tiny">Performance (période)</span><b class="tabular-nums ${periodePct>=0?'up-t':'down-t'}">${periodePct===null?'—':(periodePct>=0?'+':'')+fmt.num(periodePct,2)+' %'}</b></div>
           </div>
           <p class="tiny" style="margin-top:10px;color:var(--ink-4)">${histPts.length} relevé(s) réel(s) sur cette période
-            · premier relevé le ${new Date(state.walletHistory[0].t).toLocaleDateString('fr-FR')}</p>`
+            · premier relevé le ${new Date(state.walletHistory[0].t).toLocaleDateString('fr-FR')}</p>
+          ${fluxPeriode ? `<p class="tiny" style="margin-top:6px;color:var(--ink-4)">
+            Performance ajustée : ${fluxPeriode>0?'dépôt':'retrait'} net de ${fmt.eur(Math.abs(fluxPeriode))}
+            pendant cette période, exclu du calcul de gain/perte.</p>` : ''}`
         : `<p class="small" style="padding:16px 0;text-align:center">
             ${state.walletHistory.length ? `Pas encore assez d'historique réel sur ${pfPeriod} : le portefeuille
               n'a commencé à être enregistré que le ${new Date(state.walletHistory[0].t).toLocaleDateString('fr-FR')}.`

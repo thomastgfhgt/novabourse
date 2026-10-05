@@ -75,4 +75,22 @@ function walletHistoryPourPeriode(period){
   const cutoff = Date.now() - ms;
   return state.walletHistory.filter(p => p.t >= cutoff);
 }
+/* §36 du prompt maître NovaTitre : "Différencier performance et flux de
+   trésorerie [...] 10 000 € → dépôt de 5 000 € ne signifie PAS +50% de
+   performance." Un dépôt/retrait survenu STRICTEMENT APRÈS le relevé de
+   départ (startMs exclu — s'il a eu lieu AU relevé de départ, son effet
+   est déjà dans sa totalValue, le compter une 2e fois serait l'erreur
+   inverse) et jusqu'au relevé de fin inclus doit être retiré du gain de
+   la période avant de calculer une performance, sinon l'argent simplement
+   apporté/retiré se confond avec un vrai gain/perte de marché. */
+function fluxNetPeriode(startMs, endMs){
+  let net = 0;
+  for (const tx of state.transactions){
+    if (tx.type !== 'deposit' && tx.type !== 'withdraw') continue;
+    const t = new Date(tx.date).getTime();
+    if (!(t > startMs && t <= endMs)) continue;
+    net += tx.type === 'deposit' ? tx.amountEUR : -tx.amountEUR;
+  }
+  return net;
+}
 
