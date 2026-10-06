@@ -791,6 +791,47 @@ function restoreRuntimeCatalog(){
   Object.values(state.runtimeCatalog || {}).forEach(meta => ensureRuntimeStock(meta, false));
 }
 
+/* CORRECTIF (gap trouvé en test live, 2026-10-06) : byId ne contient pas de
+   façon fiable les valeurs suivies/détenues sur un chargement "froid" quand
+   runtimeCatalog n'a jamais été peuplé pour cet id (achat/suivi antérieur à
+   la persistance systématique d'ensureRuntimeStock(), ou entrée perdue) —
+   confirmé en direct : byId['AAPL-NAS'] undefined malgré une position
+   AAPL-NAS réelle, ce qui faisait silencieusement échouer la pertinence
+   Nova News (§29/§33, nomsEntreprisesPertinentes() dans js/nova.js) et
+   aurait aussi affecté PAGES.stock (js/page-stock.js, aucun repli propre,
+   simple "Entreprise introuvable") — seul PAGES.portfolio dégrade déjà
+   proprement vers "Société non reconnue" (js/page-portfolio.js:117-123).
+   Résout chaque id watchlist/position encore absent de byId en recherchant
+   son ticker via searchRemote() (mêmes fournisseurs + catalogue mondial que
+   la barre de recherche) et en matérialisant le résultat dont l'id calculé
+   correspond EXACTEMENT (remoteId(), même convention) via ensureRuntimeStock(),
+   qui le persiste aussi dans runtimeCatalog : ce correctif n'a donc plus
+   besoin de s'appliquer une 2e fois pour le même id. `identitesConnuesEnCours`
+   évite de relancer une recherche déjà en vol si render() rappelle cette
+   fonction avant sa résolution (même garde que catalogueGlobalRenderArme/
+   accueilApercuRenderArme dans index.html). N'élargit jamais au catalogue
+   complet (20,8 Mo) : une poignée d'ids connus, jamais un chargement de
+   masse. ticker = id.split('-')[0] : suppose, comme remoteId() lui-même,
+   qu'un ticker ne contient jamais de '-' (convention déjà en place, pas
+   une nouvelle hypothèse). */
+const identitesConnuesEnCours = new Set();
+function assurerIdentitesConnues(){
+  const ids = new Set([...state.watchlist, ...state.wallet.positions.map(p => p.id)]);
+  const manquants = [...ids].filter(id => id && !byId[id] && !identitesConnuesEnCours.has(id));
+  if (!manquants.length) return null;
+  manquants.forEach(id => identitesConnuesEnCours.add(id));
+  return Promise.all(manquants.map(async (id) => {
+    const ticker = String(id).split('-')[0];
+    if (!ticker || ticker.length < 2) return false;
+    try {
+      const hits = await searchRemote(ticker);
+      const hit = hits.find(h => h.id === id);
+      if (hit){ ensureRuntimeStock(hit.meta); return true; }
+    } catch {}
+    return false;
+  })).then(resultats => resultats.some(Boolean));
+}
+
 /* Indices boursiers réels — jamais dans catalog.json (bâti depuis
    free-ticker-database, qui ne couvre que sociétés/ETF cotés, pas les
    indices) ni renvoyés par /api/market/search pour des requêtes usuelles

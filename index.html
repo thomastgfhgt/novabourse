@@ -461,6 +461,14 @@ function render(navigated = false){
      qui en ont réellement besoin le déclenchent ici, à la demande. */
   if (route.page === 'markets' || route.page === 'radar') assurerCatalogueGlobal();
   if (route.page === 'home') assurerApercuAccueil();
+  /* CORRECTIF (gap byId, 2026-10-06, voir assurerIdentitesConnues() dans
+     js/core.js) : jamais limité à une route précise — Accueil (3 grandes
+     cartes Nova), Portefeuille, Watchlist et Nova News (pertinence §29)
+     dépendent tous de byId pour les ids suivis/détenus. Se neutralise
+     seule une fois tout résolu (identitesConnuesEnCours), donc sans coût
+     à rappeler ici à chaque rendu. */
+  const idsConnusPromise = assurerIdentitesConnues();
+  if (idsConnusPromise) idsConnusPromise.then(changement => { if (changement) render(); });
   /* Benchmark du portefeuille (§37, 2026-10-06) : même principe que les 2
      lignes ci-dessus — déclenché ici (jamais depuis PAGES.portfolio()
      elle-même, qui doit rester synchrone), pour la période actuellement
