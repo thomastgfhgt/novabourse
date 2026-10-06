@@ -15,23 +15,48 @@
  * Portée VÉRIFIÉE EN DIRECT (2026-10-06, token réel, aucune clé) :
  *   - /api/quote/{TICKER}/dividends : exDividendDate/dividendPaymentDate/
  *     yield/annualizedDividend/payoutRatio réels pour AAPL ; "N/A" partout
- *     + message explicite pour un ticker non-Nasdaq (ex. MC, Euronext
- *     Paris) — jamais une erreur HTTP, toujours à vérifier champ par champ.
- *   - /api/analyst/{TICKER}/earnings-date : prochaine date de résultats,
- *     SEULEMENT sous forme de texte libre ("Earnings announcement* for
- *     AAPL: Oct 29, 2026"), extraite ici par une regex stricte (retombe sur
- *     null si le format change, jamais une date mal interprétée). Le texte
- *     source précise explicitement "estimated... derived from an
- *     algorithm... might be revised" : jamais présentée comme confirmée
- *     par l'entreprise (nextEarningsEstimated:true, toujours, par
- *     construction de cette source).
+ *     + message explicite pour un ticker non-Nasdaq — mais SEULEMENT pour
+ *     CET endpoint.
+ *   - /api/analyst/{TICKER}/earnings-date : BUG RÉEL CONFIRMÉ EN DIRECT
+ *     (2026-10-06) — contrairement à /dividends ci-dessus, cet endpoint ne
+ *     renvoie PAS "N/A" pour un ticker non-Nasdaq : interrogé avec le
+ *     ticker seul "MC" (LVMH sur Euronext Paris, voir le commentaire
+ *     identique dans sql/2026-09-15_market_catalog.sql sur ce même "cas
+ *     réel MC"), il a renvoyé avec confiance la date de résultats de
+ *     Moelis & Co (NYSE: MC) — une société SANS AUCUN RAPPORT présentée
+ *     comme celle demandée. Nasdaq expose un espace de tickers GLOBAL
+ *     (toutes les places américaines), sans aucune notion d'exchange
+ *     distinct par requête : AUCUNE confiance possible dans cet endpoint
+ *     sans vérifier au préalable que l'exchange NovaBourge est RÉELLEMENT
+ *     une place américaine (voir estExchangeAmericain() ci-dessous,
+ *     OBLIGATOIRE avant tout appel — jamais sur la seule foi du ticker).
+ *     Date extraite d'un texte libre ("Earnings announcement* for AAPL:
+ *     Oct 29, 2026"), via une regex stricte (retombe sur null si le format
+ *     change). Le texte source précise explicitement "estimated... derived
+ *     from an algorithm... might be revised" : jamais présentée comme
+ *     confirmée par l'entreprise (nextEarningsEstimated:true, toujours,
+ *     par construction de cette source).
  *
- * Couverture : titres cotés aux États-Unis (NASDAQ/NYSE/AMEX) uniquement —
- * un ticker hors US renvoie "N/A"/réponse vide, jamais une erreur, jamais
- * une donnée devinée.
+ * Couverture : titres RÉELLEMENT cotés aux États-Unis (NASDAQ/NYSE/
+ * NYSE ARCA/AMEX, voir estExchangeAmericain()) uniquement — tout autre
+ * exchange (y compris vide/inconnu, par prudence après le bug ci-dessus)
+ * ne déclenche AUCUN appel réseau, jamais une donnée devinée ni une
+ * collision de ticker.
  */
 
 const { lire, ecrire, avecVerrou } = require('./_cache.js');
+
+/* Mêmes 4 valeurs EXACTEMENT que US_EXCHANGES (_providers.js, utilisé par
+   finnhubAutorise()) — mais volontairement SANS son autorisation de
+   l'exchange VIDE (qui suffit à Finnhub, le ticker seul étant fiable pour
+   lui). Ici, un exchange vide/inconnu est REFUSÉ : vu la collision MC
+   documentée ci-dessus, mieux vaut ne jamais interroger Nasdaq que de
+   risquer d'attribuer les résultats d'une société américaine à un ticker
+   homonyme non-américain. */
+const EXCHANGES_US_CONFIRMES = new Set(['NASDAQ', 'NYSE', 'NYSE ARCA', 'US']);
+function estExchangeAmericain(exchange) {
+  return EXCHANGES_US_CONFIRMES.has(String(exchange || '').toUpperCase().trim());
+}
 
 const HEADERS = {
   'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36',
@@ -104,10 +129,16 @@ async function prochainResultatNasdaq(ticker) {
    si STRICTEMENT aucun champ n'a de valeur (distingue "rien à afficher" de
    "un objet avec seulement des null", voir fundamentals.js). Cache 6h par
    ticker : ces dates ne changent pas d'une requête à l'autre dans la
-   journée, inutile de re-frapper l'API à chaque "Voir les chiffres". */
-async function nasdaqCalendarDates(ticker) {
+   journée, inutile de re-frapper l'API à chaque "Voir les chiffres".
+   `exchange` OBLIGATOIRE et vérifié AVANT tout appel réseau (voir
+   estExchangeAmericain() plus haut) — CORRECTIF (bug réel confirmé en
+   direct, 2026-10-06) : appelé sans cette vérification, ticker="MC" a
+   renvoyé la date de résultats de Moelis & Co (NYSE) alors que la
+   société réellement demandée était LVMH (Euronext Paris). Jamais
+   d'exception à ce garde-fou, quelle que soit la forme du ticker. */
+async function nasdaqCalendarDates(ticker, exchange) {
   const t = String(ticker || '').toUpperCase().trim();
-  if (!t) return null;
+  if (!t || !estExchangeAmericain(exchange)) return null;
 
   const hit = lire(BLOC_CACHE, t);
   if (hit) return hit.valeur;
@@ -126,4 +157,4 @@ async function nasdaqCalendarDates(ticker) {
   return value;
 }
 
-module.exports = { nasdaqCalendarDates, dateUsVersIso, dateTexteAnglaisVersIso };
+module.exports = { nasdaqCalendarDates, dateUsVersIso, dateTexteAnglaisVersIso, estExchangeAmericain };

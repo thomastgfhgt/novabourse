@@ -74,7 +74,7 @@ module.exports = async (req, res) => {
       args: [ticker, exchange],
       ticker, exchange, frais, journal,
     }),
-    type === 'stock' ? nasdaqCalendarDates(ticker) : Promise.resolve(null),
+    type === 'stock' ? nasdaqCalendarDates(ticker, exchange) : Promise.resolve(null),
   ]);
   noterResultat('fundamentals', ticker, exchange, type, f.source);
   if (type === 'stock') journal.push({ bloc: 'calendar', provider: 'nasdaq', ok: Boolean(calendrier) });
