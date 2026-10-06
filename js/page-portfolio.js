@@ -37,6 +37,13 @@ PAGES.portfolio = () => {
   const fluxPeriode = (first && last) ? fluxNetPeriode(first.t, last.t) : 0;
   const periodeGain = (first && last) ? (last.totalValue - first.totalValue) - fluxPeriode : null;
   const periodePct = (first && last && first.totalValue) ? (periodeGain / first.totalValue) * 100 : null;
+  /* Benchmark (§37 du prompt maître) : null tant que les données ne sont
+     pas prêtes (déclenché par assurerBenchmarkPortefeuille(), voir le
+     hook route.page==='portfolio' dans index.html) — la ligne
+     correspondante n'apparaît alors simplement pas, jamais un chiffre à
+     blanc/zéro affiché comme une vraie comparaison. */
+  const benchmark = benchmarkPourPeriode(pfPeriod);
+  const ecartPts = (benchmark && periodePct !== null) ? periodePct - benchmark.pct : null;
 
   return `<div class="page-in">
     <h1 class="title">Portefeuille</h1>
@@ -86,6 +93,9 @@ PAGES.portfolio = () => {
             <div><span class="tiny">Capital net apporté</span><b class="tabular-nums">${Number.isFinite(last.netDeposits) ? fmt.eur(last.netDeposits) : '—'}</b></div>
             <div><span class="tiny">Gain/perte (période)</span><b class="tabular-nums ${periodeGain>=0?'up-t':'down-t'}">${periodeGain>=0?'+':''}${fmt.eur(periodeGain)}</b></div>
             <div><span class="tiny">Performance (période)</span><b class="tabular-nums ${periodePct>=0?'up-t':'down-t'}">${periodePct===null?'—':(periodePct>=0?'+':'')+fmt.num(periodePct,2)+' %'}</b></div>
+            ${benchmark ? `
+            <div><span class="tiny">Benchmark (${esc(benchmark.name)})</span><b class="tabular-nums ${benchmark.pct>=0?'up-t':'down-t'}">${benchmark.pct>=0?'+':''}${fmt.num(benchmark.pct,2)} %</b></div>
+            <div><span class="tiny">Écart</span><b class="tabular-nums ${ecartPts>=0?'up-t':'down-t'}">${ecartPts>=0?'+':''}${fmt.num(ecartPts,1)} pt${Math.abs(ecartPts)>=2?'s':''}</b></div>` : ''}
           </div>
           <p class="tiny" style="margin-top:10px;color:var(--ink-4)">${histPts.length} relevé(s) réel(s) sur cette période
             · premier relevé le ${new Date(state.walletHistory[0].t).toLocaleDateString('fr-FR')}</p>

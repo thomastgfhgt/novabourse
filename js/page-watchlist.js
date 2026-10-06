@@ -93,4 +93,42 @@ function fluxNetPeriode(startMs, endMs){
   }
   return net;
 }
+
+/* Benchmark du portefeuille (§37 du prompt maître NovaTitre, 2026-10-06) :
+   "Permettre de comparer le portefeuille à un benchmark pertinent [...]
+   Portefeuille +8,7% / Benchmark +5,2% / Écart +3,5 pts." CAC 40
+   (FCHI-INDX) choisi comme référence par défaut : seul le portefeuille
+   est en EUR dans ce produit (toutes les positions converties via
+   toEUR()), un indice coté en EUR est la comparaison la plus honnête —
+   un indice USD introduirait un écart de change qui n'aurait rien à voir
+   avec la vraie performance. Déjà dans le catalogue (seedIndices(),
+   js/core.js) : aucune nouvelle source de données, aucune nouvelle clé
+   API, réutilise chargerGraphiquePeriode()/HISTP déjà utilisés par
+   chaque fiche action pour son propre graphique. */
+const PF_BENCHMARK_ID = 'FCHI-INDX';
+const PF_PERIOD_VERS_API = { '1J':'1j', '1S':'1s', '1M':'1m', '3M':'3m', '6M':'6m', '1A':'1a', MAX:'max' };
+/* Déclenche le chargement si besoin (jamais bloquant : chargerGraphiquePeriode
+   gère déjà son propre état loading/ready/error dans HISTP, voir
+   js/data-services.js) — à appeler depuis render() au changement de page/
+   période, jamais depuis PAGES.portfolio() elle-même (fonction synchrone,
+   ne doit jamais déclencher un fetch à chaque rendu). */
+function assurerBenchmarkPortefeuille(period){
+  const stock = byId[PF_BENCHMARK_ID];
+  if (!stock) return;
+  chargerGraphiquePeriode(stock, PF_PERIOD_VERS_API[period] || '1a');
+}
+/* null tant que les données ne sont pas prêtes (jamais un chiffre à 0%
+   présenté comme une vraie comparaison, §81) — le gain du benchmark se
+   calcule en EUR directement sur le PREMIER et DERNIER point RÉELS de la
+   période chargée, jamais interpolé. */
+function benchmarkPourPeriode(period){
+  const stock = byId[PF_BENCHMARK_ID];
+  if (!stock) return null;
+  const apiPeriod = PF_PERIOD_VERS_API[period] || '1a';
+  const entry = HISTP.get(cleHISTP(stock.id, apiPeriod));
+  if (!entry || entry.status !== 'ready' || entry.data.length < 2) return null;
+  const first = entry.data[0].close, last = entry.data[entry.data.length - 1].close;
+  if (!(first > 0)) return null;
+  return { pct: (last / first - 1) * 100, name: stock.name };
+}
 
