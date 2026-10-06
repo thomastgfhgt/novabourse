@@ -75,67 +75,54 @@ function ordreStatique(dataType, type, opts = {}) {
   const coingeckoEligibleHistorique = jours === undefined || jours <= COINGECKO_JOURS_MAX;
 
   switch (dataType) {
+    /* CORRECTIF MAJEUR (2026-10-06) : Yahoo Finance devient le fournisseur
+       PRINCIPAL pour quote/history/intraday (voir le grand commentaire
+       "YAHOO FINANCE" dans _providers.js — vérifications empiriques +
+       avertissement juridique sur l'usage commercial). EODHD/Twelve Data/
+       Finnhub/Eulerpool restent dans la cascade mais SEULEMENT en tout
+       dernier repli, jamais requis pour le fonctionnement normal :
+       NovaTitre ne doit plus dépendre d'un fournisseur payant/à clé pour
+       fonctionner (décision produit explicite). CoinGecko/Frankfurter/
+       SEC EDGAR restent prioritaires là où ils l'étaient déjà (sources
+       officielles/gratuites déjà éprouvées, aucune raison de les
+       redescendre derrière Yahoo). */
     case 'quote':
-      if (type === 'crypto') return ['coingecko', 'twelvedata', 'eodhd'];
-      if (type === 'forex') return ['twelvedata', 'eodhd', 'frankfurter'];
-      /* index : eodhdIndexSymbol() (".INDX") ajouté — plus un seul point de
-         défaillance sur Twelve Data (voir _providers.js pour la
-         justification et l'avertissement "à vérifier empiriquement").
-         Jamais Finnhub (incompatible par construction, voir
-         TYPES_INCOMPATIBLES_FINNHUB dans _providers.js). */
-      if (type === 'index') return ['twelvedata', 'eodhd'];
-      /* commodity : Eulerpool en DERNIER repli, dans l'ordre de fidélité —
-         'eulerpool' (cotation NATIVE en USD, XAU/XAG/WTI uniquement, voir
-         eulerpoolCommodityRef) avant 'eulerpool_fx' (TAUX CROISÉ RÉEL =
-         cette même cotation USD × un taux de change réel Frankfurter/BCE,
-         voir eulerpoolCommodityRefCroise — jamais tenté pour une paire déjà
-         couverte nativement). Les tickers hors de ces deux ensembles
-         (XPD/USD, HG1, XBR/USD...) retombent sur Twelve Data seul, aucune
-         convention vérifiée ailleurs. */
-      /* eodhd en dernier repli : couvre XPD/USD, XPT/USD, XBR/USD (voir
-         eodhdSymbolPourType/EODHD_COMMODITY_FOREX dans _providers.js) —
-         jamais tenté pour un ticker hors de cet ensemble vérifié (throw
-         propre côté eodhdSymbolPourType, pas un symbole inventé). Son flux
-         temps réel est vide pour ces trois tickers : QUOTE.eodhd échoue
-         systématiquement, mais la dernière clôture est dérivée de
-         l'historique (même mécanisme que les indices, voir quotes.js). */
-      if (type === 'commodity') return ['twelvedata', 'eulerpool', 'eulerpool_fx', 'eodhd'];
-      if (TYPES_SANS_SUFFIXE_EODHD.has(type)) return ['twelvedata'];
-      return ['twelvedata', 'eodhd', 'finnhub'];
+      if (type === 'crypto') return ['coingecko', 'yahoo', 'twelvedata', 'eodhd'];
+      if (type === 'forex') return ['yahoo', 'frankfurter', 'twelvedata', 'eodhd'];
+      if (type === 'index') return ['yahoo', 'twelvedata', 'eodhd'];
+      /* commodity : XPD/USD, XPT/USD, XBR/USD (EODHD_COMMODITY_FOREX,
+         _providers.js). Yahoo vérifié en direct pour XBR/USD (BZ=F,
+         Brent) ; PA=F/PL=F (palladium/platine) suivent la même convention
+         publique mais n'ont pas été re-vérifiés empiriquement cette
+         session — Eulerpool (vérifié, mais payant) reste juste derrière
+         au cas où Yahoo échouerait pour ces 2 tickers précis. */
+      if (type === 'commodity') return ['yahoo', 'twelvedata', 'eulerpool', 'eulerpool_fx', 'eodhd'];
+      if (TYPES_SANS_SUFFIXE_EODHD.has(type)) return ['yahoo', 'twelvedata'];
+      return ['yahoo', 'twelvedata', 'eodhd', 'finnhub'];
 
     case 'history':
       if (type === 'crypto') {
-        return coingeckoEligibleHistorique ? ['coingecko', 'eodhd', 'twelvedata'] : ['eodhd', 'twelvedata'];
+        return coingeckoEligibleHistorique
+          ? ['coingecko', 'yahoo', 'eodhd', 'twelvedata']
+          : ['yahoo', 'eodhd', 'twelvedata'];
       }
-      if (type === 'forex') return ['eodhd', 'twelvedata', 'frankfurter'];
-      if (type === 'index') return ['eodhd', 'twelvedata'];
-      if (type === 'commodity') return ['twelvedata', 'eulerpool', 'eulerpool_fx', 'eodhd'];
-      if (TYPES_SANS_SUFFIXE_EODHD.has(type)) return ['twelvedata'];
-      return ['eodhd', 'twelvedata'];
+      if (type === 'forex') return ['yahoo', 'frankfurter', 'twelvedata', 'eodhd'];
+      if (type === 'index') return ['yahoo', 'twelvedata', 'eodhd'];
+      if (type === 'commodity') return ['yahoo', 'twelvedata', 'eulerpool', 'eulerpool_fx', 'eodhd'];
+      if (TYPES_SANS_SUFFIXE_EODHD.has(type)) return ['yahoo', 'twelvedata'];
+      return ['yahoo', 'twelvedata', 'eodhd'];
 
     case 'intraday':
-      if (type === 'crypto') return ['coingecko', 'twelvedata', 'eodhd'];
+      if (type === 'crypto') return ['coingecko', 'yahoo', 'twelvedata', 'eodhd'];
       /* Frankfurter n'a structurellement aucune donnée intraday (taux BCE
          quotidiens) — jamais inclus ici, contrairement au chemin history.
          Eulerpool non plus (commodity/quotes n'a aucune granularité
          infra-journalière confirmée) — absent du chemin intraday. */
-      if (type === 'forex') return ['twelvedata', 'eodhd'];
-      if (type === 'index') return ['twelvedata', 'eodhd'];
-      /* CORRECTIF (bug réel confirmé en test, 2026-09-30) : TYPES_SANS_SUFFIXE_EODHD
-         ('commodity') excluait ICI eodhd à 100%, alors que les chemins quote/
-         history ci-dessus l'incluent déjà en dernier repli pour les 3 tickers
-         vérifiés (XPD/USD, XPT/USD, XBR/USD — voir EODHD_COMMODITY_FOREX dans
-         _providers.js) : la règle générale "aucune convention EODHD vérifiée
-         pour ce type" ne vaut QUE pour eodhdSymbolPourType() en général, pas
-         pour ces 3 exceptions déjà spécifiquement vérifiées. Conséquence avant
-         correctif : un sparkline pour Palladium/Platine/Brent dépendait
-         SEULEMENT de Twelve Data — le moindre quota épuisé (observé en
-         production) faisait échouer intraday_indisponible à coup sûr, alors
-         qu'eodhd aurait pu répondre. Exclusion générique conservée pour tout
-         AUTRE type sans convention EODHD (aucun changement pour eux). */
-      if (type === 'commodity') return ['twelvedata', 'eodhd'];
-      if (TYPES_SANS_SUFFIXE_EODHD.has(type)) return ['twelvedata'];
-      return ['twelvedata', 'eodhd'];
+      if (type === 'forex') return ['yahoo', 'twelvedata', 'eodhd'];
+      if (type === 'index') return ['yahoo', 'twelvedata', 'eodhd'];
+      if (type === 'commodity') return ['yahoo', 'twelvedata', 'eodhd'];
+      if (TYPES_SANS_SUFFIXE_EODHD.has(type)) return ['yahoo', 'twelvedata'];
+      return ['yahoo', 'twelvedata', 'eodhd'];
 
     case 'fundamentals':
       /* Aucune cryptomonnaie/paire de devises/indice/matière première n'a
@@ -164,11 +151,24 @@ function ordreStatique(dataType, type, opts = {}) {
          dividendes qu'EODHD aurait dû fournir (jamais vérifiées en direct,
          voir l'historique de ce fichier) viennent maintenant de
          _nasdaqCalendar.js (voir fundamentals.js), une source réellement
-         vérifiée en direct. */
-      return TYPES_AVEC_FONDAMENTAUX.has(type) ? ['finnhub', 'secedgar', 'eulerpool'] : [];
+         vérifiée en direct.
+         Yahoo (2026-10-06) inséré APRÈS secedgar : secedgar reste
+         prioritaire pour les US (officiel, zéro clé, déjà fiable) ; Yahoo
+         complète pour les valeurs EUROPÉENNES qu'Eulerpool couvrait seul
+         jusqu'ici (voir le commentaire plus haut) — mais Yahoo est LE PLUS
+         FRAGILE des 2 (flux cookie+crumb, voir FUNDAMENTALS.yahoo dans
+         _providers.js), d'où sa position après secedgar plutôt qu'avant.
+         finnhub/eulerpool (payants/à clé) redescendus en tout dernier
+         repli, jamais requis pour le fonctionnement normal. */
+      return TYPES_AVEC_FONDAMENTAUX.has(type) ? ['secedgar', 'yahoo', 'finnhub', 'eulerpool'] : [];
 
     case 'news':
-      return TYPES_AVEC_ACTUALITES.has(type) ? ['eodhd'] : [];
+      /* EODHD était l'UNIQUE fournisseur ici avant ce correctif (2026-10-06),
+         sans aucun repli possible. Yahoo (voir NEWS.yahoo, _providers.js)
+         devient le fournisseur principal — net progrès (0 repli -> 1
+         fournisseur gratuit fonctionnel), eodhd gardé en dernier repli
+         au cas où une clé réelle existerait un jour. */
+      return TYPES_AVEC_ACTUALITES.has(type) ? ['yahoo', 'eodhd'] : [];
 
     default:
       return [];

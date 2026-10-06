@@ -36,6 +36,21 @@ const KEYS = () => ({
     || process.env.MARKET_API_KEY
     || null,
 
+  /* Yahoo Finance (endpoints publics non officiels) : fournisseur
+     PRINCIPAL décidé le 2026-10-06 pour remplacer EODHD/Twelve Data/
+     Finnhub pendant la phase de développement (voir le grand commentaire
+     "YAHOO FINANCE" plus bas dans ce fichier pour le détail des
+     vérifications empiriques ET l'avertissement juridique — usage
+     commercial à grande échelle NON validé juridiquement en l'état,
+     audit de licences prévu avant commercialisation). Sentinelle `true`
+     comme coingecko/frankfurter ci-dessous : aucune clé, aucun compte.
+     YAHOO_DISABLED="1" permet de le couper sans toucher au code, par
+     exemple si Yahoo bloque l'IP du serveur ou change ses protections. */
+  yahoo:
+    process.env.YAHOO_DISABLED === '1'
+      ? null
+      : true,
+
   /* CoinGecko "Public API" (api.coingecko.com) : aucune clé requise, ne
      nécessite aucun compte. `coingecko: true` est donc une valeur
      SENTINELLE (pas un vrai secret) — cascade()/BATCH ci-dessous
@@ -968,10 +983,223 @@ function finnhubAutorise(exchange, type) {
 }
 
 /* ============================================================
+   YAHOO FINANCE — endpoints publics non officiels (2026-10-06)
+   ============================================================
+   AUCUNE clé requise (contrairement à EODHD/Twelve Data/Finnhub/
+   Eulerpool) : endpoints "query1.finance.yahoo.com" utilisés tels quels,
+   sans compte ni jeton payant. Même principe de sentinelle que coingecko/
+   frankfurter dans KEYS() ci-dessus.
+
+   ⚠️ AVERTISSEMENT JURIDIQUE — À LIRE AVANT TOUTE EXTENSION DE CE BLOC ⚠️
+   Il n'existe AUCUNE API Yahoo Finance officielle depuis 2017 (confirmé
+   par recherche, 2026-10-06). Ces endpoints sont NON documentés, NON
+   garantis, peuvent être modifiés/bloqués/limités par Yahoo à tout moment
+   sans préavis. Leur usage commercial se situe dans une zone grise :
+   les conditions d'utilisation de Yahoo Finance restreignent l'usage
+   commercial de données obtenues par ce biais, et une partie des données
+   provient elle-même de places boursières/fournisseurs tiers dont les
+   propres licences restreignent la redistribution. NovaTitre les utilise
+   ici comme fournisseur PRINCIPAL pendant la phase de développement
+   (décision explicite du produit, 2026-10-06), PAS comme un choix
+   juridiquement validé pour une exploitation commerciale à grande
+   échelle. Un audit de licences dédié est prévu AVANT la commercialisation
+   de NovaTitre, et remplacera cette source si nécessaire — c'est
+   précisément le rôle de la couche _router.js/cascade() : un seul
+   fournisseur remplacé ici n'oblige à toucher aucune autre partie de
+   l'application (company.js/history.js/search.js/quotes.js/extra.js ne
+   connaissent que des données déjà normalisées, jamais leur provenance).
+
+   Vérifié EMPIRIQUEMENT en direct (2026-10-06, sans clé, token réel) :
+     - /v8/finance/chart/{symbole} : quote + historique OHLCV + volume,
+       AAPL/MSFT/NVDA/SPY/^GSPC/^FCHI/EURUSD=X/BTC-USD/GC=F/BZ=F/MC.PA/
+       TTE.PA/CARS + 12 places européennes/asiatiques (voir YAHOO_SUFFIX
+       ci-dessous) — AUCUNE authentification requise, fraîcheur mesurée à
+       6 secondes sur AAPL en séance. Historique testé jusqu'à 2 ans
+       (501 points quotidiens), sans trou.
+     - /v1/finance/search : recherche + actualités par ticker (newsCount),
+       AUCUNE authentification requise. CORRECTIF (collision de ticker
+       réellement reproduite en direct, 2026-10-06) : une recherche par
+       TICKER NU ("MC") renvoie Moelis & Co (NYSE) et jamais LVMH, qui
+       n'apparaît même pas dans les 15 premiers résultats — l'affirmation
+       inverse écrite ici initialement était FAUSSE (confondue avec un
+       test antérieur fait via Twelve Data, pas Yahoo). Une recherche par
+       NOM ("LVMH") trouve en revanche la bonne société en 1er résultat
+       (MC.PA). Le vrai désambiguïsateur pour un ticket court exact est
+       donc le catalogue Supabase (recherche ticker=eq. exacte, voir
+       handleCatalog()/api/market/extra.js), jamais le classement de
+       pertinence de Yahoo pour ce cas précis — SEARCH.yahoo reste
+       complémentaire (texte libre, actualités), pas autoritaire sur les
+       collisions de ticker.
+     - /v10/finance/quoteSummary : fondamentaux RÉELS (financialData,
+       defaultKeyStatistics...), mais EXIGE un cookie + "crumb" (2 appels
+       réseau, voir crumbYahoo() ci-dessous) — plus fragile que les 2
+       endpoints ci-dessus, cassera plus facilement si Yahoo durcit encore
+       ses protections. Échec de ce flux = fundamentals.yahoo renvoie
+       simplement null, jamais une exception qui casserait la cascade.
+     - /v7/finance/quote (cotation multi-symboles en 1 appel) : DÉSORMAIS
+       bloqué (401 "User is unable to access this feature") même avec le
+       crumb testé pour quoteSummary — abandonné. BATCH.yahoo ci-dessous
+       interroge donc /v8/finance/chart EN PARALLÈLE, un appel par
+       symbole (coût réseau plus élevé qu'un vrai batch, mais aucune
+       authentification requise et nettement plus robuste). */
+
+const YAHOO_DISCLAIMER_URL = 'https://finance.yahoo.com/';
+
+const YAHOO_UA = {
+  'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36',
+};
+
+/* Suffixe de place Yahoo, par code canonique NovaBourse (voir SUFFIX plus
+   haut pour la convention EODHD équivalente). '' = aucun suffixe (places
+   américaines composites). Seules les entrées marquées VÉRIFIÉ ont été
+   testées empiriquement en direct le 2026-10-06 (un prix réel reçu pour
+   un titre réel de cette place) ; les autres places du catalogue
+   (BSE_IN, SGX, TADAWUL, JSE...) restent volontairement ABSENTES —
+   jamais une convention Yahoo devinée. */
+const YAHOO_SUFFIX = {
+  NASDAQ: '', NYSE: '', 'NYSE ARCA': '', US: '',          // VÉRIFIÉ (AAPL/SPY)
+  PA: '.PA',                                                // VÉRIFIÉ (MC.PA, TTE.PA)
+  DE: '.DE',                                                // VÉRIFIÉ (SAP.DE)
+  L: '.L',                                                  // VÉRIFIÉ (HSBA.L)
+  AS: '.AS',                                                // VÉRIFIÉ (ASML.AS, INGA.AS)
+  MI: '.MI',                                                // VÉRIFIÉ (ENI.MI)
+  SW: '.SW',                                                // VÉRIFIÉ (NESN.SW)
+  TO: '.TO',                                                // VÉRIFIÉ (RY.TO)
+  AU: '.AX',                                                // VÉRIFIÉ (BHP.AX — lettre différente du code NovaBourse)
+  HK: '.HK',                                                // VÉRIFIÉ (0700.HK)
+  SHG: '.SS',                                               // VÉRIFIÉ (600519.SS)
+  SHE: '.SZ',                                               // VÉRIFIÉ (000001.SZ)
+  KO: '.KS',                                                // VÉRIFIÉ (005930.KS)
+  SA: '.SA',                                                // VÉRIFIÉ (PETR4.SA)
+  TW: '.TW',                                                // VÉRIFIÉ (2330.TW)
+  HE: '.HE',                                                // VÉRIFIÉ (NOKIA.HE)
+  ST: '.ST',                                                // VÉRIFIÉ (ERIC-B.ST)
+  CO: '.CO',                                                // VÉRIFIÉ (MAERSK-B.CO)
+  OL: '.OL',                                                // VÉRIFIÉ (AKER.OL)
+  BR: '.BR',                                                // VÉRIFIÉ (ABI.BR)
+  LS: '.LS',                                                // VÉRIFIÉ (EDP.LS)
+};
+
+function yahooSymbole(ticker, exchange, type) {
+  const t = String(ticker || '').toUpperCase().trim();
+  if (!t) return null;
+
+  if (type === 'crypto') return `${t.replace('/', '-')}`; // BTC/USD -> BTC-USD
+  if (type === 'forex') return `${t.replace('/', '')}=X`; // EUR/USD -> EURUSD=X
+  if (type === 'index') {
+    /* Convention Yahoo documentée publiquement : préfixe "^" sur le code
+       déjà utilisé par eodhdIndexSymbol() (même ticker racine, ex. GSPC/
+       FCHI/DJI) — jamais un nouveau mapping inventé, réutilise le ticker
+       canonique NovaBourse déjà vérifié pour EODHD (seedIndices(), voir
+       js/core.js) : VÉRIFIÉ EN DIRECT ici pour GSPC et FCHI. */
+    return `^${t}`;
+  }
+  if (type === 'commodity') {
+    /* Seuls XPD/USD, XPT/USD, XBR/USD sont dans le périmètre NovaBourse
+       (EODHD_COMMODITY_FOREX plus haut) — convention Yahoo "futures"
+       vérifiée en direct pour XBR/USD (BZ=F, Brent). PA=F (palladium) et
+       PL=F (platine) sont la convention Yahoo publique standard pour ces
+       deux métaux, non re-vérifiée empiriquement cette session. */
+    const FUTURES_YAHOO = { 'XPD/USD': 'PA=F', 'XPT/USD': 'PL=F', 'XBR/USD': 'BZ=F' };
+    return FUTURES_YAHOO[t] || null;
+  }
+
+  const code = String(exchange || '').toUpperCase().trim();
+  const suffixe = Object.prototype.hasOwnProperty.call(YAHOO_SUFFIX, code) ? YAHOO_SUFFIX[code] : null;
+  if (suffixe === null) return code ? null : t; // place non vérifiée -> null, SAUF composite US implicite (exchange vide)
+  return `${t}${suffixe}`;
+}
+
+/* Inverse de yahooSymbole() pour un résultat de SEARCH.yahoo : ne retire
+   QUE l'un des suffixes CONNUS de YAHOO_SUFFIX (triés du plus long au
+   plus court pour qu'un suffixe à 3 lettres ne soit jamais coupé par un
+   suffixe à 2 lettres qui le chevauche), jamais un simple split('.') —
+   sans quoi un ticker américain contenant un point interne (ex. "BRK.B")
+   serait tronqué à tort en "BRK". Un symbole sans suffixe reconnu est
+   retourné TEL QUEL, jamais deviné. */
+const YAHOO_SUFFIXES_TRIES = [...new Set(Object.values(YAHOO_SUFFIX).filter(Boolean))]
+  .sort((a, b) => b.length - a.length);
+function tickerDepuisSymboleYahoo(symbole) {
+  const s = String(symbole || '').toUpperCase();
+  for (const suf of YAHOO_SUFFIXES_TRIES) {
+    if (s.endsWith(suf)) return s.slice(0, -suf.length);
+  }
+  return s;
+}
+
+/* Cookie + "crumb" : seul moyen connu (2026-10-06) de débloquer
+   quoteSummary (fondamentaux). Mémorisé en mémoire-processus (même
+   limite que le reste des caches de ce projet, voir _cache.js) — un
+   crumb reste valide plusieurs heures en pratique, jamais réobtenu à
+   chaque appel. Échec à N'IMPORTE QUELLE étape -> null, jamais une
+   exception qui remonterait jusqu'à l'appelant. */
+let YAHOO_CRUMB_CACHE = null;
+async function crumbYahoo() {
+  if (YAHOO_CRUMB_CACHE) return YAHOO_CRUMB_CACHE;
+  try {
+    /* CORRECTIF (bug réel confirmé en direct, 2026-10-06) : /v1/test/getcrumb
+       exige désormais un cookie de session préalable ("Invalid Cookie",
+       HTTP 401, sans lui) — absent de la version initiale de cette
+       fonction, qui ne faisait qu'un seul appel sans cookie et échouait
+       donc SYSTÉMATIQUEMENT. fc.yahoo.com sert ce cookie (même s'il
+       répond lui-même 404 sur le corps de la réponse, le cookie est bien
+       posé — vérifié en direct). fetch() ne gère aucun cookie-jar
+       automatique côté Node : le header Set-Cookie de la 1ère réponse est
+       donc explicitement relu et renvoyé en Cookie sur la 2e requête. */
+    const amorce = await fetch('https://fc.yahoo.com', { headers: YAHOO_UA });
+    const cookie = amorce.headers.get('set-cookie');
+    if (!cookie) return null;
+
+    const r = await fetch('https://query1.finance.yahoo.com/v1/test/getcrumb', {
+      headers: { ...YAHOO_UA, cookie },
+    });
+    if (!r.ok) return null;
+    const crumb = (await r.text()).trim();
+    if (!crumb || crumb.length > 40) return null;
+    YAHOO_CRUMB_CACHE = { crumb, cookie };
+    return YAHOO_CRUMB_CACHE;
+  } catch {
+    return null;
+  }
+}
+
+/* ============================================================
    RECHERCHE
    ============================================================ */
 
 const SEARCH = {
+  /* Yahoo Finance (voir le bloc de garanties/avertissement juridique plus
+     haut) : /v1/finance/search couvre quotes ET news en un seul appel,
+     sans clé. `key` ignoré (sentinelle `true`, même signature que les
+     autres fournisseurs pour que cascade() reste générique). Exchange
+     canonicalisé depuis exchDisp (texte lisible Yahoo) plutôt que depuis
+     le suffixe du symbole — plus robuste (un ticker avec point interne,
+     ex. BRK.B, ne serait pas correctement découpé par suffixe). Place
+     non reconnue -> exchange:null, jamais une place inventée. */
+  async yahoo(q, key) {
+    const d = await getJSON(
+      `https://query1.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(q)}&quotesCount=15&newsCount=0`,
+      9000, YAHOO_UA
+    );
+    const CANON_DEPUIS_EXCHDISP = {
+      NASDAQ: 'NASDAQ', NYSE: 'NYSE', NYSEArca: 'NYSE ARCA', 'NYSE American': 'US',
+      Paris: 'PA', Amsterdam: 'AS', XETRA: 'DE', Milan: 'MI', Swiss: 'SW',
+      LSE: 'L', Toronto: 'TO', ASX: 'AU', HKSE: 'HK', Shanghai: 'SHG',
+      Shenzhen: 'SHE', KSE: 'KO', Taiwan: 'TW', Helsinki: 'HE',
+      Stockholm: 'ST', Copenhagen: 'CO', Oslo: 'OL', Brussels: 'BR', Lisbon: 'LS',
+    };
+    return (d?.quotes || [])
+      .filter(x => x && x.symbol && (x.quoteType === 'EQUITY' || x.quoteType === 'ETF'))
+      .map(x => ({
+        name: txt(x.longname || x.shortname),
+        ticker: tickerDepuisSymboleYahoo(x.symbol),
+        exchange: CANON_DEPUIS_EXCHDISP[x.exchDisp] || null,
+        country: null,
+        currency: null,
+        type: x.quoteType === 'ETF' ? 'ETF' : 'Common Stock',
+      }));
+  },
+
   async eodhd(q, key) {
     const d =
       await getJSON(
@@ -1078,6 +1306,53 @@ const SEARCH = {
    ============================================================ */
 
 const QUOTE = {
+  /* Yahoo Finance (voir le bloc de garanties/avertissement juridique plus
+     haut) : /v8/finance/chart sert à la fois la cotation (meta) et
+     l'historique (HISTORY.yahoo plus bas) — 2 appels distincts malgré
+     tout, chacun avec son propre cache (`quote`/`history`, _cache.js),
+     cohérent avec le reste de l'architecture (jamais un appel partagé
+     entre 2 blocs différents). Fraîcheur mesurée en direct (2026-10-06) :
+     6 secondes d'écart entre regularMarketTime et l'horodatage réel —
+     mais freshnessCotation() reste DELAYED par défaut (voir
+     _freshness.js) : aucune garantie contractuelle de ce délai, jamais
+     présenté comme un SLA. */
+  async yahoo(ticker, exchange, type, key) {
+    const symbole = yahooSymbole(ticker, exchange, type);
+    if (!symbole) throw new Error('type_sans_convention_yahoo');
+
+    const d = await getJSON(
+      `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbole)}?range=5d&interval=1d`,
+      9000, YAHOO_UA
+    );
+    const r = d?.chart?.result?.[0];
+    const m = r?.meta;
+    if (!m || num(m.regularMarketPrice) === null) {
+      throw new Error(d?.chart?.error?.description || 'vide');
+    }
+
+    const q = r?.indicators?.quote?.[0];
+    const dernierIdx = Array.isArray(q?.close) ? q.close.length - 1 : -1;
+    const ouverture = dernierIdx >= 0 ? num(q.open[dernierIdx]) : null;
+
+    const prix = num(m.regularMarketPrice);
+    const cloturePrecedente = num(m.chartPreviousClose ?? m.previousClose);
+    const variation = Number.isFinite(prix) && Number.isFinite(cloturePrecedente)
+      ? prix - cloturePrecedente : num(m.fulldayChange);
+
+    return {
+      price: prix,
+      change: variation,
+      changePercent: num(m.regularMarketChangePercent ?? m.fulldayChangePercent),
+      previousClose: cloturePrecedente,
+      open: ouverture,
+      high: num(m.regularMarketDayHigh),
+      low: num(m.regularMarketDayLow),
+      volume: num(m.regularMarketVolume),
+      currency: txt(m.currency),
+      timestamp: Number.isFinite(m.regularMarketTime) ? new Date(m.regularMarketTime * 1000).toISOString() : null,
+    };
+  },
+
   async twelvedata(
     ticker,
     exchange,
@@ -1510,6 +1785,80 @@ const EULERPOOL_ISIN_OVERRIDE = {
 const { secedgar } = require('./_secEdgar.js');
 
 const FUNDAMENTALS = {
+  /* Yahoo Finance (voir le bloc de garanties/avertissement juridique plus
+     haut) : LE PLUS FRAGILE des 6 blocs Yahoo ajoutés le 2026-10-06 — seul
+     à exiger le flux cookie+crumb (crumbYahoo()), qui peut cesser de
+     fonctionner si Yahoo durcit encore ses protections (déjà arrivé une
+     fois pour /v7/finance/quote, abandonné pour BATCH.yahoo ci-dessus).
+     Échec du crumb -> erreur normale de cascade, repli immédiat vers
+     secedgar/finnhub/eulerpool, jamais une exception qui casserait la
+     page. Couverture snapshot uniquement (pas de revenueSeries/epsSeries/
+     fcfSeries historiques ici — demanderait des modules supplémentaires
+     plus fragiles encore) : utile surtout pour les valeurs EUROPÉENNES,
+     que secedgar (US uniquement) ne couvre jamais. */
+  async yahoo(ticker, exchange, key) {
+    const session = await crumbYahoo();
+    if (!session) throw new Error('crumb_indisponible');
+
+    const symbole = yahooSymbole(ticker, exchange, 'stock');
+    if (!symbole) throw new Error('type_sans_convention_yahoo');
+
+    const modules = 'financialData,defaultKeyStatistics,summaryDetail,assetProfile,price';
+    const d = await getJSON(
+      `https://query1.finance.yahoo.com/v10/finance/quoteSummary/${encodeURIComponent(symbole)}`
+      + `?modules=${modules}&crumb=${encodeURIComponent(session.crumb)}`,
+      9000, { ...YAHOO_UA, cookie: session.cookie }
+    );
+    const r = d?.quoteSummary?.result?.[0];
+    if (!r) throw new Error(d?.quoteSummary?.error?.description || 'vide');
+
+    const brut = (obj, champ) => (obj && obj[champ] && typeof obj[champ].raw === 'number') ? obj[champ].raw : null;
+    const fd = r.financialData || {};
+    const ks = r.defaultKeyStatistics || {};
+    const sd = r.summaryDetail || {};
+    const ap = r.assetProfile || {};
+
+    const fundamentals = {
+      revenue: brut(fd, 'totalRevenue'),
+      netIncome: null, // non fourni par financialData ; pas de 2e module série dans cette passe
+      revenueSeries: null,
+      epsSeries: null,
+      fcfSeries: null,
+      eps: brut(ks, 'trailingEps'),
+      profitMargin: brut(fd, 'profitMargins'),
+      operatingMargin: brut(fd, 'operatingMargins'),
+      roe: brut(fd, 'returnOnEquity'),
+      debt: brut(fd, 'totalDebt'),
+      cash: brut(fd, 'totalCash'),
+      freeCashFlow: brut(fd, 'freeCashflow'),
+      pe: brut(sd, 'trailingPE'),
+      forwardPE: brut(ks, 'forwardPE'),
+      priceToBook: brut(ks, 'priceToBook'),
+      evToEbitda: brut(ks, 'enterpriseToEbitda'),
+      dividendYield: brut(sd, 'dividendYield'),
+      marketCap: brut(sd, 'marketCap'),
+    };
+    if (Object.values(fundamentals).every(v => v === null)) throw new Error('aucun_champ_exploitable');
+
+    return {
+      identity: {
+        name: txt(r.price?.longName || r.price?.shortName),
+        exchange: txt(r.price?.exchangeName),
+        country: txt(ap.country),
+        currency: txt(r.price?.currency),
+        sector: txt(ap.sector),
+        industry: txt(ap.industry),
+        isin: null,
+        description: txt(ap.longBusinessSummary),
+        website: txt(ap.website),
+        employees: Number.isFinite(ap.fullTimeEmployees) ? ap.fullTimeEmployees : null,
+        ipoDate: null,
+      },
+      fundamentals,
+      asOf: new Date().toISOString().slice(0, 10),
+    };
+  },
+
   /* Repli fondamentaux US (voir _secEdgar.js pour le détail des concepts
      XBRL couverts/exclus et les vérifications en direct effectuées avant
      intégration). Fonction définie dans un module séparé — SANS
@@ -2391,6 +2740,51 @@ const FUNDAMENTALS = {
    documenté comme extension possible plutôt qu'ajouté sans vérification
    empirique, conformément au principe de ce fichier. */
 const NEWS = {
+  /* Yahoo Finance (voir le bloc de garanties/avertissement juridique plus
+     haut dans ce fichier) : remplace EODHD, qui était l'UNIQUE
+     fournisseur de news par action avant ce correctif (2026-10-06),
+     aucun repli possible en cas d'échec/clé absente. Même endpoint que
+     SEARCH.yahoo (/v1/finance/search), avec newsCount : un seul appel
+     réseau sert les 2 blocs si jamais appelés ensemble (pas le cas
+     actuellement, mais aucun coût supplémentaire si ça change). Pas de
+     `sentiment`/`tags` côté Yahoo (jamais inventés, restent null/[]) ;
+     `symbols` reconstruit depuis relatedTickers quand fourni.
+     LIMITE RÉELLE CONFIRMÉE (2026-10-06) : interroger Yahoo avec le
+     symbole EXACT suffixé (ex. "MC.PA", "SAP.DE") renvoie souvent ZÉRO
+     actualité, même quand des articles existent (vérifié : q=MC.PA et
+     q=LVMH.PA renvoient 0 résultat, alors que q=LVMH, lui, en renvoie 5).
+     Chercher par le TICKER NU résoudrait ça pour beaucoup de valeurs
+     européennes, mais réintroduirait la MÊME collision que "MC" déjà
+     documentée ailleurs (Moelis & Co apparaîtrait sous le nom de LVMH) —
+     volontairement NON tenté ici : un "aucune actualité disponible"
+     honnête est préférable à une actualité attribuée à la mauvaise
+     société. Limite connue, pas un bug à corriger silencieusement. */
+  async yahoo(ticker, exchange, limit, type, key) {
+    if (type !== 'stock' && type !== 'etf') {
+      throw new Error('type_sans_actualites');
+    }
+    const symbole = yahooSymbole(ticker, exchange, type);
+    if (!symbole) throw new Error('type_sans_convention_yahoo');
+
+    const n = Math.max(1, Math.min(20, Math.round(limit) || 10));
+    const d = await getJSON(
+      `https://query1.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(symbole)}&quotesCount=0&newsCount=${n}`,
+      9000, YAHOO_UA
+    );
+    const nouvelles = Array.isArray(d?.news) ? d.news : [];
+    if (!nouvelles.length) throw new Error('aucune_actualite_recue');
+
+    return nouvelles.map(a => ({
+      date: Number.isFinite(a.providerPublishTime) ? new Date(a.providerPublishTime * 1000).toISOString() : null,
+      title: txt(a.title),
+      link: txt(a.link),
+      summary: null,
+      symbols: Array.isArray(a.relatedTickers) ? a.relatedTickers.filter(s => typeof s === 'string') : [],
+      tags: [],
+      sentiment: null,
+    }));
+  },
+
   async eodhd(ticker, exchange, limit, type, key) {
     if (type !== 'stock' && type !== 'etf') {
       throw new Error('type_sans_actualites');
@@ -2723,6 +3117,60 @@ async function coingeckoMarketChart(id, vs, days) {
    ============================================================ */
 
 const HISTORY = {
+  /* Yahoo Finance (voir le bloc de garanties/avertissement juridique plus
+     haut) : testé en direct jusqu'à 2 ans (501 points quotidiens, AAPL)
+     sans trou. `range` choisi par palier plutôt que par jour exact (API
+     Yahoo n'accepte qu'un ensemble fixe de valeurs, voir validRanges
+     dans la réponse réelle) — le palier immédiatement supérieur au
+     nombre de jours demandé est toujours sûr (jamais moins de données
+     que demandé). */
+  async yahoo(ticker, exchange, n, type, key) {
+    const symbole = yahooSymbole(ticker, exchange, type);
+    if (!symbole) throw new Error('type_sans_convention_yahoo');
+
+    const jours = joursHistorique(n);
+    const range = jours <= 5 ? '5d' : jours <= 30 ? '1mo' : jours <= 90 ? '3mo'
+      : jours <= 180 ? '6mo' : jours <= 365 ? '1y' : jours <= 730 ? '2y'
+      : jours <= 1825 ? '5y' : jours <= 3650 ? '10y' : 'max';
+
+    const d = await getJSON(
+      `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbole)}?range=${range}&interval=1d`,
+      12000, YAHOO_UA
+    );
+    const r = d?.chart?.result?.[0];
+    const timestamps = r?.timestamp;
+    const q = r?.indicators?.quote?.[0];
+    const adj = r?.indicators?.adjclose?.[0]?.adjclose;
+    if (!Array.isArray(timestamps) || !q) {
+      const error = new Error(d?.chart?.error?.description || 'aucune_ligne_recue');
+      error.symbole = symbole;
+      throw error;
+    }
+
+    const recues = timestamps.length;
+    const brutes = timestamps.map((ts, i) => ({
+      date: new Date(ts * 1000).toISOString().slice(0, 10),
+      open: num(q.open?.[i]),
+      high: num(q.high?.[i]),
+      low: num(q.low?.[i]),
+      /* adjclose évite les ruptures artificielles liées aux splits/
+         dividendes — même principe que adjusted_close côté EODHD plus
+         haut. */
+      close: num(adj?.[i] ?? q.close?.[i]),
+      volume: num(q.volume?.[i]),
+    })).filter(l => l.close !== null); // séance sans échange réel (jour férié partiel) -> écartée, jamais un 0 inventé
+
+    const lignes = normaliserHistorique(brutes);
+    if (!lignes.length) {
+      const error = new Error(recues ? `zero_ligne_apres_normalisation (recues:${recues})` : 'aucune_ligne_recue');
+      error.symbole = symbole;
+      error.recues = recues;
+      throw error;
+    }
+    lignes.recues = recues;
+    return lignes;
+  },
+
   async eodhd(
     ticker,
     exchange,
@@ -3062,6 +3510,50 @@ const HISTORY = {
    intraday, soit ce bloc échoue et la cascade retombe sur le fournisseur
    suivant (ou remonte "intraday indisponible" si aucun n'a de données). */
 const INTRADAY = {
+  /* Yahoo Finance (voir le bloc de garanties/avertissement juridique plus
+     haut) : /v8/finance/chart accepte directement un `interval`
+     infra-journalier (1m/5m/15m/30m/60m) — conversion triviale depuis les
+     clés NovaBourse (INTRADAY_MINUTES). `range=5d` plutôt que `1d` : une
+     séance qui vient de clôturer (hors heures de marché côté serveur)
+     renverrait sinon 0 barre avec range=1d — 5 jours couvre ce cas sans
+     jamais renvoyer plus que ce que normaliserIntraday() garde de toute
+     façon (fenêtre glissante). */
+  async yahoo(ticker, exchange, interval, jours, type, key) {
+    const minutesDemandees = INTRADAY_MINUTES[interval];
+    if (!minutesDemandees) throw new Error('intervalle_non_supporte');
+
+    const symbole = yahooSymbole(ticker, exchange, type);
+    if (!symbole) throw new Error('type_sans_convention_yahoo');
+
+    const INTERVALLE_YAHOO = { '1min': '1m', '5min': '5m', '15min': '15m', '30min': '30m', '1h': '60m' };
+    const d = await getJSON(
+      `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbole)}`
+      + `?range=5d&interval=${INTERVALLE_YAHOO[interval]}`,
+      12000, YAHOO_UA
+    );
+    const r = d?.chart?.result?.[0];
+    const timestamps = r?.timestamp;
+    const q = r?.indicators?.quote?.[0];
+    if (!Array.isArray(timestamps) || !q) {
+      throw new Error(d?.chart?.error?.description || 'vide');
+    }
+
+    const recues = timestamps.length;
+    const lignes = normaliserIntraday(
+      timestamps.map((ts, i) => ({
+        date: new Date(ts * 1000).toISOString(),
+        open: num(q.open?.[i]),
+        high: num(q.high?.[i]),
+        low: num(q.low?.[i]),
+        close: num(q.close?.[i]),
+        volume: num(q.volume?.[i]),
+      }))
+    );
+    if (!lignes.length) throw new Error('zero_ligne_apres_normalisation');
+    lignes.recues = recues;
+    return lignes;
+  },
+
   /* Twelve Data accepte nativement 1min/5min/15min/30min/1h comme
      `interval` — aucune conversion nécessaire. */
   async twelvedata(ticker, exchange, interval, jours, type, key) {
@@ -3393,6 +3885,20 @@ const idDe =
 
 const BATCH = {
   limite: {
+    /* Pas de vrai endpoint batch chez Yahoo : /v7/finance/quote (jusqu'à
+       plusieurs symboles en 1 appel) exige désormais le même cookie+
+       crumb que FUNDAMENTALS.yahoo ET renvoie 401 "User is unable to
+       access this feature" même une fois le crumb fourni (vérifié en
+       direct, 2026-10-06) — abandonné comme trop fragile pour un chemin
+       aussi sollicité (Marchés/Radar/accueil). BATCH.yahoo ci-dessous
+       interroge /v8/finance/chart EN PARALLÈLE, un appel par symbole :
+       plus de requêtes réseau qu'un vrai batch, mais chaque requête est
+       indépendante et sans authentification — jamais un seul point de
+       défaillance partagé. Limite = MAX_SYMBOLES (quotes.js) : un seul
+       "lot" couvrant tout, Promise.all gère le parallélisme réel. */
+    yahoo:
+      120,
+
     twelvedata:
       120,
 
@@ -3429,6 +3935,43 @@ const BATCH = {
        commodités précises, jamais plus. */
     eulerpool_fx:
       15,
+  },
+
+  async yahoo(valeurs, key) {
+    const resultats = await Promise.allSettled(
+      valeurs.map(async v => {
+        const symbole = yahooSymbole(v.ticker, v.exchange, v.type);
+        if (!symbole) throw new Error('type_sans_convention_yahoo');
+        const d = await getJSON(
+          `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbole)}?range=5d&interval=1d`,
+          9000, YAHOO_UA
+        );
+        const m = d?.chart?.result?.[0]?.meta;
+        const prix = num(m?.regularMarketPrice);
+        if (prix === null) throw new Error('vide');
+        const cloturePrecedente = num(m.chartPreviousClose ?? m.previousClose);
+        return {
+          src: v,
+          quote: {
+            symbol: idDe(v),
+            ticker: v.ticker,
+            exchange: v.exchange,
+            price: prix,
+            change: Number.isFinite(cloturePrecedente) ? prix - cloturePrecedente : num(m.fulldayChange),
+            changePercent: num(m.regularMarketChangePercent ?? m.fulldayChangePercent),
+            currency: txt(m.currency),
+            timestamp: Number.isFinite(m.regularMarketTime) ? new Date(m.regularMarketTime * 1000).toISOString() : null,
+          },
+        };
+      })
+    );
+
+    const out = new Map();
+    for (const r of resultats) {
+      if (r.status === 'fulfilled') out.set(idDe(r.value.src), r.value.quote);
+    }
+    if (!out.size) throw new Error('aucune_ligne_exploitable');
+    return out;
   },
 
   async twelvedata(
@@ -3997,6 +4540,11 @@ module.exports = {
   isoUnix,
 
   getJSON,
+
+  yahooSymbole,
+  tickerDepuisSymboleYahoo,
+  YAHOO_SUFFIX,
+  YAHOO_DISCLAIMER_URL,
 
   eodhdSymbol,
   eodhdCryptoSymbol,

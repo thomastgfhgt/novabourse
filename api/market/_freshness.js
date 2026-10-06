@@ -45,6 +45,15 @@ const FRESHNESS = Object.freeze({
 });
 
 const DEFAUT_COTATION_PAR_PROVIDER = {
+  /* Yahoo Finance (2026-10-06, fournisseur principal pendant la phase de
+     développement — voir le grand commentaire "YAHOO FINANCE" dans
+     _providers.js pour l'avertissement juridique complet) : mesuré à 6
+     secondes d'écart réel sur AAPL en séance (2026-10-06), mais SANS
+     AUCUNE garantie contractuelle — Yahoo ne publie aucune API officielle
+     depuis 2017, donc aucun SLA vérifiable. Même principe que tous les
+     autres fournisseurs de cette table : DELAYED par défaut, jamais LIVE
+     sans confirmation contractuelle. */
+  yahoo: FRESHNESS.DELAYED,
   eodhd: FRESHNESS.DELAYED,
   twelvedata: FRESHNESS.DELAYED,
   finnhub: FRESHNESS.DELAYED,
@@ -63,6 +72,7 @@ const DEFAUT_COTATION_PAR_PROVIDER = {
 };
 
 const ENV_SURCHARGE_PAR_PROVIDER = {
+  yahoo: 'YAHOO_QUOTE_FRESHNESS',
   eodhd: 'EODHD_QUOTE_FRESHNESS',
   twelvedata: 'TWELVEDATA_QUOTE_FRESHNESS',
   finnhub: 'FINNHUB_QUOTE_FRESHNESS',
@@ -113,6 +123,7 @@ function freshnessActualites() {
 }
 
 const SOURCE_URL_PROVIDER = {
+  yahoo: 'https://finance.yahoo.com/',
   eodhd: 'https://eodhd.com/',
   twelvedata: 'https://twelvedata.com/',
   finnhub: 'https://finnhub.io/',

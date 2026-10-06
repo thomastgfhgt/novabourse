@@ -340,8 +340,38 @@ async function handleCatalog(req, res) {
     });
   }
 
+  /* CORRECTIF (collision de ticker, 2026-10-06 — voir le "cas réel MC" déjà
+     documenté dans sql/2026-09-15_market_catalog.sql) : la recherche floue
+     ci-dessus (ILIKE + tri par listing_key) ne garantit PAS qu'un ticker
+     court exact (ex. "MC") fasse remonter TOUTES ses sociétés homonymes —
+     vérifié en direct : aucune des 3 sociétés réelles "MC" (LVMH/Euronext,
+     Moelis & Co/NYSE, MC Group/SET) n'apparaît dans les 15 premiers
+     résultats flous. Un correspondant EXACT (ticker=eq., jamais une
+     recherche élargie) est donc ajouté EN PLUS, en tête, dès que la
+     requête ressemble à un ticker (≤6 caractères) — le catalogue devient
+     ainsi le désambiguïsateur réellement fiable qu'exige l'architecture
+     "Supabase = référentiel central" plutôt que de dépendre du classement
+     d'un moteur de recherche externe (Yahoo/Twelve Data/...) pour ce cas
+     précis. Seulement sur la 1ère page (jamais sur un curseur de
+     pagination) pour ne jamais dupliquer ces entrées sur une page
+     suivante. */
+  let exacts = [];
+  if (!cursor && !ISIN_RE.test(isinCandidat)) {
+    const qExact = qBrut.toUpperCase();
+    if (qExact.length >= 1 && qExact.length <= 6 && /^[A-Z0-9.\-]+$/.test(qExact)) {
+      const filtresExact = [`ticker=eq.${encodeURIComponent(qExact)}`];
+      if (type) filtresExact.push(`asset_type=eq.${type}`);
+      filtresExact.push('select=*');
+      filtresExact.push(`limit=10`);
+      try {
+        exacts = await sb(`market_catalog_listings?${filtresExact.join('&')}`);
+      } catch { /* la recherche floue reste disponible même si celle-ci échoue */ }
+    }
+  }
+
+  const vus = new Set(exacts.map(r => r.listing_key));
   const aPlus = rows.length > limit;
-  const page = rows.slice(0, limit);
+  const page = [...exacts, ...rows.filter(r => !vus.has(r.listing_key))].slice(0, limit);
   const results = page.map(normaliserResultatCatalogue);
 
   const payload = {

@@ -264,16 +264,42 @@ function serieAnnuelle(facts, concepts, unite = 'USD') {
    différentes. Même discipline que grossMargin/currentRatio côté EODHD. */
 const ratioSiMemePeriode = (a, b) => (a && b && a.date === b.date && b.valeur) ? a.valeur / b.valeur : null;
 
+/* CORRECTIF (bug réel confirmé en direct, 2026-10-06) : l'ancienne
+   signature ignorait complètement `exchange` en partant du principe
+   qu'"un ticker US n'est jamais ambigu entre places" — vrai en soi, mais
+   cette fonction était appelée pour N'IMPORTE QUEL ticker, y compris des
+   valeurs non-américaines (ex. MC@PA = LVMH, Euronext Paris). Le ticker
+   SEC EDGAR "MC" correspond en réalité à Moelis & Co (NYSE) : la fiche
+   LVMH affichait donc silencieusement les fondamentaux de Moelis & Co,
+   sans qu'aucune erreur ne le signale — même famille de bug que la
+   collision Nasdaq déjà corrigée (_nasdaqCalendar.js, voir
+   estExchangeAmericain() là-bas, même principe repris ici). Dupliqué
+   plutôt qu'importé de _providers.js : ce fichier reste volontairement
+   SANS dépendance vers lui (éviterait une dépendance circulaire, voir
+   l'en-tête de ce fichier). Exchange vide/non précisé reste autorisé
+   (comportement historique inchangé pour l'appelant qui ne connaît pas
+   encore la place) ; seul un exchange EXPLICITEMENT non-américain bloque
+   l'appel, avant toute requête réseau. */
+const EXCHANGES_US_CONFIRMES = new Set(['NASDAQ', 'NYSE', 'NYSE ARCA', 'US']);
+function estExchangeAmericainOuInconnu(exchange) {
+  const e = String(exchange || '').toUpperCase().trim();
+  return !e || EXCHANGES_US_CONFIRMES.has(e);
+}
+
 /**
  * @param {string} ticker
- * @param {string|null} exchange - ignoré : SEC EDGAR identifie par ticker
- *   seul (un ticker US n'est jamais ambigu entre places, contrairement à
- *   EODHD/Twelve Data) — présent uniquement pour respecter la signature
- *   commune à FUNDAMENTALS.* attendue par cascade() dans _providers.js.
+ * @param {string|null} exchange - un exchange EXPLICITEMENT non-américain
+ *   fait échouer l'appel avant toute requête réseau (voir le correctif
+ *   ci-dessus) ; vide/absent reste autorisé, SEC EDGAR identifie alors par
+ *   ticker seul comme avant.
  * @param {*} _key - sentinelle (voir KEYS().secedgar dans _providers.js),
  *   jamais un vrai secret : aucune clé n'est requise par cette API.
  */
 async function secedgar(ticker, exchange, _key) {
+  if (!estExchangeAmericainOuInconnu(exchange)) {
+    throw new Error('exchange_non_americaine');
+  }
+
   const info = await infoPourTicker(ticker);
   if (!info) throw new Error('ticker_non_reconnu_par_secedgar');
 

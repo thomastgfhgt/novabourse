@@ -26,7 +26,18 @@ const TTL = 60 * 60 * 1000; // 1 heure
 const MAX_RESULTS = 15;
 const MAX_QUERY_LENGTH = 100;
 
+/* CORRECTIF (2026-10-06) : Yahoo Finance (SEARCH.yahoo, _providers.js)
+   devient le fournisseur principal — gratuit, sans clé (voir
+   l'avertissement juridique dans _providers.js). IMPORTANT : Yahoo n'est
+   PAS fiable pour désambiguïser un ticker court exact (ex. "MC" ne
+   renvoie que Moelis & Co, jamais LVMH — vérifié en direct, voir le
+   commentaire sur SEARCH.yahoo) ; c'est pourquoi handleCatalog()
+   (api/market/extra.js) ajoute désormais sa propre correspondance EXACTE
+   via le catalogue Supabase pour ce cas précis, indépendamment de cet
+   ordre. EODHD/Twelve Data/Finnhub redescendus en dernier repli, plus
+   requis pour le fonctionnement normal. */
 const ORDRE = [
+  'yahoo',
   'eodhd',
   'twelvedata',
   'finnhub',

@@ -5,15 +5,17 @@ const { chargerBloc, historiqueValide } = require('./_marketBlock.js');
 const { resolveOrdre, noterResultat } = require('./_router.js');
 const { statutMarche } = require('./_marketHours.js');
 
-/* CoinGecko en tête : gratuit, sans clé, et BATCH.coingecko exclut déjà
-   lui-même tout ce qui n'est pas type==='crypto' (voir _providers.js) —
-   l'inclure sans condition ici ne retire donc rien aux autres types.
-   Frankfurter/Eulerpool en DERNIER (BATCH.frankfurter/BATCH.eulerpool
-   excluent déjà eux-mêmes tout ce qui n'est pas leur type respectif) :
-   qualité/couverture inférieures aux fournisseurs payants pour ce qu'ils
-   couvrent déjà (voir leur documentation dans _providers.js), jamais un
-   premier choix. */
-const ORDRE = ['coingecko', 'twelvedata', 'eodhd', 'finnhub', 'frankfurter', 'eulerpool', 'eulerpool_fx'];
+/* CORRECTIF (2026-10-06) : Yahoo Finance (BATCH.yahoo, _providers.js —
+   voir son grand commentaire pour l'avertissement juridique complet)
+   devient le fournisseur principal pour stock/etf/index/commodity, juste
+   après CoinGecko (crypto) et avant Frankfurter (forex). EODHD/Twelve
+   Data/Finnhub redescendus en tout dernier repli — plus requis pour le
+   fonctionnement normal de ce chemin (décision produit explicite : ne
+   plus dépendre d'un fournisseur payant/à clé ici). Frankfurter/Eulerpool
+   restent après (déjà spécialisés sur leur seul type respectif, voir
+   BATCH.frankfurter/BATCH.eulerpool qui s'excluent eux-mêmes pour tout
+   autre type). */
+const ORDRE = ['coingecko', 'yahoo', 'twelvedata', 'eodhd', 'finnhub', 'frankfurter', 'eulerpool', 'eulerpool_fx'];
 const MAX_SYMBOLES = 120;
 
 /* CORRECTIF (audit routage multi-actifs — bug de production confirmé) :
