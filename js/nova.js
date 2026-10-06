@@ -530,6 +530,27 @@ PAGES.novabot = () => {
       </div>
     </section>
 
+    <!-- Mandat (§21/§24 du prompt maître, 2026-10-06) : séparé des "règles"
+         de déclenchement ci-dessous à dessein — un mandat borne CE QUE
+         NovaBot a le droit de faire (contraintes de capital/risque),
+         une règle décide QUAND il agit (seuils de score/gain/perte).
+         Même distinction que le prompt maître lui-même (§22 : préférence/
+         contrainte/interdiction). Seuls 2 champs pour l'instant (cash
+         minimum, poids max par position) — les autres (objectif, horizon,
+         actifs/secteurs interdits...) demandent des décisions produit
+         non tranchées, jamais ajoutés par anticipation (§87/§97). -->
+    <section class="section">
+      <h2 class="h2">Mandat</h2>
+      <div class="card" style="margin-top:14px">
+        ${settingRow('Liquidités minimales', 'NovaBot n\'achète jamais si cela ferait passer le cash sous ce seuil.',
+          `<input type="number" class="field" style="width:76px;text-align:right" min="0" max="100" step="5"
+            value="${cfg.cashMinPct}" onchange="novabotSetRegle('cashMinPct', this.value)"> %`)}
+        ${settingRow('Maximum par position', 'NovaBot n\'achète jamais si cela dépasserait ce poids du portefeuille simulé.',
+          `<input type="number" class="field" style="width:76px;text-align:right" min="1" max="100" step="5"
+            value="${cfg.maxPositionPct}" onchange="novabotSetRegle('maxPositionPct', this.value)"> %`)}
+      </div>
+    </section>
+
     <section class="section">
       <h2 class="h2">Vos règles</h2>
       <div class="card" style="margin-top:14px">

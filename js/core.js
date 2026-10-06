@@ -197,6 +197,19 @@ const DEFAULT_STATE = {
     stopLossPct:10,     // vente simulée si une position perd ce pourcentage
     takeProfitPct:20,   // vente simulée si une position gagne ce pourcentage
     tradeAmountEUR:500, // montant simulé par achat
+    /* Mandat (§21/§24 du prompt maître NovaTitre, 2026-10-06) : "Garde 20%
+       de cash" et "maximum 10% par position" sont les 2 exemples donnés
+       en toutes lettres au §24 — jusqu'ici aucune des deux contraintes
+       n'existait, seul tradeAmountEUR bornait un achat (voir
+       evaluerNovaBot() : "if (cash < tradeAmountEUR) break" empêchait
+       seulement d'acheter à découvert, jamais de préserver une vraie
+       réserve ; rien n'empêchait de répéter le même achat sur plusieurs
+       passages et de concentrer une position au-delà de tout raisonnable).
+       Exprimées en % du portefeuille simulé TOTAL (cash + positions),
+       jamais une valeur en euros figée : une contrainte en % reste
+       cohérente quelle que soit la taille du portefeuille. */
+    cashMinPct:20,      // liquidités minimales à préserver (% du portefeuille total)
+    maxPositionPct:10,  // poids maximum d'une seule position (% du portefeuille total)
     wallet:{ cash:10000, invested:10000, positions:[], realizedPnL:0 },
     transactions:[],
     lastRunAt:null,
@@ -354,6 +367,8 @@ function loadState(){
           stopLossPct: Number.isFinite(saved.novabot?.stopLossPct) ? saved.novabot.stopLossPct : DEFAULT_STATE.novabot.stopLossPct,
           takeProfitPct: Number.isFinite(saved.novabot?.takeProfitPct) ? saved.novabot.takeProfitPct : DEFAULT_STATE.novabot.takeProfitPct,
           tradeAmountEUR: Number.isFinite(saved.novabot?.tradeAmountEUR) ? saved.novabot.tradeAmountEUR : DEFAULT_STATE.novabot.tradeAmountEUR,
+          cashMinPct: Number.isFinite(saved.novabot?.cashMinPct) ? saved.novabot.cashMinPct : DEFAULT_STATE.novabot.cashMinPct,
+          maxPositionPct: Number.isFinite(saved.novabot?.maxPositionPct) ? saved.novabot.maxPositionPct : DEFAULT_STATE.novabot.maxPositionPct,
           wallet:{
             cash: Number.isFinite(saved.novabot?.wallet?.cash) ? saved.novabot.wallet.cash : DEFAULT_STATE.novabot.wallet.cash,
             invested: Number.isFinite(saved.novabot?.wallet?.invested) ? saved.novabot.wallet.invested : DEFAULT_STATE.novabot.wallet.invested,
@@ -1992,10 +2007,24 @@ async function evaluerNovaBot(){
     }
   }
 
+  /* Mandat (§21/§24, 2026-10-06) : 2 contraintes supplémentaires avant tout
+     achat, en plus du seuil de NovaScore déjà en place. pf.total recalculé
+     À CHAQUE candidat (pas une seule fois avant la boucle) : un achat
+     précédent dans CE MÊME passage a changé cash/positions, donc
+     potentiellement pf.total — une contrainte en % doit toujours lire un
+     total à jour, jamais celui d'avant le dernier achat. tradeAmountEUR
+     étant fixe et pf.total ne variant quasiment pas d'un achat simulé à
+     l'autre (cash transformé en position de même valeur), les deux
+     contraintes restent vraies ou fausses pour tous les candidats restants
+     une fois atteintes la première fois -> break (même style que le garde-
+     fou de cash déjà en place), jamais continue qui réévaluerait pour rien. */
   const dejaDetenus = new Set(cfg.wallet.positions.map(p => p.id));
   const candidats = state.watchlist.filter(id => !dejaDetenus.has(id));
   for (const id of candidats){
-    if (cfg.wallet.cash < cfg.tradeAmountEUR) break;
+    const pf = portfolioValue(cfg.wallet);
+    const cashMin = (cfg.cashMinPct / 100) * pf.total;
+    if (cfg.wallet.cash - cfg.tradeAmountEUR < cashMin) break;
+    if (cfg.tradeAmountEUR > (cfg.maxPositionPct / 100) * pf.total) break;
     const st = byId[id];
     if (!st) continue;
     const score = await novaScoreDe(st);
@@ -2018,6 +2047,7 @@ async function evaluerNovaBot(){
    immédiatement", même principe que Réglages). */
 const NOVABOT_BORNES = {
   scoreAchat:[0,100], stopLossPct:[1,90], takeProfitPct:[1,500], tradeAmountEUR:[10,1000000],
+  cashMinPct:[0,100], maxPositionPct:[1,100],
 };
 function novabotSetRegle(cle, valeurBrute){
   const [min, max] = NOVABOT_BORNES[cle] || [0, Infinity];
