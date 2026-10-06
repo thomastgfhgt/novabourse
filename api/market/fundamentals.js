@@ -25,6 +25,7 @@ const { FUNDAMENTALS, KEYS } = require('./_providers.js');
 const { chargerBloc } = require('./_marketBlock.js');
 const { normaliserTicker, normaliserExchange } = require('./company.js');
 const { resolveOrdre, noterResultat } = require('./_router.js');
+const { nasdaqCalendarDates } = require('./_nasdaqCalendar.js');
 
 const TYPES_SANS_FONDAMENTAUX = new Set(['forex', 'crypto', 'index', 'commodity']);
 
@@ -60,21 +61,37 @@ module.exports = async (req, res) => {
   }
 
   const journal = [];
-  const f = await chargerBloc({
-    nom: 'fundamentals',
-    table: FUNDAMENTALS,
-    ordre: resolveOrdre('fundamentals', ticker, exchange, type),
-    args: [ticker, exchange],
-    ticker, exchange, frais, journal,
-  });
+  /* Dates résultats/dividendes (§34, Nova Event) : appel INDÉPENDANT de la
+     cascade fondamentaux ci-dessous, en parallèle — _nasdaqCalendar.js a
+     sa propre source (Nasdaq, gratuite, sans clé) et son propre échec
+     silencieux, jamais un bloc qui attend l'autre ni ne le fait échouer.
+     Seulement pour 'stock' (une ETF n'a pas de date de résultats propre). */
+  const [f, calendrier] = await Promise.all([
+    chargerBloc({
+      nom: 'fundamentals',
+      table: FUNDAMENTALS,
+      ordre: resolveOrdre('fundamentals', ticker, exchange, type),
+      args: [ticker, exchange],
+      ticker, exchange, frais, journal,
+    }),
+    type === 'stock' ? nasdaqCalendarDates(ticker) : Promise.resolve(null),
+  ]);
   noterResultat('fundamentals', ticker, exchange, type, f.source);
+  if (type === 'stock') journal.push({ bloc: 'calendar', provider: 'nasdaq', ok: Boolean(calendrier) });
 
   const aFundamentals = fondamentauxValides(f.data);
+  /* Fusion : un ticker hors des places Nasdaq/NYSE/AMEX (ex. MC-PAR)
+     renvoie calendrier=null (voir _nasdaqCalendar.js) — fundamentals reste
+     alors exactement ce que la cascade EODHD/Finnhub/SecEdgar/Eulerpool a
+     trouvé, sans aucun champ supplémentaire ajouté ni deviné. */
+  const fondamentauxFusionnes = aFundamentals || calendrier
+    ? { ...(aFundamentals ? f.data.fundamentals : {}), ...(calendrier || {}) }
+    : null;
 
   return res.status(200).json({
     ticker,
     exchange,
-    fundamentals: aFundamentals ? f.data.fundamentals : null,
+    fundamentals: fondamentauxFusionnes,
     /* Ajout (audit "fiche entreprise", 2026-09-17) : description/site web/
        effectifs/date d'introduction — déjà présents dans CETTE MÊME
        réponse fournisseur (voir identity dans FUNDAMENTALS.eodhd,

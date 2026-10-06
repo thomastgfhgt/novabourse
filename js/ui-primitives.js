@@ -153,9 +153,17 @@ const NOVA_FEATURES = {
   novareview: { icon:'rook', accent:'#ec4899', rgb:'236,72,153',
     title:'Nova Review', tag:'Revoir vos décisions',
     desc:"Nova Review reviendra sur vos décisions d'investissement passées pour vous aider à comprendre ce qui a fonctionné, ou non, et pourquoi." },
+  /* Description corrigée (2026-10-06, prompt maître §34) : la version
+     d'origine (2026-09-23, passe "visuel uniquement", AUCUN moteur
+     derrière à l'époque) décrivait un futur journal des nouveautés de
+     l'app elle-même — un produit différent de celui demandé par le
+     prompt maître (§34 : calendrier résultats/dividendes/événements
+     économiques des valeurs suivies/détenues). Le prompt maître prévaut
+     : Nova Event a maintenant un vrai moteur (voir PAGES.novaevent,
+     evenementsSuivis()) construit sur cette définition-ci. */
   novaevent: { icon:'calendar', accent:'#8d95a4', rgb:'141,149,164',
-    title:'Nova Event', tag:'Événements NovaTitre',
-    desc:"Nova Event rassemblera les événements propres à NovaTitre — nouveautés, temps forts, rendez-vous à ne pas manquer. Pas l'actualité des marchés : ça, c'est Nova News." },
+    title:'Nova Event', tag:'Vos prochains événements',
+    desc:"Nova Event rassemble les prochains résultats et dividendes des valeurs que vous suivez ou détenez — jamais une date devinée, seulement ce qui est réellement connu." },
   novanews: { icon:'news', accent:'#6d28d9', rgb:'109,40,217',
     title:'Nova News', tag:"L'actualité qui compte",
     desc:"Nova News réunira l'actualité économique, financière et géopolitique susceptible d'influencer vos investissements — dans chaque fiche, l'actualité propre à l'entreprise consultée." },

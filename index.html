@@ -477,6 +477,12 @@ function render(navigated = false){
   if (route.page === 'portfolio'){
     assurerBenchmarkPortefeuille(PF_PERIODS.includes(state.ui.pfPeriod) ? state.ui.pfPeriod : '1A');
   }
+  /* Nova Event (§34, 2026-10-06) : charge le calendrier résultats/
+     dividendes des valeurs suivies/détenues — Accueil (grande carte) ET
+     la page Nova Event elle-même en ont besoin. chargerFondamentaux()
+     (voir assurerEvenementsSuivis(), js/nova.js) gère déjà son propre
+     dédoublonnage/render(), jamais de double appel coûteux ici. */
+  if (route.page === 'home' || route.page === 'novaevent') assurerEvenementsSuivis();
 
   /* view.innerHTML vient de remplacer tout le DOM : #chart-pro (s'il existe
      dans la page courante) est un nouveau noeud, l'éventuelle instance

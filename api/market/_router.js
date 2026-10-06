@@ -155,8 +155,17 @@ function ordreStatique(dataType, type, opts = {}) {
          européennes, pas testé pour les US. Pour un ticker non-US, l'appel
          échoue proprement (ticker_non_reconnu_par_secedgar, aucun coût
          réseau après le premier index mis en cache 24h) et la cascade
-         continue vers Eulerpool exactement comme avant. */
-      return TYPES_AVEC_FONDAMENTAUX.has(type) ? ['eodhd', 'finnhub', 'secedgar', 'eulerpool'] : [];
+         continue vers Eulerpool exactement comme avant.
+         EODHD retiré (2026-10-06) : vérifié en direct sur 4 tickers réels
+         (AAPL/MSFT/JPM/MC) — EODHD n'était JAMAIS la source effective des
+         fondamentaux en production (toujours finnhub ou secedgar), ce
+         retrait n'a donc aucun effet observable, seulement un appel
+         réseau voué à l'échec évité à chaque fois. Les dates résultats/
+         dividendes qu'EODHD aurait dû fournir (jamais vérifiées en direct,
+         voir l'historique de ce fichier) viennent maintenant de
+         _nasdaqCalendar.js (voir fundamentals.js), une source réellement
+         vérifiée en direct. */
+      return TYPES_AVEC_FONDAMENTAUX.has(type) ? ['finnhub', 'secedgar', 'eulerpool'] : [];
 
     case 'news':
       return TYPES_AVEC_ACTUALITES.has(type) ? ['eodhd'] : [];

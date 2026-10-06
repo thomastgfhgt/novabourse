@@ -799,6 +799,121 @@ function novaNewsHomeCard(){
   </button>`;
 }
 
-/* Nova Event (agenda NovaTitre) reste une page de présentation, hors
-   périmètre de cette passe (LOT C ne couvrait que Nova News). */
-PAGES.novaevent = () => novaFeaturePage('novaevent');
+/* Nova Event (§34) — calendrier RÉEL résultats/dividendes des valeurs
+   suivies/détenues, construit sur _nasdaqCalendar.js (voir
+   api/market/fundamentals.js) : source gratuite, sans clé, remplaçant le
+   bloc "SplitsDividends"/"Earnings" d'EODHD jamais vérifié en direct et
+   jamais effectivement utilisé en production (voir _router.js, 2026-10-06).
+   Couverture RÉELLE : actions cotées Nasdaq/NYSE/AMEX uniquement (marché
+   américain) — une valeur hors de ce périmètre (ex. MC-PAR, Euronext)
+   n'aura simplement aucun événement, jamais une date devinée pour
+   compenser. Même filtre watchlist+positions que nomsEntreprisesPertinentes()
+   (js/nova.js), restreint au type 'stock' : fundamentals.js ne calcule ce
+   calendrier que pour ce type (ni ETF, ni indice, ni crypto n'a de date
+   de résultats/dividende propre). */
+function stocksSuivisPourEvenements(){
+  const ids = new Set([...state.watchlist, ...state.wallet.positions.map(p => p.id)]);
+  const out = [];
+  for (const id of ids){
+    const st = byId[id];
+    if (st && st.type === 'stock') out.push(st);
+  }
+  return out;
+}
+
+/* Déclenche chargerFondamentaux() (data-services.js) pour chaque valeur
+   suivie/détenue pas encore chargée — seule façon d'obtenir le calendrier
+   (fusionné côté serveur dans la même réponse que "Les chiffres", voir
+   api/market/fundamentals.js). chargerFondamentaux() gère déjà son propre
+   dédoublonnage (FUND_ENCOURS) et son propre render() une fois la réponse
+   arrivée — jamais appelée depuis PAGES.novaevent() elle-même (doit rester
+   synchrone), toujours depuis le render-dispatch de index.html, même
+   principe que assurerBenchmarkPortefeuille()/assurerCatalogueGlobal(). */
+function assurerEvenementsSuivis(){
+  for (const st of stocksSuivisPourEvenements()) chargerFondamentaux(st);
+}
+
+/* Événements RÉELS (résultats + détachement de dividende) des valeurs
+   suivies/détenues, triés du plus proche au plus lointain, jamais une
+   date déjà passée (agenda des PROCHAINS événements, pas un historique).
+   Chaque champ vient directement de _nasdaqCalendar.js — rien n'est
+   interpolé/deviné ici. nextEarningsDate reste TOUJOURS marqué "estimé"
+   (estimated:true) : cette date est elle-même, par construction de la
+   source Nasdaq, une estimation algorithmique tant que l'entreprise n'a
+   pas annoncé sa date officielle (voir le texte source, _nasdaqCalendar.js). */
+function evenementsSuivis(){
+  const aujourdhui = new Date().toISOString().slice(0, 10);
+  const evts = [];
+  for (const st of stocksSuivisPourEvenements()){
+    const f = st.fundamentals;
+    if (!f) continue;
+    if (f.nextEarningsDate && f.nextEarningsDate >= aujourdhui){
+      evts.push({ stockId:st.id, label:st.name, ticker:st.ticker, type:'earnings',
+        date:f.nextEarningsDate, estimated:Boolean(f.nextEarningsEstimated) });
+    }
+    if (f.exDividendDate && f.exDividendDate >= aujourdhui){
+      evts.push({ stockId:st.id, label:st.name, ticker:st.ticker, type:'dividend',
+        date:f.exDividendDate, paymentDate:f.nextDividendDate || null, amount:f.dividendPerShare ?? null });
+    }
+  }
+  evts.sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0);
+  return evts;
+}
+
+function dateEvenementAffichee(iso){
+  return new Date(iso).toLocaleDateString('fr-FR', { day:'2-digit', month:'short', year:'numeric' });
+}
+
+PAGES.novaevent = () => {
+  const suivis = stocksSuivisPourEvenements();
+  if (!state.watchlist.length && !state.wallet.positions.length){
+    return `<div class="page-in">
+      <button class="btn btn-g btn-sm" data-back style="margin-bottom:20px">← Retour</button>
+      ${emptyState('Aucune valeur suivie', "Ajoutez une action à votre watchlist ou à votre portefeuille pour voir apparaître ici ses prochains résultats et dividendes.", { go:'markets', label:'Explorer les marchés' })}
+    </div>`;
+  }
+  if (!suivis.length){
+    return `<div class="page-in">
+      <button class="btn btn-g btn-sm" data-back style="margin-bottom:20px">← Retour</button>
+      ${emptyState('Calendrier réservé aux actions', "Nova Event couvre les résultats et dividendes des actions — vos valeurs suivies/détenues actuelles n'en contiennent aucune (ETF, indice...).")}
+    </div>`;
+  }
+  const enCours = suivis.filter(st => st.fundamentalsStatus === 'idle' || st.fundamentalsStatus === 'loading');
+  const evts = evenementsSuivis();
+  return `<div class="page-in">
+    <button class="btn btn-g btn-sm" data-back style="margin-bottom:20px">← Retour</button>
+    <h2 style="margin-bottom:4px">Nova Event</h2>
+    <p class="tiny" style="color:var(--ink-3);margin-bottom:18px">Résultats et dividendes à venir, pour vos valeurs suivies et détenues. Couverture : actions cotées aux États-Unis (Nasdaq/NYSE/AMEX) uniquement.</p>
+    ${evts.length ? `<div class="card"><div class="rows">
+      ${evts.map(e => `<div class="row">
+        <span class="row-main"><span class="row-t">${esc(e.ticker)} <span class="tiny" style="color:var(--ink-3)">${esc(e.label)}</span></span>
+          <span class="row-s">${e.type === 'earnings'
+            ? `Résultats ${e.estimated ? 'estimés' : 'prévus'} le ${dateEvenementAffichee(e.date)}`
+            : `Détachement de dividende le ${dateEvenementAffichee(e.date)}${Number.isFinite(e.amount) ? ` (${fmt.num(e.amount,2)} $/action)` : ''}${e.paymentDate ? ` · versement le ${dateEvenementAffichee(e.paymentDate)}` : ''}`}</span></span>
+      </div>`).join('')}
+    </div></div>` : (enCours.length
+      ? `<p class="tiny" style="color:var(--ink-3)">Chargement des dates connues…</p>`
+      : emptyState('Aucun événement connu', "Aucune date de résultats ou de dividende n'est actuellement connue pour vos valeurs suivies — soit la donnée n'est pas disponible pour ces titres, soit aucune échéance n'est prévue dans un futur proche."))}
+  </div>`;
+};
+
+/* Grande carte Nova Event de l'accueil (§34/§54-57, 4e des 4 modules —
+   seul à dépendre de chargerFondamentaux(), déjà potentiellement lancé
+   par d'autres pages ; jamais déclenché depuis cette carte elle-même,
+   qui doit rester synchrone comme les 3 autres). États honnêtes : aucune
+   valeur suivie -> teaser générique ; valeurs suivies mais calendrier pas
+   encore chargé/vide -> pas de chiffre inventé ; au moins un événement
+   réel -> le plus proche, jamais un compte qui pourrait diverger de la
+   page elle-même (même evenementsSuivis(), un seul calcul). */
+function novaEventHomeCard(){
+  const evts = stocksSuivisPourEvenements().length ? evenementsSuivis() : [];
+  const prochain = evts[0] || null;
+  return `<button type="button" class="nova-big-card" data-go="novaevent">
+    <p class="nova-big-eyebrow">Nova Event</p>
+    ${prochain ? `
+      <p class="nova-big-lead">${evts.length} événement${evts.length > 1 ? 's' : ''} à venir.</p>
+      <p class="nova-big-sub">${prochain.type === 'earnings' ? 'Résultats' : 'Dividende'} ${esc(prochain.ticker)} le ${dateEvenementAffichee(prochain.date)}</p>` : `
+      <p class="nova-big-lead">Les prochains résultats et dividendes de vos valeurs suivies et détenues, au même endroit.</p>`}
+    <span class="nova-big-link">Voir le calendrier →</span>
+  </button>`;
+}

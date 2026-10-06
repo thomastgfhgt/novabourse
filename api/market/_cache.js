@@ -37,6 +37,11 @@ const TTL = {
      un consommateur qui ignore la source exacte. */
   secedgarCiks: 86400000,  // 24 h
   secedgarFacts: 21600000, // 6 h
+  /* Dates résultats/dividendes Nasdaq (_nasdaqCalendar.js, 2026-10-06) :
+     même TTL que fundamentals (6h) — ce sont des dates d'événement, pas
+     une cotation, inutile de re-frapper l'API publique à chaque "Voir
+     les chiffres" dans la même demi-journée. */
+  nasdaqCalendar: 21600000, // 6 h
 };
 
 /* Un nom de bloc composite ("histp:1a", "intraday:15min", ...) retombe
