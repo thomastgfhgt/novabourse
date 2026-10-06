@@ -687,8 +687,51 @@ document.addEventListener('visibilitychange', () => {
   if (document.hidden) arreterRafraichissementNovaNews();
   else if (route.page === 'novanews') demarrerRafraichissementNovaNews();
 });
+
+/* Pertinence Nova News (§29/§33 du prompt maître NovaTitre, 2026-10-06) :
+   "IMPORTANT POUR VOUS" — correspondance TEXTUELLE simple (nom
+   d'entreprise/ticker dans le titre de l'article), jamais une analyse
+   IA : les flux RSS source ne fournissent qu'un titre, pas de résumé
+   (voir parserRss(), api/market/extra.js) — rien sur quoi faire tourner
+   un modèle même si on le voulait. "Meilleur effort" assumé, pas une
+   reconnaissance d'entité parfaite : un nom composé de plusieurs mots
+   ("LVMH Moët Hennessy...") est réduit à son premier mot significatif
+   ("LVMH"), seule forme qui apparaît réellement dans un titre de presse.
+   Un ticker n'est comparé qu'en MOT ENTIER (\b...\b, jamais en sous-
+   chaîne) et ignoré sous 3 caractères : trop de collisions avec des mots
+   usuels ("ON", "ALL"...) pour rester honnête sur un ticker aussi court. */
+function nomsEntreprisesPertinentes(){
+  const ids = new Set([...state.watchlist, ...state.wallet.positions.map(p => p.id)]);
+  const noms = [];
+  for (const id of ids){
+    const st = byId[id];
+    if (!st) continue;
+    const premierMot = String(st.name || '').trim().split(/\s+/)[0];
+    if (premierMot && premierMot.length >= 3) noms.push({ id, label: st.name, mot: premierMot, ticker: st.ticker });
+  }
+  return noms;
+}
+const RE_ECHAP = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+function articlePertinentPour(article, noms){
+  const titre = article?.title || '';
+  for (const n of noms){
+    if (new RegExp(`\\b${RE_ECHAP(n.mot)}\\b`, 'i').test(titre)) return n;
+    if (n.ticker && n.ticker.length >= 3 && new RegExp(`\\b${RE_ECHAP(n.ticker)}\\b`).test(titre)) return n;
+  }
+  return null;
+}
+
 PAGES.novanews = () => {
   const f = NOVA_FEATURES.novanews;
+  /* §33 : articles concernant une valeur suivie/détenue remontés en haut,
+     jamais réordonnés par un score IA opaque — tri stable (l'ordre
+     chronologique d'origine du flux RSS est préservé À L'INTÉRIEUR de
+     chaque groupe pertinent/non pertinent), juste 2 groupes. */
+  const noms = nomsEntreprisesPertinentes();
+  const articles = WORLD_NEWS.items
+    .map(a => ({ ...a, pertinence: noms.length ? articlePertinentPour(a, noms) : null }))
+    .sort((a, b) => (b.pertinence ? 1 : 0) - (a.pertinence ? 1 : 0));
+  const nbPertinents = articles.filter(a => a.pertinence).length;
   return `<div class="page-in">
     <button class="btn btn-g btn-sm" data-back style="margin-bottom:20px">← Retour</button>
     <p class="eyebrow">${esc(f.tag)}</p>
@@ -705,12 +748,15 @@ PAGES.novanews = () => {
       : WORLD_NEWS.status === 'loading' ? `
         <p class="small" style="padding:24px 0;text-align:center">Chargement des actualités…</p>`
       : WORLD_NEWS.items.length ? `
+        ${nbPertinents ? `<p class="small" style="margin-bottom:14px;color:var(--accent);font-weight:600">
+          ${nbPertinents} actualité${nbPertinents>1?'s':''} concernant votre portefeuille ou votre liste de suivi.</p>` : ''}
         <div class="news-list">
-          ${WORLD_NEWS.items.filter(a => safeHref(a.url)).map(a => `<a class="news-item" href="${esc(safeHref(a.url))}" target="_blank" rel="noopener noreferrer">
+          ${articles.filter(a => safeHref(a.url)).map(a => `<a class="news-item" href="${esc(safeHref(a.url))}" target="_blank" rel="noopener noreferrer">
             ${safeHref(a.image) ? `<img class="news-item-img" src="${esc(safeHref(a.image))}" alt="" loading="lazy" referrerpolicy="no-referrer">` : ''}
             <span class="news-item-body">
               <span class="news-item-title">${esc(a.title)}</span>
               <span class="news-item-meta">
+                ${a.pertinence ? `<span class="tag" style="background:var(--accent-soft);color:var(--accent)">Concerne ${esc(a.pertinence.label)}</span>` : ''}
                 ${a.source ? `<span class="tag tag-neutral">${esc(a.source)}</span>` : ''}
                 ${a.publishedAt ? `<span class="tiny">${esc(formatDateAffichage(a.publishedAt, 'intraday'))}</span>` : ''}
               </span>
@@ -724,6 +770,35 @@ PAGES.novanews = () => {
     </div>
   </div>`;
 };
+
+/* Grande carte Nova News de l'accueil (§54-57, 3e des 4 modules). Honnête
+   sur une contrainte réelle : WORLD_NEWS n'est chargé QUE si l'utilisateur
+   a déjà ouvert Nova News dans cette session (status 'idle' par défaut,
+   voir chargerNovaNewsMonde() plus haut — un choix délibéré pour ne
+   jamais forcer un appel réseau non demandé). Tant que c'est le cas,
+   cette carte reste un teaser générique, JAMAIS un chiffre inventé
+   ("6 actualités importantes") pour imiter l'exemple du §57 sans vraie
+   donnée derrière. Dès que Nova News a été ouverte une fois, la carte
+   affiche le vrai compte (et la pertinence déjà calculée pour la page
+   elle-même, voir nomsEntreprisesPertinentes()/articlePertinentPour()
+   ci-dessus — jamais un 2e calcul qui pourrait diverger). */
+function novaNewsHomeCard(){
+  const chargee = WORLD_NEWS.status === 'loaded' && WORLD_NEWS.items.length > 0;
+  let pertinents = 0;
+  if (chargee){
+    const noms = nomsEntreprisesPertinentes();
+    if (noms.length) pertinents = WORLD_NEWS.items.filter(a => articlePertinentPour(a, noms)).length;
+  }
+  return `<button type="button" class="nova-big-card" data-go="novanews">
+    <p class="nova-big-eyebrow">Nova News</p>
+    ${chargee ? `
+      <p class="nova-big-lead">${WORLD_NEWS.items.length} actualité${WORLD_NEWS.items.length > 1 ? 's' : ''} disponible${WORLD_NEWS.items.length > 1 ? 's' : ''}.</p>
+      ${pertinents ? `<p class="nova-big-sub">${pertinents} concernent votre portefeuille ou votre liste de suivi.</p>` : ''}` : `
+      <p class="nova-big-lead">L'actualité économique, financière et géopolitique mondiale, en un seul endroit.</p>`}
+    <span class="nova-big-link">Voir mes actualités →</span>
+  </button>`;
+}
+
 /* Nova Event (agenda NovaTitre) reste une page de présentation, hors
    périmètre de cette passe (LOT C ne couvrait que Nova News). */
 PAGES.novaevent = () => novaFeaturePage('novaevent');

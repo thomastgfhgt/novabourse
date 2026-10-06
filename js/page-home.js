@@ -212,6 +212,11 @@ PAGES.home = () => {
        Nova News restent dans la grille compacte, aucun des deux n'a
        encore de données/logique prêtes pour sa propre grande carte. -->
   ${novabotHomeCard()}
+  <!-- Nova News (2026-10-06) : 3e des 4 modules à recevoir sa grande
+       carte (novaNewsHomeCard()/js/nova.js) — Nova Event reste seul dans
+       la grille compacte, toujours aucune donnée/logique construite pour
+       lui (§87). -->
+  ${novaNewsHomeCard()}
 
   <!-- Grille Nova (2026-09-23, "préparer visuellement les prochaines
        fonctionnalités") : NovaBot/Nova Review/Nova Event/Nova News,
