@@ -34,11 +34,11 @@ const MAX_QUERY_LENGTH = 100;
    commentaire sur SEARCH.yahoo) ; c'est pourquoi handleCatalog()
    (api/market/extra.js) ajoute désormais sa propre correspondance EXACTE
    via le catalogue Supabase pour ce cas précis, indépendamment de cet
-   ordre. EODHD/Twelve Data/Finnhub redescendus en dernier repli, plus
-   requis pour le fonctionnement normal. */
+   ordre. EODHD retiré (2026-10-06, voir git log) ; Twelve Data/Finnhub
+   redescendus en dernier repli, plus requis pour le fonctionnement
+   normal. */
 const ORDRE = [
   'yahoo',
-  'eodhd',
   'twelvedata',
   'finnhub',
 ];
@@ -346,7 +346,11 @@ module.exports = async (req, res) => {
   if (q.length > MAX_QUERY_LENGTH) return res.status(400).json({ error: 'requete_trop_longue' });
 
   const keys = KEYS();
-  if (!keys.eodhd && !keys.twelvedata && !keys.finnhub) {
+  /* CORRECTIF (bug réel trouvé lors du retrait d'EODHD, 2026-10-06) :
+     `keys.yahoo` manquait — cette garde aurait renvoyé 503 à tort sans
+     aucune clé Twelve Data/Finnhub, alors que Yahoo (sans clé, principal
+     désormais) fonctionne seul. */
+  if (!keys.yahoo && !keys.twelvedata && !keys.finnhub) {
     res.setHeader('Cache-Control', 'no-store');
     return res.status(503).json({ error: 'aucun_fournisseur_configure' });
   }

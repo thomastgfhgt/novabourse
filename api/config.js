@@ -18,8 +18,18 @@ module.exports = (req, res) => {
     });
   }
 
+  /* CORRECTIF (bug réel trouvé lors du retrait d'EODHD, 2026-10-06) :
+     cette liste ne vérifiait QUE des clés payantes — jamais Yahoo Finance
+     (aucune clé requise, voir api/market/_providers.js), devenu le
+     fournisseur principal. Une fois EODHD_API_KEY retirée de Vercel (ce
+     correctif), `marketConnected` serait sinon tombé à `false` dès
+     qu'aucune clé payante n'existe, désactivant la recherche/les
+     cotations côté client alors que Yahoo fonctionne parfaitement.
+     Yahoo est considéré connecté par défaut (sentinelle, comme
+     KEYS().yahoo dans _providers.js) sauf désactivation explicite via
+     YAHOO_DISABLED. */
   const marketConnected = Boolean(
-    process.env.EODHD_API_KEY
+    process.env.YAHOO_DISABLED !== '1'
     || process.env.TWELVEDATA_API_KEY
     || process.env.MARKET_API_KEY
     || process.env.FINNHUB_API_KEY

@@ -15,7 +15,7 @@ const { statutMarche } = require('./_marketHours.js');
    restent après (déjà spécialisés sur leur seul type respectif, voir
    BATCH.frankfurter/BATCH.eulerpool qui s'excluent eux-mêmes pour tout
    autre type). */
-const ORDRE = ['coingecko', 'yahoo', 'twelvedata', 'eodhd', 'finnhub', 'frankfurter', 'eulerpool', 'eulerpool_fx'];
+const ORDRE = ['coingecko', 'yahoo', 'twelvedata', 'finnhub', 'frankfurter', 'eulerpool', 'eulerpool_fx'];
 const MAX_SYMBOLES = 120;
 
 /* CORRECTIF (audit routage multi-actifs — bug de production confirmé) :
@@ -81,7 +81,11 @@ module.exports = async (req, res) => {
   if (!demandes.length) return res.status(400).json({ error: 'symbols_manquant' });
 
   const keys = KEYS();
-  if (!keys.twelvedata && !keys.eodhd && !keys.finnhub && !keys.coingecko && !keys.frankfurter && !keys.eulerpool) {
+  /* CORRECTIF (bug réel trouvé lors du retrait d'EODHD, 2026-10-06) :
+     `keys.yahoo` manquait — cette garde aurait renvoyé "aucun fournisseur
+     configuré" à tort sans aucune clé Twelve Data/Finnhub/Eulerpool,
+     alors que Yahoo (sans clé, principal désormais) fonctionne seul. */
+  if (!keys.yahoo && !keys.twelvedata && !keys.finnhub && !keys.coingecko && !keys.frankfurter && !keys.eulerpool) {
     return res.status(200).json({
       quotes: [], connected: false, source: null, sources: [], partial: true,
       missing: demandes.map(idDe), reason: 'aucun_fournisseur_configure', journal: [],

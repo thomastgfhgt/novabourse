@@ -87,10 +87,14 @@ module.exports = async (req, res) => {
   const type = String(req.query?.type || 'stock').toLowerCase();
 
   const keys = KEYS();
-  /* `keys.coingecko`/`keys.frankfurter` inclus : voir history.js pour la
-     même garde — un déploiement sans clé payante peut tout de même servir
-     crypto via CoinGecko seul, ou forex via Frankfurter seul. */
-  if (!keys.eodhd && !keys.twelvedata && !keys.finnhub && !keys.coingecko && !keys.frankfurter && !keys.eulerpool) {
+  /* `keys.coingecko`/`keys.frankfurter`/`keys.yahoo` inclus : un déploiement
+     sans AUCUNE clé payante fonctionne quand même (Yahoo/CoinGecko/
+     Frankfurter sont sans clé — voir KEYS(), _providers.js). CORRECTIF
+     (bug réel trouvé lors du retrait d'EODHD, 2026-10-06) : `keys.yahoo`
+     manquait ici — une fois EODHD_API_KEY retiré de Vercel, cette garde
+     aurait renvoyé 503 à tort pour tout déploiement sans clé Twelve
+     Data/Finnhub/Eulerpool, alors que Yahoo fonctionne seul. */
+  if (!keys.yahoo && !keys.twelvedata && !keys.finnhub && !keys.coingecko && !keys.frankfurter && !keys.eulerpool) {
     return res.status(503).json({ error: 'aucun_fournisseur_configure' });
   }
 

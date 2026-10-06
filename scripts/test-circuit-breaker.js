@@ -11,8 +11,12 @@
 // cascade() n'appelle un fournisseur QUE si KEYS() le renvoie truthy -- clefs
 // d'environnement reelles requises AVANT le require (KEYS() les relit a
 // chaque appel, mais require() ne doit pas echouer avant leur pose).
+// 'finnhub' sert ici de 2e nom de fournisseur GENERIQUE (EODHD, utilise a
+// l'origine, a ete retire du projet le 2026-10-06 -- voir git log) ; seul
+// un nom RECONNU par KEYS() convient, le choix precis de finnhub plutot
+// qu'un autre n'a aucune importance pour ce test.
 process.env.TWELVEDATA_API_KEY = 'cle-test-non-reelle';
-process.env.EODHD_API_KEY = 'cle-test-non-reelle';
+process.env.FINNHUB_API_KEY = 'cle-test-non-reelle';
 
 const { cascade, fournisseurCoupe, signalerQuotaEpuise } = require('../api/market/_providers.js');
 
@@ -39,7 +43,7 @@ const { cascade, fournisseurCoupe, signalerQuotaEpuise } = require('../api/marke
     return { ok: false, status: 429, text: async () => corpsReel };
   };
 
-  // Noms REELS de KEYS() ('twelvedata'/'eodhd') : cascade() n'appelle un
+  // Noms REELS de KEYS() ('twelvedata'/'finnhub') : cascade() n'appelle un
   // fournisseur que si keys[nom] est truthy, donc un nom fictif serait
   // silencieusement ignore avant meme d'atteindre le coupe-circuit --
   // les fonctions elles-memes restent des simulations locales.
@@ -54,20 +58,20 @@ const { cascade, fournisseurCoupe, signalerQuotaEpuise } = require('../api/marke
       }
       return { c: 1 };
     },
-    eodhd: async () => ({ c: 42, ok: true }),
+    finnhub: async () => ({ c: 42, ok: true }),
   };
 
   const journal1 = [];
-  const res1 = await cascade(tableTest, ['twelvedata', 'eodhd'], [], journal1, 'quote');
+  const res1 = await cascade(tableTest, ['twelvedata', 'finnhub'], [], journal1, 'quote');
   rapporte('1er appel : tente bien twelvedata (1 appel reseau)', appelsReseau === 1);
-  rapporte('1er appel : retombe sur eodhd malgre le quota epuise', res1.source === 'eodhd');
+  rapporte('1er appel : retombe sur finnhub malgre le quota epuise', res1.source === 'finnhub');
   rapporte('coupe-circuit desormais actif pour twelvedata', fournisseurCoupe('twelvedata') === true);
 
   const journal2 = [];
-  const res2 = await cascade(tableTest, ['twelvedata', 'eodhd'], [], journal2, 'quote');
+  const res2 = await cascade(tableTest, ['twelvedata', 'finnhub'], [], journal2, 'quote');
   rapporte('2e appel : AUCUN nouvel appel reseau (coupe-circuit actif)', appelsReseau === 1);
   rapporte('2e appel : journal signale le coupe-circuit, pas un HTTP 429', journal2.some(j => j.provider === 'twelvedata' && j.reason === 'quota_journalier_epuise_connu'));
-  rapporte('2e appel : retombe quand meme correctement sur eodhd', res2.source === 'eodhd');
+  rapporte('2e appel : retombe quand meme correctement sur finnhub', res2.source === 'finnhub');
 
   console.log(allOk ? '\nTOUS LES TESTS PASSENT' : '\nECHEC');
   process.exit(allOk ? 0 : 1);

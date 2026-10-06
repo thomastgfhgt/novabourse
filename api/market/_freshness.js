@@ -54,7 +54,6 @@ const DEFAUT_COTATION_PAR_PROVIDER = {
      autres fournisseurs de cette table : DELAYED par défaut, jamais LIVE
      sans confirmation contractuelle. */
   yahoo: FRESHNESS.DELAYED,
-  eodhd: FRESHNESS.DELAYED,
   twelvedata: FRESHNESS.DELAYED,
   finnhub: FRESHNESS.DELAYED,
   coingecko: FRESHNESS.DELAYED,
@@ -73,7 +72,6 @@ const DEFAUT_COTATION_PAR_PROVIDER = {
 
 const ENV_SURCHARGE_PAR_PROVIDER = {
   yahoo: 'YAHOO_QUOTE_FRESHNESS',
-  eodhd: 'EODHD_QUOTE_FRESHNESS',
   twelvedata: 'TWELVEDATA_QUOTE_FRESHNESS',
   finnhub: 'FINNHUB_QUOTE_FRESHNESS',
   coingecko: 'COINGECKO_QUOTE_FRESHNESS',
@@ -124,7 +122,6 @@ function freshnessActualites() {
 
 const SOURCE_URL_PROVIDER = {
   yahoo: 'https://finance.yahoo.com/',
-  eodhd: 'https://eodhd.com/',
   twelvedata: 'https://twelvedata.com/',
   finnhub: 'https://finnhub.io/',
   coingecko: 'https://www.coingecko.com/',

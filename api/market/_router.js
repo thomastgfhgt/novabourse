@@ -9,7 +9,7 @@
  * un vrai risque de divergence silencieuse entre les copies).
  *
  * Ne décide JAMAIS du symbole envoyé à un fournisseur — ça reste le rôle
- * des fonctions dédiées de _providers.js (eodhdSymbolPourType, tdSymbol,
+ * des fonctions dédiées de _providers.js (yahooSymbole, tdSymbol,
  * coingeckoRef, frankfurterRef) — uniquement de L'ORDRE de la cascade.
  *
  * Deux couches combinées pour produire l'ordre final :
@@ -29,12 +29,13 @@
 
 const { COINGECKO_JOURS_MAX } = require('./_providers.js');
 
-/* Aucune convention EODHD vérifiée pour ce type (voir _providers.js,
-   eodhdSymbolPourType) — cohérent avec history.js/company.js. 'index' n'en
-   fait plus partie : eodhdIndexSymbol() (".INDX", convention EODHD
-   documentée) a été ajouté — restait auparavant exclusivement dépendant de
-   Twelve Data, exactement le même défaut architectural qui causait le bug
-   crypto/forex d'origine (un seul fournisseur, aucun repli). */
+/* Historique : ce nom date d'une époque où EODHD, retiré depuis (voir git
+   log, 2026-10-06), n'avait aucune convention de symbole vérifiée pour
+   'commodity'. Les branches `if (type === 'commodity')` explicites,
+   quelques lignes plus bas dans chaque cas, interceptent déjà ce type
+   avant d'atteindre ce `.has()` — resté par prudence (inoffensif, jamais
+   atteint), pas renommé pour limiter l'étendue de cette passe à EODHD
+   uniquement. */
 const TYPES_SANS_SUFFIXE_EODHD = new Set(['commodity']);
 const TYPES_AVEC_FONDAMENTAUX = new Set(['stock', 'etf']);
 const TYPES_AVEC_ACTUALITES = new Set(['stock', 'etf']);
@@ -87,42 +88,42 @@ function ordreStatique(dataType, type, opts = {}) {
        officielles/gratuites déjà éprouvées, aucune raison de les
        redescendre derrière Yahoo). */
     case 'quote':
-      if (type === 'crypto') return ['coingecko', 'yahoo', 'twelvedata', 'eodhd'];
-      if (type === 'forex') return ['yahoo', 'frankfurter', 'twelvedata', 'eodhd'];
-      if (type === 'index') return ['yahoo', 'twelvedata', 'eodhd'];
+      if (type === 'crypto') return ['coingecko', 'yahoo', 'twelvedata'];
+      if (type === 'forex') return ['yahoo', 'frankfurter', 'twelvedata'];
+      if (type === 'index') return ['yahoo', 'twelvedata'];
       /* commodity : XPD/USD, XPT/USD, XBR/USD (EODHD_COMMODITY_FOREX,
          _providers.js). Yahoo vérifié en direct pour XBR/USD (BZ=F,
          Brent) ; PA=F/PL=F (palladium/platine) suivent la même convention
          publique mais n'ont pas été re-vérifiés empiriquement cette
          session — Eulerpool (vérifié, mais payant) reste juste derrière
          au cas où Yahoo échouerait pour ces 2 tickers précis. */
-      if (type === 'commodity') return ['yahoo', 'twelvedata', 'eulerpool', 'eulerpool_fx', 'eodhd'];
+      if (type === 'commodity') return ['yahoo', 'twelvedata', 'eulerpool', 'eulerpool_fx'];
       if (TYPES_SANS_SUFFIXE_EODHD.has(type)) return ['yahoo', 'twelvedata'];
-      return ['yahoo', 'twelvedata', 'eodhd', 'finnhub'];
+      return ['yahoo', 'twelvedata', 'finnhub'];
 
     case 'history':
       if (type === 'crypto') {
         return coingeckoEligibleHistorique
-          ? ['coingecko', 'yahoo', 'eodhd', 'twelvedata']
-          : ['yahoo', 'eodhd', 'twelvedata'];
+          ? ['coingecko', 'yahoo', 'twelvedata']
+          : ['yahoo', 'twelvedata'];
       }
-      if (type === 'forex') return ['yahoo', 'frankfurter', 'twelvedata', 'eodhd'];
-      if (type === 'index') return ['yahoo', 'twelvedata', 'eodhd'];
-      if (type === 'commodity') return ['yahoo', 'twelvedata', 'eulerpool', 'eulerpool_fx', 'eodhd'];
+      if (type === 'forex') return ['yahoo', 'frankfurter', 'twelvedata'];
+      if (type === 'index') return ['yahoo', 'twelvedata'];
+      if (type === 'commodity') return ['yahoo', 'twelvedata', 'eulerpool', 'eulerpool_fx'];
       if (TYPES_SANS_SUFFIXE_EODHD.has(type)) return ['yahoo', 'twelvedata'];
-      return ['yahoo', 'twelvedata', 'eodhd'];
+      return ['yahoo', 'twelvedata'];
 
     case 'intraday':
-      if (type === 'crypto') return ['coingecko', 'yahoo', 'twelvedata', 'eodhd'];
+      if (type === 'crypto') return ['coingecko', 'yahoo', 'twelvedata'];
       /* Frankfurter n'a structurellement aucune donnée intraday (taux BCE
          quotidiens) — jamais inclus ici, contrairement au chemin history.
          Eulerpool non plus (commodity/quotes n'a aucune granularité
          infra-journalière confirmée) — absent du chemin intraday. */
-      if (type === 'forex') return ['yahoo', 'twelvedata', 'eodhd'];
-      if (type === 'index') return ['yahoo', 'twelvedata', 'eodhd'];
-      if (type === 'commodity') return ['yahoo', 'twelvedata', 'eodhd'];
+      if (type === 'forex') return ['yahoo', 'twelvedata'];
+      if (type === 'index') return ['yahoo', 'twelvedata'];
+      if (type === 'commodity') return ['yahoo', 'twelvedata'];
       if (TYPES_SANS_SUFFIXE_EODHD.has(type)) return ['yahoo', 'twelvedata'];
-      return ['yahoo', 'twelvedata', 'eodhd'];
+      return ['yahoo', 'twelvedata'];
 
     case 'fundamentals':
       /* Aucune cryptomonnaie/paire de devises/indice/matière première n'a
@@ -163,12 +164,10 @@ function ordreStatique(dataType, type, opts = {}) {
       return TYPES_AVEC_FONDAMENTAUX.has(type) ? ['secedgar', 'yahoo', 'finnhub', 'eulerpool'] : [];
 
     case 'news':
-      /* EODHD était l'UNIQUE fournisseur ici avant ce correctif (2026-10-06),
-         sans aucun repli possible. Yahoo (voir NEWS.yahoo, _providers.js)
-         devient le fournisseur principal — net progrès (0 repli -> 1
-         fournisseur gratuit fonctionnel), eodhd gardé en dernier repli
-         au cas où une clé réelle existerait un jour. */
-      return TYPES_AVEC_ACTUALITES.has(type) ? ['yahoo', 'eodhd'] : [];
+      /* EODHD était l'UNIQUE fournisseur ici (retiré le 2026-10-06, voir
+         git log) — sans aucun repli possible. Yahoo (NEWS.yahoo,
+         _providers.js) le remplace, gratuit, sans clé. */
+      return TYPES_AVEC_ACTUALITES.has(type) ? ['yahoo'] : [];
 
     default:
       return [];

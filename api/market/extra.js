@@ -38,7 +38,7 @@ const {
   HISTORY,
   NEWS,
   KEYS,
-  eodhdSymbolPourType,
+  yahooSymbole,
   tdSymbol,
   coingeckoRef,
   frankfurterRef,
@@ -78,7 +78,11 @@ async function handleNews(req, res) {
   }
 
   const keys = KEYS();
-  if (!keys.eodhd) {
+  /* CORRECTIF (bug réel trouvé lors du retrait d'EODHD, 2026-10-06) :
+     cette garde vérifiait EXCLUSIVEMENT keys.eodhd — toujours faux
+     maintenant qu'EODHD est retiré, elle aurait renvoyé 503 à chaque
+     appel alors que Yahoo (NEWS.yahoo, sans clé) fonctionne. */
+  if (!keys.yahoo) {
     return res.status(503).json({ error: 'aucun_fournisseur_configure' });
   }
 
@@ -444,7 +448,7 @@ async function handleHealth(req, res) {
 
   const out = {
     cles: {
-      eodhd: Boolean(keys.eodhd),
+      yahoo: Boolean(keys.yahoo),
       twelvedata: Boolean(keys.twelvedata),
       finnhub: Boolean(keys.finnhub),
       coingecko: Boolean(keys.coingecko),
@@ -454,7 +458,7 @@ async function handleHealth(req, res) {
     exchange,
     type,
     providerSymbols: {
-      eodhd: eodhdSymbolPourType(ticker, exchange, type),
+      yahoo: yahooSymbole(ticker, exchange, type),
       twelvedata: tdSymbol(ticker, exchange),
       coingecko: (type === 'crypto' && coingeckoRef(ticker)) || null,
       frankfurter: (type === 'forex' && frankfurterRef(ticker)) || null,

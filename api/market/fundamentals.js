@@ -56,7 +56,11 @@ module.exports = async (req, res) => {
   }
 
   const keys = KEYS();
-  if (!keys.eodhd && !keys.finnhub) {
+  /* CORRECTIF (bug réel trouvé lors du retrait d'EODHD, 2026-10-06) :
+     secedgar/yahoo (sans clé, voir KEYS()) manquaient ici — cette garde
+     aurait renvoyé 503 à tort dès qu'aucune clé Finnhub n'est configurée,
+     alors que secedgar (US) et yahoo (mondial) fonctionnent sans clé. */
+  if (!keys.secedgar && !keys.yahoo && !keys.finnhub && !keys.eulerpool) {
     return res.status(503).json({ error: 'aucun_fournisseur_configure' });
   }
 

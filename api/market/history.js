@@ -136,11 +136,14 @@ module.exports = async (req, res) => {
   const periodeBrute = req.query?.period ? String(req.query.period).toLowerCase() : null;
 
   const keys = KEYS();
-  /* `keys.coingecko`/`keys.frankfurter` inclus : un déploiement sans AUCUNE
-     clé payante peut tout de même servir l'historique crypto via CoinGecko
-     seul, ou forex via Frankfurter seul (voir _router.js) — ne jamais 503
-     ce cas prématurément ici. */
-  if (!keys.eodhd && !keys.twelvedata && !keys.finnhub && !keys.coingecko && !keys.frankfurter && !keys.eulerpool) {
+  /* `keys.coingecko`/`keys.frankfurter`/`keys.yahoo` inclus : un déploiement
+     sans AUCUNE clé payante peut tout de même servir l'historique (Yahoo,
+     principal depuis le 2026-10-06), crypto via CoinGecko seul, ou forex
+     via Frankfurter seul (voir _router.js) — ne jamais 503 ce cas
+     prématurément ici. CORRECTIF (bug réel trouvé lors du retrait
+     d'EODHD) : `keys.yahoo` manquait, cette garde aurait renvoyé 503 à
+     tort sans aucune clé Twelve Data/Finnhub/Eulerpool configurée. */
+  if (!keys.yahoo && !keys.twelvedata && !keys.finnhub && !keys.coingecko && !keys.frankfurter && !keys.eulerpool) {
     return res.status(503).json({ error: 'aucun_fournisseur_configure' });
   }
 
