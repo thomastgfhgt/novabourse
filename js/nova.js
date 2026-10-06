@@ -279,6 +279,35 @@ function novaReviewHomeCard(){
   </button>`;
 }
 
+/* Grande carte NovaBot de l'accueil (§54-56, même principe que
+   novaReviewHomeCard() ci-dessus — 2e des 4 modules). 3 états honnêtes
+   (§59/§81, jamais une donnée fictive) :
+   1. jamais activé ET aucune transaction simulée -> teaser, aucun chiffre.
+   2. activé mais jamais encore évalué -> dit explicitement "pas encore
+      évalué", jamais un portefeuille à 10 000 € (capital de départ
+      fictif, cfg.wallet.invested) présenté comme un vrai résultat.
+   3. au moins une décision simulée -> vrais chiffres (novabotPortfolioValue(),
+      déjà utilisée par PAGES.novabot — jamais un 2e calcul qui pourrait
+      diverger) + dernière décision réelle du journal. */
+function novabotHomeCard(){
+  const cfg = state.novabot;
+  const aDejaDecide = cfg.transactions.length > 0;
+  const derniere = aDejaDecide ? cfg.transactions[cfg.transactions.length - 1] : null;
+  return `<button type="button" class="nova-big-card" data-go="novabot">
+    <p class="nova-big-eyebrow">NovaBot</p>
+    ${aDejaDecide ? (() => {
+      const pf = novabotPortfolioValue();
+      return `
+      <p class="nova-big-lead tabular-nums">${fmt.eur(pf.total)} <span class="${pf.gainPct>=0?'up-t':'down-t'}" style="font-size:15px;font-weight:700">${pf.gainPct>=0?'+':''}${fmt.num(pf.gainPct,2)} %</span></p>
+      <p class="nova-big-sub">Dernière décision : ${derniere.type === 'buy' ? 'Achat' : 'Vente'} simulé${derniere.type==='buy'?'':'e'} · ${esc(derniere.name)}</p>`;
+    })() : cfg.enabled ? `
+      <p class="nova-big-lead">NovaBot est activé mais n'a pas encore été évalué.</p>
+      <p class="nova-big-sub">Ouvrez NovaBot et cliquez sur « Évaluer maintenant » pour une première simulation.</p>` : `
+      <p class="nova-big-lead">NovaBot peut gérer un portefeuille entièrement simulé selon des règles que vous définissez — jamais un ordre réel.</p>`}
+    <span class="nova-big-link">Ouvrir NovaBot →</span>
+  </button>`;
+}
+
 /* Commentaire IA du bilan (2026-09-26, retour utilisateur : "je veux
    vraiment que ce soit complet et que ce soit réalisé avec l'IA") —
    réutilise EXACTEMENT le même mécanisme que Nova AI sur une fiche
