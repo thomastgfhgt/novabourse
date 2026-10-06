@@ -291,6 +291,34 @@ async function genererCommentaireNovaReview(){
   if (d.quota && state.account) Object.assign(state.account, d.quota);
   NOVA_REVIEW_IA = { status:'loaded', commentaire: d.commentaire || null };
   render();
+
+  /* Nova Core (§4, §13, 2026-10-06) : "Cette Review constitue également le
+     premier message d'une conversation." Le commentaire venait d'être
+     généré avec succès (ligne précédente) mais restait entièrement
+     éphémère — NOVA_REVIEW_IA n'est qu'une variable en mémoire, perdue au
+     prochain rechargement, jamais consultable dans un historique. Persisté
+     ici en arrière-plan, APRÈS avoir montré le commentaire (render() déjà
+     fait juste au-dessus) : un échec de sauvegarde ne doit jamais empêcher
+     l'utilisateur de voir le commentaire qu'il vient d'obtenir — même
+     discipline d'échec silencieux que pushPortfolio()/novaConversationCreer
+     eux-mêmes. Pas encore de suite conversationnelle (poser une question
+     après coup) dans cette passe — seulement rendre ce premier échange
+     durable, prochaine étape logique une fois ce socle vérifié en usage. */
+  if (d.commentaire){
+    const c = d.commentaire;
+    let contenu = c.resume || '';
+    if (Array.isArray(c.points) && c.points.length) contenu += '\n\n' + c.points.map(p => '• ' + p).join('\n');
+    if (c.lecon) contenu += '\n\nLeçon : ' + c.lecon;
+    if (contenu){
+      novaConversationCreer('novareview', {
+        title: `Nova Review — Analyse du ${new Date().toLocaleDateString('fr-FR', { day:'2-digit', month:'short' })}`,
+        context: { bilan: construireBilanPourIA(bilan) },
+      }).then(conv => {
+        if (!conv?.id) return;
+        novaMessageEnvoyer(conv.id, 'assistant', contenu, { provider: d.provider || null, model: d.model || null });
+      });
+    }
+  }
 }
 /* Carte d'une décision (vente fermée OU position encore ouverte),
    réutilisée par les 2 sections de PAGES.novareview ci-dessous — même
