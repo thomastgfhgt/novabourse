@@ -196,6 +196,17 @@ PAGES.home = () => {
     `}
   </article>
 
+  <!-- Grande carte Nova Review (2026-10-06, §54-56 du prompt maître
+       NovaTitre : "les quatre modules Nova [...] deviennent le cœur de
+       l'accueil") — premier module à recevoir sa vraie grande carte
+       (données réelles, voir novaReviewHomeCard()/js/nova.js). Les 3
+       autres (NovaBot/Nova Event/Nova News) restent pour l'instant dans
+       la grille compacte juste en dessous, inchangée : aucun des 3 n'a
+       encore de données/logique prêtes pour sa propre grande carte —
+       prochaine étape une fois celle-ci éprouvée en usage réel, jamais
+       les 4 reconstruites d'un coup (§87). -->
+  ${novaReviewHomeCard()}
+
   <!-- Grille Nova (2026-09-23, "préparer visuellement les prochaines
        fonctionnalités") : NovaBot/Nova Review/Nova Event/Nova News,
        voir novaHubCard()/NOVA_FEATURES/.nova-hub plus haut. Volontai-

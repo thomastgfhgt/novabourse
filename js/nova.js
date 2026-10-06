@@ -222,6 +222,63 @@ function bilanHebdomadaireNovaReview(){
   return { ventes, achats, meilleure, plusRisquee, performance, secteursDistincts, maxPositionPct, lecon };
 }
 
+/* Résumé en 3 compteurs pour la grande carte Nova Review de l'accueil
+   (§55-56 du prompt maître NovaTitre : "3 bonnes décisions / 1 erreur /
+   2 points à surveiller"). Reclasse les MÊMES verdicts que
+   PAGES.novareview/VERDICT_STYLE ci-dessus (jamais une 2e grille de
+   verdicts qui pourrait diverger) en 3 catégories : bonnes décisions
+   (Excellent coup/Bon coup), à surveiller (Risqué/Intéressant), erreurs
+   (Erreur à étudier/Occasion manquée). null si bilanHebdomadaireNovaReview()
+   l'est déjà (aucune transaction cette semaine) — jamais un résumé vide
+   présenté comme actif. Même fenêtre de 7 jours que le bilan complet :
+   une position achetée il y a 2 mois et toujours ouverte n'est pas une
+   "décision récente" à faire remonter sur l'accueil. */
+function resumeNovaReviewPourCarte(){
+  const bilan = bilanHebdomadaireNovaReview();
+  if (!bilan) return null;
+  const compte = { bonnes: 0, surveiller: 0, erreurs: 0 };
+  const comptabiliser = (verdict) => {
+    if (verdict === 'Excellent coup' || verdict === 'Bon coup') compte.bonnes++;
+    else if (verdict === 'Risqué' || verdict === 'Intéressant') compte.surveiller++;
+    else if (verdict === 'Erreur à étudier' || verdict === 'Occasion manquée') compte.erreurs++;
+  };
+  bilan.ventes.forEach(tx => comptabiliser(evaluerVente(tx).verdict));
+  bilan.achats.forEach(tx => {
+    const pos = state.wallet.positions.find(p => p.id === tx.stockId);
+    if (!pos) return; // déjà revendue : sa vente (si dans la fenêtre) est déjà comptée ci-dessus, jamais compter deux fois
+    const ev = evaluerPositionOuverte(pos);
+    if (ev) comptabiliser(ev.verdict);
+  });
+  return { ...compte, total: compte.bonnes + compte.surveiller + compte.erreurs };
+}
+
+/* Grande carte Nova Review de l'accueil (§54-56 du prompt maître
+   NovaTitre : "les quatre modules Nova sont actuellement beaucoup trop
+   petits [...] ils deviennent le cœur de l'accueil" — cette carte
+   remplace l'ancienne petite tuile novaHubCard('novareview') dans
+   PAGES.home, voir js/page-home.js). Données réelles uniquement (§59,
+   §81) : resumeNovaReviewPourCarte() renvoie null tant qu'aucune
+   transaction récente n'existe, jamais un faux "0 décision" présenté
+   comme une analyse active — état vide honnête à la place, même texte
+   que l'état vide de PAGES.novareview elle-même, jamais un second texte
+   qui pourrait diverger. */
+function novaReviewHomeCard(){
+  const resume = resumeNovaReviewPourCarte();
+  return `<button type="button" class="nova-big-card" data-go="novareview">
+    <p class="nova-big-eyebrow">Nova Review</p>
+    ${resume ? `
+      <p class="nova-big-lead">Votre analyse de la semaine est prête.</p>
+      <ul class="nova-big-stats">
+        ${resume.bonnes ? `<li><span class="nova-big-dot" style="background:${VERDICT_STYLE['Bon coup'].accent}"></span>${resume.bonnes} bonne${resume.bonnes > 1 ? 's' : ''} décision${resume.bonnes > 1 ? 's' : ''}</li>` : ''}
+        ${resume.erreurs ? `<li><span class="nova-big-dot" style="background:${VERDICT_STYLE['Erreur à étudier'].accent}"></span>${resume.erreurs} erreur${resume.erreurs > 1 ? 's' : ''}</li>` : ''}
+        ${resume.surveiller ? `<li><span class="nova-big-dot" style="background:${VERDICT_STYLE['Risqué'].accent}"></span>${resume.surveiller} point${resume.surveiller > 1 ? 's' : ''} à surveiller</li>` : ''}
+        ${!resume.total ? `<li><span class="nova-big-dot" style="background:var(--ink-4)"></span>Rien à signaler cette semaine</li>` : ''}
+      </ul>` : `
+      <p class="nova-big-lead">Nova Review comparera vos décisions passées à ce qui s'est réellement passé, dès votre premier achat ou votre première vente.</p>`}
+    <span class="nova-big-link">Voir mon analyse →</span>
+  </button>`;
+}
+
 /* Commentaire IA du bilan (2026-09-26, retour utilisateur : "je veux
    vraiment que ce soit complet et que ce soit réalisé avec l'IA") —
    réutilise EXACTEMENT le même mécanisme que Nova AI sur une fiche
