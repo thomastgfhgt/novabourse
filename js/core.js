@@ -854,9 +854,21 @@ function assurerIdentitesConnues(){
    ticker court générique. */
 const TICKERS_APERCU_ACCUEIL = ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'NVDA', 'ASML'];
 let apercuAccueilEnCours = null;
+/* "Résolu" exige le TICKER *et* la place NASDAQ (vraie pour les 6 valeurs
+   de TICKERS_APERCU_ACCUEIL) — jamais le ticker seul. CORRECTIF (bug réel
+   confirmé en direct, 2026-10-07) : avant ce garde-fou, un compte ayant
+   chargé la mauvaise entité "MSFT" (le clone européen "Leverage Shares 1x
+   Microsoft Tracker ETP", mis en cache dans runtimeCatalog AVANT le
+   correctif ci-dessous) gardait cette entité pour toujours — le ticker
+   "MSFT" était déjà présent dans `stocks`, donc plus jamais re-résolu,
+   même après correction du code. Auto-réparateur pour tout compte déjà
+   affecté, sans script de nettoyage à part. */
+function stockApercuAccueilValide(ticker){
+  return stocks.some(s => s.ticker === ticker && String(s.exchangeCode || '').toUpperCase() === 'NASDAQ');
+}
 function assurerApercuMarcheAccueil(){
   if (apercuAccueilEnCours) return apercuAccueilEnCours;
-  const manquants = TICKERS_APERCU_ACCUEIL.filter(t => !stocks.some(s => s.ticker === t));
+  const manquants = TICKERS_APERCU_ACCUEIL.filter(t => !stockApercuAccueilValide(t));
   if (!manquants.length) return null;
   apercuAccueilEnCours = Promise.all(manquants.map(async (ticker) => {
     try {

@@ -1549,7 +1549,7 @@ async function loadRealQuotes(){
      AAPL/MSFT malgré leur identité déjà résolue. */
   const besoinsAccueil = [
     ...state.watchlist.map(id => byId[id]),
-    ...TICKERS_APERCU_ACCUEIL.map(t => stocks.find(s => s.ticker === t)),
+    ...TICKERS_APERCU_ACCUEIL.map(t => stocks.find(s => s.ticker === t && String(s.exchangeCode || '').toUpperCase() === 'NASDAQ')),
   ].filter(Boolean);
   await assurerCotations(besoinsAccueil);
 }

@@ -128,9 +128,14 @@ PAGES.home = () => {
      affichait des micro-valeurs quasi inconnues sans cours disponible au
      lieu de grandes capitalisations reconnaissables. Liste fixe
      (TICKERS_APERCU_ACCUEIL, js/core.js) filtrée + réordonnée ici, jamais
-     l'ordre d'arrivée dans `stocks`. */
+     l'ordre d'arrivée dans `stocks`. exchangeCode==='NASDAQ' explicite
+     (pas juste le ticker) : un compte ayant déjà résolu par erreur le
+     clone européen "Leverage Shares 1x Microsoft Tracker ETP" (même
+     ticker "MSFT", voir stockApercuAccueilValide()/js/core.js) garde
+     cette entrée dans `stocks` même une fois la bonne ajoutée à côté —
+     jamais la première correspondance par ticker seul. */
   const marche = TICKERS_APERCU_ACCUEIL
-    .map(t => stocks.find(s => s.ticker === t))
+    .map(t => stocks.find(s => s.ticker === t && String(s.exchangeCode || '').toUpperCase() === 'NASDAQ'))
     .filter(Boolean);
   const pf = portfolioValue();
   const hasPositions = state.wallet.positions.length > 0;
