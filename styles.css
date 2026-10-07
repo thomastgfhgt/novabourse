@@ -1142,13 +1142,12 @@ a.row{color:inherit;text-decoration:none}
    en haut de page, --temple-fade la réduit encore progressivement
    quand le temple défile hors champ ("qu'il s'efface progressivement
    quand on le dépasse en descendant"). */
-/* CORRECTIF (2026-10-07, "rendre l'accueil plus instinctif") : réduit de
-   min(96vw,780px) — l'illustration occupait la quasi-totalité du premier
-   écran à elle seule, avant tout contenu réel. L'animation (construction
-   en cascade, halo pulsant, scale-in) reste INTACTE, seule la taille
-   change : vector-effect:non-scaling-stroke (déjà en place) garde le
-   trait fin à cette échelle, sans retouche supplémentaire nécessaire. */
-.nova-temple{display:block;width:min(42vw,300px);height:auto;overflow:visible;flex-shrink:0;
+/* CORRECTIF (2026-10-07, retour utilisateur : "mets le temple beaucoup
+   plus gros") — annule la réduction du même jour (min(42vw,300px)) : le
+   temple redevient une pièce maîtresse de l'accueil plutôt qu'un petit
+   accent. Épaisseurs des traits (plus bas) redimensionnées en
+   conséquence. */
+.nova-temple{display:block;width:min(88vw,680px);height:auto;overflow:visible;flex-shrink:0;
   opacity:calc(.55 * var(--temple-fade,1));
   /* Même correctif de fluidité que .nova-temple-section ci-dessus, sur
      l'opacity cette fois (--temple-fade change à chaque frame de scroll) —
@@ -1167,19 +1166,17 @@ a.row{color:inherit;text-decoration:none}
    le glow cyan du filter ci-dessus. */
 .temple-line{fill:none;stroke:var(--ink);stroke-linecap:round;stroke-linejoin:round;
   vector-effect:non-scaling-stroke}
-/* Épaisseurs réduites en proportion de la nouvelle taille (2026-10-07) :
-   vector-effect:non-scaling-stroke garde le trait à une épaisseur EN
-   PIXELS ÉCRAN constante quelle que soit la taille d'affichage du SVG
-   (voir le correctif mobile 2026-09-23 plus bas, même principe) — sans
-   ce réajustement, les mêmes valeurs qu'avant (7/4.5/2.5, pensées pour
-   une largeur de 780px) paraîtraient disproportionnellement épaisses
-   sur la nouvelle taille, bien plus petite (min(42vw,300px)). */
-.temple-main{stroke-width:3.2}
-.temple-secondary{stroke-width:2.1}
-.temple-flute{stroke-width:1.2;opacity:.90}
+/* Épaisseurs proportionnées à min(88vw,680px) (2026-10-07, le temple est
+   redevenu grand — voir .nova-temple plus haut) : vector-effect:
+   non-scaling-stroke garde le trait à une épaisseur EN PIXELS ÉCRAN
+   constante quelle que soit la taille d'affichage du SVG, d'où ce
+   réajustement à chaque changement de taille notable. */
+.temple-main{stroke-width:6.2}
+.temple-secondary{stroke-width:4}
+.temple-flute{stroke-width:2.2;opacity:.90}
 .nova-temple-brand{fill:var(--ink)}
 @media (max-width:600px){
-  .nova-temple{width:min(58vw,220px);max-width:none}
+  .nova-temple{width:min(94vw,380px);max-width:none}
   /* Retour utilisateur (2026-09-23) : "le temple est un peu trop épais"
      sur téléphone. vector-effect:non-scaling-stroke (ci-dessus) garde
      l'épaisseur du trait CONSTANTE en pixels écran quelle que soit la
@@ -1189,15 +1186,12 @@ a.row{color:inherit;text-decoration:none}
      correctif spécifique mobile plutôt qu'un changement global (qui
      aurait aussi amincin le temple sur ordinateur, non demandé) —
      réduction légère (~20%, "un tout petit peu"), mêmes proportions
-     entre les 3 épaisseurs conservées. CORRECTIF (2026-10-07) : ces
-     valeurs étaient pensées en réduction depuis l'ANCIENNE base desktop
-     (7/4.5/2.5) — avec la nouvelle base, bien plus petite (3.2/2.1/1.2),
-     elles seraient maintenant plus ÉPAISSES que le desktop, sens
-     inverse de l'effet voulu. Reproportionnées pour la nouvelle taille
-     mobile (min(58vw,220px), ~73% de la base desktop 300px). */
-  .temple-main{stroke-width:2.3}
-  .temple-secondary{stroke-width:1.5}
-  .temple-flute{stroke-width:.9}
+     entre les 3 épaisseurs conservées. Reproportionné (2026-10-07) pour
+     la taille mobile actuelle (min(94vw,380px), ~56% de la base desktop
+     680px). */
+  .temple-main{stroke-width:4.6}
+  .temple-secondary{stroke-width:3}
+  .temple-flute{stroke-width:1.6}
 }
 /* Animations (2026-09-23, "un maximum d'animation autour de cette
    architecture romaine") — quatre effets combinés, chacun sur une
@@ -1448,13 +1442,15 @@ a.row{color:inherit;text-decoration:none}
    quoi que ce soit. Fallback var(--accent) sur eyebrow/link : si jamais
    une carte future oublie de poser --nf-accent, elle garde l'ancien
    comportement au lieu d'un "transparent" invisible. */
-/* Pièce grise sur fond teinté (2026-10-07), même principe que .nova-hub-i
-   ci-dessus : color:var(--ink-2), jamais --nf-accent, pour que les 4
-   pièces d'échecs restent grises malgré leurs fonds de couleurs
-   différentes. */
-.nova-big-icon{width:40px;height:40px;border-radius:12px;display:flex;align-items:center;justify-content:center;
-  background:rgba(var(--nf-accent-rgb,124,58,237),.16);color:var(--ink-2);margin-bottom:12px}
-.nova-big-icon svg{width:20px;height:20px}
+/* CORRECTIF (2026-10-07, retour utilisateur : "qu'il n'y ait rien autour
+   et que tout soit blanc") — retire le badge circulaire teinté
+   (background/border-radius) : la pièce d'échec se suffit à elle-même,
+   posée directement sur la carte, sans cercle ni fond. Blanc pur
+   (#fff), jamais --ink-2/--nf-accent : les 4 pièces doivent être
+   identiques en couleur, seule leur SILHOUETTE les distingue — un
+   vrai jeu d'échecs, pas des badges colorés. */
+.nova-big-icon{display:flex;align-items:center;justify-content:center;margin-bottom:14px;color:#fff}
+.nova-big-icon svg{width:30px;height:30px;stroke-width:1.5}
 .nova-big-eyebrow{font-size:var(--t-label);font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--nf-accent,var(--accent))}
 .nova-big-lead{font-size:17px;font-weight:650;line-height:1.4;margin-top:8px;max-width:38ch}
 .nova-big-stats{list-style:none;margin-top:14px;display:flex;flex-direction:column;gap:8px}

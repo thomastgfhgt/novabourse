@@ -46,21 +46,21 @@ const ICON = {
      d'échecs, une par module Nova) — silhouette inchangée (crénelures en
      4 créneaux simples, corps fuselé), seul le module qui la porte
      change (voir NOVA_FEATURES plus bas). */
-  rook:'<path d="M7 3.5V7M10.33 3.5V7M13.67 3.5V7M17 3.5V7M6.2 7H17.8L16.3 18H7.7Z"/><path d="M6 20.5h12"/>',
+  rook:'<path d="M7 3.2V7M10.33 3.2V7M13.67 3.2V7M17 3.2V7M6.2 7H17.8L16.3 18.1H7.7Z"/><path d="M6.3 20.4h11.4M7.6 20.4v-1.9M16.4 20.4v-1.9"/>',
   /* Roi d'échec (2026-10-07, "NovaBot = un roi") — croix sommitale (la
      pièce la plus identifiable de l'échiquier, jamais confondue avec une
      reine grâce à elle), couronne simplifiée, corps fuselé, même base
      que les autres pièces de ce jeu pour rester cohérent visuellement. */
-  king:'<path d="M12 2.6v3.4M10.3 4.3h3.4"/><path d="M7.6 7.4h8.8l-1.3 5.6Q12 11.4 8.9 13Z"/><path d="M8.3 13h7.4l1.3 5H7z"/><path d="M6 20.5h12"/>',
+  king:'<path d="M12 2v3.1M10.4 3.6h3.2"/><circle cx="12" cy="7" r="1.4"/><path d="M8.2 13.2Q7.7 9.6 12 8.4Q16.3 9.6 15.8 13.2Z"/><path d="M8 13.2h8l1.3 5.1H6.7Z"/><path d="M6.3 20.4h11.4M7.6 20.4v-2M16.4 20.4v-2"/>',
   /* Fou d'échec (2026-10-07, "Nova News = un fou") — mitre caractéristique
      (dôme fendu en diagonale) surmontée d'une petite boule, corps fuselé,
      même base que les autres pièces. */
-  bishop:'<circle cx="12" cy="4.3" r="1.15" fill="currentColor" stroke="none"/><path d="M8.6 13.4Q8 8.2 12 6.2Q16 8.2 15.4 13.4Z"/><path d="M9.8 9.8 14.2 11"/><path d="M7.9 13.4h8.2l1.3 4.6H6.6z"/><path d="M6 20.5h12"/>',
+  bishop:'<circle cx="12" cy="3.4" r="1.25"/><path d="M12 4.65v1.55"/><path d="M8 13.4Q7.3 8 12 6.2Q16.7 8 16 13.4Z"/><path d="M9.3 9.6 14.7 11.3" stroke-linecap="round"/><path d="M7.7 13.4h8.6l1.1 4.6H6.6Z"/><path d="M6.3 20.4h11.4M7.6 20.4v-2M16.4 20.4v-2"/>',
   /* Pion d'échec (2026-10-07, "Nova Review = un pion") — tête ronde, corps
      fuselé, même base que les autres pièces : la pièce la plus simple de
      l'échiquier pour le module le plus "retour en arrière, pas en
      avant" (Nova Review revient sur des décisions déjà prises). */
-  pawn:'<circle cx="12" cy="6.6" r="3" fill="currentColor" stroke="none"/><path d="M9 11.8Q12 9.6 15 11.8L16.4 18H7.6Z"/><path d="M6 20.5h12"/>',
+  pawn:'<circle cx="12" cy="6.2" r="2.85"/><path d="M9.1 11.3Q12 9.3 14.9 11.3L16.3 18.1H7.7Z"/><path d="M6.3 20.4h11.4M7.6 20.4v-1.9M16.4 20.4v-1.9"/>',
 };
 const ICON_SHIFT = {
   home:[0.03,-1.95], list:[1.65,-3.56], wallet:[0,-0.41], star:[0,-0.46],
