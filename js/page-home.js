@@ -143,6 +143,30 @@ PAGES.home = () => {
   templeIntroPlayed = true;
 
   return `
+  <!-- CORRECTIF (2026-10-07, "rendre l'accueil plus instinctif") : "Mes
+       positions" passe EN PREMIER, avant le temple décoratif — un
+       utilisateur qui revient sur l'accueil doit voir son propre argent
+       avant une illustration de marque, pas après (même principe que
+       Revolut/Apple Wallet : le solde d'abord, jamais après un écran
+       purement décoratif). Le temple reste présent juste en dessous,
+       réduit (voir .nova-temple-section/.nova-temple dans styles.css),
+       pas supprimé : son animation a été explicitement demandée par
+       l'utilisateur sur plusieurs échanges précédents. -->
+  <article class="nb-pf2">
+    <p class="nb-pf2-eyebrow">Mes positions</p>
+    ${hasPositions ? `
+      <p class="nb-pf2-val tabular-nums">${fmt.eur(pf.total)}</p>
+      <p class="nb-pf2-var ${pf.gain >= 0 ? 'up-t' : 'down-t'} tabular-nums">
+        ${arrow(pf.gainPct)} ${fmt.eur(Math.abs(pf.gain))} · ${fmt.pct(pf.gainPct)}</p>
+      <button class="nb-pf2-detail" data-go="portfolio">Voir le détail</button>
+    ` : `
+      <div class="nb-pf2-empty">
+        <p>Votre portefeuille est vide.</p>
+        <button class="nb-cta-a" style="width:100%;margin-top:14px" data-search data-search-intent="buy">Ajouter une position</button>
+      </div>
+    `}
+  </article>
+
   <section class="nb-hero-v2">
     <section class="nova-temple-section">
       <svg class="nova-temple${templeSeenBefore ? ' no-intro' : ''}" viewBox="0 0 1000 720" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Temple NovaTitre">
@@ -214,21 +238,6 @@ PAGES.home = () => {
       <button class="nb-cta-s" data-search>Rechercher</button>
     </div>
   </section>
-
-  <article class="nb-pf2">
-    <p class="nb-pf2-eyebrow">Mes positions</p>
-    ${hasPositions ? `
-      <p class="nb-pf2-val tabular-nums">${fmt.eur(pf.total)}</p>
-      <p class="nb-pf2-var ${pf.gain >= 0 ? 'up-t' : 'down-t'} tabular-nums">
-        ${arrow(pf.gainPct)} ${fmt.eur(Math.abs(pf.gain))} · ${fmt.pct(pf.gainPct)}</p>
-      <button class="nb-pf2-detail" data-go="portfolio">Voir le détail</button>
-    ` : `
-      <div class="nb-pf2-empty">
-        <p>Votre portefeuille est vide.</p>
-        <button class="nb-cta-a" style="width:100%;margin-top:14px" data-search data-search-intent="buy">Ajouter une position</button>
-      </div>
-    `}
-  </article>
 
   <!-- Les 4 grandes cartes Nova (§54-60 du prompt maître NovaTitre :
        "les quatre modules Nova [...] deviennent le cœur de l'accueil"),

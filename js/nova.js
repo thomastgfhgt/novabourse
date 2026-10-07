@@ -264,7 +264,9 @@ function resumeNovaReviewPourCarte(){
    qui pourrait diverger. */
 function novaReviewHomeCard(){
   const resume = resumeNovaReviewPourCarte();
-  return `<button type="button" class="nova-big-card" data-go="novareview">
+  const f = NOVA_FEATURES.novareview;
+  return `<button type="button" class="nova-big-card" data-go="novareview" style="--nf-accent:${f.accent};--nf-accent-rgb:${f.rgb}">
+    <span class="nova-big-icon">${svg(ICON[f.icon],1.8)}</span>
     <p class="nova-big-eyebrow">Nova Review</p>
     ${resume ? `
       <p class="nova-big-lead">Votre analyse de la semaine est prête.</p>
@@ -293,7 +295,9 @@ function novabotHomeCard(){
   const cfg = state.novabot;
   const aDejaDecide = cfg.transactions.length > 0;
   const derniere = aDejaDecide ? cfg.transactions[cfg.transactions.length - 1] : null;
-  return `<button type="button" class="nova-big-card" data-go="novabot">
+  const f = NOVA_FEATURES.novabot;
+  return `<button type="button" class="nova-big-card" data-go="novabot" style="--nf-accent:${f.accent};--nf-accent-rgb:${f.rgb}">
+    <span class="nova-big-icon">${svg(ICON[f.icon],1.8)}</span>
     <p class="nova-big-eyebrow">NovaBot</p>
     ${aDejaDecide ? (() => {
       const pf = novabotPortfolioValue();
@@ -789,7 +793,9 @@ function novaNewsHomeCard(){
     const noms = nomsEntreprisesPertinentes();
     if (noms.length) pertinents = WORLD_NEWS.items.filter(a => articlePertinentPour(a, noms)).length;
   }
-  return `<button type="button" class="nova-big-card" data-go="novanews">
+  const f = NOVA_FEATURES.novanews;
+  return `<button type="button" class="nova-big-card" data-go="novanews" style="--nf-accent:${f.accent};--nf-accent-rgb:${f.rgb}">
+    <span class="nova-big-icon">${svg(ICON[f.icon],1.8)}</span>
     <p class="nova-big-eyebrow">Nova News</p>
     ${chargee ? `
       <p class="nova-big-lead">${WORLD_NEWS.items.length} actualité${WORLD_NEWS.items.length > 1 ? 's' : ''} disponible${WORLD_NEWS.items.length > 1 ? 's' : ''}.</p>
@@ -908,7 +914,9 @@ PAGES.novaevent = () => {
 function novaEventHomeCard(){
   const evts = stocksSuivisPourEvenements().length ? evenementsSuivis() : [];
   const prochain = evts[0] || null;
-  return `<button type="button" class="nova-big-card" data-go="novaevent">
+  const f = NOVA_FEATURES.novaevent;
+  return `<button type="button" class="nova-big-card" data-go="novaevent" style="--nf-accent:${f.accent};--nf-accent-rgb:${f.rgb}">
+    <span class="nova-big-icon">${svg(ICON[f.icon],1.8)}</span>
     <p class="nova-big-eyebrow">Nova Event</p>
     ${prochain ? `
       <p class="nova-big-lead">${evts.length} événement${evts.length > 1 ? 's' : ''} à venir.</p>
