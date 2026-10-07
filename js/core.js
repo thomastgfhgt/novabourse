@@ -832,6 +832,43 @@ function assurerIdentitesConnues(){
   })).then(resultats => resultats.some(Boolean));
 }
 
+/* CORRECTIF (bug réel trouvé en test live, 2026-10-07) : l'aperçu "Marché"
+   de l'accueil (page-home.js, `stocks.slice(0,6)`) prenait les 6 premières
+   entrées de `stocks` dans l'ordre où elles ont été chargées — depuis que
+   le catalogue Supabase est peuplé (~63 404 lignes, triées par
+   listing_key croissant), ce sont les 6 premières par ordre alphabétique
+   de place::ticker, PAS les plus connues. Vérifié en direct : l'accueil
+   affichait "Hermes Transporte Blindados S.A." (une société de transport
+   blindé brésilienne, rien à voir avec Hermès) et "MacDonald Mines
+   Exploration" (micro-valeur minière) à côté d'actions sans AUCUN cours
+   disponible ("—") — inacceptable pour la toute première chose vue sur
+   l'accueil d'un produit fintech.
+   Liste FIXE de grandes capitalisations mondiales, jamais choisies pour
+   leur ordre alphabétique : résolues par recherche exacte (même mécanisme
+   que assurerIdentitesConnues() ci-dessus), jamais par pagination du
+   catalogue. Tickers volontairement sans AUCUNE ambiguïté connue
+   (contrairement à "MC"=LVMH/Moelis/MC Group, voir
+   sql/2026-09-15_market_catalog.sql) : AAPL/MSFT/GOOGL/AMZN/NVDA/ASML
+   n'ont pas d'homonyme coté connu — le premier résultat de recherche
+   PAR TICKER est donc fiable ici, ce qui ne serait pas vrai pour un
+   ticker court générique. */
+const TICKERS_APERCU_ACCUEIL = ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'NVDA', 'ASML'];
+let apercuAccueilEnCours = null;
+function assurerApercuMarcheAccueil(){
+  if (apercuAccueilEnCours) return apercuAccueilEnCours;
+  const manquants = TICKERS_APERCU_ACCUEIL.filter(t => !stocks.some(s => s.ticker === t));
+  if (!manquants.length) return null;
+  apercuAccueilEnCours = Promise.all(manquants.map(async (ticker) => {
+    try {
+      const hits = await searchRemote(ticker);
+      const hit = hits.find(h => String(h.meta?.ticker || '').toUpperCase() === ticker);
+      if (hit){ ensureRuntimeStock(hit.meta); return true; }
+    } catch {}
+    return false;
+  })).then(resultats => resultats.some(Boolean));
+  return apercuAccueilEnCours;
+}
+
 /* Indices boursiers réels — jamais dans catalog.json (bâti depuis
    free-ticker-database, qui ne couvre que sociétés/ETF cotés, pas les
    indices) ni renvoyés par /api/market/search pour des requêtes usuelles

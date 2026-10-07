@@ -1,5 +1,19 @@
 const PAGES = {};
 
+/* Salutation honnête basée sur l'heure LOCALE du navigateur (jamais un nom
+   deviné/mal découpé : state.account?.name est "Nom Prénom" ou "Prénom
+   Nom" selon ce que l'utilisateur a saisi, impossible à fiabiliser sans
+   le casser pour une partie des comptes — voir §81 du prompt maître,
+   "jamais une donnée devinée présentée comme fiable"). Remplace l'ancien
+   "Prêt à investir ?" statique, identique à toute heure du jour pour
+   tout le monde. */
+function saluationJour(){
+  const h = new Date().getHours();
+  if (h < 6) return 'Bonsoir';
+  if (h < 18) return 'Bonjour';
+  return 'Bonsoir';
+}
+
 /* Générateur pseudo-aléatoire PUREMENT DÉCORATIF, local à cette fonction :
    il dessine la courbe animée d'illustration du bandeau d'accueil et ne lit,
    n'écrit ni ne touche à aucune donnée financière (QUOTES/HIST/portefeuille).
@@ -108,7 +122,16 @@ const NB_QUICK = [
 let templeIntroPlayed = false;
 PAGES.home = () => {
   const suivies = state.watchlist.map(id => byId[id]).filter(Boolean);
-  const marche = stocks.slice(0, 6);
+  /* CORRECTIF (2026-10-07) : stocks.slice(0,6) prenait les 6 premières
+     entrées dans l'ordre de chargement — depuis le peuplement du
+     catalogue Supabase (trié par listing_key, pas par notoriété), ça
+     affichait des micro-valeurs quasi inconnues sans cours disponible au
+     lieu de grandes capitalisations reconnaissables. Liste fixe
+     (TICKERS_APERCU_ACCUEIL, js/core.js) filtrée + réordonnée ici, jamais
+     l'ordre d'arrivée dans `stocks`. */
+  const marche = TICKERS_APERCU_ACCUEIL
+    .map(t => stocks.find(s => s.ticker === t))
+    .filter(Boolean);
   const pf = portfolioValue();
   const hasPositions = state.wallet.positions.length > 0;
   const templeSeenBefore = templeIntroPlayed;
@@ -173,8 +196,14 @@ PAGES.home = () => {
         </button>`).join('')}
     </section>
 
-    <h1 class="nb-hero-title">Prêt à investir ?</h1>
-    <p class="nb-hero-sub2">Données en temps réel.</p>
+    <h1 class="nb-hero-title">${esc(saluationJour())}</h1>
+    <!-- CORRECTIF (2026-10-07) : "Données en temps réel" était une
+         affirmation fausse — toutes les cotations de l'app sont
+         explicitement DELAYED (voir _freshness.js, aucune source
+         actuelle ne garantit de SLA temps réel), déjà honnêtement
+         étiquetées "Différé" partout ailleurs (Marchés, Radar, fiche
+         action). Le bandeau d'accueil ne peut pas dire le contraire. -->
+    <p class="nb-hero-sub2">Cours différés, mis à jour en continu.</p>
     <div class="nb-cta-row">
       <button class="nb-cta-a" data-search data-search-intent="analyze">Analyser</button>
       <button class="nb-cta-s" data-search>Rechercher</button>
@@ -196,40 +225,19 @@ PAGES.home = () => {
     `}
   </article>
 
-  <!-- Grande carte Nova Review (2026-10-06, §54-56 du prompt maître
-       NovaTitre : "les quatre modules Nova [...] deviennent le cœur de
-       l'accueil") — premier module à recevoir sa vraie grande carte
-       (données réelles, voir novaReviewHomeCard()/js/nova.js). Les 3
-       autres (NovaBot/Nova Event/Nova News) restent pour l'instant dans
-       la grille compacte juste en dessous, inchangée : aucun des 3 n'a
-       encore de données/logique prêtes pour sa propre grande carte —
-       prochaine étape une fois celle-ci éprouvée en usage réel, jamais
-       les 4 reconstruites d'un coup (§87). -->
+  <!-- Les 4 grandes cartes Nova (§54-60 du prompt maître NovaTitre :
+       "les quatre modules Nova [...] deviennent le cœur de l'accueil"),
+       toutes branchées sur de vraies données (novaReviewHomeCard()/
+       novabotHomeCard()/novaNewsHomeCard()/novaEventHomeCard(), voir
+       js/nova.js). CORRECTIF (2026-10-07) : l'ancienne petite grille
+       .nova-hub (4 pastilles compactes) qui suivait directement ces 4
+       cartes montrait EXACTEMENT les 4 mêmes modules une seconde fois,
+       sans aucune information supplémentaire — retirée, doublon pur
+       devenu visible une fois les 4 grandes cartes réellement en place. -->
   ${novaReviewHomeCard()}
-  <!-- NovaBot (2026-10-06) : 2e des 4 modules à recevoir sa grande carte
-       (données réelles, novabotHomeCard()/js/nova.js) — même principe et
-       même décision que pour Nova Review juste au-dessus : Nova Event/
-       Nova News restent dans la grille compacte, aucun des deux n'a
-       encore de données/logique prêtes pour sa propre grande carte. -->
   ${novabotHomeCard()}
-  <!-- Nova News (2026-10-06) : 3e des 4 modules à recevoir sa grande
-       carte (novaNewsHomeCard()/js/nova.js). -->
   ${novaNewsHomeCard()}
-  <!-- Nova Event (2026-10-06) : 4e et dernier des 4 modules à recevoir sa
-       grande carte (novaEventHomeCard()/js/nova.js) — calendrier résultats/
-       dividendes réel, voir _nasdaqCalendar.js. Les 4 grandes cartes sont
-       maintenant toutes branchées sur de vraies données (§87/§54-60). -->
   ${novaEventHomeCard()}
-
-  <!-- Grille Nova (2026-09-23, "préparer visuellement les prochaines
-       fonctionnalités") : NovaBot/Nova Review/Nova Event/Nova News,
-       voir novaHubCard()/NOVA_FEATURES/.nova-hub plus haut. Volontai-
-       rement APRÈS "Mes positions" plutôt qu'en tout premier : le
-       contenu personnel de l'utilisateur (position, montant) prime sur
-       la découverte de nouvelles fonctions. -->
-  <nav class="nova-hub" aria-label="Fonctions NovaTitre">
-    ${novaHubCard('novabot')}${novaHubCard('novareview')}${novaHubCard('novaevent')}${novaHubCard('novanews')}
-  </nav>
 
   <article class="card" style="margin-top:16px">
     <div class="section-h" style="margin-bottom:14px">

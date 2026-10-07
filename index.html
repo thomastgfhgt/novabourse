@@ -1614,15 +1614,17 @@ function assurerCatalogueGlobal(){
 }
 
 /* Aperçu "Marché" de l'accueil (6 valeurs, voir PAGES.home et
-   loadRealQuotes()) : n'a besoin que d'un tout petit nombre d'entrées,
-   jamais du catalogue complet — utilise la pagination existante
-   (assurerCatalogueSuffisant(), déjà utilisée par Marchés) plutôt que
-   assurerCatalogueGlobal(). Un seul appel réseau léger (20 résultats
-   max, voir CATALOG_PAGE_SIZE), jamais répété une fois satisfait. Même
+   loadRealQuotes()) : CORRECTIF (2026-10-07, voir assurerApercuMarcheAccueil(),
+   js/core.js) — n'utilise plus la pagination brute du catalogue
+   (assurerCatalogueSuffisant()), qui renvoyait les 6 premières entrées
+   par ordre alphabétique de place::ticker (ex. une société de transport
+   blindé brésilienne), jamais les plus connues. Résolution par recherche
+   exacte d'une liste fixe de grandes capitalisations à la place. Même
    garde-fou "armé une seule fois" que ci-dessus. */
 let accueilApercuRenderArme = false;
 function assurerApercuAccueil(){
-  const p = assurerCatalogueSuffisant('stock', 6);
+  const p = assurerApercuMarcheAccueil();
+  if (!p) return Promise.resolve(false);
   if (!accueilApercuRenderArme){
     accueilApercuRenderArme = true;
     p.then(changement => { if (changement && route.page === 'home') render(); });
