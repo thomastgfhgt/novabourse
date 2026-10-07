@@ -41,12 +41,26 @@ const ICON = {
      rectangulaire anonyme, avec 2 yeux ronds à l'intérieur, corps
      arrondi et 2 petits bras. */
   bot:'<path d="M12 3.5 L18 12.5 L6 12.5 Z"/><circle cx="10" cy="10.3" r=".9" fill="currentColor" stroke="none"/><circle cx="14" cy="10.3" r=".9" fill="currentColor" stroke="none"/><rect x="7" y="14" width="10" height="7" rx="2.5"/><path d="M4.5 16.5v2.5M19.5 16.5v2.5"/>',
-  /* Nova Review (2026-09-24, retour utilisateur : "une tour d'échec") —
-     remplace l'ancienne réutilisation de "scale" (toujours utilisée
-     telle quelle pour "Comparer", jamais touchée ici) : silhouette de
-     tour (crénelures en 4 créneaux simples, corps fuselé), pour évoquer
-     la stratégie/le recul plutôt qu'une simple balance. */
+  /* Tour d'échec (2026-09-24, retour utilisateur initial), RÉATTRIBUÉE à
+     Nova Event (2026-10-07, retour utilisateur : jeu complet de pièces
+     d'échecs, une par module Nova) — silhouette inchangée (crénelures en
+     4 créneaux simples, corps fuselé), seul le module qui la porte
+     change (voir NOVA_FEATURES plus bas). */
   rook:'<path d="M7 3.5V7M10.33 3.5V7M13.67 3.5V7M17 3.5V7M6.2 7H17.8L16.3 18H7.7Z"/><path d="M6 20.5h12"/>',
+  /* Roi d'échec (2026-10-07, "NovaBot = un roi") — croix sommitale (la
+     pièce la plus identifiable de l'échiquier, jamais confondue avec une
+     reine grâce à elle), couronne simplifiée, corps fuselé, même base
+     que les autres pièces de ce jeu pour rester cohérent visuellement. */
+  king:'<path d="M12 2.6v3.4M10.3 4.3h3.4"/><path d="M7.6 7.4h8.8l-1.3 5.6Q12 11.4 8.9 13Z"/><path d="M8.3 13h7.4l1.3 5H7z"/><path d="M6 20.5h12"/>',
+  /* Fou d'échec (2026-10-07, "Nova News = un fou") — mitre caractéristique
+     (dôme fendu en diagonale) surmontée d'une petite boule, corps fuselé,
+     même base que les autres pièces. */
+  bishop:'<circle cx="12" cy="4.3" r="1.15" fill="currentColor" stroke="none"/><path d="M8.6 13.4Q8 8.2 12 6.2Q16 8.2 15.4 13.4Z"/><path d="M9.8 9.8 14.2 11"/><path d="M7.9 13.4h8.2l1.3 4.6H6.6z"/><path d="M6 20.5h12"/>',
+  /* Pion d'échec (2026-10-07, "Nova Review = un pion") — tête ronde, corps
+     fuselé, même base que les autres pièces : la pièce la plus simple de
+     l'échiquier pour le module le plus "retour en arrière, pas en
+     avant" (Nova Review revient sur des décisions déjà prises). */
+  pawn:'<circle cx="12" cy="6.6" r="3" fill="currentColor" stroke="none"/><path d="M9 11.8Q12 9.6 15 11.8L16.4 18H7.6Z"/><path d="M6 20.5h12"/>',
 };
 const ICON_SHIFT = {
   home:[0.03,-1.95], list:[1.65,-3.56], wallet:[0,-0.41], star:[0,-0.46],
@@ -146,11 +160,21 @@ const emptyState = (title, text, action) => `
    les fonds teintés en rgba() — jamais color-mix(), voir la note sur
    .logo-m plus haut dans ce fichier pour pourquoi ce fichier évite
    color-mix(). */
+/* Jeu d'échecs complet (2026-10-07, retour utilisateur : "des logos gris
+   qui prennent la forme de pions des échecs" — une pièce par module,
+   roi/tour/fou/pion, cohérent avec l'identité "architecture classique"
+   déjà en place pour le temple de l'accueil). Icônes définies dans ICON
+   (king/rook/bishop/pawn) — voir leurs commentaires individuels pour la
+   correspondance pièce <-> module. accent/rgb inchangés (continuent de
+   teinter le FOND de l'icône, voir .nova-big-icon/.nova-hub-i) ; la
+   pièce elle-même reste grise (voir --nf-icon-color dans styles.css),
+   jamais recolorée dans la teinte du module — l'effet recherché est un
+   jeu d'échecs cohérent, pas 4 pièces de couleurs différentes. */
 const NOVA_FEATURES = {
-  novabot: { icon:'bot', accent:'#8b5cf6', rgb:'139,92,246',
+  novabot: { icon:'king', accent:'#8b5cf6', rgb:'139,92,246',
     title:'NovaBot', tag:'Automatisation intelligente',
     desc:"NovaBot pourra bientôt gérer une partie de vos investissements selon des règles que vous aurez vous-même définies — jamais un ordre passé sans votre accord explicite." },
-  novareview: { icon:'rook', accent:'#ec4899', rgb:'236,72,153',
+  novareview: { icon:'pawn', accent:'#ec4899', rgb:'236,72,153',
     title:'Nova Review', tag:'Revoir vos décisions',
     desc:"Nova Review reviendra sur vos décisions d'investissement passées pour vous aider à comprendre ce qui a fonctionné, ou non, et pourquoi." },
   /* Description corrigée (2026-10-06, prompt maître §34) : la version
@@ -161,10 +185,10 @@ const NOVA_FEATURES = {
      économiques des valeurs suivies/détenues). Le prompt maître prévaut
      : Nova Event a maintenant un vrai moteur (voir PAGES.novaevent,
      evenementsSuivis()) construit sur cette définition-ci. */
-  novaevent: { icon:'calendar', accent:'#8d95a4', rgb:'141,149,164',
+  novaevent: { icon:'rook', accent:'#8d95a4', rgb:'141,149,164',
     title:'Nova Event', tag:'Vos prochains événements',
     desc:"Nova Event rassemble les prochains résultats et dividendes des valeurs que vous suivez ou détenez — jamais une date devinée, seulement ce qui est réellement connu." },
-  novanews: { icon:'news', accent:'#6d28d9', rgb:'109,40,217',
+  novanews: { icon:'bishop', accent:'#6d28d9', rgb:'109,40,217',
     title:'Nova News', tag:"L'actualité qui compte",
     desc:"Nova News réunira l'actualité économique, financière et géopolitique susceptible d'influencer vos investissements — dans chaque fiche, l'actualité propre à l'entreprise consultée." },
 };

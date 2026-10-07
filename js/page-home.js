@@ -100,9 +100,17 @@ const NB_QUICK = [
   { intent:'', title:'Rechercher',
     desc:"Trouver instantanément une action, ETF, crypto ou entreprise.",
     icon:'<circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5 L21 21"/>' },
+  /* CORRECTIF (2026-10-07, retour utilisateur : "Nova AI = le logo de
+     NovaTitre") : remplace l'étincelle générique par le VRAI logo
+     NovaTitre (ICON.brand, même tracé que le temple/le header) — "Nova"
+     est l'intelligence UNIQUE du produit (§1 du prompt maître : "Nova
+     est le produit"), son action d'analyse porte donc sa propre
+     identité plutôt qu'une icône IA interchangeable. icon:'brand' (une
+     clé ICON, pas un <path> inline comme les 3 autres ci-dessus) : le
+     rendu ci-dessous (viewBox) le détecte spécifiquement. */
   { intent:'analyze', title:'Analyser avec l’IA',
     desc:"Entrer un actif et lancer directement l’analyse NovaTitre.",
-    icon:'<path d="M12 2C12.8 7.2 16.8 11.2 22 12C16.8 12.8 12.8 16.8 12 22C11.2 16.8 7.2 12.8 2 12C7.2 11.2 11.2 7.2 12 2Z"/>' },
+    icon:'brand' },
   { intent:'buy', title:'Ajouter au portefeuille',
     desc:"Ajouter rapidement une position ou un actif à suivre.",
     icon:'<path d="M12 4 V20"/><path d="M4 12 H20"/>' },
@@ -143,30 +151,13 @@ PAGES.home = () => {
   templeIntroPlayed = true;
 
   return `
-  <!-- CORRECTIF (2026-10-07, "rendre l'accueil plus instinctif") : "Mes
-       positions" passe EN PREMIER, avant le temple décoratif — un
-       utilisateur qui revient sur l'accueil doit voir son propre argent
-       avant une illustration de marque, pas après (même principe que
-       Revolut/Apple Wallet : le solde d'abord, jamais après un écran
-       purement décoratif). Le temple reste présent juste en dessous,
-       réduit (voir .nova-temple-section/.nova-temple dans styles.css),
-       pas supprimé : son animation a été explicitement demandée par
-       l'utilisateur sur plusieurs échanges précédents. -->
-  <article class="nb-pf2">
-    <p class="nb-pf2-eyebrow">Mes positions</p>
-    ${hasPositions ? `
-      <p class="nb-pf2-val tabular-nums">${fmt.eur(pf.total)}</p>
-      <p class="nb-pf2-var ${pf.gain >= 0 ? 'up-t' : 'down-t'} tabular-nums">
-        ${arrow(pf.gainPct)} ${fmt.eur(Math.abs(pf.gain))} · ${fmt.pct(pf.gainPct)}</p>
-      <button class="nb-pf2-detail" data-go="portfolio">Voir le détail</button>
-    ` : `
-      <div class="nb-pf2-empty">
-        <p>Votre portefeuille est vide.</p>
-        <button class="nb-cta-a" style="width:100%;margin-top:14px" data-search data-search-intent="buy">Ajouter une position</button>
-      </div>
-    `}
-  </article>
-
+  <!-- CORRECTIF (2026-10-07, retour utilisateur : "laisse le temple en
+       haut") : revient à l'ordre d'origine (temple en premier) — le
+       bref essai "Mes positions" avant le temple (même commit, annulé
+       ici) ne correspondait pas à ce que l'utilisateur voulait. Le
+       temple, désormais nettement réduit (voir .nova-temple-section/
+       .nova-temple dans styles.css), reste la première chose vue sur
+       l'accueil ; "Mes positions" suit juste en dessous. -->
   <section class="nb-hero-v2">
     <section class="nova-temple-section">
       <svg class="nova-temple${templeSeenBefore ? ' no-intro' : ''}" viewBox="0 0 1000 720" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Temple NovaTitre">
@@ -219,7 +210,7 @@ PAGES.home = () => {
       ${NB_QUICK.map(a => `
         <button type="button" class="nova-quick-action" data-search ${a.intent ? `data-search-intent="${a.intent}"` : ''}
           aria-label="${esc(a.title)}">
-          <span class="nova-action-circle" aria-hidden="true"><svg viewBox="0 0 24 24">${a.icon}</svg></span>
+          <span class="nova-action-circle" aria-hidden="true">${a.icon === 'brand' ? svg(ICON.brand) : `<svg viewBox="0 0 24 24">${a.icon}</svg>`}</span>
           <span class="nova-action-title">${esc(a.title)}</span>
           <span class="nova-action-description">${esc(a.desc)}</span>
         </button>`).join('')}
@@ -238,6 +229,21 @@ PAGES.home = () => {
       <button class="nb-cta-s" data-search>Rechercher</button>
     </div>
   </section>
+
+  <article class="nb-pf2">
+    <p class="nb-pf2-eyebrow">Mes positions</p>
+    ${hasPositions ? `
+      <p class="nb-pf2-val tabular-nums">${fmt.eur(pf.total)}</p>
+      <p class="nb-pf2-var ${pf.gain >= 0 ? 'up-t' : 'down-t'} tabular-nums">
+        ${arrow(pf.gainPct)} ${fmt.eur(Math.abs(pf.gain))} · ${fmt.pct(pf.gainPct)}</p>
+      <button class="nb-pf2-detail" data-go="portfolio">Voir le détail</button>
+    ` : `
+      <div class="nb-pf2-empty">
+        <p>Votre portefeuille est vide.</p>
+        <button class="nb-cta-a" style="width:100%;margin-top:14px" data-search data-search-intent="buy">Ajouter une position</button>
+      </div>
+    `}
+  </article>
 
   <!-- Les 4 grandes cartes Nova (§54-60 du prompt maître NovaTitre :
        "les quatre modules Nova [...] deviennent le cœur de l'accueil"),
