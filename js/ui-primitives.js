@@ -72,11 +72,14 @@ Object.assign(ICON, {
      distinguer du roi à croix unique), désormais refermée en silhouette
      pleine (corps+jupe) au lieu d'un simple contour, même socle commun. */
   queen:'<circle cx="7.7" cy="5.1" r=".95" fill="currentColor" stroke="none"/><circle cx="12" cy="3.5" r="1.1" fill="currentColor" stroke="none"/><circle cx="16.3" cy="5.1" r=".95" fill="currentColor" stroke="none"/><path d="M7.7 6.1 12 7.9 16.3 6.1 15.5 10.3H8.5Z" fill="currentColor" stroke="none"/><path d="M8.3 13.3Q7.9 11.5 8.7 10.3h6.6Q16.1 11.5 15.7 13.3Z" fill="currentColor" stroke="none"/><path d="M8 13.3h8l1.3 5.1H6.7Z" fill="currentColor" stroke="none"/>'+CHESS_BASE,
-  /* Cavalier — profil de tête de cheval refermé en un seul contour plein
-     (encolure, chanfrein, crinière), même proportions générales que la
-     version en traits de la 1ʳᵉ passe mais désormais une silhouette
-     fermée plutôt qu'un tracé ouvert. */
-  knight:'<path d="M8.6 19.3C8.2 16 8.7 13.3 10.1 11.3 11 10 11.1 9.1 10.4 8.3 9.9 7.7 9.7 7 10 6.3 10.7 4.7 12.3 3.6 14.2 3.6 16.6 3.6 18.5 5.3 18.8 7.6 19 9.1 18.5 10.4 17.3 11.2 16.7 11.6 16.4 12.3 16.7 13 17.5 14.7 17.9 16.8 17.6 19.3Z" fill="currentColor" stroke="none"/>'+CHESS_BASE,
+  /* Cavalier — profil de tête de cheval EN LIGNES DROITES uniquement
+     (polygone fermé, aucune courbe) : la version précédente (courbes de
+     Bézier à main levée) rendait un contour flou, pas reconnaissable
+     comme un cheval une fois vérifié à l'écran — remplacée par un tracé
+     "low-poly" délibéré, chaque sommet choisi pour l'oreille pointue, le
+     chanfrein, l'encolure et la bosse de crinière, bien plus prévisible
+     à cette taille. */
+  knight:'<path d="M9.5 19.3 8.3 15 8.8 12.3 7 11.3 6.2 9.4 7.8 8.6 7.3 6.3 9 4 11.3 3.1 12.6 3 13.6 5 12.7 6.4 15.3 9.2 17.6 13 17 19.3Z" fill="currentColor" stroke="none"/>'+CHESS_BASE,
 });
 const ICON_SHIFT = {
   home:[0.03,-1.95], list:[1.65,-3.56], wallet:[0,-0.41], star:[0,-0.46],
