@@ -39,12 +39,13 @@ async function runAnalysis(stockId){
   /* NovaOrb (§53 du brief design system) : état "thinking" pendant
      l'attente de la réponse IA — remplace le spinner générique
      .brand-spin (logo qui tourne, déjà utilisé ailleurs pour le
-     chargement de l'app) par .nova-orb (3 halos orange/bleu/vert qui
-     flottent), trouvé déjà implémenté en CSS mais jamais branché à
-     aucun balisage avant cet audit. C'est le seul endroit de l'app où
-     l'IA "réfléchit" réellement à une question posée par l'utilisateur —
-     l'endroit le plus honnête pour donner à NovaOrb un sens, plutôt que
-     de l'ajouter à un endroit arbitraire juste pour l'utiliser. */
+     chargement de l'app) par .nova-orb (3 halos qui flottent, recolorés
+     en bleu électrique/violet/cyan lors de la 2ᵉ passe de refonte
+     visuelle du 2026-10-07 — plus d'orange, voir son commentaire CSS).
+     C'est le seul endroit de l'app où l'IA "réfléchit" réellement à une
+     question posée par l'utilisateur — l'endroit le plus honnête pour
+     donner à NovaOrb un sens, plutôt que de l'ajouter à un endroit
+     arbitraire juste pour l'utiliser. */
   openSheet(`<h3 id="sheetTitle">${esc(st.name)}</h3>
     <div id="aiOut"><div class="spin-wrap">
       <span class="nova-orb"><i></i><i></i><i></i></span>

@@ -69,10 +69,16 @@
      lisible (contraste correct) si jamais consulté en thème clair,
      jamais une carte invisible/blanc sur blanc. */
   --nova-bg:#ffffff; --nova-bg-deep:#f4f5fb;
-  --nova-surface:rgba(33,26,80,.045); --nova-surface-hover:rgba(33,26,80,.075);
+  --nova-surface:rgba(33,26,80,.045); --nova-surface-secondary:rgba(33,26,80,.03); --nova-surface-hover:rgba(33,26,80,.075);
   --nova-border:rgba(33,26,80,.10);
   --nova-text:#171334; --nova-text-secondary:rgba(23,19,52,.68); --nova-text-muted:rgba(23,19,52,.48);
   --nova-ai:#3458E8; --nova-bot:#6A3FE0; --nova-review:#C93E8A; --nova-news:#3E63D6; --nova-event:#0F8FBF;
+  /* Glass header/nav/icon (§16, 2ᵉ passe) : définis aussi en clair pour que
+     le système de tokens existe partout, mais seul le thème sombre les
+     câble réellement dans .top/.dock/.nova-action-circle plus bas — le
+     thème clair garde son propre traitement (verre blanc) déjà en place,
+     jamais touché par cette refonte. */
+  --glass-header:rgba(255,255,255,.72); --glass-navigation:rgba(255,255,255,.72); --glass-icon:rgba(33,26,80,.06);
   --r-xs:8px; --r-s:12px; --r-m:18px; --r-l:24px; --r-xl:32px; --r-pill:999px;
   --shadow-1:none;
   --shadow-2:0 1px 2px rgba(13,17,23,.04), 0 8px 24px rgba(13,17,23,.05);
@@ -157,47 +163,81 @@
      plus claires, même principe que les palettes précédentes), teinte
      de base changée. --bg-2/-3/-4 dérivés par éclaircissement progressif
      de --bg plutôt qu'une 4e valeur arbitraire. */
-  --bg:#19143E; --bg-2:#1D1849; --bg-3:#211A50; --bg-4:#282163;
+  --bg:#19143E;
+  /* CORRECTIF (2026-10-07, 2ᵉ passe de refonte, retour utilisateur :
+     "le problème actuel est que seules les cartes Nova sont plus claires
+     [...] je veux que ce langage visuel soit appliqué à l'ensemble de
+     l'application") : --bg-2/-3/-4 n'étaient que des teintes indigo PLUS
+     OPAQUES (donc visuellement une famille de couleurs différente de
+     --nova-surface, un blanc translucide) — remplacées par la même
+     famille "verre" que les cartes Nova (blanc translucide empilé sur le
+     dégradé indigo de html), pour que TOUTE carte/surface du site
+     (Ma position, Ma liste, Marché, Gratuit/Pro/Elite, inputs, chips,
+     barres de progression...) appartienne visuellement à la même famille
+     que les Nova — plus une seule carte "plus sombre et différente".
+     3 crans progressifs (comme avant, même principe relatif), --bg-4
+     ajouté comme palier le plus clair pour les surfaces imbriquées à 2
+     niveaux (ex. un badge dans une carte déjà claire). */
+  --bg-2:rgba(255,255,255,.075); --bg-3:rgba(255,255,255,.11); --bg-4:rgba(255,255,255,.14);
   --ink:#ffffff; --ink-2:#ffffff; --ink-3:#ffffff; --ink-4:#ffffff;
-  /* Orange Hermès (#E67E22, même teinte que le thème clair, "Primary
-     toujours orange") : assez saturé pour rester lisible sur #0A0E27.
-     CONSERVÉ pour le reste du site (boutons primaires hors modules
-     Nova) — la demande du 2026-10-07 ("aucun orange") est explicitement
-     scopée aux "composants Nova" (voir --nova-* plus bas, qui n'en
-     dérivent plus), pas une refonte de l'identité globale du site. */
-  --accent:var(--orange-500); --accent-hover:var(--orange-light); --accent-press:var(--orange-700);
-  --accent-soft:#2a1f14; --accent-ink:#ffffff;
+  /* CORRECTIF (2026-10-07, 2ᵉ passe) : "je ne veux plus d'orange dans le
+     design général" (§3, portée explicitement élargie cette fois au-delà
+     des seuls composants Nova — contrairement à la 1ʳᵉ passe) — l'accent
+     décoratif du thème SOMBRE devient bleu électrique (même teinte que
+     Nova AI, --nova-ai, pour ancrer "Nova AI" comme l'identité centrale
+     du produit) au lieu de l'orange Hermès. Cascade automatique vers tout
+     ce qui utilise var(--accent) sans redéfinition locale (eyebrows,
+     coches d'abonnement, toggles, focus ring, badges...) — jamais
+     réécrit composant par composant (§16 : "pas de couleurs hardcodées").
+     Thème CLAIR non concerné (--accent y reste l'orange Hermès, protégé
+     explicitement : "ne casse pas le mode clair"). Vert/rouge (gain/
+     perte) INCHANGÉS : couleurs fonctionnelles, jamais décoratives. */
+  --accent:#4D7CFF; --accent-hover:#6D94FF; --accent-press:#3458E8;
+  --accent-soft:rgba(77,124,255,.16); --accent-ink:#ffffff;
   /* Cyan réservé aux boutons secondaires (même règle qu'en thème
      clair) — jamais un accent général. */
   --blue-accent:var(--cyan-500); --blue-accent-soft:#142a30;
   --up:#34d399; --up-soft:#0c2419; --down:#f87171; --down-soft:#2a1416;
   --warn:#e0a63a; --warn-soft:#2a2110;
-  --line:#352d6b; --line-2:#241e57;
+  /* Même famille "verre" que les surfaces ci-dessus (2026-10-07, 2ᵉ passe) :
+     bordures/séparateurs solides indigo -> bordure blanche translucide,
+     cohérente avec --nova-border partout où une carte en dérive. */
+  --line:rgba(255,255,255,.10); --line-2:rgba(255,255,255,.07);
   --shadow-2:0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.35);
   --shadow-3:0 2px 6px rgba(0,0,0,.45), 0 24px 48px rgba(0,0,0,.45);
   /* ============================================================
      DESIGN TOKENS — MODULES NOVA (refonte visuelle, 2026-10-07)
      ============================================================
-     Famille de variables DÉDIÉE aux 5 modules Nova (AI/Bot/Review/News/
-     Event), séparée de la palette générale du site (--bg/--accent/...
-     ci-dessus, INCHANGÉE et toujours utilisée ailleurs : pricing,
-     boutons primaires, etc.) — centralise toute la palette "verre
-     teinté bleu nuit" demandée pour que changer une seule teinte ici
-     suffise à la répercuter partout où un composant Nova apparaît
-     (accueil, Portefeuille, fiche action...), sans jamais toucher au
-     reste du site. Valeurs de départ fournies par l'utilisateur,
-     ajustées pour le contraste WCAG (texte blanc sur --nova-surface
-     reste ≥ 4.5:1, vérifié : fond effectif ≈ rgba(33,26,80,.925) une
-     fois composé sur --nova-bg, largement au-dessus du seuil AA). */
+     CORRECTIF (2026-10-07, 2ᵉ passe) : cette famille --nova-* a été
+     pensée à l'origine comme SÉPARÉE de la palette générale du site
+     (--bg/-2/-3 restaient une échelle indigo opaque) — c'est précisément
+     ce qui donnait l'impression que "seules les cartes Nova appartiennent
+     à un autre design" (retour utilisateur explicite de cette 2ᵉ passe).
+     --bg-2/-3/-4 ci-dessus REPRENNENT maintenant exactement les mêmes
+     valeurs que --nova-surface/-hover (blanc translucide), donc les deux
+     familles sont désormais volontairement ALIGNÉES — --nova-* reste une
+     famille à part uniquement pour porter les 5 couleurs de module
+     (ci-dessous), jamais plus pour la surface/le fond elle-même. */
   --nova-bg:#211A50; --nova-bg-deep:#19143E;
-  --nova-surface:rgba(255,255,255,.075); --nova-surface-hover:rgba(255,255,255,.105);
+  --nova-surface:rgba(255,255,255,.075); --nova-surface-secondary:rgba(255,255,255,.05); --nova-surface-hover:rgba(255,255,255,.105);
   --nova-border:rgba(255,255,255,.08);
   --nova-text:#ffffff; --nova-text-secondary:rgba(255,255,255,.68); --nova-text-muted:rgba(255,255,255,.48);
   /* Une couleur par module (§4 de la demande) — mapping fixe partagé
      avec NOVA_FEATURES (ui-primitives.js), jamais réassigné au hasard
      si un module supplémentaire apparaît un jour (voir son commentaire). */
   --nova-ai:#4D7CFF; --nova-bot:#805DFF; --nova-review:#E653A5; --nova-news:#6D94FF; --nova-event:#45C8FF;
-  --shadow-accent:0 8px 24px rgba(230,126,34,.3);
+  /* Verre du header/de la nav basse (§12/13, 2ᵉ passe) : même teinte de
+     base que --nova-bg-deep (rgb(25,20,62)) pour que header et bottom
+     nav "semblent appartenir au même système visuel" — seule l'opacité
+     diffère (header plus opaque : il défile en permanence sur du
+     contenu, la nav flotte surtout sur du vide en bas d'écran). */
+  --glass-header:rgba(25,20,62,.70); --glass-navigation:rgba(25,20,62,.55);
+  --glass-icon:rgba(255,255,255,.09);
+  /* CORRECTIF (2026-10-07, 2ᵉ passe) : .btn-a passe au blanc en thème
+     sombre (voir plus bas) mais gardait ce halo ORANGE autour d'un
+     bouton blanc — fuite orange décorative exactement du type visé par
+     §3 ("CTA décoratifs"). Repris en bleu électrique (--accent). */
+  --shadow-accent:0 8px 24px rgba(77,124,255,.3);
 }
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 /* overflow-x:hidden ajouté ici le 2026-09-23 (bug réel trouvé en testant
@@ -377,7 +417,15 @@ button:active{transform:scale(.97)}
    lecture du contenu ; sticky+transform sont compatibles (le sticky ne
    régit que la position de scroll, pas le rendu du transform). */
 @keyframes topSlideIn{ from{transform:translateY(-14px);opacity:0} to{transform:translateY(0);opacity:1} }
-[data-theme="dark"] .top{background:rgba(8,9,12,calc(.72 * var(--top-fade,1)));border-bottom-color:rgba(255,255,255,.06)}
+/* CORRECTIF (2026-10-07, 2ᵉ passe, §12 : "le header doit ressembler
+   davantage à la navigation flottante du bas [...] même système visuel")
+   : rgba(8,9,12,...) était un noir neutre sans lien avec le reste de la
+   palette — repris sur la même teinte indigo que .dock (--glass-header,
+   rgb(25,20,62)) ; calc() ne peut pas décomposer une rgba() stockée dans
+   une variable, d'où les canaux R/G/B recopiés en dur ici (valeur de
+   base identique à --glass-header, voir son commentaire). --top-fade
+   (opacité dynamique au scroll, pilotée en JS) inchangée. */
+[data-theme="dark"] .top{background:rgba(25,20,62,calc(.70 * var(--top-fade,1)));border-bottom-color:rgba(255,255,255,.10)}
 .top-in{max-width:1120px;margin:0 auto;padding:10px 20px;display:flex;align-items:center;
   gap:12px;min-width:0}
 .logo{display:flex;align-items:center;gap:9px;font-weight:700;font-size:17px;
@@ -682,7 +730,17 @@ button:active{transform:scale(.97)}
   -webkit-backdrop-filter:blur(16px) saturate(160%);border:1px solid rgba(255,255,255,.8);
   border-radius:var(--r-l);padding:var(--card-pad);
   box-shadow:0 1px 2px rgba(13,17,23,.05),0 16px 40px rgba(236,72,153,.10)}
-[data-theme="dark"] .card{background-color:rgba(22,26,33,.6);border-color:rgba(255,255,255,.08);
+/* CORRECTIF (2026-10-07, 2ᵉ passe, retour utilisateur : "seules les
+   cartes Nova sont plus claires [...] ça donne l'impression qu'elles
+   appartiennent à un autre design") : rgba(22,26,33,...) était un gris
+   neutre quasi noir, sans AUCUN lien avec la teinte indigo du fond — la
+   carte la plus utilisée du site (.card, 50+ emplacements : Ma liste,
+   Marché, Radar, Comparateur, Portefeuille...) semblait donc "importée"
+   d'un autre thème. Repris sur --bg-2/--line (même famille "verre blanc
+   translucide sur fond indigo" que les cartes Nova, voir leur grand
+   commentaire plus haut) : TOUTE carte du site appartient maintenant à
+   la même famille visuelle. */
+[data-theme="dark"] .card{background-color:var(--bg-2);border-color:var(--line);
   box-shadow:0 1px 2px rgba(0,0,0,.3),0 16px 40px rgba(0,0,0,.4)}
 .card-flat{background:var(--bg-2);border-radius:var(--r-l);padding:var(--card-pad)}
 .card-lift{transition:background var(--slow) var(--ease)}
@@ -884,6 +942,15 @@ a.row{color:inherit;text-decoration:none}
 .plan{position:relative;padding:var(--sp-3);border-radius:var(--r-l);border:1.5px solid var(--line);
   display:flex;flex-direction:column;background:var(--bg);
   transition:border-color .3s var(--spring),box-shadow .3s var(--spring),transform .3s var(--spring)}
+/* CORRECTIF (2026-10-07, 2ᵉ passe, §2 : "Gratuit/Pro/Elite" citées en
+   exemple) : background:var(--bg) posait ces cartes en thème sombre
+   exactement dans la même teinte que la page — invisibles sans leur
+   bordure, jamais "plus claires" comme le reste du nouveau système.
+   --bg-2 (verre blanc translucide, même famille que .card/Nova) à la
+   place ; l'offre la plus populaire (.plan.hot) passe à --bg-3, un cran
+   plus clair, pour une hiérarchie visuelle nette entre les 3 offres. */
+[data-theme="dark"] .plan{background:var(--bg-2)}
+[data-theme="dark"] .plan.hot{background:var(--bg-3)}
 .plan:hover{border-color:var(--ink-4)}
 @media (hover:hover) and (pointer:fine){
   .plan:hover{transform:translateY(-4px);box-shadow:var(--shadow-3)}
@@ -1070,6 +1137,13 @@ a.row{color:inherit;text-decoration:none}
 .brand-orbit{position:relative;display:flex;align-items:center;justify-content:center;
   width:64px;height:64px;margin:0 auto;
   filter:drop-shadow(0 0 10px rgba(230,126,34,.25)) drop-shadow(0 0 16px rgba(0,212,255,.15))}
+/* CORRECTIF (2026-10-07, 2ᵉ passe, §3) : le halo orange ci-dessus suit
+   déjà --accent via .brand-ring circle:first-child (donc devient bleu
+   électrique en thème sombre automatiquement) mais le drop-shadow lui-
+   même est une rgba() figée, jamais un token — fuite orange décorative
+   sur l'écran de connexion sinon. Thème clair non concerné (--accent y
+   reste l'orange Hermès). */
+[data-theme="dark"] .brand-orbit{filter:drop-shadow(0 0 10px rgba(77,124,255,.25)) drop-shadow(0 0 16px rgba(0,212,255,.15))}
 .brand-ring{position:absolute;inset:0;width:100%;height:100%;opacity:.85;
   animation:ringSpin 9s linear infinite}
 .brand-ring circle:first-child{color:var(--accent)}
@@ -1375,6 +1449,20 @@ a.row{color:inherit;text-decoration:none}
 }
 .nova-quick-action:active .nova-action-circle{transform:scale(.96)}
 .nova-quick-action:focus-visible .nova-action-circle{outline:2px solid #66e8ff;outline-offset:4px}
+/* CORRECTIF (2026-10-07, 2ᵉ passe, §11 : "pas de bleu électrique trop
+   agressif [...] même design system que les Nova") : le glow cyan radial
+   (base ci-dessus, conservé tel quel en THÈME CLAIR, non concerné par
+   cette demande) devient en thème sombre une simple surface de verre
+   bleu/violet translucide — même famille que les médaillons des pièces
+   d'échecs (--glass-icon/--nova-ai), sans glow ni bordure saturée. */
+[data-theme="dark"] .nova-action-circle{
+  background:var(--glass-icon);border-color:var(--nova-border);
+  box-shadow:none;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+@media (hover:hover){
+  [data-theme="dark"] .nova-quick-action:hover .nova-action-circle{
+    border-color:rgba(255,255,255,.16);background:rgba(255,255,255,.13);box-shadow:none}
+}
+[data-theme="dark"] .nova-quick-action:focus-visible .nova-action-circle{outline-color:var(--accent)}
 @media (prefers-reduced-motion:reduce){
   .nova-quick-action:active .nova-action-circle,.nova-quick-action:hover .nova-action-circle{transform:none}
 }
@@ -1417,8 +1505,15 @@ a.row{color:inherit;text-decoration:none}
 [data-theme="dark"] .nb-cta-s{background:transparent;color:#fff;border-color:rgba(255,255,255,.35)}
 [data-theme="dark"] .nb-cta-s:active{background:rgba(255,255,255,.12)}
 /* Carte "Mes positions" v2 — hors de .nb-hero-v2 (fond normal de l'app
-   en dessous, comme avant), palette propre à cette carte (brief §19). */
-.nb-pf2{background:rgba(17,22,49,.75);border:1px solid rgba(255,255,255,.10);
+   en dessous, comme avant), toujours un verre sombre quel que soit le
+   thème du site (carte "hero" volontairement mise en avant, brief §19).
+   CORRECTIF (2026-10-07, 2ᵉ passe, §2 : "Ma position" citée en premier
+   exemple de carte à aligner) : rgb(17,22,49)/rgb(16,35,78) étaient une
+   teinte navy légèrement différente de --nova-bg-deep (rgb(25,20,62)) —
+   recalées sur EXACTEMENT la même teinte que le reste du nouveau système,
+   CTA repris en verre blanc translucide (comme les autres boutons du
+   même système) plutôt qu'un bloc bleu à part. */
+.nb-pf2{background:rgba(25,20,62,.82);border:1px solid rgba(255,255,255,.10);
   border-radius:20px;padding:20px;margin-top:20px}
 .nb-pf2-eyebrow{color:var(--accent);font-weight:700;font-size:13px}
 .nb-pf2-val{font-size:clamp(30px,7.5vw,38px);font-weight:700;letter-spacing:-.03em;
@@ -1428,9 +1523,10 @@ a.row{color:inherit;text-decoration:none}
 .nb-pf2-var.down-t{color:#FF647C}
 .nb-pf2-empty p{color:rgba(255,255,255,.65);font-size:14.5px;margin-top:8px;line-height:1.5}
 .nb-pf2-detail{display:block;width:100%;margin-top:16px;padding:13px 16px;
-  border-radius:14px;background:rgba(16,35,78,.65);color:#fff;font-weight:600;font-size:14.5px;
-  text-align:center}
-.nb-pf2-detail:active{background:rgba(16,35,78,.85)}
+  border-radius:14px;background:rgba(255,255,255,.10);color:#fff;font-weight:600;font-size:14.5px;
+  text-align:center;transition:background .2s ease}
+.nb-pf2-detail:active{background:rgba(255,255,255,.16)}
+@media (hover:hover){ .nb-pf2-detail:hover{background:rgba(255,255,255,.14)} }
 /* ============================================================
    NOVA — architecture visuelle (2026-09-23)
    ============================================================
@@ -1476,8 +1572,8 @@ a.row{color:inherit;text-decoration:none}
    fond (--nova-surface, un blanc à 7.5% d'opacité sur --nova-bg),
    jamais de gros glow ni d'effet néon/crypto — ombre quasi imperceptible,
    bordure fine, grands arrondis. */
-.nova-big-card{display:block;width:100%;text-align:left;padding:24px;
-  border-radius:28px;margin-top:16px;
+.nova-big-card{display:block;width:100%;text-align:left;padding:22px;
+  border-radius:26px;margin-top:14px;
   background:var(--nova-surface);border:1px solid var(--nova-border);
   box-shadow:0 1px 2px rgba(0,0,0,.12),0 12px 28px rgba(0,0,0,.14);
   transition:background-color .2s ease,transform .2s ease,box-shadow .2s ease}
@@ -1499,6 +1595,17 @@ a.row{color:inherit;text-decoration:none}
   align-items:center;justify-content:center;flex:0 0 auto;margin-bottom:14px;
   background:rgba(var(--nf-accent-rgb,77,124,255),.16);color:#fff}
 .nova-big-icon svg{width:24px;height:24px;stroke-width:1.6}
+/* .nova-big-body (2ᵉ passe, §8 : "disposition horizontale si l'espace le
+   permet sur desktop") : enveloppe tout SAUF l'icône — mobile reste
+   identique (bloc empilé, icône au-dessus), desktop passe l'icône et ce
+   bloc en ligne (voir le média plus bas), sans dupliquer un seul style
+   de texte existant. */
+.nova-big-body{min-width:0}
+@media (min-width:640px){
+  .nova-big-card{display:flex;align-items:flex-start;gap:18px}
+  .nova-big-icon{margin-bottom:0;margin-top:1px}
+  .nova-big-body{flex:1}
+}
 /* Nom du module (§5) : jamais --accent (orange, exclu des composants
    Nova par consigne explicite) — fallback --nova-ai si jamais une carte
    oublie de poser --nf-accent, jamais "transparent" invisible. */
@@ -1730,14 +1837,14 @@ a.row{color:inherit;text-decoration:none}
 .nova-orb{position:relative;width:52px;height:52px;flex:0 0 auto}
 .nova-orb i{position:absolute;inset:0;border-radius:50%;opacity:.55;
   animation:orb 5.5s var(--spring) infinite}
-/* CORRECTIF (audit de cohérence visuelle, 2026-09-21) : les 3 couleurs
-   étaient encore l'ancien vert/violet/bleu générique — jamais mises à
-   jour vers l'identité officielle orange/bleu/vert lors du changement
-   de palette (commit a529447), simplement parce que .nova-orb n'était
-   alors branché à aucun balisage réel (trouvé mort par cet audit — voir
-   plus bas où il est enfin utilisé, pour l'attente "Analyse IA"). */
-.nova-orb i:nth-child(1){background:radial-gradient(circle at 30% 30%,var(--green-300),var(--green-500))}
-.nova-orb i:nth-child(2){background:radial-gradient(circle at 70% 40%,var(--orange-300),var(--orange-500));animation-delay:-1.8s}
+/* CORRECTIF (2026-10-07, 2ᵉ passe, §3 : "je ne veux plus d'orange dans
+   le design général") : ce halo accompagne littéralement "Nova AI
+   commente votre semaine…" (voir js/nova.js) — un halo orange sur
+   l'identité Nova AI (désormais bleu électrique) était l'exemple même
+   de couleur décorative à remplacer. Repris sur la famille des couleurs
+   Nova (bleu électrique/violet/cyan) plutôt que vert/orange/cyan. */
+.nova-orb i:nth-child(1){background:radial-gradient(circle at 30% 30%,var(--nova-news,#6D94FF),var(--nova-ai,#4D7CFF))}
+.nova-orb i:nth-child(2){background:radial-gradient(circle at 70% 40%,#a996ff,var(--nova-bot,#805DFF));animation-delay:-1.8s}
 .nova-orb i:nth-child(3){background:radial-gradient(circle at 50% 70%,var(--cyan-300),var(--cyan-500));animation-delay:-3.6s}
 @keyframes orb{
   0%,100%{transform:translate(0,0) scale(.82)}

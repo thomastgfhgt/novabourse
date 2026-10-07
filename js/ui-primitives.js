@@ -41,29 +41,43 @@ const ICON = {
      rectangulaire anonyme, avec 2 yeux ronds à l'intérieur, corps
      arrondi et 2 petits bras. */
   bot:'<path d="M12 3.5 L18 12.5 L6 12.5 Z"/><circle cx="10" cy="10.3" r=".9" fill="currentColor" stroke="none"/><circle cx="14" cy="10.3" r=".9" fill="currentColor" stroke="none"/><rect x="7" y="14" width="10" height="7" rx="2.5"/><path d="M4.5 16.5v2.5M19.5 16.5v2.5"/>',
-  /* Jeu d'échecs complet (6 pièces, un code chacune) — mapping module <->
-     pièce CENTRALISÉ dans NOVA_FEATURES (plus bas dans ce fichier),
-     jamais ici : ces icônes sont de pures silhouettes, réutilisables
-     pour n'importe quel module. 2e refonte du mapping (2026-10-07,
-     retour utilisateur : "NovaBot = tour, Nova Review = fou, Nova News
-     = cavalier, Nova Event = pion, Nova AI = reine" — remplace le tout
-     premier mapping de la même journée). Base à 2 niveaux commune aux 6
-     pièces (collerette + socle) pour une famille visuellement cohérente. */
-  rook:'<path d="M7 3.2V7M10.33 3.2V7M13.67 3.2V7M17 3.2V7M6.2 7H17.8L16.3 18.1H7.7Z"/><path d="M6.3 20.4h11.4M7.6 20.4v-1.9M16.4 20.4v-1.9"/>',
-  king:'<path d="M12 2v3.1M10.4 3.6h3.2"/><circle cx="12" cy="7" r="1.4"/><path d="M8.2 13.2Q7.7 9.6 12 8.4Q16.3 9.6 15.8 13.2Z"/><path d="M8 13.2h8l1.3 5.1H6.7Z"/><path d="M6.3 20.4h11.4M7.6 20.4v-2M16.4 20.4v-2"/>',
-  bishop:'<circle cx="12" cy="3.4" r="1.25"/><path d="M12 4.65v1.55"/><path d="M8 13.4Q7.3 8 12 6.2Q16.7 8 16 13.4Z"/><path d="M9.3 9.6 14.7 11.3" stroke-linecap="round"/><path d="M7.7 13.4h8.6l1.1 4.6H6.6Z"/><path d="M6.3 20.4h11.4M7.6 20.4v-2M16.4 20.4v-2"/>',
-  pawn:'<circle cx="12" cy="6.2" r="2.85"/><path d="M9.1 11.3Q12 9.3 14.9 11.3L16.3 18.1H7.7Z"/><path d="M6.3 20.4h11.4M7.6 20.4v-1.9M16.4 20.4v-1.9"/>',
-  /* Reine d'échec (NOUVELLE, 2026-10-07, "Nova AI = une reine") — couronne
-     à 3 pointes (3 petites boules pleines, convention classique pour la
-     distinguer du roi à croix unique), corps fuselé, même base que les
-     5 autres pièces. */
-  queen:'<circle cx="7.7" cy="5.1" r=".95" fill="currentColor" stroke="none"/><circle cx="12" cy="3.5" r="1.1" fill="currentColor" stroke="none"/><circle cx="16.3" cy="5.1" r=".95" fill="currentColor" stroke="none"/><path d="M7.7 6.1 12 7.9 16.3 6.1 15.5 10.3H8.5Z"/><path d="M8.3 13.3Q7.9 11.5 8.7 10.3h6.6Q16.1 11.5 15.7 13.3Z"/><path d="M8 13.3h8l1.3 5.1H6.7Z"/><path d="M6.3 20.4h11.4M7.6 20.4v-2M16.4 20.4v-2"/>',
-  /* Cavalier d'échec (NOUVEAU, 2026-10-07, "Nova News = un cavalier") —
-     profil de tête de cheval stylisé (encolure, chanfrein, oreille,
-     crinière), la pièce la plus reconnaissable de l'échiquier par sa
-     silhouette ; même base que les 5 autres pièces. */
-  knight:'<path d="M8.3 18.2c-.4-2.9.1-5.3 1.5-7 1.1-1.3 1.3-2.2.6-3.1-.3-.4-.9-.4-1.2 0M9.4 7.6C9.9 5.9 11.2 4.8 13 4.7c1.8-.1 3.3 1 3.9 2.6.5 1.4.1 2.8-1 3.8-.8.7-1.7 1-2.7.9"/><circle cx="10.9" cy="8.6" r=".55" fill="currentColor" stroke="none"/><path d="M13 11.2 15.3 13.3Q16 15.6 15.4 18.2"/><path d="M6.3 20.4h11.4M7.6 20.4v-2M16.4 20.4v-2"/>',
 };
+/* Socle commun aux 6 pièces (2ᵉ passe, §6/§10 : "la pièce doit avoir [...]
+   le même poids visuel, le même alignement") — un seul trapèze évasé,
+   réutilisé tel quel par chaque pièce ci-dessous plutôt que redessiné 6
+   fois : garantit que toutes les pièces reposent exactement à la même
+   hauteur, avec le même socle. */
+const CHESS_BASE = '<path d="M6 19.3h12l1.3 2.6H4.7Z" fill="currentColor" stroke="none"/>';
+Object.assign(ICON, {
+  /* Jeu d'échecs complet (6 pièces) — mapping module <-> pièce CENTRALISÉ
+     dans NOVA_FEATURES (plus bas dans ce fichier), jamais ici : ces
+     icônes sont de pures silhouettes, réutilisables pour n'importe quel
+     module. 2ᵉ passe de refonte visuelle (2026-10-07, retour utilisateur
+     : "les icônes actuelles en contour ne conviennent pas [...] les SVG
+     doivent utiliser fill:white et non uniquement stroke:white") :
+     silhouettes PLEINES (fill="currentColor" stroke="none" sur CHAQUE
+     forme, jamais seulement le contour hérité de svg() dans ce fichier)
+     — remplace entièrement les versions en traits de la 1ʳᵉ passe. */
+  rook:'<path d="M6 8.2 6 3 7.8 3 7.8 5.3 9.4 5.3 9.4 3 11.2 3 11.2 5.3 12.8 5.3 12.8 3 14.6 3 14.6 5.3 16.2 5.3 16.2 3 18 3 18 8.2Z" fill="currentColor" stroke="none"/><path d="M6.8 8.2h10.4l-1 9.1H7.8Z" fill="currentColor" stroke="none"/>'+CHESS_BASE,
+  king:'<path d="M12 2v3.1M10.4 3.6h3.2"/><circle cx="12" cy="7" r="1.4"/><path d="M8.2 13.2Q7.7 9.6 12 8.4Q16.3 9.6 15.8 13.2Z"/><path d="M8 13.2h8l1.3 5.1H6.7Z"/><path d="M6.3 20.4h11.4M7.6 20.4v-2M16.4 20.4v-2"/>',
+  /* Fou (mitre + boule, sans fente — une fente nécessiterait de "creuser"
+     une 2e couleur dans une silhouette pleine à une seule teinte,
+     renoncé au profit d'un contour net et simple comme demandé "§6 :
+     simples, élégantes, modernes"). Courbe de la mitre reprise à
+     l'identique de la version en traits de la 1ʳᵉ passe (déjà vérifiée
+     visuellement ce jour-là), juste refermée en silhouette pleine. */
+  bishop:'<circle cx="12" cy="3.6" r="1.15" fill="currentColor" stroke="none"/><path d="M11.3 4.9h1.4v1.3h-1.4Z" fill="currentColor" stroke="none"/><path d="M8.3 14.2Q7.4 8 12 6.3Q16.6 8 15.7 14.2Z" fill="currentColor" stroke="none"/><path d="M7.6 14.2h8.8l1 3.6H6.6Z" fill="currentColor" stroke="none"/>'+CHESS_BASE,
+  pawn:'<circle cx="12" cy="7.6" r="3.1" fill="currentColor" stroke="none"/><path d="M8.8 12.6Q12 10.3 15.2 12.6L16.4 19.3H7.6Z" fill="currentColor" stroke="none"/>'+CHESS_BASE,
+  /* Reine — couronne à 3 pointes (3 boules, convention classique pour la
+     distinguer du roi à croix unique), désormais refermée en silhouette
+     pleine (corps+jupe) au lieu d'un simple contour, même socle commun. */
+  queen:'<circle cx="7.7" cy="5.1" r=".95" fill="currentColor" stroke="none"/><circle cx="12" cy="3.5" r="1.1" fill="currentColor" stroke="none"/><circle cx="16.3" cy="5.1" r=".95" fill="currentColor" stroke="none"/><path d="M7.7 6.1 12 7.9 16.3 6.1 15.5 10.3H8.5Z" fill="currentColor" stroke="none"/><path d="M8.3 13.3Q7.9 11.5 8.7 10.3h6.6Q16.1 11.5 15.7 13.3Z" fill="currentColor" stroke="none"/><path d="M8 13.3h8l1.3 5.1H6.7Z" fill="currentColor" stroke="none"/>'+CHESS_BASE,
+  /* Cavalier — profil de tête de cheval refermé en un seul contour plein
+     (encolure, chanfrein, crinière), même proportions générales que la
+     version en traits de la 1ʳᵉ passe mais désormais une silhouette
+     fermée plutôt qu'un tracé ouvert. */
+  knight:'<path d="M8.6 19.3C8.2 16 8.7 13.3 10.1 11.3 11 10 11.1 9.1 10.4 8.3 9.9 7.7 9.7 7 10 6.3 10.7 4.7 12.3 3.6 14.2 3.6 16.6 3.6 18.5 5.3 18.8 7.6 19 9.1 18.5 10.4 17.3 11.2 16.7 11.6 16.4 12.3 16.7 13 17.5 14.7 17.9 16.8 17.6 19.3Z" fill="currentColor" stroke="none"/>'+CHESS_BASE,
+});
 const ICON_SHIFT = {
   home:[0.03,-1.95], list:[1.65,-3.56], wallet:[0,-0.41], star:[0,-0.46],
   check:[-0.04,-0.83], moon:[1.82,-1.87], bell:[-0.04,-1.52], shield:[0,0.38],
@@ -188,7 +202,11 @@ const NOVA_FEATURES = {
   novabot: { icon:'rook', accent:'#805DFF', rgb:'128,93,255',
     title:'NovaBot', tag:'Automatisation intelligente',
     desc:"NovaBot pourra bientôt gérer une partie de vos investissements selon des règles que vous aurez vous-même définies — jamais un ordre passé sans votre accord explicite." },
-  novareview: { icon:'bishop', accent:'#E653A5', rgb:'230,83,165',
+  /* CORRECTIF (2026-10-07, 2ᵉ passe, mapping DÉFINITIF explicitement
+     signalé "NE PAS modifier" : Nova Review = cavalier, Nova News = fou
+     — inverse de la 1ʳᵉ passe (bishop/knight échangés). Couleur/titre
+     inchangés, seule la pièce change. */
+  novareview: { icon:'knight', accent:'#E653A5', rgb:'230,83,165',
     title:'Nova Review', tag:'Revoir vos décisions',
     desc:"Nova Review reviendra sur vos décisions d'investissement passées pour vous aider à comprendre ce qui a fonctionné, ou non, et pourquoi." },
   /* Description corrigée (2026-10-06, prompt maître §34) : la version
@@ -202,7 +220,7 @@ const NOVA_FEATURES = {
   novaevent: { icon:'pawn', accent:'#45C8FF', rgb:'69,200,255',
     title:'Nova Event', tag:'Vos prochains événements',
     desc:"Nova Event rassemble les prochains résultats et dividendes des valeurs que vous suivez ou détenez — jamais une date devinée, seulement ce qui est réellement connu." },
-  novanews: { icon:'knight', accent:'#6D94FF', rgb:'109,148,255',
+  novanews: { icon:'bishop', accent:'#6D94FF', rgb:'109,148,255',
     title:'Nova News', tag:"L'actualité qui compte",
     desc:"Nova News réunira l'actualité économique, financière et géopolitique susceptible d'influencer vos investissements — dans chaque fiche, l'actualité propre à l'entreprise consultée." },
 };

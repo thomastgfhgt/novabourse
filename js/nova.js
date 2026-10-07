@@ -267,6 +267,7 @@ function novaReviewHomeCard(){
   const f = NOVA_FEATURES.novareview;
   return `<button type="button" class="nova-big-card" data-go="novareview" style="--nf-accent:${f.accent};--nf-accent-rgb:${f.rgb}">
     ${chessNovaIcon('novareview')}
+    <div class="nova-big-body">
     <p class="nova-big-eyebrow">Nova Review</p>
     ${resume ? `
       <p class="nova-big-lead">Votre analyse de la semaine est prête.</p>
@@ -276,8 +277,9 @@ function novaReviewHomeCard(){
         ${resume.surveiller ? `<li><span class="nova-big-dot" style="background:${VERDICT_STYLE['Risqué'].accent}"></span>${resume.surveiller} point${resume.surveiller > 1 ? 's' : ''} à surveiller</li>` : ''}
         ${!resume.total ? `<li><span class="nova-big-dot" style="background:var(--ink-4)"></span>Rien à signaler cette semaine</li>` : ''}
       </ul>` : `
-      <p class="nova-big-lead">Nova Review comparera vos décisions passées à ce qui s'est réellement passé, dès votre premier achat ou votre première vente.</p>`}
+      <p class="nova-big-lead">Analyse vos décisions passées et vous montre ce que vous auriez pu améliorer.</p>`}
     <span class="nova-big-link">Voir mon analyse →</span>
+    </div>
   </button>`;
 }
 
@@ -298,6 +300,7 @@ function novabotHomeCard(){
   const f = NOVA_FEATURES.novabot;
   return `<button type="button" class="nova-big-card" data-go="novabot" style="--nf-accent:${f.accent};--nf-accent-rgb:${f.rgb}">
     ${chessNovaIcon('novabot')}
+    <div class="nova-big-body">
     <p class="nova-big-eyebrow">NovaBot</p>
     ${aDejaDecide ? (() => {
       const pf = novabotPortfolioValue();
@@ -307,8 +310,9 @@ function novabotHomeCard(){
     })() : cfg.enabled ? `
       <p class="nova-big-lead">NovaBot est activé mais n'a pas encore été évalué.</p>
       <p class="nova-big-sub">Ouvrez NovaBot et cliquez sur « Évaluer maintenant » pour une première simulation.</p>` : `
-      <p class="nova-big-lead">NovaBot peut gérer un portefeuille entièrement simulé selon des règles que vous définissez — jamais un ordre réel.</p>`}
+      <p class="nova-big-lead">Gère un portefeuille simulé selon votre stratégie et vos règles.</p>`}
     <span class="nova-big-link">Ouvrir NovaBot →</span>
+    </div>
   </button>`;
 }
 
@@ -796,12 +800,14 @@ function novaNewsHomeCard(){
   const f = NOVA_FEATURES.novanews;
   return `<button type="button" class="nova-big-card" data-go="novanews" style="--nf-accent:${f.accent};--nf-accent-rgb:${f.rgb}">
     ${chessNovaIcon('novanews')}
+    <div class="nova-big-body">
     <p class="nova-big-eyebrow">Nova News</p>
     ${chargee ? `
       <p class="nova-big-lead">${WORLD_NEWS.items.length} actualité${WORLD_NEWS.items.length > 1 ? 's' : ''} disponible${WORLD_NEWS.items.length > 1 ? 's' : ''}.</p>
       ${pertinents ? `<p class="nova-big-sub">${pertinents} concernent votre portefeuille ou votre liste de suivi.</p>` : ''}` : `
-      <p class="nova-big-lead">L'actualité économique, financière et géopolitique mondiale, en un seul endroit.</p>`}
-    <span class="nova-big-link">Voir mes actualités →</span>
+      <p class="nova-big-lead">Regroupe et analyse l'actualité qui peut influencer vos investissements.</p>`}
+    <span class="nova-big-link">Voir les actualités →</span>
+    </div>
   </button>`;
 }
 
@@ -917,11 +923,13 @@ function novaEventHomeCard(){
   const f = NOVA_FEATURES.novaevent;
   return `<button type="button" class="nova-big-card" data-go="novaevent" style="--nf-accent:${f.accent};--nf-accent-rgb:${f.rgb}">
     ${chessNovaIcon('novaevent')}
+    <div class="nova-big-body">
     <p class="nova-big-eyebrow">Nova Event</p>
     ${prochain ? `
       <p class="nova-big-lead">${evts.length} événement${evts.length > 1 ? 's' : ''} à venir.</p>
       <p class="nova-big-sub">${prochain.type === 'earnings' ? 'Résultats' : 'Dividende'} ${esc(prochain.ticker)} le ${dateEvenementAffichee(prochain.date)}</p>` : `
-      <p class="nova-big-lead">Les prochains résultats et dividendes de vos valeurs suivies et détenues, au même endroit.</p>`}
+      <p class="nova-big-lead">Centralise les résultats, dividendes et événements de vos entreprises.</p>`}
     <span class="nova-big-link">Voir le calendrier →</span>
+    </div>
   </button>`;
 }
