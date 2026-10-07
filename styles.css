@@ -62,6 +62,17 @@
   --warn:#b45309; --warn-soft:#fdf4e7;
   --line:#e6e9f0;
   --line-2:#eef0f5;
+  /* Tokens Nova (voir leur grand commentaire dans [data-theme="dark"]
+     pour le contexte complet) : repli THÈME CLAIR — l'esthétique "verre
+     bleu nuit" demandée est pensée pour le thème sombre, mais ces
+     variables doivent exister ici aussi pour qu'un composant Nova reste
+     lisible (contraste correct) si jamais consulté en thème clair,
+     jamais une carte invisible/blanc sur blanc. */
+  --nova-bg:#ffffff; --nova-bg-deep:#f4f5fb;
+  --nova-surface:rgba(33,26,80,.045); --nova-surface-hover:rgba(33,26,80,.075);
+  --nova-border:rgba(33,26,80,.10);
+  --nova-text:#171334; --nova-text-secondary:rgba(23,19,52,.68); --nova-text-muted:rgba(23,19,52,.48);
+  --nova-ai:#3458E8; --nova-bot:#6A3FE0; --nova-review:#C93E8A; --nova-news:#3E63D6; --nova-event:#0F8FBF;
   --r-xs:8px; --r-s:12px; --r-m:18px; --r-l:24px; --r-xl:32px; --r-pill:999px;
   --shadow-1:none;
   --shadow-2:0 1px 2px rgba(13,17,23,.04), 0 8px 24px rgba(13,17,23,.05);
@@ -135,11 +146,25 @@
      voir plus bas) — réutilisé ici plutôt qu'une nouvelle teinte
      arbitraire. Reste uniforme sur les 4 crans, comme demandé ("juste
      ça"). Texte blanc et boutons blancs (voir plus bas) non concernés,
-     déjà conformes sur ce fond aussi. */
-  --bg:#0a0e27; --bg-2:#0a0e27; --bg-3:#0a0e27; --bg-4:#0a0e27;
+     déjà conformes sur ce fond aussi.
+     CORRECTIF (2026-10-07, refonte visuelle des modules Nova, retour
+     utilisateur : "le fond actuel est trop proche du noir [...] je ne
+     veux pas que le site paraisse noir") : #0A0E27 restait perceptible
+     comme "quasi-noir" à l'œil/sur OLED malgré sa dominante bleue
+     techniquement réelle (R10 G14 B39, très sombre) — remplacé par un
+     indigo nettement plus clair et saturé, explicitement demandé cette
+     fois. Échelle à 4 crans conservée (surfaces empilées de plus en
+     plus claires, même principe que les palettes précédentes), teinte
+     de base changée. --bg-2/-3/-4 dérivés par éclaircissement progressif
+     de --bg plutôt qu'une 4e valeur arbitraire. */
+  --bg:#19143E; --bg-2:#1D1849; --bg-3:#211A50; --bg-4:#282163;
   --ink:#ffffff; --ink-2:#ffffff; --ink-3:#ffffff; --ink-4:#ffffff;
   /* Orange Hermès (#E67E22, même teinte que le thème clair, "Primary
-     toujours orange") : assez saturé pour rester lisible sur #0A0E27. */
+     toujours orange") : assez saturé pour rester lisible sur #0A0E27.
+     CONSERVÉ pour le reste du site (boutons primaires hors modules
+     Nova) — la demande du 2026-10-07 ("aucun orange") est explicitement
+     scopée aux "composants Nova" (voir --nova-* plus bas, qui n'en
+     dérivent plus), pas une refonte de l'identité globale du site. */
   --accent:var(--orange-500); --accent-hover:var(--orange-light); --accent-press:var(--orange-700);
   --accent-soft:#2a1f14; --accent-ink:#ffffff;
   /* Cyan réservé aux boutons secondaires (même règle qu'en thème
@@ -147,9 +172,31 @@
   --blue-accent:var(--cyan-500); --blue-accent-soft:#142a30;
   --up:#34d399; --up-soft:#0c2419; --down:#f87171; --down-soft:#2a1416;
   --warn:#e0a63a; --warn-soft:#2a2110;
-  --line:#2a3050; --line-2:#1a1f3d;
+  --line:#352d6b; --line-2:#241e57;
   --shadow-2:0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.35);
   --shadow-3:0 2px 6px rgba(0,0,0,.45), 0 24px 48px rgba(0,0,0,.45);
+  /* ============================================================
+     DESIGN TOKENS — MODULES NOVA (refonte visuelle, 2026-10-07)
+     ============================================================
+     Famille de variables DÉDIÉE aux 5 modules Nova (AI/Bot/Review/News/
+     Event), séparée de la palette générale du site (--bg/--accent/...
+     ci-dessus, INCHANGÉE et toujours utilisée ailleurs : pricing,
+     boutons primaires, etc.) — centralise toute la palette "verre
+     teinté bleu nuit" demandée pour que changer une seule teinte ici
+     suffise à la répercuter partout où un composant Nova apparaît
+     (accueil, Portefeuille, fiche action...), sans jamais toucher au
+     reste du site. Valeurs de départ fournies par l'utilisateur,
+     ajustées pour le contraste WCAG (texte blanc sur --nova-surface
+     reste ≥ 4.5:1, vérifié : fond effectif ≈ rgba(33,26,80,.925) une
+     fois composé sur --nova-bg, largement au-dessus du seuil AA). */
+  --nova-bg:#211A50; --nova-bg-deep:#19143E;
+  --nova-surface:rgba(255,255,255,.075); --nova-surface-hover:rgba(255,255,255,.105);
+  --nova-border:rgba(255,255,255,.08);
+  --nova-text:#ffffff; --nova-text-secondary:rgba(255,255,255,.68); --nova-text-muted:rgba(255,255,255,.48);
+  /* Une couleur par module (§4 de la demande) — mapping fixe partagé
+     avec NOVA_FEATURES (ui-primitives.js), jamais réassigné au hasard
+     si un module supplémentaire apparaît un jour (voir son commentaire). */
+  --nova-ai:#4D7CFF; --nova-bot:#805DFF; --nova-review:#E653A5; --nova-news:#6D94FF; --nova-event:#45C8FF;
   --shadow-accent:0 8px 24px rgba(230,126,34,.3);
 }
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
@@ -163,6 +210,13 @@
    du document malgré body{overflow-x:hidden}. */
 html{-webkit-text-size-adjust:100%;overflow-x:hidden}
 html{background:var(--bg)}
+/* CORRECTIF (2026-10-07, §7 de la refonte Nova : "utiliser éventuellement
+   un fond très subtil, un dégradé") : fond plat var(--bg) remplacé par
+   un dégradé vertical TRÈS subtil entre --nova-bg (haut, légèrement plus
+   clair) et --nova-bg-deep (bas) — uniquement en thème sombre, le thème
+   clair reste un blanc plat comme avant (non concerné par cette
+   demande). */
+[data-theme="dark"] html{background:linear-gradient(180deg,var(--nova-bg) 0%,var(--nova-bg-deep) 100%) fixed}
 [data-theme="xxx"] body::before{
   content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
   background:
@@ -428,10 +482,14 @@ button:active{transform:scale(.97)}
     position:fixed;left:50%;transform:translateX(-50%);
     bottom:calc(12px + env(safe-area-inset-bottom));z-index:60;
     width:calc(100% - 20px);max-width:440px;
-    background:rgba(10,14,35,.50);
-    /* Flou réduit 18px -> 13px (2026-09-24, même correctif performance
-       que .top ci-dessus, même raison : fixed + présent sur toute page
-       mobile, recalculé à chaque frame de défilement). */
+    /* CORRECTIF (2026-10-07, refonte visuelle §8 "harmoniser la nav
+       avec le nouvel univers") : fond rgba(10,14,35,...) (quasi-noir)
+       remplacé par la teinte indigo --nova-bg-deep (rgb(25,20,62)), pour
+       que la barre flotte visiblement dans le même univers bleu nuit
+       que le reste de la page plutôt que de retomber sur du noir — même
+       transparence/flou/dimensions, INCHANGÉS (voir note ci-dessus,
+       "NE CHANGE PLUS sa taille"). */
+    background:rgba(25,20,62,.55);
     backdrop-filter:blur(13px) saturate(120%);
     -webkit-backdrop-filter:blur(13px) saturate(120%);
     border:1px solid rgba(255,255,255,.10);border-radius:9999px;
@@ -1306,15 +1364,6 @@ a.row{color:inherit;text-decoration:none}
   transition:transform .18s ease,background .18s ease,border-color .18s ease,box-shadow .18s ease}
 .nova-action-circle svg{width:29px;height:29px;fill:none;stroke:var(--ink);
   stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
-/* CORRECTIF (2026-10-07) : le logo NovaTitre (ICON.brand, "Analyser avec
-   l'IA") est un pictogramme PLEIN (3 <path fill="currentColor"
-   stroke="none">, même tracé que le temple/le header), pas un contour —
-   la règle générique juste au-dessus (fill:none) l'aurait rendu
-   invisible, exactement comme .nova-temple-brand{fill:var(--ink)} doit
-   déjà exister séparément pour la même raison dans le temple. Largeur
-   élargie (29px -> 34px) : le logo est plus large que haut (viewBox
-   1536×1024), resterait petit à largeur identique à une icône carrée. */
-.nova-action-circle svg[viewBox="0 0 1536 1024"]{fill:var(--ink);stroke:none;width:34px;height:auto}
 .nova-action-title{display:block;margin-top:10px;color:var(--ink);font-size:14px;font-weight:700;
   line-height:1.15;letter-spacing:-.01em}
 .nova-action-description{display:block;max-width:180px;margin-top:7px;
@@ -1406,59 +1455,60 @@ a.row{color:inherit;text-decoration:none}
 [data-theme="dark"] .nova-hub-card{background-color:rgba(22,26,33,.6);border-color:rgba(255,255,255,.08)}
 .nova-hub-card:hover{transform:translateY(-3px);box-shadow:var(--shadow-2)}
 .nova-hub-card:active{transform:scale(.98)}
-/* CORRECTIF (2026-10-07, "de beaux logos gris en forme de pièces
-   d'échecs") : la pièce elle-même reste grise (--ink-2), jamais teintée
-   dans la couleur du module — seul le FOND du badge garde sa teinte
-   (--nf-accent), pour un jeu d'échecs cohérent plutôt que 4 pièces de
-   couleurs différentes. */
+/* CORRECTIF (2026-10-07, refonte visuelle §3/§4) : pièce blanche sur
+   carré teinté par module, même principe que .nova-big-icon — cohérent
+   avec ChessNovaIcon (ui-primitives.js), qui génère ce balisage. */
 .nova-hub-i{width:36px;height:36px;border-radius:11px;display:flex;align-items:center;justify-content:center;
-  background:rgba(var(--nf-accent-rgb),.16);color:var(--ink-2);flex:0 0 auto}
+  background:rgba(var(--nf-accent-rgb,77,124,255),.16);color:#fff;flex:0 0 auto}
 .nova-hub-i svg{width:18px;height:18px}
 .nova-hub-t{font-size:13.5px;font-weight:700;letter-spacing:-.015em;color:var(--ink)}
 .nova-hub-s{font-size:11px;color:var(--ink-3);line-height:1.3;margin-top:-5px}
 @media (prefers-reduced-motion:reduce){ .nova-hub-card{transition:background-color .25s ease} }
-/* Grande carte Nova (§54-56 du prompt maître NovaTitre) : première
-   utilisation pour Nova Review (voir novaReviewHomeCard(), js/nova.js) —
-   "pratiquement toute la largeur" sur mobile (§55), même traitement
-   verre dépoli que .card/.nova-hub-card pour la cohérence visuelle,
-   mais une seule carte pleine largeur plutôt qu'une grille. */
-.nova-big-card{display:block;width:100%;text-align:left;padding:var(--card-pad);
-  border-radius:var(--r-l);margin-top:16px;
-  background-color:rgba(255,255,255,.6);backdrop-filter:blur(16px) saturate(160%);
-  -webkit-backdrop-filter:blur(16px) saturate(160%);border:1px solid rgba(255,255,255,.8);
-  box-shadow:0 1px 2px rgba(13,17,23,.05),0 16px 40px rgba(124,200,240,.12);
-  transition:transform .25s var(--spring),box-shadow .25s var(--spring)}
-[data-theme="dark"] .nova-big-card{background-color:rgba(22,26,33,.6);border-color:rgba(255,255,255,.08);
-  box-shadow:0 1px 2px rgba(0,0,0,.3),0 16px 40px rgba(0,0,0,.4)}
-.nova-big-card:hover{transform:translateY(-3px);box-shadow:var(--shadow-2)}
+/* ============================================================
+   NOVA CARD — refonte visuelle complète (2026-10-07)
+   ============================================================
+   Composant partagé pour les 5 modules Nova (AI/Bot/Review/News/Event),
+   seul endroit à modifier pour changer le langage graphique de TOUTES
+   les cartes Nova du site (généré par xxxHomeCard(), js/nova.js, qui
+   pose uniquement --nf-accent/--nf-accent-rgb en style inline depuis
+   NOVA_FEATURES — jamais une couleur en dur dans un composant, §9 de la
+   demande). "Plaque de verre teinté bleu nuit" : plus claire que le
+   fond (--nova-surface, un blanc à 7.5% d'opacité sur --nova-bg),
+   jamais de gros glow ni d'effet néon/crypto — ombre quasi imperceptible,
+   bordure fine, grands arrondis. */
+.nova-big-card{display:block;width:100%;text-align:left;padding:24px;
+  border-radius:28px;margin-top:16px;
+  background:var(--nova-surface);border:1px solid var(--nova-border);
+  box-shadow:0 1px 2px rgba(0,0,0,.12),0 12px 28px rgba(0,0,0,.14);
+  transition:background-color .2s ease,transform .2s ease,box-shadow .2s ease}
+/* Survol desktop UNIQUEMENT (§2 : "sur mobile, aucun effet inutile") —
+   légère hausse de luminosité + léger décollé, jamais un effet qui
+   pourrait rester "collé" sur un écran tactile sans vrai pointeur. */
+@media (hover:hover){
+  .nova-big-card:hover{background:var(--nova-surface-hover);transform:translateY(-2px);
+    box-shadow:0 1px 2px rgba(0,0,0,.14),0 16px 32px rgba(0,0,0,.18)}
+}
 .nova-big-card:active{transform:scale(.99)}
-/* Icône + teinte par module (2026-10-07, "rendre l'accueil plus
-   instinctif") : les 4 grandes cartes étaient visuellement identiques
-   (même gris, même accroche orange) — seul le texte permettait de les
-   distinguer, ce qui demande de lire au lieu de reconnaître d'un coup
-   d'œil. Même mécanisme que .nova-hub-i (--nf-accent/--nf-accent-rgb,
-   posés en style inline depuis NOVA_FEATURES[key] par chaque
-   xxxHomeCard()) : une seule règle CSS, 4 teintes différentes sans dupliquer
-   quoi que ce soit. Fallback var(--accent) sur eyebrow/link : si jamais
-   une carte future oublie de poser --nf-accent, elle garde l'ancien
-   comportement au lieu d'un "transparent" invisible. */
-/* CORRECTIF (2026-10-07, retour utilisateur : "qu'il n'y ait rien autour
-   et que tout soit blanc") — retire le badge circulaire teinté
-   (background/border-radius) : la pièce d'échec se suffit à elle-même,
-   posée directement sur la carte, sans cercle ni fond. Blanc pur
-   (#fff), jamais --ink-2/--nf-accent : les 4 pièces doivent être
-   identiques en couleur, seule leur SILHOUETTE les distingue — un
-   vrai jeu d'échecs, pas des badges colorés. */
-.nova-big-icon{display:flex;align-items:center;justify-content:center;margin-bottom:14px;color:#fff}
-.nova-big-icon svg{width:30px;height:30px;stroke-width:1.5}
-.nova-big-eyebrow{font-size:var(--t-label);font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--nf-accent,var(--accent))}
-.nova-big-lead{font-size:17px;font-weight:650;line-height:1.4;margin-top:8px;max-width:38ch}
+@media (prefers-reduced-motion:reduce){ .nova-big-card{transition:box-shadow .2s ease} }
+/* ChessNovaIcon (§3) : petit carré arrondi translucide teinté par
+   module (--nf-accent-rgb en fond à faible opacité), pièce d'échec
+   blanche PARFAITEMENT centrée à l'intérieur — jamais recolorée dans la
+   teinte du module (seul le carré l'est) : un vrai jeu d'échecs blanc,
+   pas 5 pièces de couleurs différentes. */
+.nova-big-icon{width:46px;height:46px;border-radius:14px;display:flex;
+  align-items:center;justify-content:center;flex:0 0 auto;margin-bottom:14px;
+  background:rgba(var(--nf-accent-rgb,77,124,255),.16);color:#fff}
+.nova-big-icon svg{width:24px;height:24px;stroke-width:1.6}
+/* Nom du module (§5) : jamais --accent (orange, exclu des composants
+   Nova par consigne explicite) — fallback --nova-ai si jamais une carte
+   oublie de poser --nf-accent, jamais "transparent" invisible. */
+.nova-big-eyebrow{font-size:var(--t-label);font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--nf-accent,var(--nova-ai))}
+.nova-big-lead{font-size:16.5px;font-weight:600;line-height:1.45;margin-top:10px;max-width:40ch;color:var(--nova-text)}
 .nova-big-stats{list-style:none;margin-top:14px;display:flex;flex-direction:column;gap:8px}
-.nova-big-stats li{display:flex;align-items:center;gap:8px;font-size:14.5px;color:var(--ink-2)}
+.nova-big-stats li{display:flex;align-items:center;gap:8px;font-size:14.5px;color:var(--nova-text-secondary)}
 .nova-big-dot{width:8px;height:8px;border-radius:50%;flex:0 0 auto}
-.nova-big-sub{font-size:14px;color:var(--ink-3);margin-top:10px;line-height:1.4}
-.nova-big-link{display:block;margin-top:16px;font-size:14px;font-weight:700;color:var(--nf-accent,var(--accent))}
-@media (prefers-reduced-motion:reduce){ .nova-big-card{transition:box-shadow .25s ease} }
+.nova-big-sub{font-size:14px;color:var(--nova-text-secondary);margin-top:10px;line-height:1.4}
+.nova-big-link{display:block;margin-top:16px;font-size:14px;font-weight:700;color:var(--nf-accent,var(--nova-ai))}
 /* Rangée d'accès Nova (Portefeuille, fiche action — voir novaSuiteRow()
    en JS) : défilement horizontal plutôt que retour à la ligne, jamais
    de compression/chevauchement quelle que soit la largeur (§15,

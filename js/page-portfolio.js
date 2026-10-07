@@ -72,12 +72,16 @@ PAGES.portfolio = () => {
          présentation dédiée (novaFeaturePage) ; Nova AI n'en a
          volontairement PAS (consigne explicite : jamais sur l'accueil
          ni une page dédiée, seulement contextuel), d'où data-soon direct
-         plutôt que data-go pour ce 3e bouton. -->
+         plutôt que data-go pour ce 3e bouton. CORRECTIF (2026-10-07,
+         refonte visuelle) : icône/couleur/titre de Nova AI venaient en
+         dur ici (dupliqués à l'identique dans page-stock.js) — lus
+         depuis NOVA_FEATURES.novaai (ui-primitives.js) désormais, seul
+         endroit à modifier pour que la reine/le bleu électrique de Nova
+         AI changent partout à la fois. -->
     ${novaSuiteRow([
       { key:'novabot', page:'novabot' },
       { key:'novareview', page:'novareview' },
-      { icon:'spark', accent:'#6d28d9', rgb:'109,40,217', title:'Nova AI',
-        soon:'Nova AI — bientôt disponible.' },
+      { key:'novaai', soon:'Nova AI — bientôt disponible.' },
     ])}
 
     <section class="section">

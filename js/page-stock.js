@@ -394,10 +394,13 @@ PAGES.stock = (id) => {
        comme l'était l'ancien bouton "Analyse" et comme l'est la section
        "Analyse IA" plus bas — une paire crypto/forex n'a rien à
        analyser de cette façon. Nova Review a sa page de présentation,
-       réutilisée telle quelle. -->
+       réutilisée telle quelle. CORRECTIF (2026-10-07, refonte visuelle) :
+       icône/couleur/titre de Nova AI venaient en dur ici (dupliqués à
+       l'identique dans page-portfolio.js) — lus depuis
+       NOVA_FEATURES.novaai (ui-primitives.js) désormais, seul attr
+       (data-nova, l'action réelle) reste propre à cette page. -->
   ${novaSuiteRow([
-    ...(s.type === 'stock' ? [{ icon:'spark', accent:'#6d28d9', rgb:'109,40,217', title:'Nova AI',
-      attr:`data-nova="${esc(s.id)}"` }] : []),
+    ...(s.type === 'stock' ? [{ key:'novaai', attr:`data-nova="${esc(s.id)}"` }] : []),
     { key:'novareview', page:'novareview' },
   ])}
   ${state.compare.length >= 2 ? `<button class="btn btn-ghost btn-sm" style="margin-top:10px" data-go="compare">

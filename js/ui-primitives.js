@@ -41,26 +41,28 @@ const ICON = {
      rectangulaire anonyme, avec 2 yeux ronds à l'intérieur, corps
      arrondi et 2 petits bras. */
   bot:'<path d="M12 3.5 L18 12.5 L6 12.5 Z"/><circle cx="10" cy="10.3" r=".9" fill="currentColor" stroke="none"/><circle cx="14" cy="10.3" r=".9" fill="currentColor" stroke="none"/><rect x="7" y="14" width="10" height="7" rx="2.5"/><path d="M4.5 16.5v2.5M19.5 16.5v2.5"/>',
-  /* Tour d'échec (2026-09-24, retour utilisateur initial), RÉATTRIBUÉE à
-     Nova Event (2026-10-07, retour utilisateur : jeu complet de pièces
-     d'échecs, une par module Nova) — silhouette inchangée (crénelures en
-     4 créneaux simples, corps fuselé), seul le module qui la porte
-     change (voir NOVA_FEATURES plus bas). */
+  /* Jeu d'échecs complet (6 pièces, un code chacune) — mapping module <->
+     pièce CENTRALISÉ dans NOVA_FEATURES (plus bas dans ce fichier),
+     jamais ici : ces icônes sont de pures silhouettes, réutilisables
+     pour n'importe quel module. 2e refonte du mapping (2026-10-07,
+     retour utilisateur : "NovaBot = tour, Nova Review = fou, Nova News
+     = cavalier, Nova Event = pion, Nova AI = reine" — remplace le tout
+     premier mapping de la même journée). Base à 2 niveaux commune aux 6
+     pièces (collerette + socle) pour une famille visuellement cohérente. */
   rook:'<path d="M7 3.2V7M10.33 3.2V7M13.67 3.2V7M17 3.2V7M6.2 7H17.8L16.3 18.1H7.7Z"/><path d="M6.3 20.4h11.4M7.6 20.4v-1.9M16.4 20.4v-1.9"/>',
-  /* Roi d'échec (2026-10-07, "NovaBot = un roi") — croix sommitale (la
-     pièce la plus identifiable de l'échiquier, jamais confondue avec une
-     reine grâce à elle), couronne simplifiée, corps fuselé, même base
-     que les autres pièces de ce jeu pour rester cohérent visuellement. */
   king:'<path d="M12 2v3.1M10.4 3.6h3.2"/><circle cx="12" cy="7" r="1.4"/><path d="M8.2 13.2Q7.7 9.6 12 8.4Q16.3 9.6 15.8 13.2Z"/><path d="M8 13.2h8l1.3 5.1H6.7Z"/><path d="M6.3 20.4h11.4M7.6 20.4v-2M16.4 20.4v-2"/>',
-  /* Fou d'échec (2026-10-07, "Nova News = un fou") — mitre caractéristique
-     (dôme fendu en diagonale) surmontée d'une petite boule, corps fuselé,
-     même base que les autres pièces. */
   bishop:'<circle cx="12" cy="3.4" r="1.25"/><path d="M12 4.65v1.55"/><path d="M8 13.4Q7.3 8 12 6.2Q16.7 8 16 13.4Z"/><path d="M9.3 9.6 14.7 11.3" stroke-linecap="round"/><path d="M7.7 13.4h8.6l1.1 4.6H6.6Z"/><path d="M6.3 20.4h11.4M7.6 20.4v-2M16.4 20.4v-2"/>',
-  /* Pion d'échec (2026-10-07, "Nova Review = un pion") — tête ronde, corps
-     fuselé, même base que les autres pièces : la pièce la plus simple de
-     l'échiquier pour le module le plus "retour en arrière, pas en
-     avant" (Nova Review revient sur des décisions déjà prises). */
   pawn:'<circle cx="12" cy="6.2" r="2.85"/><path d="M9.1 11.3Q12 9.3 14.9 11.3L16.3 18.1H7.7Z"/><path d="M6.3 20.4h11.4M7.6 20.4v-1.9M16.4 20.4v-1.9"/>',
+  /* Reine d'échec (NOUVELLE, 2026-10-07, "Nova AI = une reine") — couronne
+     à 3 pointes (3 petites boules pleines, convention classique pour la
+     distinguer du roi à croix unique), corps fuselé, même base que les
+     5 autres pièces. */
+  queen:'<circle cx="7.7" cy="5.1" r=".95" fill="currentColor" stroke="none"/><circle cx="12" cy="3.5" r="1.1" fill="currentColor" stroke="none"/><circle cx="16.3" cy="5.1" r=".95" fill="currentColor" stroke="none"/><path d="M7.7 6.1 12 7.9 16.3 6.1 15.5 10.3H8.5Z"/><path d="M8.3 13.3Q7.9 11.5 8.7 10.3h6.6Q16.1 11.5 15.7 13.3Z"/><path d="M8 13.3h8l1.3 5.1H6.7Z"/><path d="M6.3 20.4h11.4M7.6 20.4v-2M16.4 20.4v-2"/>',
+  /* Cavalier d'échec (NOUVEAU, 2026-10-07, "Nova News = un cavalier") —
+     profil de tête de cheval stylisé (encolure, chanfrein, oreille,
+     crinière), la pièce la plus reconnaissable de l'échiquier par sa
+     silhouette ; même base que les 5 autres pièces. */
+  knight:'<path d="M8.3 18.2c-.4-2.9.1-5.3 1.5-7 1.1-1.3 1.3-2.2.6-3.1-.3-.4-.9-.4-1.2 0M9.4 7.6C9.9 5.9 11.2 4.8 13 4.7c1.8-.1 3.3 1 3.9 2.6.5 1.4.1 2.8-1 3.8-.8.7-1.7 1-2.7.9"/><circle cx="10.9" cy="8.6" r=".55" fill="currentColor" stroke="none"/><path d="M13 11.2 15.3 13.3Q16 15.6 15.4 18.2"/><path d="M6.3 20.4h11.4M7.6 20.4v-2M16.4 20.4v-2"/>',
 };
 const ICON_SHIFT = {
   home:[0.03,-1.95], list:[1.65,-3.56], wallet:[0,-0.41], star:[0,-0.46],
@@ -160,21 +162,33 @@ const emptyState = (title, text, action) => `
    les fonds teintés en rgba() — jamais color-mix(), voir la note sur
    .logo-m plus haut dans ce fichier pour pourquoi ce fichier évite
    color-mix(). */
-/* Jeu d'échecs complet (2026-10-07, retour utilisateur : "des logos gris
-   qui prennent la forme de pions des échecs" — une pièce par module,
-   roi/tour/fou/pion, cohérent avec l'identité "architecture classique"
-   déjà en place pour le temple de l'accueil). Icônes définies dans ICON
-   (king/rook/bishop/pawn) — voir leurs commentaires individuels pour la
-   correspondance pièce <-> module. accent/rgb inchangés (continuent de
-   teinter le FOND de l'icône, voir .nova-big-icon/.nova-hub-i) ; la
-   pièce elle-même reste grise (voir --nf-icon-color dans styles.css),
-   jamais recolorée dans la teinte du module — l'effet recherché est un
-   jeu d'échecs cohérent, pas 4 pièces de couleurs différentes. */
+/* Jeu d'échecs complet — mapping CENTRALISÉ module <-> pièce <-> couleur,
+   seul endroit à modifier pour tout changer partout où un module Nova
+   apparaît (accueil, Portefeuille, fiche action...). 2e refonte du
+   mapping (2026-10-07, retour utilisateur détaillé : "NOVA AI = reine,
+   NOVABOT = tour, NOVA REVIEW = fou, NOVA NEWS = cavalier, NOVA EVENT =
+   pion" — remplace le tout premier mapping, fait plus tôt le même jour).
+   accent/rgb = teintes dédiées §4 de la demande ("une couleur TRÈS
+   subtile par Nova, jamais toute la carte recolorée") — identiques aux
+   tokens --nova-ai/--nova-bot/--nova-review/--nova-news/--nova-event
+   (styles.css) ; dupliquées ici en hex+rgb plutôt que lues depuis les
+   tokens CSS car ce fichier JS n'a aucun moyen de résoudre une variable
+   CSS à la génération du HTML (calculé dans le navigateur, pas ici) —
+   SI la palette change, modifier les deux endroits ensemble (déjà le
+   cas pour --accent/orange ailleurs dans le projet, même contrainte). */
 const NOVA_FEATURES = {
-  novabot: { icon:'king', accent:'#8b5cf6', rgb:'139,92,246',
+  /* Nova AI n'a JAMAIS de page de présentation dédiée (consigne déjà en
+     place avant cette refonte, voir novaSuiteRow() plus bas) — figure
+     ici uniquement pour centraliser son icône/couleur/titre, repris par
+     page-portfolio.js et page-stock.js au lieu de les redéfinir en dur
+     à chaque endroit (c'était le cas avant cette passe). */
+  novaai: { icon:'queen', accent:'#4D7CFF', rgb:'77,124,255',
+    title:'Nova AI', tag:"L'intelligence NovaTitre",
+    desc:"Nova AI analyse une action à la demande en croisant plusieurs modèles de langage — jamais un chiffre inventé, uniquement vos données réelles." },
+  novabot: { icon:'rook', accent:'#805DFF', rgb:'128,93,255',
     title:'NovaBot', tag:'Automatisation intelligente',
     desc:"NovaBot pourra bientôt gérer une partie de vos investissements selon des règles que vous aurez vous-même définies — jamais un ordre passé sans votre accord explicite." },
-  novareview: { icon:'pawn', accent:'#ec4899', rgb:'236,72,153',
+  novareview: { icon:'bishop', accent:'#E653A5', rgb:'230,83,165',
     title:'Nova Review', tag:'Revoir vos décisions',
     desc:"Nova Review reviendra sur vos décisions d'investissement passées pour vous aider à comprendre ce qui a fonctionné, ou non, et pourquoi." },
   /* Description corrigée (2026-10-06, prompt maître §34) : la version
@@ -185,21 +199,36 @@ const NOVA_FEATURES = {
      économiques des valeurs suivies/détenues). Le prompt maître prévaut
      : Nova Event a maintenant un vrai moteur (voir PAGES.novaevent,
      evenementsSuivis()) construit sur cette définition-ci. */
-  novaevent: { icon:'rook', accent:'#8d95a4', rgb:'141,149,164',
+  novaevent: { icon:'pawn', accent:'#45C8FF', rgb:'69,200,255',
     title:'Nova Event', tag:'Vos prochains événements',
     desc:"Nova Event rassemble les prochains résultats et dividendes des valeurs que vous suivez ou détenez — jamais une date devinée, seulement ce qui est réellement connu." },
-  novanews: { icon:'bishop', accent:'#6d28d9', rgb:'109,40,217',
+  novanews: { icon:'knight', accent:'#6D94FF', rgb:'109,148,255',
     title:'Nova News', tag:"L'actualité qui compte",
     desc:"Nova News réunira l'actualité économique, financière et géopolitique susceptible d'influencer vos investissements — dans chaque fiche, l'actualité propre à l'entreprise consultée." },
 };
+/* ChessNovaIcon (§3 de la refonte visuelle, 2026-10-07) : le petit carré
+   arrondi teinté + pièce d'échec blanche, SEUL endroit qui génère ce
+   balisage — avant cette fonction, chaque xxxHomeCard() (js/nova.js)
+   dupliquait exactement le même <span class="nova-big-icon">...</span>
+   avec seulement la clé NOVA_FEATURES qui changeait (5 copies quasi
+   identiques, §11 de la demande : "ne pas dupliquer 5 fois le même
+   CSS/code"). `cls` optionnel : la classe CSS réelle du carré diffère
+   selon le contexte (.nova-big-icon pour les grandes cartes,
+   .nova-hub-i pour l'ancienne grille compacte) — toujours la MÊME
+   pièce/couleur pour un module donné, seule la taille du conteneur
+   change. */
+function chessNovaIcon(key, cls = 'nova-big-icon'){
+  const f = NOVA_FEATURES[key];
+  if (!f) return '';
+  return `<span class="${cls}" style="--nf-accent:${f.accent};--nf-accent-rgb:${f.rgb}">${svg(ICON[f.icon],1.8)}</span>`;
+}
 /* Carte compacte de la grille d'accueil (2x2 mobile → 4 colonnes
    desktop, voir le CSS .nova-hub) — icône + titre + accroche d'une
    ligne, jamais un pavé qui rallonge la page (refusé explicitement). */
 const novaHubCard = (key) => {
   const f = NOVA_FEATURES[key];
-  return `<button type="button" class="nova-hub-card" data-go="${key}"
-    style="--nf-accent:${f.accent};--nf-accent-rgb:${f.rgb}">
-    <span class="nova-hub-i">${svg(ICON[f.icon],1.8)}</span>
+  return `<button type="button" class="nova-hub-card" data-go="${key}">
+    ${chessNovaIcon(key, 'nova-hub-i')}
     <span class="nova-hub-t">${esc(f.title)}</span>
     <span class="nova-hub-s">${esc(f.tag)}</span>
   </button>`;

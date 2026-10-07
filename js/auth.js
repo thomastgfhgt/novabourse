@@ -466,7 +466,13 @@ function gateScreen(){
       <div class="gate-cards">
         ${[[ICON.spark,'ANALYSER','Analysez autrement','Données, Nova Score et analyses croisées pour mieux comprendre chaque entreprise.'],
            [ICON.radar,'SUIVRE','Tout ce qui compte, au même endroit','Marchés, portefeuille, Radar et Nova News réunis dans une seule expérience.'],
-           [ICON.rook,'PROGRESSER','Apprenez de vos décisions','Nova Review vous aide à comprendre vos décisions et à suivre votre progression.']]
+           /* CORRECTIF (2026-10-07, refonte visuelle §10, cohérence du
+              mapping pièce/module) : ICON.rook remplacé par
+              NOVA_FEATURES.novareview.icon (fou/bishop) — le rook
+              appartenait à l'ANCIEN mapping (NovaBot), jamais à Nova
+              Review ; une mauvaise pièce ici casserait la cohérence
+              demandée "partout où Nova Review apparaît". */
+           [ICON[NOVA_FEATURES.novareview.icon],'PROGRESSER','Apprenez de vos décisions','Nova Review vous aide à comprendre vos décisions et à suivre votre progression.']]
           .map(([ic,eyebrow,t2,d])=>`<div class="gate-card-i">
             <span class="gate-card-ic">${svg(ic,1.9)}</span>
             <span class="gate-card-eyebrow">${eyebrow}</span>

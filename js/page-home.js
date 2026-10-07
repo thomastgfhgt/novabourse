@@ -100,17 +100,16 @@ const NB_QUICK = [
   { intent:'', title:'Rechercher',
     desc:"Trouver instantanément une action, ETF, crypto ou entreprise.",
     icon:'<circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5 L21 21"/>' },
-  /* CORRECTIF (2026-10-07, retour utilisateur : "Nova AI = le logo de
-     NovaTitre") : remplace l'étincelle générique par le VRAI logo
-     NovaTitre (ICON.brand, même tracé que le temple/le header) — "Nova"
-     est l'intelligence UNIQUE du produit (§1 du prompt maître : "Nova
-     est le produit"), son action d'analyse porte donc sa propre
-     identité plutôt qu'une icône IA interchangeable. icon:'brand' (une
-     clé ICON, pas un <path> inline comme les 3 autres ci-dessus) : le
-     rendu ci-dessous (viewBox) le détecte spécifiquement. */
+  /* CORRECTIF (2026-10-07, refonte visuelle §10, cohérence "raccourcis"
+     inclus) : le logo NovaTitre (ICON.brand) est remplacé par la pièce
+     d'échecs de Nova AI (reine, voir NOVA_FEATURES.novaai) pour rester
+     cohérent avec PARTOUT ailleurs où Nova AI apparaît (novaSuiteRow sur
+     Portefeuille/fiche action, etc.) — icon:'novaai' est une clé
+     NOVA_FEATURES, pas un tracé inline ni 'brand' : le rendu ci-dessous
+     le détecte spécifiquement. */
   { intent:'analyze', title:'Analyser avec l’IA',
     desc:"Entrer un actif et lancer directement l’analyse NovaTitre.",
-    icon:'brand' },
+    icon:'novaai' },
   { intent:'buy', title:'Ajouter au portefeuille',
     desc:"Ajouter rapidement une position ou un actif à suivre.",
     icon:'<path d="M12 4 V20"/><path d="M4 12 H20"/>' },
@@ -210,7 +209,7 @@ PAGES.home = () => {
       ${NB_QUICK.map(a => `
         <button type="button" class="nova-quick-action" data-search ${a.intent ? `data-search-intent="${a.intent}"` : ''}
           aria-label="${esc(a.title)}">
-          <span class="nova-action-circle" aria-hidden="true">${a.icon === 'brand' ? svg(ICON.brand) : `<svg viewBox="0 0 24 24">${a.icon}</svg>`}</span>
+          <span class="nova-action-circle" aria-hidden="true">${a.icon === 'novaai' ? svg(ICON[NOVA_FEATURES.novaai.icon],1.8) : `<svg viewBox="0 0 24 24">${a.icon}</svg>`}</span>
           <span class="nova-action-title">${esc(a.title)}</span>
           <span class="nova-action-description">${esc(a.desc)}</span>
         </button>`).join('')}

@@ -266,7 +266,7 @@ function novaReviewHomeCard(){
   const resume = resumeNovaReviewPourCarte();
   const f = NOVA_FEATURES.novareview;
   return `<button type="button" class="nova-big-card" data-go="novareview" style="--nf-accent:${f.accent};--nf-accent-rgb:${f.rgb}">
-    <span class="nova-big-icon">${svg(ICON[f.icon],1.8)}</span>
+    ${chessNovaIcon('novareview')}
     <p class="nova-big-eyebrow">Nova Review</p>
     ${resume ? `
       <p class="nova-big-lead">Votre analyse de la semaine est prête.</p>
@@ -297,7 +297,7 @@ function novabotHomeCard(){
   const derniere = aDejaDecide ? cfg.transactions[cfg.transactions.length - 1] : null;
   const f = NOVA_FEATURES.novabot;
   return `<button type="button" class="nova-big-card" data-go="novabot" style="--nf-accent:${f.accent};--nf-accent-rgb:${f.rgb}">
-    <span class="nova-big-icon">${svg(ICON[f.icon],1.8)}</span>
+    ${chessNovaIcon('novabot')}
     <p class="nova-big-eyebrow">NovaBot</p>
     ${aDejaDecide ? (() => {
       const pf = novabotPortfolioValue();
@@ -795,7 +795,7 @@ function novaNewsHomeCard(){
   }
   const f = NOVA_FEATURES.novanews;
   return `<button type="button" class="nova-big-card" data-go="novanews" style="--nf-accent:${f.accent};--nf-accent-rgb:${f.rgb}">
-    <span class="nova-big-icon">${svg(ICON[f.icon],1.8)}</span>
+    ${chessNovaIcon('novanews')}
     <p class="nova-big-eyebrow">Nova News</p>
     ${chargee ? `
       <p class="nova-big-lead">${WORLD_NEWS.items.length} actualité${WORLD_NEWS.items.length > 1 ? 's' : ''} disponible${WORLD_NEWS.items.length > 1 ? 's' : ''}.</p>
@@ -916,7 +916,7 @@ function novaEventHomeCard(){
   const prochain = evts[0] || null;
   const f = NOVA_FEATURES.novaevent;
   return `<button type="button" class="nova-big-card" data-go="novaevent" style="--nf-accent:${f.accent};--nf-accent-rgb:${f.rgb}">
-    <span class="nova-big-icon">${svg(ICON[f.icon],1.8)}</span>
+    ${chessNovaIcon('novaevent')}
     <p class="nova-big-eyebrow">Nova Event</p>
     ${prochain ? `
       <p class="nova-big-lead">${evts.length} événement${evts.length > 1 ? 's' : ''} à venir.</p>
