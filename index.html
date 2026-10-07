@@ -1541,9 +1541,15 @@ async function loadRealQuotes(){
      bref "Marché non connecté" evitable. Attendre ici élimine ce délai
      pour le tout premier rendu de la session. */
   await assurerApercuAccueil();
+  /* CORRECTIF (bug réel confirmé en direct, 2026-10-07) : `stocks.slice(0,6)`
+     ne correspond plus du tout à ce que l'aperçu "Marché" affiche
+     réellement depuis le correctif TICKERS_APERCU_ACCUEIL (js/core.js,
+     page-home.js) — les cotations demandées ici et les valeurs affichées
+     à l'écran avaient divergé, d'où les "—" (aucun cours) observés pour
+     AAPL/MSFT malgré leur identité déjà résolue. */
   const besoinsAccueil = [
     ...state.watchlist.map(id => byId[id]),
-    ...stocks.slice(0, 6),
+    ...TICKERS_APERCU_ACCUEIL.map(t => stocks.find(s => s.ticker === t)),
   ].filter(Boolean);
   await assurerCotations(besoinsAccueil);
 }

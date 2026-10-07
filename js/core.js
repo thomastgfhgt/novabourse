@@ -861,7 +861,16 @@ function assurerApercuMarcheAccueil(){
   apercuAccueilEnCours = Promise.all(manquants.map(async (ticker) => {
     try {
       const hits = await searchRemote(ticker);
-      const hit = hits.find(h => String(h.meta?.ticker || '').toUpperCase() === ticker);
+      /* CORRECTIF (bug réel confirmé en direct, 2026-10-07) : matcher sur
+         le seul ticker a fait remonter "Leverage Shares 1x Microsoft
+         Tracker ETP" (un produit européen qui partage le ticker "MSFT")
+         à la place de Microsoft Corporation elle-même — même famille de
+         collision que "MC"=LVMH/Moelis déjà documentée. Exige maintenant
+         EXPLICITEMENT NASDAQ comme place (vrai pour les 6 tickers de
+         TICKERS_APERCU_ACCUEIL) : un résultat de la bonne place, pas
+         seulement du bon ticker. */
+      const hit = hits.find(h => String(h.meta?.ticker || '').toUpperCase() === ticker
+        && String(h.meta?.exchange || pickExchangeCode(h.meta) || '').toUpperCase() === 'NASDAQ');
       if (hit){ ensureRuntimeStock(hit.meta); return true; }
     } catch {}
     return false;
