@@ -91,12 +91,10 @@ function ordreStatique(dataType, type, opts = {}) {
       if (type === 'crypto') return ['coingecko', 'yahoo', 'twelvedata'];
       if (type === 'forex') return ['yahoo', 'frankfurter', 'twelvedata'];
       if (type === 'index') return ['yahoo', 'twelvedata'];
-      /* commodity : XPD/USD, XPT/USD, XBR/USD (EODHD_COMMODITY_FOREX,
-         _providers.js). Yahoo vérifié en direct pour XBR/USD (BZ=F,
-         Brent) ; PA=F/PL=F (palladium/platine) suivent la même convention
-         publique mais n'ont pas été re-vérifiés empiriquement cette
-         session — Eulerpool (vérifié, mais payant) reste juste derrière
-         au cas où Yahoo échouerait pour ces 2 tickers précis. */
+      /* commodity : XPD/USD, XPT/USD, XBR/USD — Yahoo VÉRIFIÉ EN DIRECT
+         pour les 3 (quote + historique, 2026-10-06, voir yahooSymbole()
+         dans _providers.js). Eulerpool (vérifié, mais payant) reste en
+         dernier repli au cas où Yahoo échouerait un jour. */
       if (type === 'commodity') return ['yahoo', 'twelvedata', 'eulerpool', 'eulerpool_fx'];
       if (TYPES_SANS_SUFFIXE_EODHD.has(type)) return ['yahoo', 'twelvedata'];
       return ['yahoo', 'twelvedata', 'finnhub'];

@@ -939,11 +939,11 @@ function yahooSymbole(ticker, exchange, type) {
     return `^${t}`;
   }
   if (type === 'commodity') {
-    /* Seuls XPD/USD, XPT/USD, XBR/USD sont dans le périmètre NovaBourse
-       (EODHD_COMMODITY_FOREX plus haut) — convention Yahoo "futures"
-       vérifiée en direct pour XBR/USD (BZ=F, Brent). PA=F (palladium) et
-       PL=F (platine) sont la convention Yahoo publique standard pour ces
-       deux métaux, non re-vérifiée empiriquement cette session. */
+    /* Seules ces 3 matières premières sont dans le périmètre NovaBourse —
+       convention Yahoo "futures" VÉRIFIÉE EN DIRECT pour les 3 (2026-10-06) :
+       XBR/USD -> BZ=F (Brent, ~100 USD/baril), XPD/USD -> PA=F (palladium,
+       ~1178 USD/once), XPT/USD -> PL=F (platine, ~1718 USD/once) — quote
+       ET historique (10j) réels reçus pour les 3. */
     const FUTURES_YAHOO = { 'XPD/USD': 'PA=F', 'XPT/USD': 'PL=F', 'XBR/USD': 'BZ=F' };
     return FUTURES_YAHOO[t] || null;
   }
@@ -2157,52 +2157,6 @@ function normaliserIntraday(lignes) {
   return [...map.values()].sort((a, b) => a.date.localeCompare(b.date));
 }
 
-/**
- * Ré-agrège des barres RÉELLEMENT reçues vers une granularité plus
- * grossière (ex : des barres natives 1 minute vers des barres 15
- * minutes). Ce n'est PAS de la fabrication de donnée : chaque barre en
- * sortie est construite exclusivement à partir de barres réellement
- * reçues qui tombent dans le même intervalle de temps (open = première
- * barre du seau, close = dernière, high/low = extrêmes réels, volume =
- * somme réelle). Une pratique standard de tout moteur de graphique
- * financier. N'invente jamais un seau vide : un seau sans aucune barre
- * source n'apparaît simplement pas en sortie.
- */
-function resampleOHLC(bars, minutesParBarre) {
-  if (!Array.isArray(bars) || !bars.length || !minutesParBarre) {
-    return bars || [];
-  }
-
-  const tailleMs = minutesParBarre * 60000;
-  const groupes = new Map();
-
-  for (const b of bars) {
-    const t = Date.parse(b.date);
-    if (!Number.isFinite(t)) continue;
-
-    const cle = Math.floor(t / tailleMs) * tailleMs;
-    const existant = groupes.get(cle);
-
-    if (!existant) {
-      groupes.set(cle, {
-        date: new Date(cle).toISOString(),
-        open: b.open,
-        high: b.high,
-        low: b.low,
-        close: b.close,
-        volume: num(b.volume) || 0,
-      });
-    } else {
-      if (b.high != null && (existant.high == null || b.high > existant.high)) existant.high = b.high;
-      if (b.low != null && (existant.low == null || b.low < existant.low)) existant.low = b.low;
-      existant.close = b.close;
-      existant.volume = (existant.volume || 0) + (num(b.volume) || 0);
-    }
-  }
-
-  return [...groupes.values()].sort((a, b) => a.date.localeCompare(b.date));
-}
-
 /* Intervalles intraday supportés par ce backend (clé partagée par
    INTRADAY ci-dessous et par la validation du paramètre `interval` côté
    endpoint history.js) et leur durée en minutes. */
@@ -3371,7 +3325,6 @@ module.exports = {
 
   normaliserHistorique,
   normaliserIntraday,
-  resampleOHLC,
   joursHistorique,
   finnhubAutorise,
 
