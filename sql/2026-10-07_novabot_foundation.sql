@@ -137,10 +137,13 @@ create table if not exists novabot_transactions (
 
   -- Lien vers la décision qui a produit cette transaction (§31 :
   -- traçabilité — "chaque transaction doit être reliée à une décision").
-  -- Nullable ici : la tranche B/C ajoutera novabot_decisions et remplira
-  -- cette colonne pour les nouvelles transactions ; une transaction de
-  -- fondation (dépôt initial) n'a logiquement aucune décision associée.
-  decision_id uuid,
+  -- text, pas uuid : même id généré côté client que novabot_decisions.id
+  -- (sql/2026-10-08_novabot_decisions.sql). Pas de contrainte de clé
+  -- étrangère ici volontairement — cette migration peut être exécutée
+  -- avant celle qui crée novabot_decisions, jamais l'inverse requis.
+  -- Nullable : une transaction de fondation (dépôt initial) n'a
+  -- logiquement aucune décision associée.
+  decision_id text,
 
   -- Motif texte lisible (ce que l'ancien state.novabot.transactions[].motif
   -- contenait déjà) — conservé même une fois decision_id en usage : un motif

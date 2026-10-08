@@ -210,8 +210,24 @@ const DEFAULT_STATE = {
        cohérente quelle que soit la taille du portefeuille. */
     cashMinPct:20,      // liquidités minimales à préserver (% du portefeuille total)
     maxPositionPct:10,  // poids maximum d'une seule position (% du portefeuille total)
+    /* Mandat — étendu (refonte fonctionnelle, tranche B, 2026-10-08, §3 :
+       "différencier clairement PREFERENCE et HARD RULE"). null = aucune
+       limite de ce type. hardRules/preferences : tableau de
+       {type, value, note?} — ex. hardRules: [{type:'excluded_sector',
+       value:'Énergie'}]. Une hard rule ne peut JAMAIS être outrepassée par
+       une décision (voir novabotRiskCheck()) ; une préférence n'influence
+       que le choix entre plusieurs candidats valides, jamais un refus. */
+    maxPositionsCount:null,
+    hardRules:[],
+    preferences:[],
     wallet:{ cash:10000, invested:10000, positions:[], realizedPnL:0 },
     transactions:[],
+    /* Journal des décisions (§14) — une entrée par décision SIGNIFICATIVE
+       (buy/sell exécutés, reject, watch nouveau), jamais une entrée à
+       chaque passage pour chaque position inchangée (§14 : "même HOLD/
+       WATCH peut être enregistré LORSQUE LA DÉCISION EST SIGNIFICATIVE").
+       Voir novabotEnregistrerDecision()/evaluerNovaBot() plus bas. */
+    decisions:[],
     lastRunAt:null,
   },
 
@@ -369,6 +385,11 @@ function loadState(){
           tradeAmountEUR: Number.isFinite(saved.novabot?.tradeAmountEUR) ? saved.novabot.tradeAmountEUR : DEFAULT_STATE.novabot.tradeAmountEUR,
           cashMinPct: Number.isFinite(saved.novabot?.cashMinPct) ? saved.novabot.cashMinPct : DEFAULT_STATE.novabot.cashMinPct,
           maxPositionPct: Number.isFinite(saved.novabot?.maxPositionPct) ? saved.novabot.maxPositionPct : DEFAULT_STATE.novabot.maxPositionPct,
+          maxPositionsCount: Number.isInteger(saved.novabot?.maxPositionsCount) ? saved.novabot.maxPositionsCount : null,
+          hardRules: Array.isArray(saved.novabot?.hardRules)
+            ? saved.novabot.hardRules.filter(r => r && typeof r.type === 'string' && typeof r.value === 'string') : [],
+          preferences: Array.isArray(saved.novabot?.preferences)
+            ? saved.novabot.preferences.filter(r => r && typeof r.type === 'string' && typeof r.value === 'string') : [],
           wallet:{
             cash: Number.isFinite(saved.novabot?.wallet?.cash) ? saved.novabot.wallet.cash : DEFAULT_STATE.novabot.wallet.cash,
             invested: Number.isFinite(saved.novabot?.wallet?.invested) ? saved.novabot.wallet.invested : DEFAULT_STATE.novabot.wallet.invested,
@@ -378,6 +399,9 @@ function loadState(){
           transactions: Array.isArray(saved.novabot?.transactions)
             ? saved.novabot.transactions.filter(t => t && typeof t.id === 'string' && (t.type === 'buy' || t.type === 'sell')
                 && Number.isFinite(t.qty) && Number.isFinite(t.amountEUR) && typeof t.date === 'string')
+            : [],
+          decisions: Array.isArray(saved.novabot?.decisions)
+            ? saved.novabot.decisions.filter(d => d && typeof d.id === 'string' && typeof d.action === 'string' && typeof d.date === 'string')
             : [],
           lastRunAt: Number.isFinite(saved.novabot?.lastRunAt) ? saved.novabot.lastRunAt : null,
         },
@@ -2075,69 +2099,207 @@ function novabotVendre(id, prix, motif){
   pushNovaBot();
 }
 
-/* Boucle d'évaluation. Deux passes, dans cet ordre précis (sortir avant
-   d'entrer : une position en perte au-delà du stop-loss doit être
-   liquidée avant d'envisager un nouvel achat, jamais l'inverse qui
-   engagerait de nouvelles liquidités pendant qu'une perte s'aggrave) :
-     1. positions déjà détenues -> stop-loss / take-profit (aucun appel
-        réseau : prix déjà en mémoire via prixDe(), comme le reste de
-        l'app) ;
-     2. valeurs de la watchlist NON détenues -> achat simulé si le
-        NovaScore réel dépasse le seuil déclaré. Un appel réseau réel par
-        candidat (novaScoreDe) : borné à la watchlist, jamais tout le
-        catalogue, pour respecter le même esprit de budget que
-        LIVE_MAX_SYMBOLES plus haut. S'arrête dès que les liquidités
-        papier sont insuffisantes pour un achat de plus — jamais un achat
-        partiel improvisé qui déformerait tradeAmountEUR. */
+/* ============================================================
+   MANDATE ENGINE + RISK ENGINE (refonte fonctionnelle, tranche B,
+   2026-10-08)
+   ------------------------------------------------------------
+   §12 du brief : "le LLM ne doit pas contrôler directement le
+   portefeuille [...] chaque intention de transaction doit avoir un schéma
+   structuré, puis le backend valide tout." Il n'y a pas encore de LLM
+   (tranche C) — mais la porte existe déjà, pour que l'ajout de l'IA plus
+   tard n'ait qu'à produire des `intent`, jamais à toucher wallet/
+   transactions directement. novabotRiskCheck() est une fonction PURE
+   (aucun accès réseau, aucune mutation) : seule porte par laquelle un
+   achat peut s'exécuter. Ne vérifie QUE les hard rules (§3 : "une
+   décision ne doit JAMAIS pouvoir violer une HARD RULE") — jamais une
+   préférence, qui n'a pas vocation à bloquer quoi que ce soit ici. */
+function novabotMandat(){
+  const cfg = state.novabot;
+  return {
+    cashMinPct: cfg.cashMinPct,
+    maxPositionPct: cfg.maxPositionPct,
+    maxPositionsCount: Number.isFinite(cfg.maxPositionsCount) ? cfg.maxPositionsCount : null,
+    hardRules: Array.isArray(cfg.hardRules) ? cfg.hardRules : [],
+    preferences: Array.isArray(cfg.preferences) ? cfg.preferences : [],
+  };
+}
+function novabotRiskCheck(intent, wallet, mandate){
+  const violations = [];
+  const pf = portfolioValue(wallet);
+
+  const secteurInterdit = mandate.hardRules.find(r => r.type === 'excluded_sector' && r.value === intent.sector);
+  if (secteurInterdit) violations.push({ type:'secteur_interdit', message:`Secteur "${intent.sector}" exclu par le mandat.` });
+
+  const actifInterdit = mandate.hardRules.find(r => r.type === 'excluded_asset'
+    && (r.value === intent.stockId || r.value === intent.ticker));
+  if (actifInterdit) violations.push({ type:'actif_interdit', message:`${intent.ticker} exclu explicitement par le mandat.` });
+
+  if (intent.action === 'buy'){
+    if (intent.amountEUR > wallet.cash){
+      violations.push({ type:'cash_insuffisant', message:'Liquidités simulées insuffisantes pour cet achat.' });
+    } else {
+      const cashApres = wallet.cash - intent.amountEUR;
+      const cashMin = (mandate.cashMinPct / 100) * pf.total;
+      if (cashApres < cashMin){
+        violations.push({ type:'cash_min', message:`Ferait passer le cash sous le minimum du mandat (${mandate.cashMinPct} %).` });
+      }
+    }
+    const posExistante = wallet.positions.find(p => p.id === intent.stockId);
+    const valeurExistanteEUR = posExistante ? toEUR(posExistante.avg * posExistante.qty, intent.currency) : 0;
+    const poidsApresPct = pf.total > 0 ? ((valeurExistanteEUR + intent.amountEUR) / pf.total) * 100 : 100;
+    if (poidsApresPct > mandate.maxPositionPct + 1e-9){
+      violations.push({ type:'position_max', message:`Dépasserait le maximum par position du mandat (${mandate.maxPositionPct} %).` });
+    }
+    if (!posExistante && mandate.maxPositionsCount !== null && wallet.positions.length >= mandate.maxPositionsCount){
+      violations.push({ type:'positions_max_count', message:`Le mandat limite le portefeuille à ${mandate.maxPositionsCount} positions.` });
+    }
+  }
+
+  return { allowed: violations.length === 0, violations };
+}
+
+/* Journal des décisions (§14) — enregistre localement (synchronisé par
+   pushNovaBot() comme le reste de state.novabot) ; `d` porte déjà les
+   clés attendues côté serveur (voir novabot_decisions, sql/2026-10-08_
+   novabot_decisions.sql), la conversion snake_case se fait uniquement
+   dans pushNovaBot(). */
+function novabotEnregistrerDecision(d){
+  const dec = { id:'nd'+Date.now().toString(36)+Math.random().toString(36).slice(2,6),
+    date:new Date().toISOString(), executionStatus:'simulated', ...d };
+  state.novabot.decisions.push(dec);
+  return dec;
+}
+
+/* 1. DISCOVERY (§8/§7) : "NovaBot ne doit surtout PAS analyser uniquement
+   la watchlist [...] il doit pouvoir découvrir une entreprise que
+   l'utilisateur n'a jamais ajoutée." Watchlist d'abord (comportement
+   historique inchangé), puis un sous-ensemble BORNÉ du catalogue complet,
+   filtré par les hard rules du mandat AVANT même d'être considéré (une
+   entreprise d'un secteur exclu n'est pas un "candidat" qui serait ensuite
+   rejeté — elle n'entre jamais dans la liste). Priorité aux titres ayant
+   déjà un NovaScore connu (une analyse précédente, gratuite ou payante) :
+   même budget réseau que l'existant, novaScoreDe() (gratuit) reste le seul
+   appel fait PAR CANDIDAT plus bas, jamais plus de NOVABOT_DISCOVERY_MAX
+   appels supplémentaires par passage — même discipline que
+   LIVE_MAX_SYMBOLES ailleurs dans ce fichier. */
+const NOVABOT_DISCOVERY_MAX = 20;
+function novabotDiscoveryCandidats(mandate){
+  const dejaDetenus = new Set(state.novabot.wallet.positions.map(p => p.id));
+  const estAutorise = st => {
+    if (!st) return false;
+    if (mandate.hardRules.some(r => r.type === 'excluded_sector' && r.value === st.sector)) return false;
+    if (mandate.hardRules.some(r => r.type === 'excluded_asset' && (r.value === st.id || r.value === st.ticker))) return false;
+    return true;
+  };
+  const watch = state.watchlist.filter(id => !dejaDetenus.has(id) && estAutorise(byId[id]));
+  const dejaVus = new Set([...dejaDetenus, ...watch]);
+  const reste = stocks
+    .filter(st => !dejaVus.has(st.id) && estAutorise(st))
+    .sort((a, b) => (Number.isFinite(b.score) ? b.score : -1) - (Number.isFinite(a.score) ? a.score : -1))
+    .slice(0, NOVABOT_DISCOVERY_MAX)
+    .map(st => st.id);
+  return [...watch, ...reste];
+}
+
+/* Pipeline complet (§8) : Discovery -> Data validation -> Analysis ->
+   Candidate generation -> Portfolio impact -> Risk/Mandate check ->
+   Decision -> Execution simulation -> Logging. Toujours déterministe à ce
+   stade (aucun LLM, tranche C à venir) : "Analysis" = NovaScore gratuit
+   (novaScoreDe()), "Decision" = seuil déclaré par l'utilisateur. 2 passes
+   dans cet ordre précis (sortir avant d'entrer, inchangé depuis la 1ʳᵉ
+   version) : une position en perte au-delà du stop-loss doit être
+   liquidée avant d'envisager un nouvel achat. */
 async function evaluerNovaBot(){
   if (!state.novabot.enabled) return;
   const cfg = state.novabot;
+  const mandate = novabotMandat();
   let changed = false;
 
+  /* --- sorties : positions détenues --- */
   for (const pos of [...cfg.wallet.positions]){
     const st = byId[pos.id];
     const prix = st ? prixDe(st) : null;
-    if (prix === null) continue;
+    if (prix === null) continue; // §32 : cours indisponible -> pas d'ordre
     const gainPct = ((prix - pos.avg) / pos.avg) * 100;
-    if (gainPct <= -cfg.stopLossPct){
-      novabotVendre(pos.id, prix, `Stop-loss déclenché : position à ${fmt.num(gainPct,1)} %`);
-      changed = true;
-    } else if (gainPct >= cfg.takeProfitPct){
-      novabotVendre(pos.id, prix, `Take-profit déclenché : position à +${fmt.num(gainPct,1)} %`);
+    if (gainPct <= -cfg.stopLossPct || gainPct >= cfg.takeProfitPct){
+      const motif = gainPct <= -cfg.stopLossPct
+        ? `Stop-loss déclenché : position à ${fmt.num(gainPct,1)} %`
+        : `Take-profit déclenché : position à +${fmt.num(gainPct,1)} %`;
+      const cashAvant = cfg.wallet.cash;
+      const pfAvant = portfolioValue(cfg.wallet);
+      const poidsAvant = pfAvant.total > 0 ? (toEUR(pos.avg * pos.qty, st.cur) / pfAvant.total) * 100 : 0;
+      novabotVendre(pos.id, prix, motif);
+      novabotEnregistrerDecision({ action:'sell', stockId:pos.id, ticker:st.ticker, name:st.name,
+        priceObserved:prix, qty:pos.qty, cashBefore:cashAvant, cashAfter:cfg.wallet.cash,
+        weightBeforePct:poidsAvant, weightAfterPct:0, reason:motif, dataUsed:{ gainPct } });
       changed = true;
     }
   }
 
-  /* Mandat (§21/§24, 2026-10-06) : 2 contraintes supplémentaires avant tout
-     achat, en plus du seuil de NovaScore déjà en place. pf.total recalculé
-     À CHAQUE candidat (pas une seule fois avant la boucle) : un achat
-     précédent dans CE MÊME passage a changé cash/positions, donc
-     potentiellement pf.total — une contrainte en % doit toujours lire un
-     total à jour, jamais celui d'avant le dernier achat. tradeAmountEUR
-     étant fixe et pf.total ne variant quasiment pas d'un achat simulé à
-     l'autre (cash transformé en position de même valeur), les deux
-     contraintes restent vraies ou fausses pour tous les candidats restants
-     une fois atteintes la première fois -> break (même style que le garde-
-     fou de cash déjà en place), jamais continue qui réévaluerait pour rien. */
-  const dejaDetenus = new Set(cfg.wallet.positions.map(p => p.id));
-  const candidats = state.watchlist.filter(id => !dejaDetenus.has(id));
+  /* --- entrées : discovery au-delà de la seule watchlist (§7) --- */
+  const candidats = novabotDiscoveryCandidats(mandate);
   for (const id of candidats){
-    const pf = portfolioValue(cfg.wallet);
-    const cashMin = (cfg.cashMinPct / 100) * pf.total;
-    if (cfg.wallet.cash - cfg.tradeAmountEUR < cashMin) break;
-    if (cfg.tradeAmountEUR > (cfg.maxPositionPct / 100) * pf.total) break;
     const st = byId[id];
-    if (!st) continue;
-    const score = await novaScoreDe(st);
-    if (score === null || score < cfg.scoreAchat) continue;
+    if (!st) continue; // §33 : instrument ambigu/introuvable -> pas d'ordre
     const prix = prixDe(st);
-    if (prix === null) continue;
-    novabotAcheter(id, cfg.tradeAmountEUR, prix, `NovaScore ${score} ≥ seuil ${cfg.scoreAchat}`);
-    changed = true;
+    if (prix === null) continue; // §32
+    const score = await novaScoreDe(st);
+    if (score === null) continue; // §32 : NovaScore indisponible -> pas d'ordre, WATCH non plus (rien à dire)
+
+    if (score >= cfg.scoreAchat){
+      const priceEUR = toEUR(prix, st.cur);
+      const intent = { action:'buy', stockId:id, ticker:st.ticker, sector:st.sector,
+        amountEUR:cfg.tradeAmountEUR, priceLocal:prix, currency:st.cur, qty:cfg.tradeAmountEUR / priceEUR };
+      const verdict = novabotRiskCheck(intent, cfg.wallet, mandate);
+      if (verdict.allowed){
+        const cashAvant = cfg.wallet.cash;
+        const pfAvant = portfolioValue(cfg.wallet);
+        const posExistante = cfg.wallet.positions.find(p => p.id === id);
+        const poidsAvant = pfAvant.total > 0 && posExistante ? (toEUR(posExistante.avg * posExistante.qty, st.cur) / pfAvant.total) * 100 : 0;
+        novabotAcheter(id, cfg.tradeAmountEUR, prix, `NovaScore ${score} ≥ seuil ${cfg.scoreAchat}`);
+        const pfApres = portfolioValue(cfg.wallet);
+        const posApres = cfg.wallet.positions.find(p => p.id === id);
+        const poidsApres = pfApres.total > 0 && posApres ? (toEUR(posApres.avg * posApres.qty, st.cur) / pfApres.total) * 100 : 0;
+        novabotEnregistrerDecision({ action:'buy', stockId:id, ticker:st.ticker, name:st.name,
+          priceObserved:prix, qty:intent.qty, amountEUR:cfg.tradeAmountEUR,
+          cashBefore:cashAvant, cashAfter:cfg.wallet.cash, weightBeforePct:poidsAvant, weightAfterPct:poidsApres,
+          reason:`NovaScore ${score} ≥ seuil ${cfg.scoreAchat}`,
+          dataUsed:{ novaScore:score }, mandateSnapshot:mandate, riskResult:verdict });
+        changed = true;
+      } else {
+        const bloqueCash = verdict.violations.some(v => v.type === 'cash_insuffisant' || v.type === 'cash_min');
+        novabotEnregistrerDecision({ action:'reject', stockId:id, ticker:st.ticker, name:st.name,
+          priceObserved:prix, amountEUR:cfg.tradeAmountEUR, executionStatus:'rejected',
+          reason:verdict.violations.map(v => v.message).join(' '),
+          dataUsed:{ novaScore:score }, mandateSnapshot:mandate, riskResult:verdict });
+        changed = true;
+        /* Cash insuffisant/sous le minimum ne va pas s'améliorer pour le
+           candidat suivant à montant fixe (§21 : la taille de position
+           intelligente est une tranche ultérieure) — jamais un "reject"
+           par candidat restant qui n'apporterait aucune information
+           nouvelle. Secteur/actif interdit, position_max : propres à CE
+           candidat, les suivants continuent d'être évalués normalement. */
+        if (bloqueCash) break;
+      }
+    } else if (score >= cfg.scoreAchat - 10){
+      /* WATCH (§13) : "opportunité intéressante mais les conditions ne
+         sont pas encore réunies" — jamais réémis pour le même titre dans
+         les 24h (§14 : "lorsque la décision est significative", pas à
+         chaque passage pour une situation inchangée). */
+      const dejaWatch = state.novabot.decisions.some(d => d.action === 'watch' && d.stockId === id
+        && (Date.now() - new Date(d.date).getTime()) < 24 * 3600 * 1000);
+      if (!dejaWatch){
+        novabotEnregistrerDecision({ action:'watch', stockId:id, ticker:st.ticker, name:st.name,
+          priceObserved:prix, reason:`NovaScore ${score}, proche du seuil (${cfg.scoreAchat}) sans l'atteindre encore.`,
+          dataUsed:{ novaScore:score } });
+        changed = true;
+      }
+    }
   }
 
   state.novabot.lastRunAt = Date.now();
   saveState();
+  pushNovaBot();
   if (changed) render();
 }
 
@@ -2211,19 +2373,22 @@ function rejouerNovaBot(transactions){
 /* Envoie tout ce qui doit exister côté serveur : crée le compte au tout
    premier appel (capital = state.novabot.wallet.invested, le capital
    "confié" tel qu'il existe aujourd'hui — §1 du brief NovaBot, "je confie
-   10 000 € à NovaBot"), synchronise le mandat (pour l'instant les 2 seuls
-   champs déjà réels, cashMinPct/maxPositionPct — le mandat complet §3
-   arrive en tranche B) et pousse le journal. Silencieuse en cas d'échec,
-   même principe que pushPortfolio(). */
+   10 000 € à NovaBot"), synchronise le mandat complet (tranche B : tous
+   les champs déjà réels côté client, voir novabotMandat()) et pousse le
+   journal + les décisions. Silencieuse en cas d'échec, même principe que
+   pushPortfolio(). */
 async function pushNovaBot(){
   if (!sbClient || state.auth.status !== 'authenticated') return;
   try {
+    const mandate = novabotMandat();
     const body = {
       account: { initialCapital: state.novabot.wallet.invested },
       status: state.novabot.enabled ? 'active' : 'paused',
-      mandate: { cashMinPct: state.novabot.cashMinPct, maxPositionPct: state.novabot.maxPositionPct },
+      mandate: { cashMinPct: mandate.cashMinPct, maxPositionPct: mandate.maxPositionPct,
+        maxPositionsCount: mandate.maxPositionsCount, hardRules: mandate.hardRules, preferences: mandate.preferences },
       transactions: state.novabot.transactions.map(tx => ({ ...tx, reason: tx.motif })),
       snapshots: state.novabot.walletHistory || [],
+      decisions: state.novabot.decisions.map(d => ({ ...d, occurredAt: d.date })),
     };
     await authFetch('/api/me?resource=novabot', { method:'POST', body: JSON.stringify(body) });
   } catch (e){ console.warn('[novabot] envoi impossible :', e); }
@@ -2259,7 +2424,15 @@ async function syncNovaBot(){
     if (data.mandate){
       if (Number.isFinite(data.mandate.cashMinPct)) state.novabot.cashMinPct = data.mandate.cashMinPct;
       if (Number.isFinite(data.mandate.maxPositionPct)) state.novabot.maxPositionPct = data.mandate.maxPositionPct;
+      state.novabot.maxPositionsCount = Number.isFinite(data.mandate.maxPositionsCount) ? data.mandate.maxPositionsCount : null;
+      if (Array.isArray(data.mandate.hardRules)) state.novabot.hardRules = data.mandate.hardRules;
+      if (Array.isArray(data.mandate.preferences)) state.novabot.preferences = data.mandate.preferences;
     }
+    const serverDec = Array.isArray(data.decisions) ? data.decisions.map(d => ({ ...d, date: d.occurredAt })) : [];
+    const decById = new Map();
+    for (const d of state.novabot.decisions) decById.set(d.id, d);
+    for (const d of serverDec) decById.set(d.id, d);
+    state.novabot.decisions = [...decById.values()].sort((a, b) => new Date(a.date) - new Date(b.date));
     saveState();
     render();
   } catch (e){ console.warn('[novabot] synchronisation impossible :', e); return; }
