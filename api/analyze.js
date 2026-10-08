@@ -51,6 +51,7 @@ const ORDRE_TACHES = {
      produire un jugement qualitatif, pas "une question très simple" —
      même ordre, mêmes modèles puissants d'abord. */
   novabot: ['xai', 'openai', 'anthropic'],
+  'novabot-chat': ['xai', 'openai', 'anthropic'],
 };
 function dispoPourTache(tache){
   const configures = new Set(actif().map(([id]) => id));
@@ -217,6 +218,75 @@ Règles absolues :
 - "keyFactors" : 1 à 3 éléments précis et courts (ex. "NovaScore 78", "secteur Technologie"),
   chacun directement traçable aux données fournies.
 - N'invente aucune donnée (cours, fondamentaux, actualité) absente du contexte transmis.`;
+
+/* NovaBot — conversation (refonte expérience, 2026-10-08). Retour
+   utilisateur explicite : "l'élément central doit être la conversation
+   avec NovaBot [...] le mandat doit être créé automatiquement à partir de
+   la conversation [...] NovaBot doit répondre en utilisant son
+   portefeuille, son mandat, ses analyses et ses décisions RÉELLEMENT
+   enregistrées". Un seul mode gère les deux moments de la vie de
+   NovaBot (avant/après mandat confirmé) plutôt que deux endpoints
+   séparés : la conversation ne "bascule" jamais brutalement d'interface,
+   elle continue simplement à partir de ce qui est déjà su.
+   §12 toujours respecté : ce mode ne fait QUE converser et proposer un
+   mandatDraft — jamais écrit directement en base. C'est le CLIENT qui,
+   sur confirmation explicite de l'utilisateur (jamais automatique), envoie
+   ce brouillon à ?resource=novabot (déjà validé/persisté depuis la
+   tranche A). Pas de "tool calling" natif par fournisseur ici (3 APIs
+   different) : les données réelles (portefeuille/décisions) sont
+   systématiquement injectées dans le contexte par le serveur AVANT
+   l'appel, jamais récupérées par le modèle lui-même — plus simple et plus
+   robuste qu'une boucle d'outils, pour un résultat équivalent côté
+   utilisateur (réponses ancrées dans des données réelles). */
+const CONSIGNE_NOVABOT_CHAT = `Tu es Nova, l'IA conversationnelle de NovaBot chez NovaTitre — un
+gestionnaire de portefeuille EN SIMULATION UNIQUEMENT (jamais d'argent réel, jamais un ordre
+envoyé à un broker). Tu parles en français, ton direct et chaleureux, jamais robotique, jamais de
+jargon non expliqué.
+
+Réponds TOUJOURS en JSON strict :
+{"reply":"...","mandateDraft":{"initialCapital":null,"objective":null,"riskLevel":null,"horizonYears":null,"hardRules":null,"autonomyMode":null}|null,"readyToConfirm":false}
+
+DEUX RÔLES SELON "mandateConfirmed" transmis ci-dessous :
+
+1) mandateConfirmed=false : ton objectif est de construire le mandat PAR LA CONVERSATION, jamais
+   par un formulaire. Lis le dernier message et déduis-en, SI ELLES Y FIGURENT EXPLICITEMENT :
+   - initialCapital (nombre en euros)
+   - objective : "growth" (faire croître le capital), "income" (générer des revenus), ou
+     "preserve" (préserver le capital)
+   - riskLevel : "low", "moderate", ou "high"
+   - horizonYears (nombre d'années)
+   - hardRules : tableau d'objets {"type":"excluded_sector"|"excluded_asset","value":"..."} pour
+     chaque secteur/entreprise que l'utilisateur exclut EXPLICITEMENT
+   - autonomyMode : "advice" (propose, demande toujours confirmation), "semi_auto", ou "auto"
+   N'invente AUCUNE valeur non mentionnée explicitement ou clairement déductible (ex. "risque
+   modéré" -> "moderate"). Si l'utilisateur répond "je ne sais pas" à une notion, explique-la
+   simplement en 1-2 phrases puis repose la question dans "reply".
+   Une fois initialCapital+objective+riskLevel+horizonYears tous connus (dans ce message ou les
+   précédents, voir mandateDraft déjà connu transmis ci-dessous) : pose au maximum 1 question sur
+   les exclusions ET 1 question sur l'autonomie si elles ne sont pas déjà connues, PUIS résume le
+   mandat complet en une phrase claire dans "reply" et demande confirmation, en mettant
+   readyToConfirm=true. Si l'utilisateur n'a pas d'exclusion/préférence d'autonomie à donner,
+   n'insiste pas — propose avec des valeurs par défaut prudentes (autonomyMode "advice" si non
+   précisé) plutôt que de bloquer la conversation.
+
+2) mandateConfirmed=true : tu réponds aux questions sur le portefeuille/les décisions/le mandat
+   RÉELLEMENT transmis ci-dessous ("mandate"/"portfolio"/"recentDecisions"/"specificDecisions").
+   "mandateDraft" reste null dans ce mode (le mandat ne change QUE via une procédure de
+   modification explicite, jamais glissé dans une réponse à une autre question).
+   N'invente JAMAIS un chiffre, une date, une transaction ou une décision absente de ces données —
+   si l'information demandée n'y figure pas (ex. décision trop ancienne non transmise), dis-le
+   honnêtement ("je n'ai pas cette décision dans ce que je peux consulter maintenant") plutôt que
+   de deviner.
+
+Règles absolues (les deux rôles) :
+- "reply" : 1 à 4 phrases, jamais un pavé, jamais de markdown.
+- "mandateDraft" : UNIQUEMENT les champs que tu AJOUTES/MODIFIES à partir du dernier message —
+  jamais une valeur déjà connue répétée, jamais un champ non mentionné. null si rien de nouveau.
+- "readyToConfirm" : true UNIQUEMENT au tour où tu présentes le résumé complet du mandat en
+  demandant confirmation.
+- Jamais de recommandation d'achat/vente dans cette conversation elle-même (c'est le rôle du
+  pipeline de décision NovaBot, pas de ce chat) — tu expliques ce qui a DÉJÀ été décidé, tu ne
+  décides pas ici.`;
 
 const CONSIGNE = `Tu analyses une entreprise cotée à partir des seuls chiffres fournis.
 Réponds en JSON strict : {"whatItDoes":"...","verdict":"positif|neutre|negatif|insuffisant","uncertainty":"faible|moyenne|elevee","summary":"...","positive":["..."],"negative":["..."]}
@@ -531,6 +601,110 @@ async function novabotDecisionAnalyse(req, res, { user, plan, dispo }){
   return res.status(200).json({ decision: parsed, provider: id, model: modele, durationMs: dureeMs, quota: quotaBlock(plan, utilise) });
 }
 
+/**
+ * Mode "novabot-chat" (refonte expérience, 2026-10-08) — la conversation
+ * elle-même. Voir CONSIGNE_NOVABOT_CHAT ci-dessus pour l'architecture
+ * complète (pas de tool-calling natif, données réelles injectées par le
+ * serveur). L'historique (req.body.messages) est mis en forme en
+ * transcript DANS le prompt — appelModeleAvecBascule() envoie un seul
+ * message 'user' par appel (partagé avec tous les autres modes), jamais
+ * un tableau multi-tours natif par fournisseur ici, pour ne rien changer
+ * à cette fonction commune.
+ */
+const NOVABOT_OBJECTIVES = new Set(['growth', 'income', 'preserve']);
+const NOVABOT_RISK_LEVELS = new Set(['low', 'moderate', 'high']);
+const NOVABOT_AUTONOMY = new Set(['advice', 'semi_auto', 'auto']);
+function validerMandateDraft(d){
+  if (!d || typeof d !== 'object' || Array.isArray(d)) return null;
+  const out = {};
+  if (Number.isFinite(d.initialCapital) && d.initialCapital >= 0) out.initialCapital = d.initialCapital;
+  if (NOVABOT_OBJECTIVES.has(d.objective)) out.objective = d.objective;
+  if (NOVABOT_RISK_LEVELS.has(d.riskLevel)) out.riskLevel = d.riskLevel;
+  if (Number.isFinite(d.horizonYears) && d.horizonYears > 0) out.horizonYears = d.horizonYears;
+  if (Array.isArray(d.hardRules)){
+    const regles = d.hardRules
+      .filter(r => r && (r.type === 'excluded_sector' || r.type === 'excluded_asset') && typeof r.value === 'string')
+      .slice(0, 20).map(r => ({ type:r.type, value: texteBorne(r.value, 60) }));
+    if (regles.length) out.hardRules = regles;
+  }
+  if (NOVABOT_AUTONOMY.has(d.autonomyMode)) out.autonomyMode = d.autonomyMode;
+  return Object.keys(out).length ? out : null;
+}
+
+async function novabotChatAnalyse(req, res, { user, plan, dispo }){
+  const messagesIn = Array.isArray(req.body?.messages) ? req.body.messages.slice(-20) : [];
+  const messages = messagesIn
+    .map(m => ({ role: m?.role === 'assistant' ? 'assistant' : 'user', content: texteBorne(m?.content, 2000) }))
+    .filter(m => m.content);
+  if (!messages.length) return res.status(400).json({ error: 'conversation_vide' });
+
+  const mandateConfirmed = req.body?.mandateConfirmed === true;
+  const contexte = {
+    mandateConfirmed,
+    mandateDraftConnu: mandateConfirmed ? null : sanitiserDonnees(req.body?.mandateDraft),
+    mandate: mandateConfirmed ? sanitiserDonnees(req.body?.mandate) : null,
+    portfolio: mandateConfirmed ? sanitiserDonnees(req.body?.portfolio) : null,
+    recentDecisions: mandateConfirmed && Array.isArray(req.body?.recentDecisions)
+      ? req.body.recentDecisions.slice(0, 15).map(d => sanitiserDonnees(d)).filter(Boolean) : null,
+    specificDecisions: mandateConfirmed && Array.isArray(req.body?.specificDecisions)
+      ? req.body.specificDecisions.slice(0, 10).map(d => sanitiserDonnees(d)).filter(Boolean) : null,
+  };
+
+  const transcript = messages.map(m => `${m.role === 'user' ? 'Utilisateur' : 'Nova'} : ${m.content}`).join('\n');
+  const prompt = `${CONSIGNE_NOVABOT_CHAT}\n\nDonnées disponibles :\n${JSON.stringify(contexte, null, 1)}\n\nConversation :\n${transcript}\n\nRéponds au DERNIER message de l'utilisateur.`;
+
+  const resa = await reserver(sb, user.id, plan);
+  if (!resa.ok){
+    if (resa.reason === 'quota_exceeded'){
+      const q = quotaBlock(plan, resa.used ?? limiteDe(plan));
+      return res.status(429).json({ error:'quota_exceeded',
+        message:`Vous avez utilisé vos ${limiteDe(plan)} analyses incluses ce mois-ci.`, ...q });
+    }
+    if (resa.reason === 'rate_limited'){
+      return res.status(429).json({ error:'rate_limited',
+        message:"Trop de requêtes lancées en peu de temps. Réessayez dans quelques minutes.", plan });
+    }
+    return res.status(503).json({ error:'quota_indisponible',
+      message:"Le compteur d'analyses est momentanément indisponible. Réessayez." });
+  }
+  const reservation = resa.reservationId;
+  const utilise = resa.used;
+  const annuler = statut => cloturer(sb, reservation, statut || 'cancelled');
+
+  let id, modele, parsed, usage;
+  try {
+    ({ id, modele, parsed, usage } = await appelModeleAvecBascule(dispo, {
+      prompt, maxTokens: 500, timeoutMs: 25000,
+      validerEtNormaliser: (rep) => {
+        if (
+          !rep || typeof rep !== 'object' || Array.isArray(rep)
+          || typeof rep.reply !== 'string'
+          || typeof rep.readyToConfirm !== 'boolean'
+        ){
+          throw new Error('schema_novabot_chat_invalide');
+        }
+        return {
+          reply: rep.reply.slice(0, 800),
+          mandateDraft: mandateConfirmed ? null : validerMandateDraft(rep.mandateDraft),
+          readyToConfirm: rep.readyToConfirm === true,
+        };
+      },
+    }));
+  } catch (e){
+    await annuler('cancelled');
+    return res.status(502).json({ error: e.type || 'reponse_illisible', provider: e.provider ?? null, detail: e.detail });
+  }
+
+  const { assainirTexte } = construireAssainisseur(contexte);
+  parsed.reply = assainirTexte(parsed.reply);
+
+  await cloturer(sb, reservation, 'ok', { provider:id, model:modele,
+    tokens_in: usage?.prompt_tokens ?? null, tokens_out: usage?.completion_tokens ?? null });
+
+  res.setHeader('Cache-Control', 'no-store');
+  return res.status(200).json({ ...parsed, provider: id, model: modele, quota: quotaBlock(plan, utilise) });
+}
+
 module.exports = async (req, res) => {
   if (req.method === 'GET'){
     return res.status(200).json({
@@ -563,6 +737,9 @@ module.exports = async (req, res) => {
   }
   if (req.body?.mode === 'novabot'){
     return novabotDecisionAnalyse(req, res, { user, plan, dispo: dispoPourTache('novabot') });
+  }
+  if (req.body?.mode === 'novabot-chat'){
+    return novabotChatAnalyse(req, res, { user, plan, dispo: dispoPourTache('novabot-chat') });
   }
   const dispo = dispoPourTache('analyse');
 

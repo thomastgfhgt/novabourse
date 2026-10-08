@@ -677,6 +677,7 @@ async function handlePortfolio(req, res, user) {
  *     que ?resource=portfolio.
  */
 const NOVABOT_CLIENT_STATUSES = ['setup', 'active', 'paused'];
+const NOVABOT_AUTONOMY_MODES = ['advice', 'semi_auto', 'auto'];
 const NOVABOT_TX_TYPES = ['buy', 'sell', 'deposit', 'withdraw', 'fee'];
 const NOVABOT_MANDATE_KEYS = ['objective', 'horizon_years', 'risk_level', 'max_drawdown_pct', 'cash_min_pct',
   'max_position_pct', 'max_positions_count', 'preferences', 'hard_rules', 'allowed_regions', 'currencies',
@@ -773,11 +774,26 @@ async function handleNovaBot(req, res, user) {
       if (initialCapital === null || initialCapital < 0) {
         return res.status(400).json({ error: 'capital_initial_invalide' });
       }
+      const autonomyMode = NOVABOT_AUTONOMY_MODES.includes(body.account.autonomyMode) ? body.account.autonomyMode : 'advice';
       const [created] = await sb('novabot_accounts', {
         method: 'POST',
-        body: JSON.stringify([{ user_id: user.id, status: 'setup', autonomy_mode: 'advice', initial_capital: initialCapital }]),
+        body: JSON.stringify([{ user_id: user.id, status: 'setup', autonomy_mode: autonomyMode, initial_capital: initialCapital }]),
       });
       account = created;
+    }
+
+    /* ---------- mode d'autonomie (refonte expérience, §22) : modifiable
+       après coup, contrairement au capital initial — l'utilisateur peut
+       changer d'avis sur "demande toujours confirmation" vs "autonome"
+       sans recréer son compte. Seulement si fourni ET différent, pour ne
+       pas réécrire la ligne à chaque pushNovaBot() silencieux. */
+    if (account && NOVABOT_AUTONOMY_MODES.includes(body.account?.autonomyMode)
+      && body.account.autonomyMode !== account.autonomy_mode) {
+      await sb(`novabot_accounts?id=eq.${encodeURIComponent(account.id)}`, {
+        method: 'PATCH', headers: { Prefer: 'return=minimal' },
+        body: JSON.stringify({ autonomy_mode: body.account.autonomyMode, updated_at: new Date().toISOString() }),
+      });
+      account.autonomy_mode = body.account.autonomyMode;
     }
 
     /* ---------- changement d'état (suspendre/reprendre) ---------- */

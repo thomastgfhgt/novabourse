@@ -515,6 +515,52 @@ PAGES.novareview = () => {
    présentation. Réutilise les mêmes composants que Réglages (settingRow)
    et Portefeuille (.card/.rows/.row/dl/kv) plutôt que d'en inventer de
    nouveaux. */
+/* Refonte expérience NovaBot (2026-10-08) : retour utilisateur explicite —
+   "l'élément central doit être la conversation [...] les règles restent
+   accessibles pour modification, mais elles ne constituent plus le
+   contenu principal de la page [...] je ne veux PAS de refonte de
+   l'identité graphique [...] tu DOIS réorganiser le contenu fonctionnel."
+   Donc : AUCUNE nouvelle couleur/typographie/composant de base — tout ici
+   réutilise .card/.rows/.row/.field/.btn/.sw/.tag déjà existants. Ce qui
+   change, c'est l'ORDRE et la PLACE : la conversation (novabotChatLog,
+   js/novabot-chat.js) est désormais la section n°1, le portefeuille/les
+   décisions réelles suivent immédiatement si un mandat est confirmé, et
+   les anciens réglages bruts (score/stop-loss/take-profit/montant fixe)
+   sont repliés dans un <details> en bas de page — toujours modifiables,
+   plus jamais ce qu'on voit en premier. */
+function novabotChatMarkup(){
+  const c = NOVABOT_CHAT;
+  return `<section class="section">
+    <h2 class="h2">Conversation</h2>
+    <div class="card nb-chat" style="margin-top:14px">
+      <div class="nb-chat-log" id="novabotChatLog">
+        ${c.messages.map(m => `<div class="nb-msg nb-msg-${m.role === 'user' ? 'user' : 'bot'}">${esc(m.content)}</div>`).join('')}
+        ${c.sending ? `<div class="nb-msg nb-msg-bot nb-msg-typing">Nova réfléchit…</div>` : ''}
+      </div>
+      ${c.readyToConfirm ? `<button class="btn btn-a" style="width:100%;margin-top:12px" data-novabot-confirm-mandat>Confirmer le mandat</button>` : ''}
+      <div class="nb-chat-input">
+        <input type="text" class="field" id="novabotChatInput" placeholder="Écris à Nova…" maxlength="2000" ${c.sending ? 'disabled' : ''}>
+        <button type="button" class="btn btn-a btn-sm" data-novabot-chat-send ${c.sending ? 'disabled' : ''}>Envoyer</button>
+      </div>
+    </div>
+  </section>`;
+}
+function novabotOuvrirDecision(id){
+  const d = state.novabot.decisions.find(x => x.id === id);
+  if (!d) return;
+  const dateD = new Date(d.date).toLocaleString('fr-FR', { day:'2-digit', month:'long', year:'numeric', hour:'2-digit', minute:'2-digit' });
+  const ACTION_LABEL = { buy:'Achat simulé', sell:'Vente simulée', reject:'Refusé', watch:'Mise en surveillance', hold:'Conservé', increase:'Renforcement', reduce:'Allègement' };
+  openSheet(`<h3 id="sheetTitle">${ACTION_LABEL[d.action] || d.action} · ${esc(d.name || d.ticker || '')}</h3>
+    <p class="tiny" style="margin-top:6px;color:var(--ink-4)">${dateD}</p>
+    <p style="margin-top:14px;line-height:1.5">${esc(d.reason || '')}</p>
+    ${Number.isFinite(d.priceObserved) ? `<div class="kv" style="margin-top:14px"><dt>Cours observé</dt><dd class="tabular-nums">${fmt.cur(d.priceObserved, 'EUR')}</dd></div>` : ''}
+    ${Number.isFinite(d.amountEUR) ? `<div class="kv"><dt>Montant</dt><dd class="tabular-nums">${fmt.eur(d.amountEUR)}</dd></div>` : ''}
+    ${Number.isFinite(d.weightBeforePct) && Number.isFinite(d.weightAfterPct) ? `<div class="kv"><dt>Poids avant / après</dt><dd class="tabular-nums">${fmt.num(d.weightBeforePct,1)} % → ${fmt.num(d.weightAfterPct,1)} %</dd></div>` : ''}
+    ${Number.isFinite(d.confidence) ? `<div class="kv"><dt>Confiance Nova AI</dt><dd class="tabular-nums">${d.confidence} %</dd></div>` : ''}
+    ${d.aiProvider ? `<div class="kv"><dt>Second avis</dt><dd>${esc(d.aiProvider)} · ${esc(d.aiModel || '')}</dd></div>` : ''}
+    ${d.riskResult && !d.riskResult.allowed ? `<p class="tiny" style="margin-top:10px;color:var(--warn)">Refusé par le Risk Engine : ${esc((d.riskResult.violations||[]).map(v=>v.message).join(' '))}</p>` : ''}
+  `);
+}
 PAGES.novabot = () => {
   const f = NOVA_FEATURES.novabot;
   const cfg = state.novabot;
@@ -522,81 +568,20 @@ PAGES.novabot = () => {
   const dernierPassage = cfg.lastRunAt
     ? new Date(cfg.lastRunAt).toLocaleString('fr-FR', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' })
     : 'jamais';
+  if (!NOVABOT_CHAT.loaded && !NOVABOT_CHAT.loading) novabotChatCharger();
+
   return `<div class="page-in">
     <button class="btn btn-g btn-sm" data-back style="margin-bottom:20px">← Retour</button>
     <p class="eyebrow">Simulation</p>
     <h1 class="title">${esc(f.title)}</h1>
-    <p class="lead measure-l" style="margin-top:10px">Portefeuille entièrement simulé, isolé de votre
-      portefeuille réel — NovaBot ne place et ne placera jamais d'ordre réel sur les marchés.</p>
+    <p class="lead measure-l" style="margin-top:10px">Un gestionnaire de portefeuille IA, en conversation —
+      portefeuille entièrement simulé, isolé du vôtre : NovaBot ne place et ne placera jamais d'ordre réel.</p>
 
-    <section class="section">
-      <h2 class="h2">Activation</h2>
-      <div class="card" style="margin-top:14px">
-        <!-- CORRECTIF (2026-10-08, refonte fonctionnelle, §7 : "la phrase
-             'uniquement sur votre watchlist' ne correspond pas à la
-             vision") : depuis la tranche B, NovaBot recherche aussi des
-             candidats au-delà de la watchlist (novabotDiscoveryCandidats(),
-             js/core.js) — ce texte affirmait le contraire. */
-        ${settingRow('NovaBot actif', "Évalue vos règles quand vous cliquez sur « Évaluer maintenant », sur votre watchlist et au-delà.",
-          `<button class="sw" data-novabot-toggle role="switch" aria-checked="${cfg.enabled}"><i></i></button>`)}
-        <!-- Raisonnement IA (tranche C, §1/§9/§24, 2026-10-08) : DÉSACTIVÉ
-             par défaut (voir DEFAULT_STATE.novabot.aiReasoning, js/core.js)
-             — consomme le quota d'analyses mensuel de l'utilisateur,
-             jamais activé sans ce geste explicite. Réutilise exactement le
-             même composant .sw que le réglage ci-dessus (aucune nouvelle
-             esthétique, conformément à la consigne de cette refonte). -->
-        ${settingRow('Second avis Nova AI', "Avant un achat (NovaScore franchi), demande à Nova AI de confirmer, surveiller ou refuser — consomme vos analyses IA.",
-          `<button class="sw" data-novabot-ai-toggle role="switch" aria-checked="${cfg.aiReasoning}"><i></i></button>`)}
-        <p class="tiny" style="margin-top:10px;color:var(--ink-4)">Dernière évaluation : ${esc(dernierPassage)}</p>
-      </div>
-    </section>
+    ${novabotChatMarkup()}
 
-    <!-- Mandat (§21/§24 du prompt maître, 2026-10-06) : séparé des "règles"
-         de déclenchement ci-dessous à dessein — un mandat borne CE QUE
-         NovaBot a le droit de faire (contraintes de capital/risque),
-         une règle décide QUAND il agit (seuils de score/gain/perte).
-         Même distinction que le prompt maître lui-même (§22 : préférence/
-         contrainte/interdiction). Seuls 2 champs pour l'instant (cash
-         minimum, poids max par position) — les autres (objectif, horizon,
-         actifs/secteurs interdits...) demandent des décisions produit
-         non tranchées, jamais ajoutés par anticipation (§87/§97). -->
+    ${cfg.mandateConfirmed ? `
     <section class="section">
-      <h2 class="h2">Mandat</h2>
-      <div class="card" style="margin-top:14px">
-        ${settingRow('Liquidités minimales', 'NovaBot n\'achète jamais si cela ferait passer le cash sous ce seuil.',
-          `<input type="number" class="field" style="width:76px;text-align:right" min="0" max="100" step="5"
-            value="${cfg.cashMinPct}" onchange="novabotSetRegle('cashMinPct', this.value)"> %`)}
-        ${settingRow('Maximum par position', 'NovaBot n\'achète jamais si cela dépasserait ce poids du portefeuille simulé.',
-          `<input type="number" class="field" style="width:76px;text-align:right" min="1" max="100" step="5"
-            value="${cfg.maxPositionPct}" onchange="novabotSetRegle('maxPositionPct', this.value)"> %`)}
-      </div>
-    </section>
-
-    <section class="section">
-      <h2 class="h2">Vos règles</h2>
-      <div class="card" style="margin-top:14px">
-        ${settingRow('NovaScore minimum pour acheter', 'Sur les valeurs de votre watchlist non encore détenues (simulation).',
-          `<input type="number" class="field" style="width:76px;text-align:right" min="0" max="100" step="1"
-            value="${cfg.scoreAchat}" onchange="novabotSetRegle('scoreAchat', this.value)">`)}
-        ${settingRow('Stop-loss', 'Vend automatiquement une position simulée sous cette perte.',
-          `<input type="number" class="field" style="width:76px;text-align:right" min="1" max="90" step="1"
-            value="${cfg.stopLossPct}" onchange="novabotSetRegle('stopLossPct', this.value)"> %`)}
-        ${settingRow('Take-profit', 'Vend automatiquement une position simulée au-delà de ce gain.',
-          `<input type="number" class="field" style="width:76px;text-align:right" min="1" max="500" step="1"
-            value="${cfg.takeProfitPct}" onchange="novabotSetRegle('takeProfitPct', this.value)"> %`)}
-        ${settingRow('Montant simulé par achat', null,
-          `<input type="number" class="field" style="width:96px;text-align:right" min="10" step="10"
-            value="${cfg.tradeAmountEUR}" onchange="novabotSetRegle('tradeAmountEUR', this.value)"> €`)}
-      </div>
-      <!-- CORRECTIF (2026-10-08, §7) : ne dépend plus de la watchlist —
-           novabotDiscoveryCandidats() (tranche B) trouve des candidats
-           dans le catalogue complet même si elle est vide ; une watchlist
-           vide ne prive plus NovaBot de rien à évaluer. -->
-      <button class="btn btn-a btn-lg" style="width:100%;margin-top:14px" data-novabot-run>Évaluer maintenant</button>
-    </section>
-
-    <section class="section">
-      <h2 class="h2">Portefeuille simulé</h2>
+      <h2 class="h2">Portefeuille NovaBot</h2>
       <div class="card" style="margin-top:14px">
         <dl>
           <div class="kv"><dt>Valeur totale</dt><dd class="tabular-nums">${fmt.eur(pf.total)}</dd></div>
@@ -608,7 +593,7 @@ PAGES.novabot = () => {
     </section>
 
     ${pf.lines.length ? `<section class="section">
-      <h2 class="h2">Positions simulées</h2>
+      <h2 class="h2">Positions</h2>
       <div class="card" style="margin-top:14px"><div class="rows">
         ${pf.lines.map(l => `<div class="row">
           <span class="row-main"><span class="row-t">${esc(l.stock?.name || l.id)}</span>
@@ -620,26 +605,63 @@ PAGES.novabot = () => {
       </div></div>
     </section>` : ''}
 
-    ${cfg.transactions.length ? `<section class="section">
-      <h2 class="h2">Journal des décisions</h2>
-      <div class="card" style="margin-top:14px"><div class="rows">
-        ${cfg.transactions.slice().reverse().slice(0, 20).map(tx => {
-          const dateTx = new Date(tx.date).toLocaleDateString('fr-FR', { day:'2-digit', month:'short', year:'numeric' });
-          return `<div class="row" style="align-items:flex-start;flex-direction:column;gap:2px;padding:12px 0">
-            <div style="display:flex;justify-content:space-between;width:100%;gap:10px">
-              <span class="row-main"><span class="row-t">${tx.type==='buy'?'Achat simulé':'Vente simulée'} · ${esc(tx.name)}</span>
-                <span class="row-s">${dateTx} · ${fmt.eur(tx.amountEUR)}</span></span>
-              ${Number.isFinite(tx.realizedGain) ? `<span class="tabular-nums ${tx.realizedGain>=0?'up-t':'down-t'}" style="font-size:13.5px;font-weight:600;flex:0 0 auto">${tx.realizedGain>=0?'+':''}${fmt.eur(tx.realizedGain)}</span>` : ''}
-            </div>
-            <span class="tiny" style="color:var(--ink-4)">${esc(tx.motif || '')}</span>
-          </div>`;
+    <section class="section">
+      <div class="section-h"><h2 class="h2">Décisions récentes</h2>
+        <button class="btn btn-ghost btn-sm" data-novabot-run>Évaluer maintenant</button>
+      </div>
+      <div class="card" style="margin-top:14px">${cfg.decisions.length ? `<div class="rows">
+        ${cfg.decisions.slice().reverse().slice(0, 20).map(d => {
+          const dateD = new Date(d.date).toLocaleDateString('fr-FR', { day:'2-digit', month:'short' });
+          const ACTION_LABEL = { buy:'Achat', sell:'Vente', reject:'Refusé', watch:'Surveillance', hold:'Conservé', increase:'Renforcement', reduce:'Allègement' };
+          return `<button type="button" class="row" style="width:100%;text-align:left" data-novabot-decision="${esc(d.id)}">
+            <span class="row-main"><span class="row-t">${ACTION_LABEL[d.action] || d.action} · ${esc(d.name || d.ticker || '')}</span>
+              <span class="row-s">${dateD} · ${esc((d.reason || '').slice(0, 70))}${(d.reason||'').length > 70 ? '…' : ''}</span></span>
+            ${Number.isFinite(d.amountEUR) ? `<span class="tabular-nums" style="flex:0 0 auto">${fmt.eur(d.amountEUR)}</span>` : ''}
+          </button>`;
         }).join('')}
-      </div></div>
-    </section>` : `<div class="empty" style="padding-top:8px">
-      <div class="empty-i" style="background:rgba(${f.rgb},.14);color:${f.accent}">${svg(ICON[f.icon],1.7)}</div>
-      <h3 style="font-size:20px;margin-top:16px">Aucune décision simulée pour l'instant</h3>
-      <p style="max-width:46ch">Activez NovaBot, ajoutez des valeurs à votre watchlist, puis cliquez sur « Évaluer maintenant ».</p>
-    </div>`}
+      </div>` : emptyState('Aucune décision pour l\'instant', 'Confirme ton mandat puis dis à Nova de chercher des opportunités, ou clique sur « Évaluer maintenant ».')}</div>
+    </section>` : ''}
+
+    <details class="nb-advanced" style="margin-top:28px">
+      <summary class="h3">Réglages avancés</summary>
+      <section class="section" style="margin-top:14px">
+        <div class="card">
+          ${settingRow('NovaBot actif', 'Autorise NovaBot à agir quand vous cliquez sur « Évaluer maintenant », sur votre watchlist et au-delà.',
+            `<button class="sw" data-novabot-toggle role="switch" aria-checked="${cfg.enabled}"><i></i></button>`)}
+          ${settingRow('Second avis Nova AI', "Avant un achat (NovaScore franchi), demande à Nova AI de confirmer, surveiller ou refuser — consomme vos analyses IA.",
+            `<button class="sw" data-novabot-ai-toggle role="switch" aria-checked="${cfg.aiReasoning}"><i></i></button>`)}
+          <p class="tiny" style="margin-top:10px;color:var(--ink-4)">Dernière évaluation : ${esc(dernierPassage)}</p>
+        </div>
+      </section>
+      <section class="section">
+        <h2 class="h2">Mandat (détail)</h2>
+        <div class="card" style="margin-top:14px">
+          ${settingRow('Liquidités minimales', 'NovaBot n\'achète jamais si cela ferait passer le cash sous ce seuil.',
+            `<input type="number" class="field" style="width:76px;text-align:right" min="0" max="100" step="5"
+              value="${cfg.cashMinPct}" onchange="novabotSetRegle('cashMinPct', this.value)"> %`)}
+          ${settingRow('Maximum par position', 'NovaBot n\'achète jamais si cela dépasserait ce poids du portefeuille simulé.',
+            `<input type="number" class="field" style="width:76px;text-align:right" min="1" max="100" step="5"
+              value="${cfg.maxPositionPct}" onchange="novabotSetRegle('maxPositionPct', this.value)"> %`)}
+        </div>
+      </section>
+      <section class="section">
+        <h2 class="h2">Règles de déclenchement</h2>
+        <div class="card" style="margin-top:14px">
+          ${settingRow('NovaScore minimum pour acheter', 'Filtre déterministe avant tout second avis IA (simulation).',
+            `<input type="number" class="field" style="width:76px;text-align:right" min="0" max="100" step="1"
+              value="${cfg.scoreAchat}" onchange="novabotSetRegle('scoreAchat', this.value)">`)}
+          ${settingRow('Stop-loss', 'Vend automatiquement une position simulée sous cette perte.',
+            `<input type="number" class="field" style="width:76px;text-align:right" min="1" max="90" step="1"
+              value="${cfg.stopLossPct}" onchange="novabotSetRegle('stopLossPct', this.value)"> %`)}
+          ${settingRow('Take-profit', 'Vend automatiquement une position simulée au-delà de ce gain.',
+            `<input type="number" class="field" style="width:76px;text-align:right" min="1" max="500" step="1"
+              value="${cfg.takeProfitPct}" onchange="novabotSetRegle('takeProfitPct', this.value)"> %`)}
+          ${settingRow('Montant simulé par achat', null,
+            `<input type="number" class="field" style="width:96px;text-align:right" min="10" step="10"
+              value="${cfg.tradeAmountEUR}" onchange="novabotSetRegle('tradeAmountEUR', this.value)"> €`)}
+        </div>
+      </section>
+    </details>
 
     <p class="tiny" style="margin-top:18px;color:var(--ink-4)">NovaBot ne place jamais d'ordre réel. Ce portefeuille est entièrement simulé et distinct du vôtre.</p>
   </div>`;

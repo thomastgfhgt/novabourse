@@ -50,6 +50,7 @@
 <script src="/js/data-services.js"></script>
 <script src="/js/page-home.js"></script>
 <script src="/js/nova.js"></script>
+<script src="/js/novabot-chat.js"></script>
 <script src="/js/page-pricing.js"></script>
 <script src="/js/page-radar.js"></script>
 <script src="/js/page-markets.js"></script>
@@ -967,6 +968,18 @@ document.addEventListener('click', e => {
     evaluerNovaBot();
     return;
   }
+  if (q('[data-novabot-chat-send]')){
+    novabotChatSoumetre();
+    return;
+  }
+  if (q('[data-novabot-confirm-mandat]')){
+    novabotChatConfirmer();
+    return;
+  }
+  if (q('[data-novabot-decision]')){
+    novabotOuvrirDecision(q('[data-novabot-decision]').dataset.novabotDecision);
+    return;
+  }
   if (q('[data-export]')){
     const data = JSON.stringify({ watchlist:state.watchlist, wallet:state.wallet,
       settings:state.settings }, null, 2);
@@ -1511,6 +1524,9 @@ document.addEventListener('keydown', e => {
      comportement Entrée générique sur tout input de l'app. */
   if (e.key === 'Enter' && ['gateEmail','gatePassword'].includes(document.activeElement?.id)){
     e.preventDefault(); submitGateEmail();
+  }
+  if (e.key === 'Enter' && document.activeElement?.id === 'novabotChatInput'){
+    e.preventDefault(); novabotChatSoumetre();
   }
   if (e.key === 'Tab'){
     const bg = document.getElementById('sheetBg');

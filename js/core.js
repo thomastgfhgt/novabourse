@@ -220,7 +220,25 @@ const DEFAULT_STATE = {
     maxPositionsCount:null,
     hardRules:[],
     preferences:[],
-    wallet:{ cash:10000, invested:10000, positions:[], realizedPnL:0 },
+    /* Collectés par la conversation (refonte expérience, 2026-10-08) —
+       informatifs pour l'instant (aucune logique ne les lit encore en
+       dehors de novabotConfirmerMandat(), qui en déduit cashMinPct/
+       maxPositionPct à la confirmation), mais persistés pour que le
+       résumé du mandat reste cohérent d'une session à l'autre. */
+    objective:null,
+    riskLevel:null,
+    horizonYears:null,
+    /* CORRECTIF (2026-10-08, refonte expérience) : valait {cash:10000,
+       invested:10000} comme capital implicite "gratuit", jamais déposé
+       explicitement — convenait tant que rien ne modélisait le "capital
+       confié" (§1 du brief). Depuis novabotConfirmerMandat() (plus bas),
+       le capital choisi PAR LA CONVERSATION devient une vraie transaction
+       'deposit' rejouée par rejouerNovaBot() — un capital de départ non
+       nul ICI aurait doublé le résultat (10000 implicite + 10000 déposé =
+       20000, bug réel trouvé en testant ce tour visuellement). 0 : aucun
+       capital tant qu'aucun mandat n'a été confirmé, cohérent avec
+       mandateConfirmed=false par défaut. */
+    wallet:{ cash:0, invested:0, positions:[], realizedPnL:0 },
     transactions:[],
     /* Journal des décisions (§14) — une entrée par décision SIGNIFICATIVE
        (buy/sell exécutés, reject, watch nouveau), jamais une entrée à
@@ -237,6 +255,19 @@ const DEFAULT_STATE = {
        serveur) pour l'instant : c'est un réglage d'EXÉCUTION, pas une
        règle du mandat lui-même. */
     aiReasoning:false,
+    /* Mode d'autonomie (§22) — collecté par la conversation (refonte
+       expérience, 2026-10-08) et synchronisé avec novabot_accounts.
+       autonomy_mode (voir pushNovaBot()/syncNovaBot()) : "advice" par
+       défaut, le plus prudent, jamais "auto" tant que l'utilisateur ne
+       l'a pas explicitement choisi. */
+    autonomyMode:'advice',
+    /* Compte confirmé : passe à true seulement quand l'utilisateur a
+       validé le mandat proposé par la conversation (novabotConfirmerMandat()
+       plus bas) — avant ça, la page NovaBot affiche la conversation
+       d'onboarding plutôt que le tableau de bord (voir PAGES.novabot,
+       js/nova.js). Distinct de `enabled` : un mandat confirmé peut être
+       mis en pause (enabled=false) sans perdre sa confirmation. */
+    mandateConfirmed:false,
     lastRunAt:null,
   },
 
@@ -399,6 +430,9 @@ function loadState(){
             ? saved.novabot.hardRules.filter(r => r && typeof r.type === 'string' && typeof r.value === 'string') : [],
           preferences: Array.isArray(saved.novabot?.preferences)
             ? saved.novabot.preferences.filter(r => r && typeof r.type === 'string' && typeof r.value === 'string') : [],
+          objective: ['growth','income','preserve'].includes(saved.novabot?.objective) ? saved.novabot.objective : null,
+          riskLevel: ['low','moderate','high'].includes(saved.novabot?.riskLevel) ? saved.novabot.riskLevel : null,
+          horizonYears: Number.isFinite(saved.novabot?.horizonYears) ? saved.novabot.horizonYears : null,
           wallet:{
             cash: Number.isFinite(saved.novabot?.wallet?.cash) ? saved.novabot.wallet.cash : DEFAULT_STATE.novabot.wallet.cash,
             invested: Number.isFinite(saved.novabot?.wallet?.invested) ? saved.novabot.wallet.invested : DEFAULT_STATE.novabot.wallet.invested,
@@ -413,6 +447,8 @@ function loadState(){
             ? saved.novabot.decisions.filter(d => d && typeof d.id === 'string' && typeof d.action === 'string' && typeof d.date === 'string')
             : [],
           aiReasoning: saved.novabot?.aiReasoning === true,
+          autonomyMode: ['advice','semi_auto','auto'].includes(saved.novabot?.autonomyMode) ? saved.novabot.autonomyMode : 'advice',
+          mandateConfirmed: saved.novabot?.mandateConfirmed === true,
           lastRunAt: Number.isFinite(saved.novabot?.lastRunAt) ? saved.novabot.lastRunAt : null,
         },
       };
@@ -2175,6 +2211,9 @@ function novabotMandat(){
     maxPositionsCount: Number.isFinite(cfg.maxPositionsCount) ? cfg.maxPositionsCount : null,
     hardRules: Array.isArray(cfg.hardRules) ? cfg.hardRules : [],
     preferences: Array.isArray(cfg.preferences) ? cfg.preferences : [],
+    objective: cfg.objective || null,
+    riskLevel: cfg.riskLevel || null,
+    horizonYears: Number.isFinite(cfg.horizonYears) ? cfg.horizonYears : null,
   };
 }
 function novabotRiskCheck(intent, wallet, mandate){
@@ -2429,6 +2468,48 @@ function novabotSetRegle(cle, valeurBrute){
   pushNovaBot();
 }
 
+/* Confirme le mandat construit par la conversation (refonte expérience,
+   2026-10-08, §2/§10 : "NovaBot construit le mandat, présente un résumé
+   compréhensible et demande confirmation") — appelée UNIQUEMENT sur un
+   geste explicite de l'utilisateur (bouton "Confirmer" affiché par
+   PAGES.novabot quand la conversation signale readyToConfirm), jamais
+   automatiquement par la conversation elle-même (§12 : le modèle ne
+   contrôle jamais directement le portefeuille).
+   Le capital confié devient une VRAIE transaction 'deposit' (jamais une
+   simple réécriture de wallet.cash/invested) : même principe que
+   rejouerNovaBot()/pushPortfolio() partout ailleurs dans ce fichier — le
+   journal reste l'unique source de vérité, aucune deuxième représentation
+   qui pourrait diverger. Limite assumée de cette passe (documentée au
+   rapport) : autonomyMode est collecté et persisté, mais son application
+   fine dans le pipeline de décision (ex. "advice" = demander confirmation
+   avant CHAQUE transaction) n'est pas encore câblée — le pipeline exécute
+   des transactions SIMULÉES comme avant, quel que soit le mode choisi. */
+function novabotConfirmerMandat(draft){
+  const capital = Number.isFinite(draft.initialCapital) ? draft.initialCapital : 10000;
+  state.novabot.transactions = [{ id:'nb'+Date.now().toString(36)+Math.random().toString(36).slice(2,6),
+    date:new Date().toISOString(), type:'deposit', amountEUR:capital,
+    motif:'Capital confié à NovaBot (mandat initial, voir la conversation).' }];
+  const rejoue = rejouerNovaBot(state.novabot.transactions);
+  state.novabot.wallet.cash = rejoue.cash;
+  state.novabot.wallet.invested = rejoue.invested;
+  state.novabot.wallet.positions = rejoue.positions;
+  state.novabot.wallet.realizedPnL = rejoue.realizedPnL;
+
+  state.novabot.riskLevel = ['low','moderate','high'].includes(draft.riskLevel) ? draft.riskLevel : 'moderate';
+  if (state.novabot.riskLevel === 'low'){ state.novabot.cashMinPct = 30; state.novabot.maxPositionPct = 6; }
+  else if (state.novabot.riskLevel === 'high'){ state.novabot.cashMinPct = 10; state.novabot.maxPositionPct = 15; }
+  else { state.novabot.cashMinPct = 20; state.novabot.maxPositionPct = 10; } // 'moderate'
+  if (Array.isArray(draft.hardRules)) state.novabot.hardRules = draft.hardRules;
+  state.novabot.autonomyMode = ['advice','semi_auto','auto'].includes(draft.autonomyMode) ? draft.autonomyMode : 'advice';
+  state.novabot.objective = ['growth','income','preserve'].includes(draft.objective) ? draft.objective : null;
+  state.novabot.horizonYears = Number.isFinite(draft.horizonYears) ? draft.horizonYears : null;
+
+  state.novabot.mandateConfirmed = true;
+  state.novabot.enabled = true;
+  saveState();
+  pushNovaBot();
+}
+
 /* ============================================================
    NOVABOT — PERSISTANCE SERVEUR (refonte fonctionnelle, 2026-10-07,
    tranche A "fondation")
@@ -2445,8 +2526,12 @@ function novabotSetRegle(cle, valeurBrute){
    inchangées, ce bloc ajoute seulement une sauvegarde serveur silencieuse
    en plus du localStorage existant. */
 function rejouerNovaBot(transactions){
-  const wallet = { cash: DEFAULT_STATE.novabot.wallet.cash, invested: DEFAULT_STATE.novabot.wallet.invested,
-    positions: [], realizedPnL: 0 };
+  /* 0, jamais DEFAULT_STATE.novabot.wallet.cash (lui-même 0 depuis le
+     correctif ci-dessus, mais explicite ici à dessein) : depuis
+     novabotConfirmerMandat(), le capital de départ EST une transaction
+     'deposit' comme une autre — partir d'un cash non nul ici le compterait
+     deux fois. */
+  const wallet = { cash: 0, invested: 0, positions: [], realizedPnL: 0 };
   const triees = [...transactions].sort((a, b) => new Date(a.date) - new Date(b.date));
   for (const tx of triees){
     if (tx.type === 'buy'){
@@ -2490,10 +2575,20 @@ async function pushNovaBot(){
   try {
     const mandate = novabotMandat();
     const body = {
-      account: { initialCapital: state.novabot.wallet.invested },
+      /* CORRECTIF (2026-10-08) : n'envoie account QUE si un mandat a
+         réellement été confirmé — sinon un simple clic sur un réglage
+         secondaire (ex. le second avis IA) avant toute conversation
+         créerait un compte serveur fantôme à 0 €, jamais voulu par
+         l'utilisateur. Idempotent côté serveur de toute façon (un compte
+         existant n'est jamais recréé), mais mieux vaut ne pas tenter la
+         création avant le bon moment. */
+      account: state.novabot.mandateConfirmed
+        ? { initialCapital: state.novabot.wallet.invested, autonomyMode: state.novabot.autonomyMode }
+        : undefined,
       status: state.novabot.enabled ? 'active' : 'paused',
       mandate: { cashMinPct: mandate.cashMinPct, maxPositionPct: mandate.maxPositionPct,
-        maxPositionsCount: mandate.maxPositionsCount, hardRules: mandate.hardRules, preferences: mandate.preferences },
+        maxPositionsCount: mandate.maxPositionsCount, hardRules: mandate.hardRules, preferences: mandate.preferences,
+        objective: mandate.objective, riskLevel: mandate.riskLevel, horizonYears: mandate.horizonYears },
       transactions: state.novabot.transactions.map(tx => ({ ...tx, reason: tx.motif })),
       snapshots: state.novabot.walletHistory || [],
       decisions: state.novabot.decisions.map(d => ({ ...d, occurredAt: d.date })),
@@ -2535,6 +2630,17 @@ async function syncNovaBot(){
       state.novabot.maxPositionsCount = Number.isFinite(data.mandate.maxPositionsCount) ? data.mandate.maxPositionsCount : null;
       if (Array.isArray(data.mandate.hardRules)) state.novabot.hardRules = data.mandate.hardRules;
       if (Array.isArray(data.mandate.preferences)) state.novabot.preferences = data.mandate.preferences;
+      if (['growth','income','preserve'].includes(data.mandate.objective)) state.novabot.objective = data.mandate.objective;
+      if (['low','moderate','high'].includes(data.mandate.riskLevel)) state.novabot.riskLevel = data.mandate.riskLevel;
+      if (Number.isFinite(data.mandate.horizonYears)) state.novabot.horizonYears = data.mandate.horizonYears;
+    }
+    if (data.account){
+      if (['advice','semi_auto','auto'].includes(data.account.autonomyMode)) state.novabot.autonomyMode = data.account.autonomyMode;
+      /* mandateConfirmed dérivé du statut serveur plutôt que stocké en
+         double : novabot_accounts.status vaut 'setup' jusqu'à la
+         confirmation explicite du mandat (novabotConfirmerMandat() plus
+         bas), 'active'/'paused' ensuite — une seule source de vérité. */
+      state.novabot.mandateConfirmed = data.account.status !== 'setup';
     }
     const serverDec = Array.isArray(data.decisions) ? data.decisions.map(d => ({ ...d, date: d.occurredAt })) : [];
     const decById = new Map();
