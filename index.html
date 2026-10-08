@@ -944,6 +944,7 @@ document.addEventListener('click', e => {
   if (q('[data-novabot-toggle]')){
     state.novabot.enabled = !state.novabot.enabled;
     saveState();
+    pushNovaBot();
     toast(state.novabot.enabled ? 'NovaBot activé — simulation uniquement' : 'NovaBot désactivé');
     render();
     return;

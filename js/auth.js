@@ -149,6 +149,7 @@ async function applySession(session){
   await refreshAccount();
   if (gen !== _sessionGen) return;   // une session plus récente a déjà pris le relais
   syncPortfolio();   // asynchrone, non bloquant : ne re-render() que si la fusion change quelque chose
+  syncNovaBot();     // même principe, scopé au portefeuille NovaBot (voir js/core.js)
 
   if (state.account && state.account.onboarded === false && !state.onboarding.done){
     state.onboarding.step = state.onboarding.step || 1;

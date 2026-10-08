@@ -2054,6 +2054,7 @@ function novabotAcheter(id, montantEUR, prix, motif){
   state.novabot.transactions.push({ id:'nb'+Date.now().toString(36)+Math.random().toString(36).slice(2,6),
     date:new Date().toISOString(), stockId:id, ticker:st.ticker, name:st.name, type:'buy',
     qty, priceLocal:prix, currency:st.cur, amountEUR:montantEUR, motif });
+  pushNovaBot();
 }
 function novabotVendre(id, prix, motif){
   const w = state.novabot.wallet;
@@ -2071,6 +2072,7 @@ function novabotVendre(id, prix, motif){
   state.novabot.transactions.push({ id:'nb'+Date.now().toString(36)+Math.random().toString(36).slice(2,6),
     date:new Date().toISOString(), stockId:id, ticker:st.ticker, name:st.name, type:'sell',
     qty, priceLocal:prix, currency:st.cur, amountEUR:proceeds, realizedGain, motif });
+  pushNovaBot();
 }
 
 /* Boucle d'évaluation. Deux passes, dans cet ordre précis (sortir avant
@@ -2154,5 +2156,113 @@ function novabotSetRegle(cle, valeurBrute){
   if (!Number.isFinite(v)) return;
   state.novabot[cle] = Math.max(min, Math.min(max, v));
   saveState();
+  pushNovaBot();
+}
+
+/* ============================================================
+   NOVABOT — PERSISTANCE SERVEUR (refonte fonctionnelle, 2026-10-07,
+   tranche A "fondation")
+   ------------------------------------------------------------
+   Jusqu'ici, state.novabot ne vivait QUE dans ce navigateur
+   (localStorage) — un changement d'appareil ou un cache vidé effaçait
+   tout le "portefeuille" NovaBot, contrairement au portefeuille
+   personnel (pushPortfolio()/syncPortfolio() plus haut, LOT D). Ce bloc
+   reproduit EXACTEMENT le même mécanisme (compte-rendu complet,
+   idempotent par id/instant, fusion-puis-rejeu au login), scopé à
+   ?resource=novabot (voir api/me.js) au lieu de ?resource=portfolio.
+   AUCUN changement de comportement visible pour l'utilisateur dans cette
+   tranche : evaluerNovaBot()/novabotAcheter()/novabotVendre() restent
+   inchangées, ce bloc ajoute seulement une sauvegarde serveur silencieuse
+   en plus du localStorage existant. */
+function rejouerNovaBot(transactions){
+  const wallet = { cash: DEFAULT_STATE.novabot.wallet.cash, invested: DEFAULT_STATE.novabot.wallet.invested,
+    positions: [], realizedPnL: 0 };
+  const triees = [...transactions].sort((a, b) => new Date(a.date) - new Date(b.date));
+  for (const tx of triees){
+    if (tx.type === 'buy'){
+      const pos = wallet.positions.find(p => p.id === tx.stockId);
+      if (pos){
+        const totalQty = pos.qty + tx.qty;
+        pos.avg = ((pos.avg * pos.qty) + (tx.priceLocal * tx.qty)) / totalQty;
+        pos.qty = totalQty;
+      } else {
+        wallet.positions.push({ id: tx.stockId, qty: tx.qty, avg: tx.priceLocal });
+      }
+      wallet.cash -= tx.amountEUR;
+    } else if (tx.type === 'sell'){
+      const pos = wallet.positions.find(p => p.id === tx.stockId);
+      if (pos){
+        pos.qty -= tx.qty;
+        if (pos.qty <= 0.0001) wallet.positions = wallet.positions.filter(p => p.id !== tx.stockId);
+      }
+      wallet.cash += tx.amountEUR;
+      if (Number.isFinite(tx.realizedGain)) wallet.realizedPnL += tx.realizedGain;
+    } else if (tx.type === 'deposit'){
+      wallet.cash += tx.amountEUR; wallet.invested += tx.amountEUR;
+    } else if (tx.type === 'withdraw'){
+      wallet.cash -= tx.amountEUR; wallet.invested -= tx.amountEUR;
+    } else if (tx.type === 'fee'){
+      wallet.cash -= tx.amountEUR;
+    }
+  }
+  return wallet;
+}
+
+/* Envoie tout ce qui doit exister côté serveur : crée le compte au tout
+   premier appel (capital = state.novabot.wallet.invested, le capital
+   "confié" tel qu'il existe aujourd'hui — §1 du brief NovaBot, "je confie
+   10 000 € à NovaBot"), synchronise le mandat (pour l'instant les 2 seuls
+   champs déjà réels, cashMinPct/maxPositionPct — le mandat complet §3
+   arrive en tranche B) et pousse le journal. Silencieuse en cas d'échec,
+   même principe que pushPortfolio(). */
+async function pushNovaBot(){
+  if (!sbClient || state.auth.status !== 'authenticated') return;
+  try {
+    const body = {
+      account: { initialCapital: state.novabot.wallet.invested },
+      status: state.novabot.enabled ? 'active' : 'paused',
+      mandate: { cashMinPct: state.novabot.cashMinPct, maxPositionPct: state.novabot.maxPositionPct },
+      transactions: state.novabot.transactions.map(tx => ({ ...tx, reason: tx.motif })),
+      snapshots: state.novabot.walletHistory || [],
+    };
+    await authFetch('/api/me?resource=novabot', { method:'POST', body: JSON.stringify(body) });
+  } catch (e){ console.warn('[novabot] envoi impossible :', e); }
+}
+
+/* Appelée une fois après connexion (voir applySession()), juste après
+   syncPortfolio() — même rôle exact, scopé à NovaBot : récupère l'état
+   serveur, fusionne avec l'historique local de cet appareil (dédoublonné
+   par id de transaction), rejoue le journal fusionné pour reconstruire
+   cash/positions/realizedPnL, puis repousse la fusion au serveur (couvre
+   le tout premier login avec un historique local jamais encore envoyé). */
+async function syncNovaBot(){
+  if (!sbClient || state.auth.status !== 'authenticated') return;
+  try {
+    const r = await authFetch('/api/me?resource=novabot');
+    if (!r.ok) return;
+    const data = await r.json();
+    const serverTx = Array.isArray(data.transactions) ? data.transactions.map(tx => ({ ...tx, motif: tx.reason })) : [];
+    if (!serverTx.length && !state.novabot.transactions.length && !data.account){
+      return; // rien côté serveur, rien en local : pousse simplement au prochain achat/activation
+    }
+
+    const txById = new Map();
+    for (const tx of state.novabot.transactions) txById.set(tx.id, tx);
+    for (const tx of serverTx) txById.set(tx.id, tx);
+    state.novabot.transactions = [...txById.values()].sort((a, b) => new Date(a.date) - new Date(b.date));
+
+    const rejoue = rejouerNovaBot(state.novabot.transactions);
+    state.novabot.wallet.cash = rejoue.cash;
+    state.novabot.wallet.invested = rejoue.invested;
+    state.novabot.wallet.positions = rejoue.positions;
+    state.novabot.wallet.realizedPnL = rejoue.realizedPnL;
+    if (data.mandate){
+      if (Number.isFinite(data.mandate.cashMinPct)) state.novabot.cashMinPct = data.mandate.cashMinPct;
+      if (Number.isFinite(data.mandate.maxPositionPct)) state.novabot.maxPositionPct = data.mandate.maxPositionPct;
+    }
+    saveState();
+    render();
+  } catch (e){ console.warn('[novabot] synchronisation impossible :', e); return; }
+  pushNovaBot();
 }
 

@@ -184,6 +184,18 @@ module.exports = async (req, res) => {
     return handleNovaConversations(req, res, user);
   }
 
+  /* ---------- ressource NovaBot (refonte fonctionnelle, 2026-10-07) ----------
+     Même raison que les deux ressources ci-dessus : repliée ici plutôt que
+     dans api/novabot.js, le plafond de 12 Fonctions Serverless (Hobby) est
+     déjà atteint EXACTEMENT par les fichiers existants sous api/ (vérifié
+     avant d'écrire cette ligne : find api -name "*.js" -not -name "_*"
+     -> 12). Toute nouvelle ressource NovaBot (mandat, transactions,
+     décisions, futur pipeline IA) passera par ?resource=novabot, jamais un
+     nouveau fichier. */
+  if (req.query?.resource === 'novabot') {
+    return handleNovaBot(req, res, user);
+  }
+
   /* =========================================================
      POST — profil investisseur / onboarding
      ========================================================= */
@@ -626,6 +638,261 @@ async function handlePortfolio(req, res, user) {
     transactionsSynced: transactions.length,
     snapshotsSynced: snapshots.length,
   });
+}
+
+/**
+ * GET/POST /api/me?resource=novabot — fondation persistée NovaBot (refonte
+ * fonctionnelle, 2026-10-07, tranche A). Voir
+ * sql/2026-10-07_novabot_foundation.sql pour le schéma complet et le
+ * raisonnement derrière chaque table.
+ *
+ * Même philosophie que ?resource=portfolio : ce endpoint stocke/relit,
+ * il ne calcule aucun chiffre financier (cash/positions/PRU restent
+ * reconstruits côté client par rejeu du journal, voir rejouerNovaBot()
+ * dans js/core.js — même fonction que rejouerTransactions(), réutilisée).
+ * Ce qui EST nouveau par rapport au portefeuille personnel : un compte et
+ * un mandat, qui doivent exister avant tout journal (contrainte de clé
+ * étrangère account_id).
+ *
+ * GET  ?resource=novabot — { account, mandate, mandateHistory, transactions,
+ *   snapshots }. account/mandate valent null tant que rien n'a été créé
+ *   (le client affiche alors le parcours de création, jamais un portefeuille
+ *   vide présenté comme actif).
+ *
+ * POST ?resource=novabot — body : { account?, status?, mandate?,
+ *   transactions?, snapshots? }, chaque clé optionnelle et traitée
+ *   indépendamment, dans cet ordre (un compte doit exister avant qu'un
+ *   mandat ou un journal ne puisse être écrit) :
+ *   - account: { initialCapital } — crée le compte s'il n'existe pas
+ *     encore. Idempotent : un compte existant n'est jamais recréé ni
+ *     modifié par ce champ (un second "capital confié" passe par une
+ *     transaction 'deposit', jamais une réécriture d'initial_capital).
+ *   - status: 'setup' | 'active' | 'paused' — le client ne peut jamais
+ *     positionner 'analyzing'/'waiting'/'error' (réservés au pipeline
+ *     serveur d'une tranche ultérieure).
+ *   - mandate: { ... } — insère une NOUVELLE version si elle diffère de la
+ *     version courante (jamais de doublon si le client renvoie le même
+ *     mandat à chaque sync).
+ *   - transactions / snapshots: upsert idempotent, même mécanique exacte
+ *     que ?resource=portfolio.
+ */
+const NOVABOT_CLIENT_STATUSES = ['setup', 'active', 'paused'];
+const NOVABOT_TX_TYPES = ['buy', 'sell', 'deposit', 'withdraw', 'fee'];
+const NOVABOT_MANDATE_KEYS = ['objective', 'horizon_years', 'risk_level', 'max_drawdown_pct', 'cash_min_pct',
+  'max_position_pct', 'max_positions_count', 'preferences', 'hard_rules', 'allowed_regions', 'currencies',
+  'benchmark', 'notes'];
+
+async function getNovaBotAccount(user) {
+  const rows = await sb(`novabot_accounts?user_id=eq.${encodeURIComponent(user.id)}&select=*`);
+  return rows[0] || null;
+}
+
+async function handleNovaBot(req, res, user) {
+  if (req.method === 'GET') {
+    try {
+      const account = await getNovaBotAccount(user);
+      if (!account) {
+        return res.status(200).json({ account: null, mandate: null, mandateHistory: [], transactions: [], snapshots: [] });
+      }
+      const [mandateRows, txRows, snapRows] = await Promise.all([
+        sb(`novabot_mandates?account_id=eq.${encodeURIComponent(account.id)}&select=*&order=created_at.desc`),
+        sb(`novabot_transactions?account_id=eq.${encodeURIComponent(account.id)}&select=*&order=occurred_at.asc`),
+        sb(`novabot_portfolio_snapshots?account_id=eq.${encodeURIComponent(account.id)}&select=*&order=occurred_at.asc`),
+      ]);
+      const current = mandateRows.find(m => m.is_current) || null;
+      return res.status(200).json({
+        account: {
+          id: account.id,
+          status: account.status,
+          autonomyMode: account.autonomy_mode,
+          initialCapital: account.initial_capital,
+          createdAt: account.created_at,
+        },
+        mandate: current && {
+          id: current.id,
+          objective: current.objective,
+          horizonYears: current.horizon_years,
+          riskLevel: current.risk_level,
+          maxDrawdownPct: current.max_drawdown_pct,
+          cashMinPct: current.cash_min_pct,
+          maxPositionPct: current.max_position_pct,
+          maxPositionsCount: current.max_positions_count,
+          preferences: current.preferences,
+          hardRules: current.hard_rules,
+          allowedRegions: current.allowed_regions,
+          currencies: current.currencies,
+          benchmark: current.benchmark,
+          notes: current.notes,
+          createdAt: current.created_at,
+        },
+        mandateHistory: mandateRows.map(m => ({ id: m.id, isCurrent: m.is_current, createdAt: m.created_at })),
+        transactions: txRows.map(r => ({
+          id: r.id, stockId: r.stock_id, ticker: r.ticker, name: r.name, type: r.type,
+          qty: r.qty, priceLocal: r.price_local, currency: r.currency, amountEUR: r.amount_eur,
+          realizedGain: r.realized_gain, decisionId: r.decision_id, reason: r.reason, date: r.occurred_at,
+        })),
+        snapshots: snapRows.map(r => ({
+          t: new Date(r.occurred_at).getTime(), totalValue: r.total_value, cash: r.cash,
+          investedValue: r.invested_value, netDeposits: r.net_deposits,
+          unrealizedPnL: r.unrealized_pnl, realizedPnL: r.realized_pnl, reason: r.reason,
+        })),
+      });
+    } catch (e) {
+      console.error('[me] lecture novabot :', e.message);
+      return res.status(503).json({ error: 'lecture_impossible' });
+    }
+  }
+
+  if (req.method !== 'POST') {
+    res.setHeader('Allow', 'GET, POST');
+    return res.status(405).json({ error: 'methode_non_autorisee' });
+  }
+
+  const body = req.body || {};
+  const str = (v, max) => (typeof v === 'string' ? v.trim().slice(0, max) : '');
+  const num = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
+  const isoDate = (v) => { const d = new Date(v); return Number.isFinite(d.getTime()) ? d.toISOString() : null; };
+
+  try {
+    let account = await getNovaBotAccount(user);
+
+    /* ---------- création du compte (une fois, jamais réécrit) ---------- */
+    if (body.account && !account) {
+      const initialCapital = num(body.account.initialCapital);
+      if (initialCapital === null || initialCapital < 0) {
+        return res.status(400).json({ error: 'capital_initial_invalide' });
+      }
+      const [created] = await sb('novabot_accounts', {
+        method: 'POST',
+        body: JSON.stringify([{ user_id: user.id, status: 'setup', autonomy_mode: 'advice', initial_capital: initialCapital }]),
+      });
+      account = created;
+    }
+
+    /* ---------- changement d'état (suspendre/reprendre) ---------- */
+    if (typeof body.status === 'string') {
+      if (!account) return res.status(409).json({ error: 'compte_inexistant' });
+      if (!NOVABOT_CLIENT_STATUSES.includes(body.status)) {
+        return res.status(400).json({ error: 'statut_invalide' });
+      }
+      await sb(`novabot_accounts?id=eq.${encodeURIComponent(account.id)}`, {
+        method: 'PATCH',
+        headers: { Prefer: 'return=minimal' },
+        body: JSON.stringify({ status: body.status, updated_at: new Date().toISOString() }),
+      });
+      account.status = body.status;
+    }
+
+    /* ---------- mandat : nouvelle version si différente de l'actuelle ---------- */
+    if (body.mandate && typeof body.mandate === 'object') {
+      if (!account) return res.status(409).json({ error: 'compte_inexistant' });
+      const m = body.mandate;
+      const next = {
+        objective: str(m.objective, 40) || null,
+        horizon_years: num(m.horizonYears),
+        risk_level: str(m.riskLevel, 20) || null,
+        max_drawdown_pct: num(m.maxDrawdownPct),
+        cash_min_pct: num(m.cashMinPct) ?? 20,
+        max_position_pct: num(m.maxPositionPct) ?? 10,
+        max_positions_count: Number.isInteger(m.maxPositionsCount) ? m.maxPositionsCount : null,
+        preferences: Array.isArray(m.preferences) ? m.preferences : [],
+        hard_rules: Array.isArray(m.hardRules) ? m.hardRules : [],
+        allowed_regions: Array.isArray(m.allowedRegions) ? m.allowedRegions : null,
+        currencies: Array.isArray(m.currencies) ? m.currencies : null,
+        benchmark: str(m.benchmark, 20) || null,
+        notes: str(m.notes, 2000) || null,
+      };
+      const [currentRows] = await Promise.all([
+        sb(`novabot_mandates?account_id=eq.${encodeURIComponent(account.id)}&is_current=eq.true&select=*`),
+      ]);
+      const current = currentRows[0] || null;
+      const memeMandat = current && NOVABOT_MANDATE_KEYS.every(k =>
+        JSON.stringify(current[k]) === JSON.stringify(next[k]));
+      if (!memeMandat) {
+        if (current) {
+          await sb(`novabot_mandates?id=eq.${encodeURIComponent(current.id)}`, {
+            method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ is_current: false }),
+          });
+        }
+        await sb('novabot_mandates', {
+          method: 'POST', headers: { Prefer: 'return=minimal' },
+          body: JSON.stringify([{ user_id: user.id, account_id: account.id, is_current: true, ...next }]),
+        });
+      }
+    }
+
+    /* ---------- journal (transactions + snapshots), même mécanique que portfolio ---------- */
+    const txIn = Array.isArray(body.transactions) ? body.transactions.slice(0, 20000) : [];
+    const snapIn = Array.isArray(body.snapshots) ? body.snapshots.slice(0, 20000) : [];
+    let transactionsSynced = 0, snapshotsSynced = 0;
+
+    if (txIn.length || snapIn.length) {
+      if (!account) return res.status(409).json({ error: 'compte_inexistant' });
+
+      const transactions = [];
+      for (const tx of txIn) {
+        const id = str(tx?.id, 64);
+        const occurredAt = isoDate(tx?.date);
+        const type = NOVABOT_TX_TYPES.includes(tx?.type) ? tx.type : null;
+        const amountEUR = num(tx?.amountEUR);
+        if (!id || !occurredAt || !type || amountEUR === null) continue;
+        const isTitre = type === 'buy' || type === 'sell';
+        if (isTitre) {
+          const qty = num(tx?.qty);
+          const priceLocal = num(tx?.priceLocal);
+          const currency = str(tx?.currency, 8);
+          const stockId = str(tx?.stockId, 40);
+          if (qty === null || qty <= 0 || priceLocal === null || !currency || !stockId) continue;
+          transactions.push({
+            id, user_id: user.id, account_id: account.id, stock_id: stockId,
+            ticker: str(tx?.ticker, 20) || stockId, name: str(tx?.name, 200) || stockId,
+            type, qty, price_local: priceLocal, currency, amount_eur: amountEUR,
+            realized_gain: num(tx?.realizedGain), decision_id: str(tx?.decisionId, 64) || null,
+            reason: str(tx?.reason, 500) || null, occurred_at: occurredAt,
+          });
+        } else {
+          transactions.push({
+            id, user_id: user.id, account_id: account.id, stock_id: null, ticker: null,
+            name: str(tx?.name, 200) || null, type, qty: null, price_local: null, currency: null,
+            amount_eur: amountEUR, realized_gain: null, decision_id: null,
+            reason: str(tx?.reason, 500) || null, occurred_at: occurredAt,
+          });
+        }
+      }
+
+      const snapshots = [];
+      for (const s of snapIn) {
+        const occurredAt = isoDate(s?.t);
+        const totalValue = num(s?.totalValue), cash = num(s?.cash), investedValue = num(s?.investedValue);
+        if (!occurredAt || totalValue === null || cash === null || investedValue === null) continue;
+        snapshots.push({
+          user_id: user.id, account_id: account.id, occurred_at: occurredAt, total_value: totalValue, cash,
+          invested_value: investedValue, net_deposits: num(s?.netDeposits),
+          unrealized_pnl: num(s?.unrealizedPnL), realized_pnl: num(s?.realizedPnL), reason: str(s?.reason, 20) || null,
+        });
+      }
+
+      if (transactions.length) {
+        await sb('novabot_transactions?on_conflict=id', {
+          method: 'POST', headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
+          body: JSON.stringify(transactions),
+        });
+        transactionsSynced = transactions.length;
+      }
+      if (snapshots.length) {
+        await sb('novabot_portfolio_snapshots?on_conflict=account_id,occurred_at', {
+          method: 'POST', headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
+          body: JSON.stringify(snapshots),
+        });
+        snapshotsSynced = snapshots.length;
+      }
+    }
+
+    return res.status(200).json({ saved: true, accountId: account?.id || null, transactionsSynced, snapshotsSynced });
+  } catch (e) {
+    console.error('[me] synchronisation novabot :', e.message);
+    return res.status(503).json({ error: 'synchronisation_impossible' });
+  }
 }
 
 /**
