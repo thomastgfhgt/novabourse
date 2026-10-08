@@ -46,6 +46,11 @@ const ORDRE_TACHES = {
   analyse: ['xai', 'openai', 'anthropic'],
   screener: ['openai', 'xai', 'anthropic'],
   novareview: ['xai', 'openai', 'anthropic'],
+  /* 'novabot' (tranche C, refonte fonctionnelle, 2026-10-08) : même famille
+     que novareview — raisonner sur des données réelles déjà vérifiées pour
+     produire un jugement qualitatif, pas "une question très simple" —
+     même ordre, mêmes modèles puissants d'abord. */
+  novabot: ['xai', 'openai', 'anthropic'],
 };
 function dispoPourTache(tache){
   const configures = new Set(actif().map(([id]) => id));
@@ -183,6 +188,35 @@ Règles absolues :
   jamais un conseil générique de manuel.
 - N'utilise jamais "vous devriez acheter/vendre X" — tu commentes des décisions déjà prises,
   jamais une recommandation d'ordre futur.`;
+
+/* NovaBot (tranche C, 2026-10-08, §9/§10/§12 du brief refonte fonctionnelle)
+   : ce mode ne reçoit QUE des candidats ayant DÉJÀ franchi le filtre
+   déterministe du NovaScore (voir evaluerNovaBot(), js/core.js) — son rôle
+   n'est pas de noter l'entreprise (déjà fait, gratuitement, par le moteur
+   NovaScore), mais de juger la QUALITÉ de l'opportunité à partir de
+   données plus riches (fondamentaux, mandat, contexte du portefeuille) que
+   le simple seuil ne regarde pas. §12 : "le LLM ne doit pas contrôler
+   directement le portefeuille" — ce mode renvoie une INTENTION
+   (action/confidence/reasoning), jamais une transaction ; le Risk Engine
+   (novabotRiskCheck(), déterministe, tranche B) reste la seule porte côté
+   client avant toute exécution simulée, que ce mode recommande "buy" ou
+   non. */
+const CONSIGNE_NOVABOT = `Tu es Nova AI, agissant pour le compte de NovaBot — un gestionnaire de
+portefeuille simulé qui agit STRICTEMENT selon un mandat, jamais de sa propre initiative.
+Réponds en JSON strict : {"action":"buy|watch|reject","confidence":0,"reasoning":"...","keyFactors":["...","..."]}
+Règles absolues :
+- "action" : "buy" si tu recommandes d'initier ou renforcer cette position maintenant ; "watch" si
+  l'opportunité est intéressante mais les conditions ne sont pas encore réunies ; "reject" sinon.
+- "confidence" : un entier de 0 à 100, ton niveau de confiance dans cette recommandation.
+- Tu ne calcules et ne vérifies RIEN toi-même concernant le mandat (cash minimum, poids maximum,
+  secteurs/actifs interdits) — un moteur de risque indépendant de NovaTitre vérifie déjà
+  séparément, de façon stricte, chacune de ces contraintes après ta recommandation. Ton rôle est
+  UNIQUEMENT de juger la qualité de l'opportunité à partir des données transmises.
+- "reasoning" : 2 à 3 phrases en français, concrètes, qui ne citent QUE des chiffres/faits
+  explicitement transmis ci-dessous — jamais un chiffre inventé, jamais un objectif de cours.
+- "keyFactors" : 1 à 3 éléments précis et courts (ex. "NovaScore 78", "secteur Technologie"),
+  chacun directement traçable aux données fournies.
+- N'invente aucune donnée (cours, fondamentaux, actualité) absente du contexte transmis.`;
 
 const CONSIGNE = `Tu analyses une entreprise cotée à partir des seuls chiffres fournis.
 Réponds en JSON strict : {"whatItDoes":"...","verdict":"positif|neutre|negatif|insuffisant","uncertainty":"faible|moyenne|elevee","summary":"...","positive":["..."],"negative":["..."]}
@@ -378,6 +412,125 @@ async function novaReviewAnalyse(req, res, { user, plan, dispo }){
   return res.status(200).json({ commentaire: parsed, provider: id, model: modele, quota: quotaBlock(plan, utilise) });
 }
 
+/**
+ * Mode "novabot" (tranche C, refonte fonctionnelle, 2026-10-08) — second
+ * avis qualitatif sur un candidat qui a DÉJÀ franchi le seuil NovaScore
+ * déterministe côté client (voir evaluerNovaBot()). Même mécanisme de
+ * quota/réservation que les autres modes (voir la note sur screenerAnalyse
+ * : un appel modèle coûte la même chose, quel que soit son objet — jamais
+ * un second compteur créé pour celui-ci). Le client (js/core.js) borne
+ * lui-même le nombre d'appels par passage (NOVABOT_LLM_MAX) : ce endpoint
+ * ne limite QUE le quota mensuel déjà existant, jamais la fréquence
+ * d'appel en tant que telle.
+ */
+const NOVABOT_ACTIONS = new Set(['buy', 'watch', 'reject']);
+function nombreOuChaineBorne(v, max){
+  if (typeof v === 'number' && Number.isFinite(v)) return v;
+  if (typeof v === 'string') return texteBorne(v, max);
+  return null;
+}
+/* Filtre récursif : ne garde que nombres finis/chaînes courtes/booléens
+   dans un objet de profondeur arbitraire (fondamentaux dont la forme
+   varie selon le fournisseur de données, voir api/market/_providers.js) —
+   jamais une clé de type inconnu transmise telle quelle au modèle. */
+function sanitiserDonnees(obj, profondeur = 0){
+  if (profondeur > 2 || !obj || typeof obj !== 'object' || Array.isArray(obj)) return null;
+  const out = {};
+  for (const [k, v] of Object.entries(obj)){
+    if (typeof v === 'number' && Number.isFinite(v)) out[k] = v;
+    else if (typeof v === 'string' && v.length < 200) out[k] = texteBorne(v, 200);
+    else if (typeof v === 'boolean') out[k] = v;
+    else if (v && typeof v === 'object' && !Array.isArray(v)){
+      const nested = sanitiserDonnees(v, profondeur + 1);
+      if (nested && Object.keys(nested).length) out[k] = nested;
+    }
+  }
+  return out;
+}
+
+async function novabotDecisionAnalyse(req, res, { user, plan, dispo }){
+  const c = req.body?.candidate;
+  if (!c || typeof c !== 'object') return res.status(400).json({ error: 'candidat_invalide' });
+
+  const ticker = texteBorne(c.ticker, 20);
+  const novaScore = nombreBorne(c.novaScore);
+  if (!ticker || novaScore === null) return res.status(400).json({ error: 'candidat_invalide' });
+
+  const contexte = {
+    candidate: {
+      ticker, name: texteBorne(c.name, 200), sector: texteBorne(c.sector, 60),
+      price: nombreBorne(c.price), currency: texteBorne(c.currency, 8),
+      novaScore, fundamentals: sanitiserDonnees(c.fundamentals),
+    },
+    mandate: sanitiserDonnees(req.body?.mandate),
+    portfolio: sanitiserDonnees(req.body?.portfolio),
+  };
+
+  const prompt = `${CONSIGNE_NOVABOT}\n\nDonnées :\n${JSON.stringify(contexte, null, 1)}`;
+
+  const resa = await reserver(sb, user.id, plan);
+  if (!resa.ok){
+    if (resa.reason === 'quota_exceeded'){
+      const q = quotaBlock(plan, resa.used ?? limiteDe(plan));
+      return res.status(429).json({ error:'quota_exceeded',
+        message:`Vous avez utilisé vos ${limiteDe(plan)} analyses incluses ce mois-ci.`, ...q });
+    }
+    if (resa.reason === 'rate_limited'){
+      return res.status(429).json({ error:'rate_limited',
+        message:"Trop de requêtes lancées en peu de temps. Réessayez dans quelques minutes.", plan });
+    }
+    return res.status(503).json({ error:'quota_indisponible',
+      message:"Le compteur d'analyses est momentanément indisponible. Réessayez." });
+  }
+  const reservation = resa.reservationId;
+  const utilise = resa.used;
+  const annuler = statut => cloturer(sb, reservation, statut || 'cancelled');
+
+  let id, modele, parsed, usage;
+  const debut = Date.now();
+  try {
+    ({ id, modele, parsed, usage } = await appelModeleAvecBascule(dispo, {
+      prompt, maxTokens: 500, timeoutMs: 25000,
+      validerEtNormaliser: (rep) => {
+        if (
+          !rep || typeof rep !== 'object' || Array.isArray(rep)
+          || !NOVABOT_ACTIONS.has(rep.action)
+          || !Number.isFinite(Number(rep.confidence))
+          || typeof rep.reasoning !== 'string'
+          || !Array.isArray(rep.keyFactors)
+        ){
+          throw new Error('schema_novabot_invalide');
+        }
+        return {
+          action: rep.action,
+          confidence: Math.max(0, Math.min(100, Math.round(Number(rep.confidence)))),
+          reasoning: rep.reasoning.slice(0, 500),
+          keyFactors: rep.keyFactors.filter(f => typeof f === 'string').slice(0, 3).map(f => f.slice(0, 120)),
+        };
+      },
+    }));
+  } catch (e){
+    await annuler('cancelled');
+    return res.status(502).json({ error: e.type || 'reponse_illisible', provider: e.provider ?? null, detail: e.detail });
+  }
+  const dureeMs = Date.now() - debut;
+
+  const { assainirTexte } = construireAssainisseur(contexte);
+  parsed.reasoning = assainirTexte(parsed.reasoning);
+  parsed.keyFactors = parsed.keyFactors.map(assainirTexte);
+
+  /* §24 : coût IA — provider/modèle/tokens déjà enregistrés par cloturer()
+     (ai_usage, voir api/_limits.js) comme pour tout autre mode ; durée
+     renvoyée au client pour qu'il la joigne à novabot_decisions.ai_* (le
+     journal de décision NovaBot, pas ai_usage, est l'endroit pertinent
+     pour "pourquoi cet appel" — ai_usage reste générique à tous les modes). */
+  await cloturer(sb, reservation, 'ok', { provider:id, model:modele,
+    tokens_in: usage?.prompt_tokens ?? null, tokens_out: usage?.completion_tokens ?? null });
+
+  res.setHeader('Cache-Control', 'no-store');
+  return res.status(200).json({ decision: parsed, provider: id, model: modele, durationMs: dureeMs, quota: quotaBlock(plan, utilise) });
+}
+
 module.exports = async (req, res) => {
   if (req.method === 'GET'){
     return res.status(200).json({
@@ -407,6 +560,9 @@ module.exports = async (req, res) => {
   }
   if (req.body?.mode === 'novareview'){
     return novaReviewAnalyse(req, res, { user, plan, dispo: dispoPourTache('novareview') });
+  }
+  if (req.body?.mode === 'novabot'){
+    return novabotDecisionAnalyse(req, res, { user, plan, dispo: dispoPourTache('novabot') });
   }
   const dispo = dispoPourTache('analyse');
 

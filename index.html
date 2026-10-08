@@ -949,9 +949,20 @@ document.addEventListener('click', e => {
     render();
     return;
   }
+  if (q('[data-novabot-ai-toggle]')){
+    state.novabot.aiReasoning = !state.novabot.aiReasoning;
+    saveState();
+    toast(state.novabot.aiReasoning ? 'Second avis Nova AI activé — consomme vos analyses IA' : 'Second avis Nova AI désactivé');
+    render();
+    return;
+  }
   if (q('[data-novabot-run]')){
     if (!state.novabot.enabled){ toast('Activez NovaBot avant de lancer une évaluation.'); return; }
-    if (!state.watchlist.length){ toast('Ajoutez des valeurs à votre watchlist.'); return; }
+    /* CORRECTIF (2026-10-08, §7) : exiger une watchlist non vide empêchait
+       toute évaluation alors que la découverte (novabotDiscoveryCandidats(),
+       tranche B) fonctionne déjà indépendamment du catalogue complet — une
+       watchlist vide limitait simplement les positions SURVEILLÉES pour la
+       sortie (stop-loss/take-profit), jamais les candidats à l'achat. */
     toast('NovaBot évalue vos règles…');
     evaluerNovaBot();
     return;

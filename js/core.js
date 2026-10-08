@@ -228,6 +228,15 @@ const DEFAULT_STATE = {
        WATCH peut être enregistré LORSQUE LA DÉCISION EST SIGNIFICATIVE").
        Voir novabotEnregistrerDecision()/evaluerNovaBot() plus bas. */
     decisions:[],
+    /* Raisonnement IA (tranche C, §9/§12, 2026-10-08) : DÉSACTIVÉ par
+       défaut — "NovaBot ne doit jamais consommer le quota d'analyses IA
+       de l'utilisateur sans action explicite" (principe déjà posé pour
+       novaScoreDe(), gratuit, étendu ici au raisonnement payant). Tant que
+       false, evaluerNovaBot() reste 100% déterministe, comportement
+       inchangé depuis la tranche B. Local uniquement (non synchronisé
+       serveur) pour l'instant : c'est un réglage d'EXÉCUTION, pas une
+       règle du mandat lui-même. */
+    aiReasoning:false,
     lastRunAt:null,
   },
 
@@ -403,6 +412,7 @@ function loadState(){
           decisions: Array.isArray(saved.novabot?.decisions)
             ? saved.novabot.decisions.filter(d => d && typeof d.id === 'string' && typeof d.action === 'string' && typeof d.date === 'string')
             : [],
+          aiReasoning: saved.novabot?.aiReasoning === true,
           lastRunAt: Number.isFinite(saved.novabot?.lastRunAt) ? saved.novabot.lastRunAt : null,
         },
       };
@@ -2054,6 +2064,50 @@ async function novaScoreDe(st){
   } catch { return null; }
 }
 
+/* Même endpoint gratuit que novaScoreDe() (UN seul appel réseau, jamais
+   deux), mais garde le dossier complet (fondamentaux/identité) au lieu de
+   n'en extraire que le score — tranche C, §9 : "NovaBot doit récupérer les
+   données via les outils NovaTitre [...] puis seulement ensuite utiliser
+   Nova Core pour raisonner sur ces données." Sert à la fois au filtre
+   déterministe (score) ET, pour les candidats qui le franchissent, de
+   contexte réel pour novabotRaisonnementIA() ci-dessous. */
+async function novabotDonneesMarche(st){
+  try {
+    const exch = st.exchangeCode || MARKET_CODE[st.market] || '';
+    const r = await fetch(`/api/market/company?ticker=${encodeURIComponent(st.ticker)}`
+      + `&exchange=${encodeURIComponent(exch)}&type=${encodeURIComponent(st.type || 'stock')}`);
+    if (!r.ok) return null;
+    const d = await r.json();
+    if (!Number.isFinite(d.novaScore?.score)) return null;
+    return { score: d.novaScore.score, fundamentals: d.fundamentals || null };
+  } catch { return null; }
+}
+
+/* Appelle Nova Core (mode 'novabot', §12) pour un second avis qualitatif
+   sur UN candidat ayant déjà franchi le seuil NovaScore déterministe.
+   Consomme le quota d'analyses mensuel de l'utilisateur (même mécanisme
+   que l'analyse d'une fiche action — voir la note d'api/analyze.js) :
+   n'est appelée QUE si l'utilisateur a explicitement activé
+   state.novabot.aiReasoning, et au plus NOVABOT_LLM_MAX fois par passage
+   (voir evaluerNovaBot()). Ne lève JAMAIS : tout échec (quota épuisé,
+   réseau, réponse illisible) renvoie null, et l'appelant retombe sur le
+   comportement déterministe de la tranche B — jamais un passage NovaBot
+   interrompu par une panne du modèle de langage. */
+async function novabotRaisonnementIA(st, donnees, mandate, pf, prix){
+  try {
+    const r = await authFetch('/api/analyze', { method:'POST', body: JSON.stringify({
+      mode:'novabot',
+      candidate: { ticker:st.ticker, name:st.name, sector:st.sector, price:prix, currency:st.cur, novaScore:donnees.score, fundamentals:donnees.fundamentals },
+      mandate: { cashMinPct:mandate.cashMinPct, maxPositionPct:mandate.maxPositionPct, maxPositionsCount:mandate.maxPositionsCount },
+      portfolio: { cashPct: pf.total > 0 ? (state.novabot.wallet.cash / pf.total) * 100 : 100, numPositions: state.novabot.wallet.positions.length, totalValue: pf.total },
+    })});
+    if (!r.ok) return null;
+    const d = await r.json();
+    if (!d.decision || !['buy','watch','reject'].includes(d.decision.action)) return null;
+    return { ...d.decision, provider:d.provider, model:d.model };
+  } catch (e){ console.warn('[novabot] raisonnement IA indisponible :', e); return null; }
+}
+
 /* Même arithmétique que buyStock()/sellStock() (coût moyen pondéré),
    mais écrite exclusivement dans state.novabot.wallet/transactions —
    jamais state.wallet/state.transactions. `motif` documente la règle
@@ -2183,6 +2237,12 @@ function novabotEnregistrerDecision(d){
    appels supplémentaires par passage — même discipline que
    LIVE_MAX_SYMBOLES ailleurs dans ce fichier. */
 const NOVABOT_DISCOVERY_MAX = 20;
+/* Borne les appels Nova Core (tranche C, §23/§24) : au plus ce nombre de
+   candidats reçoivent un second avis IA par passage d'evaluerNovaBot(),
+   quel que soit le nombre de candidats qui franchissent le seuil
+   NovaScore — jamais un passage qui consommerait tout le quota mensuel
+   d'un plan Découverte (5 analyses) d'un coup. */
+const NOVABOT_LLM_MAX = 3;
 function novabotDiscoveryCandidats(mandate){
   const dejaDetenus = new Set(state.novabot.wallet.positions.map(p => p.id));
   const estAutorise = st => {
@@ -2238,54 +2298,102 @@ async function evaluerNovaBot(){
 
   /* --- entrées : discovery au-delà de la seule watchlist (§7) --- */
   const candidats = novabotDiscoveryCandidats(mandate);
+  let appelsIA = 0; // borne les appels Nova Core de CE passage (§23/§24, voir plus bas)
   for (const id of candidats){
     const st = byId[id];
     if (!st) continue; // §33 : instrument ambigu/introuvable -> pas d'ordre
     const prix = prixDe(st);
     if (prix === null) continue; // §32
-    const score = await novaScoreDe(st);
-    if (score === null) continue; // §32 : NovaScore indisponible -> pas d'ordre, WATCH non plus (rien à dire)
+    const donnees = await novabotDonneesMarche(st);
+    if (donnees === null) continue; // §32 : NovaScore indisponible -> pas d'ordre, WATCH non plus (rien à dire)
+    const score = donnees.score;
 
     if (score >= cfg.scoreAchat){
-      const priceEUR = toEUR(prix, st.cur);
-      const intent = { action:'buy', stockId:id, ticker:st.ticker, sector:st.sector,
-        amountEUR:cfg.tradeAmountEUR, priceLocal:prix, currency:st.cur, qty:cfg.tradeAmountEUR / priceEUR };
-      const verdict = novabotRiskCheck(intent, cfg.wallet, mandate);
-      if (verdict.allowed){
-        const cashAvant = cfg.wallet.cash;
-        const pfAvant = portfolioValue(cfg.wallet);
-        const posExistante = cfg.wallet.positions.find(p => p.id === id);
-        const poidsAvant = pfAvant.total > 0 && posExistante ? (toEUR(posExistante.avg * posExistante.qty, st.cur) / pfAvant.total) * 100 : 0;
-        novabotAcheter(id, cfg.tradeAmountEUR, prix, `NovaScore ${score} ≥ seuil ${cfg.scoreAchat}`);
-        const pfApres = portfolioValue(cfg.wallet);
-        const posApres = cfg.wallet.positions.find(p => p.id === id);
-        const poidsApres = pfApres.total > 0 && posApres ? (toEUR(posApres.avg * posApres.qty, st.cur) / pfApres.total) * 100 : 0;
-        novabotEnregistrerDecision({ action:'buy', stockId:id, ticker:st.ticker, name:st.name,
-          priceObserved:prix, qty:intent.qty, amountEUR:cfg.tradeAmountEUR,
-          cashBefore:cashAvant, cashAfter:cfg.wallet.cash, weightBeforePct:poidsAvant, weightAfterPct:poidsApres,
-          reason:`NovaScore ${score} ≥ seuil ${cfg.scoreAchat}`,
-          dataUsed:{ novaScore:score }, mandateSnapshot:mandate, riskResult:verdict });
-        changed = true;
-      } else {
-        const bloqueCash = verdict.violations.some(v => v.type === 'cash_insuffisant' || v.type === 'cash_min');
+      /* Second avis Nova Core (tranche C, §1/§9) : UNIQUEMENT si
+         l'utilisateur a explicitement activé state.novabot.aiReasoning, et
+         au plus NOVABOT_LLM_MAX fois par passage — §23 : "ne pas créer de
+         boucle incontrôlée [...] je veux maîtriser les coûts API". Un
+         candidat au-delà de cette borne retombe simplement sur la
+         décision déterministe de la tranche B (seuil franchi -> achat),
+         jamais bloqué en attente d'un avis IA qui ne viendra pas ce
+         passage-ci. Tout échec de l'appel (quota épuisé, réseau, réponse
+         illisible) fait de même : novabotRaisonnementIA() ne lève jamais,
+         `avisIA` reste simplement null. */
+      let avisIA = null;
+      if (cfg.aiReasoning && appelsIA < NOVABOT_LLM_MAX){
+        appelsIA++;
+        const pfPourIA = portfolioValue(cfg.wallet);
+        avisIA = await novabotRaisonnementIA(st, donnees, mandate, pfPourIA, prix);
+      }
+      const actionDecidee = avisIA ? avisIA.action : 'buy';
+
+      if (actionDecidee === 'buy'){
+        const priceEUR = toEUR(prix, st.cur);
+        const intent = { action:'buy', stockId:id, ticker:st.ticker, sector:st.sector,
+          amountEUR:cfg.tradeAmountEUR, priceLocal:prix, currency:st.cur, qty:cfg.tradeAmountEUR / priceEUR };
+        const verdict = novabotRiskCheck(intent, cfg.wallet, mandate);
+        const motif = avisIA
+          ? `NovaScore ${score} ≥ seuil ${cfg.scoreAchat} ; Nova AI : ${avisIA.reasoning}`
+          : `NovaScore ${score} ≥ seuil ${cfg.scoreAchat}`;
+        if (verdict.allowed){
+          const cashAvant = cfg.wallet.cash;
+          const pfAvant = portfolioValue(cfg.wallet);
+          const posExistante = cfg.wallet.positions.find(p => p.id === id);
+          const poidsAvant = pfAvant.total > 0 && posExistante ? (toEUR(posExistante.avg * posExistante.qty, st.cur) / pfAvant.total) * 100 : 0;
+          novabotAcheter(id, cfg.tradeAmountEUR, prix, motif);
+          const pfApres = portfolioValue(cfg.wallet);
+          const posApres = cfg.wallet.positions.find(p => p.id === id);
+          const poidsApres = pfApres.total > 0 && posApres ? (toEUR(posApres.avg * posApres.qty, st.cur) / pfApres.total) * 100 : 0;
+          novabotEnregistrerDecision({ action:'buy', stockId:id, ticker:st.ticker, name:st.name,
+            priceObserved:prix, qty:intent.qty, amountEUR:cfg.tradeAmountEUR,
+            cashBefore:cashAvant, cashAfter:cfg.wallet.cash, weightBeforePct:poidsAvant, weightAfterPct:poidsApres,
+            reason:motif, dataUsed:{ novaScore:score, fundamentals:donnees.fundamentals }, mandateSnapshot:mandate, riskResult:verdict,
+            aiProvider:avisIA?.provider || null, aiModel:avisIA?.model || null, confidence:avisIA?.confidence ?? null });
+          changed = true;
+        } else {
+          const bloqueCash = verdict.violations.some(v => v.type === 'cash_insuffisant' || v.type === 'cash_min');
+          novabotEnregistrerDecision({ action:'reject', stockId:id, ticker:st.ticker, name:st.name,
+            priceObserved:prix, amountEUR:cfg.tradeAmountEUR, executionStatus:'rejected',
+            reason:verdict.violations.map(v => v.message).join(' '),
+            dataUsed:{ novaScore:score }, mandateSnapshot:mandate, riskResult:verdict,
+            aiProvider:avisIA?.provider || null, aiModel:avisIA?.model || null, confidence:avisIA?.confidence ?? null });
+          changed = true;
+          /* Cash insuffisant/sous le minimum ne va pas s'améliorer pour le
+             candidat suivant à montant fixe (§21 : la taille de position
+             intelligente est une tranche ultérieure) — jamais un "reject"
+             par candidat restant qui n'apporterait aucune information
+             nouvelle. Secteur/actif interdit, position_max : propres à CE
+             candidat, les suivants continuent d'être évalués normalement. */
+          if (bloqueCash) break;
+        }
+      } else if (actionDecidee === 'reject'){
+        /* Nova AI a vu le NovaScore franchir le seuil mais déconseille
+           malgré tout (§1 : "ne rien faire" est une décision à part
+           entière, pas seulement un silence) — jamais exécuté, le Risk
+           Engine n'a même pas à se prononcer sur une intention que l'avis
+           qualitatif a déjà écartée. */
         novabotEnregistrerDecision({ action:'reject', stockId:id, ticker:st.ticker, name:st.name,
-          priceObserved:prix, amountEUR:cfg.tradeAmountEUR, executionStatus:'rejected',
-          reason:verdict.violations.map(v => v.message).join(' '),
-          dataUsed:{ novaScore:score }, mandateSnapshot:mandate, riskResult:verdict });
+          priceObserved:prix, executionStatus:'skipped', reason:avisIA.reasoning,
+          dataUsed:{ novaScore:score, keyFactors:avisIA.keyFactors },
+          aiProvider:avisIA.provider, aiModel:avisIA.model, confidence:avisIA.confidence });
         changed = true;
-        /* Cash insuffisant/sous le minimum ne va pas s'améliorer pour le
-           candidat suivant à montant fixe (§21 : la taille de position
-           intelligente est une tranche ultérieure) — jamais un "reject"
-           par candidat restant qui n'apporterait aucune information
-           nouvelle. Secteur/actif interdit, position_max : propres à CE
-           candidat, les suivants continuent d'être évalués normalement. */
-        if (bloqueCash) break;
+      } else { // 'watch' décidé par Nova AI malgré un NovaScore au-dessus du seuil
+        const dejaWatch = state.novabot.decisions.some(d => d.action === 'watch' && d.stockId === id
+          && (Date.now() - new Date(d.date).getTime()) < 24 * 3600 * 1000);
+        if (!dejaWatch){
+          novabotEnregistrerDecision({ action:'watch', stockId:id, ticker:st.ticker, name:st.name,
+            priceObserved:prix, reason:avisIA.reasoning,
+            dataUsed:{ novaScore:score, keyFactors:avisIA.keyFactors },
+            aiProvider:avisIA.provider, aiModel:avisIA.model, confidence:avisIA.confidence });
+          changed = true;
+        }
       }
     } else if (score >= cfg.scoreAchat - 10){
-      /* WATCH (§13) : "opportunité intéressante mais les conditions ne
-         sont pas encore réunies" — jamais réémis pour le même titre dans
-         les 24h (§14 : "lorsque la décision est significative", pas à
-         chaque passage pour une situation inchangée). */
+      /* WATCH (§13) déterministe : "opportunité intéressante mais les
+         conditions ne sont pas encore réunies" — jamais réémis pour le
+         même titre dans les 24h (§14 : "lorsque la décision est
+         significative", pas à chaque passage pour une situation
+         inchangée). */
       const dejaWatch = state.novabot.decisions.some(d => d.action === 'watch' && d.stockId === id
         && (Date.now() - new Date(d.date).getTime()) < 24 * 3600 * 1000);
       if (!dejaWatch){

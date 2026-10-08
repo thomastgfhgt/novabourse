@@ -532,8 +532,21 @@ PAGES.novabot = () => {
     <section class="section">
       <h2 class="h2">Activation</h2>
       <div class="card" style="margin-top:14px">
-        ${settingRow('NovaBot actif', "Évalue vos règles quand vous cliquez sur « Évaluer maintenant », uniquement sur votre watchlist.",
+        <!-- CORRECTIF (2026-10-08, refonte fonctionnelle, §7 : "la phrase
+             'uniquement sur votre watchlist' ne correspond pas à la
+             vision") : depuis la tranche B, NovaBot recherche aussi des
+             candidats au-delà de la watchlist (novabotDiscoveryCandidats(),
+             js/core.js) — ce texte affirmait le contraire. */
+        ${settingRow('NovaBot actif', "Évalue vos règles quand vous cliquez sur « Évaluer maintenant », sur votre watchlist et au-delà.",
           `<button class="sw" data-novabot-toggle role="switch" aria-checked="${cfg.enabled}"><i></i></button>`)}
+        <!-- Raisonnement IA (tranche C, §1/§9/§24, 2026-10-08) : DÉSACTIVÉ
+             par défaut (voir DEFAULT_STATE.novabot.aiReasoning, js/core.js)
+             — consomme le quota d'analyses mensuel de l'utilisateur,
+             jamais activé sans ce geste explicite. Réutilise exactement le
+             même composant .sw que le réglage ci-dessus (aucune nouvelle
+             esthétique, conformément à la consigne de cette refonte). -->
+        ${settingRow('Second avis Nova AI', "Avant un achat (NovaScore franchi), demande à Nova AI de confirmer, surveiller ou refuser — consomme vos analyses IA.",
+          `<button class="sw" data-novabot-ai-toggle role="switch" aria-checked="${cfg.aiReasoning}"><i></i></button>`)}
         <p class="tiny" style="margin-top:10px;color:var(--ink-4)">Dernière évaluation : ${esc(dernierPassage)}</p>
       </div>
     </section>
@@ -575,10 +588,11 @@ PAGES.novabot = () => {
           `<input type="number" class="field" style="width:96px;text-align:right" min="10" step="10"
             value="${cfg.tradeAmountEUR}" onchange="novabotSetRegle('tradeAmountEUR', this.value)"> €`)}
       </div>
-      <button class="btn btn-a btn-lg" style="width:100%;margin-top:14px" data-novabot-run
-        ${state.watchlist.length ? '' : 'disabled'}>Évaluer maintenant</button>
-      ${state.watchlist.length ? '' : `<p class="tiny" style="margin-top:8px;color:var(--ink-4)">
-        Ajoutez des valeurs à votre watchlist pour que NovaBot ait quelque chose à évaluer.</p>`}
+      <!-- CORRECTIF (2026-10-08, §7) : ne dépend plus de la watchlist —
+           novabotDiscoveryCandidats() (tranche B) trouve des candidats
+           dans le catalogue complet même si elle est vide ; une watchlist
+           vide ne prive plus NovaBot de rien à évaluer. -->
+      <button class="btn btn-a btn-lg" style="width:100%;margin-top:14px" data-novabot-run>Évaluer maintenant</button>
     </section>
 
     <section class="section">
