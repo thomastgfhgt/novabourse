@@ -1010,7 +1010,13 @@ async function handleNovaConversations(req, res, user) {
       });
     } catch (e) {
       console.error('[me] lecture conversations :', e.message);
-      return res.status(503).json({ error: 'lecture_impossible' });
+      /* detail (2026-10-09, retour utilisateur : "je veux que tu identifies
+         la véritable cause, pas que tu masques l'erreur") : le message
+         PostgREST (déjà tronqué à 120 caractères par sb()) ne contient
+         aucun secret — ni clé, ni jeton, ni mot de passe, juste un code
+         d'erreur SQL/schéma ("relation does not exist", etc.) — exposé ici
+         pour un diagnostic immédiat sans avoir besoin des logs Vercel. */
+      return res.status(503).json({ error: 'lecture_impossible', detail: String(e.message || '').slice(0, 160) });
     }
   }
 
@@ -1084,7 +1090,7 @@ async function handleNovaConversations(req, res, user) {
       return res.status(200).json({ id: msg.id, date: msg.created_at });
     } catch (e) {
       console.error('[me] ajout message :', e.message);
-      return res.status(503).json({ error: 'ecriture_impossible' });
+      return res.status(503).json({ error: 'ecriture_impossible', detail: String(e.message || '').slice(0, 160) });
     }
   }
 
@@ -1103,7 +1109,7 @@ async function handleNovaConversations(req, res, user) {
     return res.status(200).json({ id: conv.id, createdAt: conv.created_at, updatedAt: conv.updated_at });
   } catch (e) {
     console.error('[me] création conversation :', e.message);
-    return res.status(503).json({ error: 'ecriture_impossible' });
+    return res.status(503).json({ error: 'ecriture_impossible', detail: String(e.message || '').slice(0, 160) });
   }
 }
 
