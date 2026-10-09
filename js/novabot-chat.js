@@ -25,7 +25,9 @@
 
 let NOVABOT_UI = { view:'chat', sidebarOpen:false, portfolioPeriod:'1A' };
 let NOVABOT_CONVERSATIONS = { loaded:false, loading:false, list:[], search:'' };
-let NOVABOT_CHAT = { conversationId:null, messages:[], mandateDraft:{}, sending:false, readyToConfirm:false, loadingThread:false, streamingText:null };
+/* controller/revealTimer (§2, bouton "Stop") : jamais persistés, purement
+   l'état d'une requête/animation en cours côté client. */
+let NOVABOT_CHAT = { conversationId:null, messages:[], mandateDraft:{}, sending:false, readyToConfirm:false, loadingThread:false, streamingText:null, controller:null, revealTimer:null };
 
 /* ---------- données réelles transmises à Nova Core (inchangé) ---------- */
 function novabotDecisionsPertinentes(texte){
@@ -139,7 +141,9 @@ async function novabotConversationOuvrir(id){
 
 async function novabotConversationNouvelle(){
   NOVABOT_UI.sidebarOpen = false;
-  NOVABOT_CHAT = { conversationId:null, messages:[], mandateDraft:{}, sending:false, readyToConfirm:false, loadingThread:false, streamingText:null };
+  if (NOVABOT_CHAT.controller){ try { NOVABOT_CHAT.controller.abort(); } catch (e){} }
+  if (NOVABOT_CHAT.revealTimer) clearTimeout(NOVABOT_CHAT.revealTimer);
+  NOVABOT_CHAT = { conversationId:null, messages:[], mandateDraft:{}, sending:false, readyToConfirm:false, loadingThread:false, streamingText:null, controller:null, revealTimer:null };
   const accueil = novabotAccueilTexte();
   NOVABOT_CHAT.messages.push({ role:'assistant', content:accueil });
   render();
@@ -202,19 +206,37 @@ async function novabotConversationSupprimer(id){
 }
 
 /* Révélation progressive (voir note d'en-tête : pas de vrai streaming
-   serveur) — purement visuelle, le texte complet est déjà en mémoire. */
+   serveur) — purement visuelle, le texte complet est déjà en mémoire.
+   revealTimer gardé sur NOVABOT_CHAT pour pouvoir l'interrompre (bouton
+   Stop, §2) sans attendre la fin de l'animation. */
 function novabotRevelerProgressivement(texteComplet){
   NOVABOT_CHAT.streamingText = '';
   const mots = texteComplet.split(' ');
   let i = 0;
   const pas = () => {
-    if (i >= mots.length){ NOVABOT_CHAT.streamingText = null; render(); return; }
+    if (i >= mots.length){ NOVABOT_CHAT.streamingText = null; NOVABOT_CHAT.revealTimer = null; render(); return; }
     NOVABOT_CHAT.streamingText = mots.slice(0, i + 1).join(' ');
     i++;
     render();
-    setTimeout(pas, 18);
+    NOVABOT_CHAT.revealTimer = setTimeout(pas, 18);
   };
   pas();
+}
+
+/* Bouton Stop (§2) : interrompt soit la requête réseau en cours (aucune
+   réponse encore reçue), soit l'animation de révélation (le message
+   complet est déjà en mémoire, on arrête simplement de le "taper"). */
+function novabotChatArreter(){
+  if (NOVABOT_CHAT.controller){
+    try { NOVABOT_CHAT.controller.abort(); } catch (e){}
+    NOVABOT_CHAT.controller = null;
+  }
+  if (NOVABOT_CHAT.revealTimer){
+    clearTimeout(NOVABOT_CHAT.revealTimer);
+    NOVABOT_CHAT.revealTimer = null;
+  }
+  NOVABOT_CHAT.streamingText = null;
+  render();
 }
 
 async function novabotChatEnvoyer(texte){
@@ -241,8 +263,10 @@ async function novabotChatEnvoyer(texte){
     { method:'POST', body: JSON.stringify({ role:'user', content:contenu }) }).catch(() => {});
   if (estPremierMessageUtilisateur) novabotAutoTitrer(convId, contenu);
 
+  const controller = new AbortController();
+  NOVABOT_CHAT.controller = controller;
   try {
-    const r = await authFetch('/api/analyze', { method:'POST', body: JSON.stringify({
+    const r = await authFetch('/api/analyze', { method:'POST', signal: controller.signal, body: JSON.stringify({
       mode:'novabot-chat',
       messages: NOVABOT_CHAT.messages,
       mandateConfirmed: state.novabot.mandateConfirmed,
@@ -254,9 +278,10 @@ async function novabotChatEnvoyer(texte){
         ? "J'ai atteint le quota d'analyses IA de ce mois-ci pour notre conversation — réessaie le mois prochain, ou passe à une offre supérieure."
         : "Je n'ai pas pu répondre à l'instant (problème de connexion au modèle).";
       NOVABOT_CHAT.messages.push({ role:'assistant', content:msg, error:true });
-      NOVABOT_CHAT.sending = false; render(); return;
+      NOVABOT_CHAT.controller = null; NOVABOT_CHAT.sending = false; render(); return;
     }
     const d = await r.json();
+    NOVABOT_CHAT.controller = null;
     NOVABOT_CHAT.sending = false;
     NOVABOT_CHAT.messages.push({ role:'assistant', content:d.reply });
     render();
@@ -270,6 +295,13 @@ async function novabotChatEnvoyer(texte){
         metadata: { provider:d.provider, model:d.model, mandateDraftSnapshot: NOVABOT_CHAT.mandateDraft } }) }).catch(() => {});
     return;
   } catch (e){
+    NOVABOT_CHAT.controller = null;
+    /* Interruption volontaire (bouton Stop) : jamais un message d'erreur,
+       juste une note neutre — l'utilisateur a demandé l'arrêt. */
+    if (e && e.name === 'AbortError'){
+      NOVABOT_CHAT.messages.push({ role:'assistant', content:'Réponse interrompue.' });
+      NOVABOT_CHAT.sending = false; render(); return;
+    }
     console.warn('[novabot-chat] envoi impossible :', e);
     NOVABOT_CHAT.messages.push({ role:'assistant', content:"Je n'ai pas pu répondre à l'instant.", error:true });
   }
@@ -281,6 +313,7 @@ function novabotChatSoumetre(){
   if (!input || !input.value.trim() || NOVABOT_CHAT.sending) return;
   const texte = input.value;
   input.value = '';
+  input.style.height = 'auto';
   novabotChatEnvoyer(texte);
 }
 function novabotChatConfirmer(){

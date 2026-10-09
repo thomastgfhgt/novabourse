@@ -365,6 +365,30 @@ function areaChart(vals, { h = 200, color = 'var(--accent)', id = 'c', labels = 
     <path class="chart-line" d="${d}" fill="none" stroke="${color}" stroke-width="2.6"
       stroke-linejoin="round" stroke-linecap="round"/>${xl}</svg>`;
 }
+/* Interaction tactile sur un areaChart() déjà rendu (§5 : "valeur à une
+   date précise au toucher") : lit les points depuis l'attribut data-*
+   du conteneur (jamais une 2ᵉ source de vérité) et positionne une
+   infobulle en pourcentage — aucune dépendance au système de
+   coordonnées interne du SVG, qui garde sa viewBox fixe inchangée. */
+function novabotChartTouch(e, el){
+  let pts; try { pts = JSON.parse(el.dataset.novabotChartPoints || '[]'); } catch (err){ return; }
+  if (!Array.isArray(pts) || pts.length < 2) return;
+  const rect = el.getBoundingClientRect();
+  const clientX = e.touches && e.touches[0] ? e.touches[0].clientX : e.clientX;
+  if (!Number.isFinite(clientX)) return;
+  const ratio = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width));
+  const idx = Math.round(ratio * (pts.length - 1));
+  const p = pts[idx];
+  const tip = document.getElementById('novabotChartTip');
+  if (!tip || !p) return;
+  tip.hidden = false;
+  tip.style.left = `${ratio * 100}%`;
+  tip.textContent = `${fmt.eur(p.v)} · ${new Date(p.t).toLocaleDateString('fr-FR', { day:'2-digit', month:'short' })}`;
+}
+function novabotChartTouchEnd(){
+  const tip = document.getElementById('novabotChartTip');
+  if (tip) tip.hidden = true;
+}
 function spark(vals, color){
   if (!Array.isArray(vals) || vals.length < 2
       || !vals.every(v => typeof v === 'number' && Number.isFinite(v))) return '';

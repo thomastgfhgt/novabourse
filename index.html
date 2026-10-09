@@ -292,6 +292,10 @@ function render(navigated = false){
     return;
   }
   document.body.classList.remove('gated');
+  /* Vue Conversations NovaBot en plein écran sur mobile (§2/§10, décision
+     validée sur la maquette V4) : jamais sur Portefeuille, jamais sur
+     desktop (la classe ne fait rien au-delà de 900px, voir styles.css). */
+  document.body.classList.toggle('nb-immersive', route.page === 'novabot' && NOVABOT_UI.view === 'chat');
 
   const view = document.getElementById('view');
   let html;
@@ -973,6 +977,10 @@ document.addEventListener('click', e => {
     novabotChatSoumetre();
     return;
   }
+  if (q('[data-novabot-chat-stop]')){
+    novabotChatArreter();
+    return;
+  }
   if (q('[data-novabot-confirm-mandat]')){
     novabotChatConfirmer();
     return;
@@ -1615,7 +1623,7 @@ document.addEventListener('keydown', e => {
   if (e.key === 'Enter' && ['gateEmail','gatePassword'].includes(document.activeElement?.id)){
     e.preventDefault(); submitGateEmail();
   }
-  if (e.key === 'Enter' && document.activeElement?.id === 'novabotChatInput'){
+  if (e.key === 'Enter' && !e.shiftKey && document.activeElement?.id === 'novabotChatInput'){
     e.preventDefault(); novabotChatSoumetre();
   }
   if (e.key === 'Enter' && document.activeElement?.id === 'novabotRenameInput'){

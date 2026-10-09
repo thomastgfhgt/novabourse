@@ -629,6 +629,13 @@ function novabotSidebarMarkup(){
   const list = q
     ? NOVABOT_CONVERSATIONS.list.filter(c => (c.title || '').toLowerCase().includes(q))
     : NOVABOT_CONVERSATIONS.list;
+  /* Regroupement "Récentes / Plus anciennes" (§3 : "niveau ChatGPT")
+     plutôt qu'une simple liste plate — seuil à 7 jours, pas de 3ᵉ palier
+     pour rester lisible sur un panneau étroit. */
+  const seuil = Date.now() - 7 * 24 * 60 * 60 * 1000;
+  const recentes = list.filter(c => new Date(c.updatedAt || c.createdAt).getTime() >= seuil);
+  const anciennes = list.filter(c => new Date(c.updatedAt || c.createdAt).getTime() < seuil);
+  const groupe = (titre, items) => items.length ? `<p class="tiny" style="margin:10px 0 2px;font-weight:650;color:var(--ink-3);text-transform:uppercase;letter-spacing:.03em;font-size:11px">${titre}</p>${items.map(novabotConvItem).join('')}` : '';
   return `<aside class="nb-sidebar">
     <button type="button" class="btn btn-a btn-sm" style="width:100%" data-novabot-new-conv">+ Nouvelle conversation</button>
     <div class="nb-sidebar-search">
@@ -636,16 +643,35 @@ function novabotSidebarMarkup(){
         oninput="NOVABOT_CONVERSATIONS.search=this.value;render()">
     </div>
     <div class="nb-conv-list">
-      ${list.length ? list.map(novabotConvItem).join('') : `<p class="tiny" style="padding:12px;color:var(--ink-4)">${q ? 'Aucun résultat.' : 'Aucune conversation.'}</p>`}
+      ${list.length ? (q ? list.map(novabotConvItem).join('') : groupe('Récentes', recentes) + groupe('Plus anciennes', anciennes))
+        : `<p class="tiny" style="padding:12px;color:var(--ink-4)">${q ? 'Aucun résultat.' : 'Aucune conversation.'}</p>`}
     </div>
+    <p class="tiny" style="color:var(--ink-4);line-height:1.4">Même portefeuille, même mandat et même mémoire financière dans toutes les conversations.</p>
   </aside>
   <div class="nb-sidebar-backdrop" data-novabot-sidebar-close></div>`;
 }
 
-/* ---------- vue Conversations (style ChatGPT) ---------- */
+/* ---------- vue Conversations (style ChatGPT, refonte V4 §2) ---------- */
+const NOVABOT_ROOK_SVG = `<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 20h12M7 20l1-6h8l1 6M8 14V9h1.5V7h2v2h1v-2h2v2H16v5"/></svg>`;
+function novabotMsgRow(contentHtml, { error = false } = {}){
+  return `<div class="nb-msg-row">
+    <div class="nb-avatar">${NOVABOT_ROOK_SVG}</div>
+    <div class="nb-msg-col"><div class="nb-msg nb-msg-bot${error ? ' nb-msg-error' : ''}">${contentHtml}</div></div>
+  </div>`;
+}
 function novabotChatView(){
   const c = NOVABOT_CHAT;
   const premierTour = c.messages.length <= 1 && state.novabot.mandateConfirmed;
+  /* Pendant la révélation progressive (voir novabotRevelerProgressivement()
+     dans novabot-chat.js), le DERNIER message (déjà en mémoire en texte
+     complet) est retiré de la liste normale pour laisser la bulle
+     "streamingText" l'afficher seule — sinon le même texte apparaissait
+     deux fois (version complète + version qui se tape au clavier). */
+  const revele = c.streamingText !== null;
+  const dernier = c.messages[c.messages.length - 1];
+  const messagesAffiches = (revele && dernier && dernier.role !== 'user')
+    ? c.messages.slice(0, -1) : c.messages;
+  const genereEnCours = c.sending || revele;
   return `<div class="nb-chat-shell${NOVABOT_UI.sidebarOpen ? ' nb-sidebar-open' : ''}">
     ${novabotSidebarMarkup()}
     <div class="nb-thread-col">
@@ -654,18 +680,26 @@ function novabotChatView(){
       </div>
       <div class="nb-chat">
         <div class="nb-chat-log" id="novabotChatLog">
-          ${c.loadingThread ? `<div class="nb-msg nb-msg-bot nb-msg-typing">Chargement…</div>` : c.messages.map(m =>
-            `<div class="nb-msg nb-msg-${m.role === 'user' ? 'user' : 'bot'}${m.error ? ' nb-msg-error' : ''}">${esc(m.content)}</div>`).join('')}
-          ${c.streamingText !== null ? `<div class="nb-msg nb-msg-bot">${esc(c.streamingText)}</div>` : ''}
-          ${c.sending ? `<div class="nb-msg nb-msg-bot nb-msg-typing">Nova réfléchit…</div>` : ''}
+          ${c.loadingThread ? novabotMsgRow('Chargement…') : messagesAffiches.map(m => m.role === 'user'
+            ? `<div style="display:flex;justify-content:flex-end"><div class="nb-msg nb-msg-user">${esc(m.content)}</div></div>`
+            : novabotMsgRow(esc(m.content), { error: Boolean(m.error) })).join('')}
+          ${revele ? novabotMsgRow(esc(c.streamingText)) : ''}
+          ${c.sending ? `<div class="nb-msg-row"><div class="nb-avatar">${NOVABOT_ROOK_SVG}</div>
+            <div class="nb-typing-row"><i></i><i></i><i></i><b>Nova réfléchit…</b></div></div>` : ''}
           ${premierTour && !c.sending ? `<div class="nb-suggestions">
             ${NOVABOT_SUGGESTIONS.map(s => `<button type="button" class="nb-suggestion-chip" data-novabot-suggestion="${esc(s)}">${esc(s)}</button>`).join('')}
           </div>` : ''}
         </div>
         ${c.readyToConfirm ? `<button class="btn btn-a" style="width:100%;margin-top:12px" data-novabot-confirm-mandat>Confirmer le mandat</button>` : ''}
         <div class="nb-chat-input">
-          <input type="text" class="field" id="novabotChatInput" placeholder="Écris à Nova…" maxlength="2000" ${c.sending ? 'disabled' : ''}>
-          <button type="button" class="btn btn-a btn-sm" data-novabot-chat-send ${c.sending ? 'disabled' : ''}>Envoyer</button>
+          <textarea id="novabotChatInput" placeholder="Écris à Nova…" maxlength="2000" rows="1"
+            oninput="this.style.height='auto';this.style.height=Math.min(this.scrollHeight,120)+'px'"></textarea>
+          <button type="button" class="nb-send-btn${genereEnCours ? ' nb-stop-btn' : ''}"
+            ${genereEnCours ? 'data-novabot-chat-stop aria-label="Arrêter"' : 'data-novabot-chat-send aria-label="Envoyer"'}>
+            ${genereEnCours
+              ? `<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="7" y="7" width="10" height="10" rx="2"/></svg>`
+              : `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7"/></svg>`}
+          </button>
         </div>
       </div>
     </div>
@@ -693,14 +727,19 @@ function novabotPortfolioView(){
     </div>`;
   }
 
+  /* Répartition liquidités/actions (§5) : deux pourcentages simples à
+     partir de pf déjà calculé, jamais une nouvelle source de données. */
+  const allocInvestiPct = pf.total > 0 ? (pf.value / pf.total) * 100 : 0;
+  const allocCashPct = pf.total > 0 ? 100 - allocInvestiPct : 0;
+
   return `
     <div class="card nb-hero" style="margin-top:16px">
       <p class="small">Valeur totale</p>
       <p class="price" style="font-size:clamp(32px,7vw,46px);margin-top:4px">${fmt.eur(pf.total)}</p>
       <span class="tag ${pf.gain>=0?'tag-up':'tag-down'}" style="margin-top:10px">${trendTxt(pf.gainPct)} · ${fmt.eur(pf.gain)}</span>
       <div class="btns" style="margin-top:16px">
-        <button type="button" class="btn btn-a btn-sm" data-novabot-funds-open="deposit">+ Ajouter des fonds</button>
-        <button type="button" class="btn btn-s btn-sm" data-novabot-funds-open="withdraw">Retirer</button>
+        <button type="button" class="btn btn-a" data-novabot-funds-open="deposit">+ Ajouter des fonds</button>
+        <button type="button" class="btn btn-g" data-novabot-funds-open="withdraw">Retirer des fonds</button>
       </div>
     </div>
 
@@ -709,7 +748,11 @@ function novabotPortfolioView(){
         ${NOVABOT_PF_PERIODS.map(p => `<button type="button" data-novabot-period="${p}" aria-pressed="${period===p}">${p}</button>`).join('')}
       </div>
       ${histPts.length >= 2 ? `
-        <div style="margin-top:14px">${areaChart(histPts.map(p=>p.totalValue), { color: (periodeGain??0)>=0 ? 'var(--up)' : 'var(--down)', id:'nb' })}</div>
+        <div class="nb-chart-touch" style="margin-top:14px" data-novabot-chart-points='${esc(JSON.stringify(histPts.map(p=>({t:p.t,v:p.totalValue}))))}'
+          onpointermove="novabotChartTouch(event,this)" onpointerleave="novabotChartTouchEnd(this)" ontouchmove="novabotChartTouch(event,this)" ontouchend="novabotChartTouchEnd(this)">
+          ${areaChart(histPts.map(p=>p.totalValue), { color: (periodeGain??0)>=0 ? 'var(--up)' : 'var(--down)', id:'nb' })}
+          <div class="nb-chart-tip" id="novabotChartTip" hidden></div>
+        </div>
         <div class="chart-stats" style="margin-top:14px">
           <div><span class="tiny">Gain/perte (période)</span><b class="tabular-nums ${(periodeGain??0)>=0?'up-t':'down-t'}">${periodeGain===null?'—':(periodeGain>=0?'+':'')+fmt.eur(periodeGain)}</b></div>
           <div><span class="tiny">Performance (période)</span><b class="tabular-nums ${(periodePct??0)>=0?'up-t':'down-t'}">${periodePct===null?'—':(periodePct>=0?'+':'')+fmt.num(periodePct,2)+' %'}</b></div>
@@ -717,29 +760,31 @@ function novabotPortfolioView(){
     </div>
 
     <div class="card" style="margin-top:14px">
-      <dl>
-        <div class="kv"><dt>Capital investi</dt><dd class="tabular-nums">${fmt.eur(pf.netDeposits ?? state.novabot.wallet.invested)}</dd></div>
-        <div class="kv"><dt>Liquidités disponibles</dt><dd class="tabular-nums">${fmt.eur(pf.cash)}</dd></div>
-        <div class="kv"><dt>Gain/perte latent</dt><dd class="tabular-nums ${pf.unrealizedPnL>=0?'up-t':'down-t'}">${pf.unrealizedPnL>=0?'+':''}${fmt.eur(pf.unrealizedPnL)}</dd></div>
-        <div class="kv"><dt>Gain/perte réalisé</dt><dd class="tabular-nums ${pf.realizedPnL>=0?'up-t':'down-t'}">${pf.realizedPnL>=0?'+':''}${fmt.eur(pf.realizedPnL)}</dd></div>
-      </dl>
+      <p class="tiny" style="font-weight:600;color:var(--ink-2);margin-bottom:10px">Répartition</p>
+      <div class="nb-alloc-bar"><span style="width:${allocInvestiPct}%;background:var(--accent)"></span><span style="width:${allocCashPct}%;background:var(--bg-4)"></span></div>
+      <div class="nb-alloc-legend">
+        <span><i class="nb-alloc-dot" style="background:var(--accent)"></i>Actions · ${fmt.num(allocInvestiPct,0)} %</span>
+        <span><i class="nb-alloc-dot" style="background:var(--bg-4)"></i>Liquidités · ${fmt.num(allocCashPct,0)} %</span>
+      </div>
     </div>
 
     ${pf.lines.length ? `<section class="section">
       <h2 class="h2">Positions</h2>
       <div class="card" style="margin-top:14px"><div class="rows">
-        ${pf.lines.map(l => `<button type="button" class="row" style="width:100%;text-align:left" data-novabot-position="${esc(l.id)}">
+        ${pf.lines.map(l => { const poids = pf.total > 0 ? (l.value / pf.total) * 100 : 0; return `<button type="button" class="row" style="width:100%;text-align:left" data-novabot-position="${esc(l.id)}">
+          <span class="nb-pos-logo">${esc((l.stock?.ticker || l.id).slice(0,4).toUpperCase())}</span>
           <span class="row-main"><span class="row-t">${esc(l.stock?.name || l.id)}</span>
             <span class="row-s">${fmt.num(l.qty,4)} titre(s) · PRU ${l.stock ? fmt.cur(l.avg, l.stock.cur) : '—'}</span></span>
           <span style="text-align:right;flex:0 0 auto">
             <span class="tabular-nums ${l.gain>=0?'up-t':'down-t'}">${l.priceAvailable?`${l.gain>=0?'+':''}${fmt.eur(l.gain)}`:'—'}</span>
+            <br><span class="nb-pos-weight">${fmt.num(poids,0)} % du portefeuille</span>
           </span>
-        </button>`).join('')}
+        </button>`; }).join('')}
       </div></div>
     </section>` : ''}
 
     <section class="section">
-      <div class="section-h"><h2 class="h2">Décisions NovaBot</h2>
+      <div class="section-h"><h2 class="h2">Activité de NovaBot</h2>
         <button class="btn btn-ghost btn-sm" data-novabot-run>Évaluer maintenant</button>
       </div>
       <div class="card" style="margin-top:14px">${cfg.decisions.length ? `<div class="rows">
@@ -763,6 +808,16 @@ function novabotPortfolioView(){
       </div>` : emptyState('Aucune décision pour l\'instant', 'Dis à Nova de chercher des opportunités, ou clique sur « Évaluer maintenant ».')}</div>
       <p class="tiny" style="margin-top:8px;color:var(--ink-4)">Dernière évaluation : ${esc(dernierPassage)}</p>
     </section>
+
+    <details class="nb-advanced" style="margin-top:14px">
+      <summary class="tiny" style="font-weight:600;color:var(--ink-2)">Détails du portefeuille</summary>
+      <div class="card" style="margin-top:10px"><dl>
+        <div class="kv"><dt>Capital investi</dt><dd class="tabular-nums">${fmt.eur(pf.netDeposits ?? state.novabot.wallet.invested)}</dd></div>
+        <div class="kv"><dt>Liquidités disponibles</dt><dd class="tabular-nums">${fmt.eur(pf.cash)}</dd></div>
+        <div class="kv"><dt>Gain/perte latent</dt><dd class="tabular-nums ${pf.unrealizedPnL>=0?'up-t':'down-t'}">${pf.unrealizedPnL>=0?'+':''}${fmt.eur(pf.unrealizedPnL)}</dd></div>
+        <div class="kv"><dt>Gain/perte réalisé</dt><dd class="tabular-nums ${pf.realizedPnL>=0?'up-t':'down-t'}">${pf.realizedPnL>=0?'+':''}${fmt.eur(pf.realizedPnL)}</dd></div>
+      </dl></div>
+    </details>
 
     <button type="button" class="btn btn-ghost btn-sm" style="width:100%;margin-top:8px" data-novabot-mandat-open">Mon mandat</button>
     <p class="tiny" style="margin-top:18px;color:var(--ink-4)">NovaBot ne place jamais d'ordre réel. Ce portefeuille est entièrement simulé et distinct du vôtre.</p>
