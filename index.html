@@ -380,6 +380,7 @@ function render(navigated = false){
      Portefeuille — jamais un minuteur en tâche de fond (voir
      assurerRelevéQuotidien). */
   if (route.page === 'portfolio') assurerRelevéQuotidien();
+  if (route.page === 'novabot' && state.novabot.mandateConfirmed) novabotAssurerReleveQuotidien();
 
   /* Rafraîchissement vivant — uniquement les instruments réellement
      visibles sur la page courante, jamais tout le catalogue. Une page
@@ -980,6 +981,83 @@ document.addEventListener('click', e => {
     novabotOuvrirDecision(q('[data-novabot-decision]').dataset.novabotDecision);
     return;
   }
+  /* ---------- refonte UX NovaBot (2026-10-08, 2e passe) ---------- */
+  if (q('[data-novabot-view]')){
+    NOVABOT_UI.view = q('[data-novabot-view]').dataset.novabotView;
+    render();
+    return;
+  }
+  if (q('[data-novabot-sidebar-open]')){
+    NOVABOT_UI.sidebarOpen = true;
+    render();
+    return;
+  }
+  if (q('[data-novabot-sidebar-close]')){
+    NOVABOT_UI.sidebarOpen = false;
+    render();
+    return;
+  }
+  if (q('[data-novabot-new-conv]')){
+    novabotConversationNouvelle();
+    return;
+  }
+  if (q('[data-novabot-open-conv]')){
+    novabotConversationOuvrir(q('[data-novabot-open-conv]').dataset.novabotOpenConv);
+    return;
+  }
+  if (q('[data-novabot-rename-conv]')){
+    novabotRenommerOuvrir(q('[data-novabot-rename-conv]').dataset.novabotRenameConv);
+    return;
+  }
+  if (q('[data-novabot-rename-ok]')){
+    const id = q('[data-novabot-rename-ok]').dataset.novabotRenameOk;
+    novabotConversationRenommer(id, document.getElementById('novabotRenameInput')?.value || '');
+    closeSheet();
+    return;
+  }
+  if (q('[data-novabot-delete-conv]')){
+    novabotConversationSupprimerConfirmer(q('[data-novabot-delete-conv]').dataset.novabotDeleteConv);
+    return;
+  }
+  if (q('[data-novabot-conv-delete-ok]')){
+    novabotConversationSupprimer(q('[data-novabot-conv-delete-ok]').dataset.novabotConvDeleteOk);
+    closeSheet();
+    return;
+  }
+  if (q('[data-novabot-suggestion]')){
+    novabotChatEnvoyer(q('[data-novabot-suggestion]').dataset.novabotSuggestion);
+    return;
+  }
+  if (q('[data-novabot-ask]')){
+    closeSheet();
+    novabotPoserQuestion(q('[data-novabot-ask]').dataset.novabotAsk);
+    return;
+  }
+  if (q('[data-novabot-position]')){
+    novabotOuvrirPosition(q('[data-novabot-position]').dataset.novabotPosition);
+    return;
+  }
+  if (q('[data-novabot-period]')){
+    NOVABOT_UI.portfolioPeriod = q('[data-novabot-period]').dataset.novabotPeriod;
+    render();
+    return;
+  }
+  if (q('[data-novabot-funds-open]')){
+    novabotOuvrirFonds(q('[data-novabot-funds-open]').dataset.novabotFundsOpen);
+    return;
+  }
+  if (q('[data-novabot-funds-ok]')){
+    const sens = q('[data-novabot-funds-ok]').dataset.novabotFundsOk;
+    const montant = Number(document.getElementById('novabotFundsAmount')?.value);
+    const resultat = sens === 'deposit' ? novabotAjouterFonds(montant) : novabotRetirerFonds(montant);
+    if (resultat.ok){ closeSheet(); toast(resultat.msg); render(); }
+    else { toast(resultat.msg); }
+    return;
+  }
+  if (q('[data-novabot-mandat-open]')){
+    novabotOuvrirMandat();
+    return;
+  }
   if (q('[data-export]')){
     const data = JSON.stringify({ watchlist:state.watchlist, wallet:state.wallet,
       settings:state.settings }, null, 2);
@@ -1527,6 +1605,12 @@ document.addEventListener('keydown', e => {
   }
   if (e.key === 'Enter' && document.activeElement?.id === 'novabotChatInput'){
     e.preventDefault(); novabotChatSoumetre();
+  }
+  if (e.key === 'Enter' && document.activeElement?.id === 'novabotRenameInput'){
+    e.preventDefault(); document.querySelector('[data-novabot-rename-ok]')?.click();
+  }
+  if (e.key === 'Enter' && document.activeElement?.id === 'novabotFundsAmount'){
+    e.preventDefault(); document.querySelector('[data-novabot-funds-ok]')?.click();
   }
   if (e.key === 'Tab'){
     const bg = document.getElementById('sheetBg');

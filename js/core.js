@@ -240,6 +240,13 @@ const DEFAULT_STATE = {
        mandateConfirmed=false par défaut. */
     wallet:{ cash:0, invested:0, positions:[], realizedPnL:0 },
     transactions:[],
+    /* Courbe de valorisation (refonte UX, 2026-10-08, §5 : "une grande
+       courbe interactive 1J/1S/1M/3M/1A/MAX") — même principe exact que
+       state.walletHistory du portefeuille personnel (snapshotPortfolio()/
+       assurerRelevéQuotidien(), plus haut dans ce fichier) : un point à
+       chaque mouvement de cash (dépôt/retrait/achat/vente) + au moins un
+       par jour de visite, jamais un point antidaté ou fictif. */
+    walletHistory:[],
     /* Journal des décisions (§14) — une entrée par décision SIGNIFICATIVE
        (buy/sell exécutés, reject, watch nouveau), jamais une entrée à
        chaque passage pour chaque position inchangée (§14 : "même HOLD/
@@ -445,6 +452,9 @@ function loadState(){
             : [],
           decisions: Array.isArray(saved.novabot?.decisions)
             ? saved.novabot.decisions.filter(d => d && typeof d.id === 'string' && typeof d.action === 'string' && typeof d.date === 'string')
+            : [],
+          walletHistory: Array.isArray(saved.novabot?.walletHistory)
+            ? saved.novabot.walletHistory.filter(s => s && Number.isFinite(s.t) && Number.isFinite(s.totalValue))
             : [],
           aiReasoning: saved.novabot?.aiReasoning === true,
           autonomyMode: ['advice','semi_auto','auto'].includes(saved.novabot?.autonomyMode) ? saved.novabot.autonomyMode : 'advice',
@@ -2081,6 +2091,57 @@ async function novaConversationCharger(conversationId){
    ============================================================ */
 const novabotPortfolioValue = () => portfolioValue(state.novabot.wallet);
 
+/* Même principe exact que snapshotPortfolio()/assurerRelevéQuotidien()
+   (portefeuille personnel, plus haut) — voir DEFAULT_STATE.novabot.
+   walletHistory pour le contexte. Appelée à chaque mouvement de cash
+   (novabotConfirmerMandat/novabotAjouterFonds/novabotRetirerFonds/
+   novabotAcheter/novabotVendre) et au moins une fois par jour de visite
+   de la page NovaBot (voir le hook route.page==='novabot', index.html). */
+function novabotSnapshotPortfolio(reason){
+  const pf = novabotPortfolioValue();
+  state.novabot.walletHistory.push({
+    t: Date.now(), totalValue: pf.total, cash: pf.cash, investedValue: pf.value,
+    netDeposits: pf.netDeposits, unrealizedPnL: pf.unrealizedPnL, realizedPnL: pf.realizedPnL, reason,
+  });
+  if (state.novabot.walletHistory.length > MAX_WALLET_SNAPSHOTS){
+    state.novabot.walletHistory.splice(0, state.novabot.walletHistory.length - MAX_WALLET_SNAPSHOTS);
+  }
+}
+/* Courbe interactive (refonte UX, 2026-10-08, §5 : "1J/1S/1M/3M/1A/MAX")
+   — même principe exact que walletHistoryPourPeriode()/fluxNetPeriode()
+   (portefeuille personnel, js/page-watchlist.js), scopé à NovaBot. Liste
+   de périodes volontairement différente (6 au lieu de 7 : pas de "6M",
+   non demandé) — jamais réutilisé PF_PERIODS telle quelle pour ne pas
+   lier les deux courbes à une même liste qui pourrait diverger plus tard. */
+const NOVABOT_PF_PERIODS = ['1J','1S','1M','3M','1A','MAX'];
+const NOVABOT_PF_PERIOD_MS = { '1J':86400000, '1S':7*86400000, '1M':30*86400000,
+  '3M':90*86400000, '1A':365*86400000, MAX:Infinity };
+function novabotWalletHistoryPourPeriode(period){
+  const ms = NOVABOT_PF_PERIOD_MS[period] ?? NOVABOT_PF_PERIOD_MS['1A'];
+  if (!Number.isFinite(ms)) return state.novabot.walletHistory;
+  const cutoff = Date.now() - ms;
+  return state.novabot.walletHistory.filter(p => p.t >= cutoff);
+}
+function novabotFluxNetPeriode(startMs, endMs){
+  let net = 0;
+  for (const tx of state.novabot.transactions){
+    if (tx.type !== 'deposit' && tx.type !== 'withdraw') continue;
+    const t = new Date(tx.date).getTime();
+    if (!(t > startMs && t <= endMs)) continue;
+    net += tx.type === 'deposit' ? tx.amountEUR : -tx.amountEUR;
+  }
+  return net;
+}
+
+function novabotAssurerReleveQuotidien(){
+  const aujourdHui = new Date().toDateString();
+  const dernier = state.novabot.walletHistory[state.novabot.walletHistory.length - 1];
+  if (dernier && new Date(dernier.t).toDateString() === aujourdHui) return;
+  novabotSnapshotPortfolio(dernier ? 'daily' : 'first');
+  saveState();
+  render();
+}
+
 /* NovaScore RÉEL, calculé gratuitement par /api/market/company (voir le
    champ additif `novaScore` ajouté dans api/market/company.js pour ce
    lot) — jamais le NovaScore payant d'/api/analyze (qui appelle un
@@ -2168,6 +2229,7 @@ function novabotAcheter(id, montantEUR, prix, motif){
   state.novabot.transactions.push({ id:'nb'+Date.now().toString(36)+Math.random().toString(36).slice(2,6),
     date:new Date().toISOString(), stockId:id, ticker:st.ticker, name:st.name, type:'buy',
     qty, priceLocal:prix, currency:st.cur, amountEUR:montantEUR, motif });
+  novabotSnapshotPortfolio('buy');
   pushNovaBot();
 }
 function novabotVendre(id, prix, motif){
@@ -2186,6 +2248,7 @@ function novabotVendre(id, prix, motif){
   state.novabot.transactions.push({ id:'nb'+Date.now().toString(36)+Math.random().toString(36).slice(2,6),
     date:new Date().toISOString(), stockId:id, ticker:st.ticker, name:st.name, type:'sell',
     qty, priceLocal:prix, currency:st.cur, amountEUR:proceeds, realizedGain, motif });
+  novabotSnapshotPortfolio('sell');
   pushNovaBot();
 }
 
@@ -2506,8 +2569,43 @@ function novabotConfirmerMandat(draft){
 
   state.novabot.mandateConfirmed = true;
   state.novabot.enabled = true;
+  novabotSnapshotPortfolio('first');
   saveState();
   pushNovaBot();
+}
+
+/* Ajouter/retirer des fonds simulés (refonte UX, 2026-10-08, §6 : "+
+   Ajouter des fonds" / retrait). Même convention exacte que depositCash()/
+   withdrawCash() (portefeuille personnel, plus haut dans ce fichier) :
+   mutation directe + transaction journalisée, { ok, msg } en retour — un
+   dépôt/retrait n'est PAS une performance (§6 : "ne PAS considérer le
+   dépôt comme un gain financier"), exactement comme pour le portefeuille
+   personnel (voir rejouerNovaBot()/rejouerTransactions() : 'deposit'/
+   'withdraw' modifient cash ET invested à parts égales, jamais
+   realizedPnL). Jamais appelable avant un mandat confirmé — appeler
+   depuis l'UI nécessite déjà un compte actif. */
+function novabotAjouterFonds(amountEUR){
+  if (!(amountEUR > 0)) return { ok:false, msg:'Montant invalide' };
+  state.novabot.wallet.cash += amountEUR;
+  state.novabot.wallet.invested += amountEUR;
+  state.novabot.transactions.push({ id:'nb'+Date.now().toString(36)+Math.random().toString(36).slice(2,6),
+    date:new Date().toISOString(), type:'deposit', amountEUR, motif:'Dépôt simulé ajouté par l\'utilisateur.' });
+  novabotSnapshotPortfolio('deposit');
+  saveState();
+  pushNovaBot();
+  return { ok:true, msg:`${fmt.eur(amountEUR)} ajoutés au portefeuille NovaBot (simulation)` };
+}
+function novabotRetirerFonds(amountEUR){
+  if (!(amountEUR > 0)) return { ok:false, msg:'Montant invalide' };
+  if (amountEUR > state.novabot.wallet.cash) return { ok:false, msg:'Liquidités simulées insuffisantes' };
+  state.novabot.wallet.cash -= amountEUR;
+  state.novabot.wallet.invested -= amountEUR;
+  state.novabot.transactions.push({ id:'nb'+Date.now().toString(36)+Math.random().toString(36).slice(2,6),
+    date:new Date().toISOString(), type:'withdraw', amountEUR, motif:'Retrait simulé demandé par l\'utilisateur.' });
+  novabotSnapshotPortfolio('withdraw');
+  saveState();
+  pushNovaBot();
+  return { ok:true, msg:`${fmt.eur(amountEUR)} retirés du portefeuille NovaBot (simulation)` };
 }
 
 /* ============================================================
@@ -2647,6 +2745,14 @@ async function syncNovaBot(){
     for (const d of state.novabot.decisions) decById.set(d.id, d);
     for (const d of serverDec) decById.set(d.id, d);
     state.novabot.decisions = [...decById.values()].sort((a, b) => new Date(a.date) - new Date(b.date));
+
+    /* Fusion des relevés par instant — même principe exact que syncPortfolio()
+       (portefeuille personnel, plus haut) pour state.walletHistory. */
+    const serverSnap = Array.isArray(data.snapshots) ? data.snapshots : [];
+    const snapByT = new Map();
+    for (const s of state.novabot.walletHistory) snapByT.set(s.t, s);
+    for (const s of serverSnap) snapByT.set(s.t, s);
+    state.novabot.walletHistory = [...snapByT.values()].sort((a, b) => a.t - b.t);
     saveState();
     render();
   } catch (e){ console.warn('[novabot] synchronisation impossible :', e); return; }

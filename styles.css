@@ -1623,16 +1623,64 @@ a.row{color:inherit;text-decoration:none}
    pour l'occasion. Préfixe .nb- déjà en usage ailleurs (.nb-pf2,
    .nb-hero-v2, accueil) : même convention de nommage, pas un nouveau
    système. */
-.nb-chat{display:flex;flex-direction:column}
-.nb-chat-log{display:flex;flex-direction:column;gap:10px;max-height:440px;overflow-y:auto;
+/* --- onglets Conversations/Portefeuille : .seg déjà existant (période du
+   portefeuille personnel, etc.), réutilisé tel quel, juste espacé ici. */
+.nb-tabs{margin-top:18px}
+
+/* --- disposition générale : sidebar + colonne de conversation (desktop :
+   2 colonnes ; mobile : sidebar en panneau latéral, voir le média plus
+   bas). Toujours var(--bg-2)/var(--line)/var(--r-l) déjà existants. */
+.nb-chat-shell{display:flex;gap:16px;margin-top:16px;align-items:flex-start}
+.nb-sidebar{width:272px;flex:0 0 272px;display:flex;flex-direction:column;gap:10px;
+  background:var(--bg-2);border:1px solid var(--line);border-radius:var(--r-l);padding:14px;
+  max-height:600px}
+.nb-sidebar-search .field{width:100%;padding:10px 14px;font-size:13.5px}
+.nb-conv-list{display:flex;flex-direction:column;gap:3px;overflow-y:auto;flex:1;min-height:0}
+.nb-conv-item{display:flex;align-items:center;gap:2px;border-radius:var(--r-s);transition:background-color .15s ease}
+.nb-conv-item:hover,.nb-conv-item.active{background:var(--bg-3)}
+.nb-conv-item-main{flex:1;min-width:0;text-align:left;background:none;border:none;color:var(--ink);
+  cursor:pointer;padding:9px 10px;display:flex;flex-direction:column;gap:2px}
+.nb-conv-item-title{font-size:13.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.nb-conv-item-date{font-size:11px;color:var(--ink-4)}
+.nb-conv-item-actions{display:flex;gap:1px;flex:0 0 auto;padding-right:4px}
+.nb-conv-item-actions button{width:26px;height:26px;border-radius:50%;display:flex;align-items:center;
+  justify-content:center;color:var(--ink-4);background:none;border:none;cursor:pointer;
+  -webkit-tap-highlight-color:transparent}
+.nb-conv-item-actions button:hover{background:var(--bg-4);color:var(--ink)}
+.nb-conv-item-actions svg{width:14px;height:14px}
+.nb-sidebar-backdrop{display:none}
+.nb-thread-col{flex:1;min-width:0;display:flex;flex-direction:column}
+.nb-thread-head{display:none}
+.nb-history-btn{display:flex;align-items:center;gap:7px;background:var(--bg-2);border:1px solid var(--line);
+  border-radius:100px;padding:9px 16px;font-size:13.5px;font-weight:650;color:var(--ink);
+  -webkit-tap-highlight-color:transparent}
+.nb-history-btn svg{width:16px;height:16px}
+
+/* --- fil de conversation --- */
+.nb-chat{display:flex;flex-direction:column;background:var(--bg-2);border:1px solid var(--line);
+  border-radius:var(--r-l);padding:16px}
+.nb-chat-log{display:flex;flex-direction:column;gap:10px;max-height:min(55vh,520px);overflow-y:auto;
   overscroll-behavior:contain;padding-right:2px}
 .nb-msg{padding:11px 14px;border-radius:var(--r-m);font-size:14.5px;line-height:1.45;
   max-width:85%;white-space:pre-wrap;word-break:break-word}
 .nb-msg-user{align-self:flex-end;background:var(--accent);color:var(--accent-ink)}
-.nb-msg-bot{align-self:flex-start;background:var(--bg-2);color:var(--ink);border:1px solid var(--line)}
+.nb-msg-bot{align-self:flex-start;background:var(--bg-3);color:var(--ink);border:1px solid var(--line)}
+.nb-msg-bot.nb-msg-error{border-color:var(--down)}
 .nb-msg-typing{opacity:.6;font-style:italic}
+.nb-suggestions{display:flex;flex-wrap:wrap;gap:8px;margin-top:2px}
+.nb-suggestion-chip{padding:9px 14px;border-radius:100px;background:var(--bg-3);border:1px solid var(--line);
+  font-size:13px;font-weight:550;color:var(--ink-2);cursor:pointer;-webkit-tap-highlight-color:transparent}
+.nb-suggestion-chip:hover{background:var(--bg-4);color:var(--ink)}
 .nb-chat-input{display:flex;gap:8px;margin-top:12px}
 .nb-chat-input .field{flex:1;min-width:0}
+
+/* --- portefeuille (inspiration Revolut, §5) : .card/.price/.tag/.kv/
+   .chart-stats/.row déjà existants (voir page-portfolio.js), seul .nb-hero
+   ajoute un centrage propre à cette carte "valeur totale" en tête de
+   page. */
+.nb-hero{text-align:center}
+.nb-hero .btns{justify-content:center}
+
 /* <details>/<summary> natifs (aucun JS/CSS de toggle à écrire) : les
    anciens réglages bruts restent accessibles (retour utilisateur :
    "les règles restent accessibles pour modification"), repliés par
@@ -1642,9 +1690,34 @@ a.row{color:inherit;text-decoration:none}
 .nb-advanced summary::-webkit-details-marker{display:none}
 .nb-advanced summary::before{content:'▸';display:inline-block;transition:transform .2s ease;color:var(--ink-4)}
 .nb-advanced[open] summary::before{transform:rotate(90deg)}
-@media (max-width:480px){
-  .nb-chat-log{max-height:360px}
+
+/* --- mobile (§10/§15) : "le bouton d'historique ouvre un panneau
+   latéral, comme ChatGPT [...] une saisie accessible au-dessus du
+   clavier [...] aucune double barre gênante". Le panneau latéral devient
+   position:fixed hors-écran, coulissant via transform — jamais display:
+   none (garde la transition fluide). */
+@media (max-width:900px){
+  .nb-chat-shell{display:block;margin-top:14px}
+  .nb-thread-head{display:flex;margin-bottom:10px}
+  .nb-sidebar{position:fixed;top:0;left:0;bottom:0;width:86vw;max-width:340px;z-index:70;
+    border-radius:0;max-height:none;transform:translateX(-100%);transition:transform .25s var(--spring);
+    padding:calc(14px + env(safe-area-inset-top)) 14px 14px}
+  .nb-sidebar-open .nb-sidebar{transform:translateX(0)}
+  .nb-sidebar-backdrop{display:block;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:65;
+    opacity:0;pointer-events:none;transition:opacity .25s ease}
+  .nb-sidebar-open .nb-sidebar-backdrop{opacity:1;pointer-events:auto}
+  .nb-chat{padding:12px;border-radius:var(--r-m)}
+  .nb-chat-log{max-height:min(58vh,440px)}
   .nb-msg{max-width:92%;font-size:14px}
+  /* Zone de saisie au-dessus de la barre de navigation basse (jamais
+     cachée dessous), même variable --dock-h/--dock-gap déjà utilisée
+     ailleurs pour ce calcul (voir .wrap). */
+  .nb-chat-input{position:sticky;bottom:calc(var(--dock-h, 82px) + var(--dock-gap, 12px) + 8px);
+    background:var(--bg-2);padding-top:4px}
+}
+@media (prefers-reduced-motion:reduce){
+  .nb-sidebar{transition:none}
+  .nb-sidebar-backdrop{transition:none}
 }
 /* Rangée d'accès Nova (Portefeuille, fiche action — voir novaSuiteRow()
    en JS) : défilement horizontal plutôt que retour à la ligne, jamais

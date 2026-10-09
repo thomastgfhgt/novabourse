@@ -1,39 +1,33 @@
 /* ============================================================
-   NOVABOT — CONVERSATION (refonte expérience, 2026-10-08)
+   NOVABOT — CONVERSATIONS MULTIPLES + MOTEUR (refonte UX complète,
+   2026-10-08)
    ------------------------------------------------------------
-   Retour utilisateur explicite : "l'élément central doit être la
-   conversation avec NovaBot [...] le mandat doit être créé automatiquement
-   à partir de la conversation [...] NovaBot doit répondre en utilisant
-   son portefeuille, son mandat, ses analyses et ses décisions RÉELLEMENT
-   enregistrées." Ce fichier est la seule pièce manquante pour relier le
-   moteur déjà construit (Mandate Engine + Risk Engine + pipeline de
-   décision, js/core.js) à une expérience que l'utilisateur voit et à
-   laquelle il parle — rien ici ne duplique ce moteur, tout passe par les
-   fonctions déjà existantes (novabotMandat(), novabotConfirmerMandat(),
-   state.novabot.decisions/wallet).
+   Retour utilisateur explicite : "je veux une véritable expérience
+   comparable à ChatGPT [...] plusieurs conversations ne signifient PAS
+   plusieurs portefeuilles [...] toutes les conversations accèdent au
+   MÊME portefeuille, au MÊME mandat et à la MÊME mémoire structurée."
+   Donc : NOVABOT_CONVERSATIONS gère la LISTE (plusieurs fils), NOVABOT_CHAT
+   gère le fil ACTIF — mais tout ce qui est "intelligence financière"
+   (state.novabot.wallet/mandat/decisions) reste unique et partagé, lu en
+   direct depuis state.novabot à chaque appel, jamais dupliqué par
+   conversation.
 
-   Persistance : réutilise TEL QUEL l'infrastructure Nova Core déjà posée
-   (nova_conversations/nova_messages, ?resource=conversations dans
-   api/me.js) — jamais une table dédiée à NovaBot, cette conversation est
-   juste une parmi d'autres avec module='novabot' (déjà prévu dans le
-   schéma depuis sa création). Aucune nouvelle table, aucun nouveau
-   fichier serverless.
+   Persistance : toujours nova_conversations/nova_messages (?resource=
+   conversations, api/me.js), aucune nouvelle table. Auto-titrage : les
+   50 premiers caractères du premier message utilisateur — volontairement
+   PAS un appel modèle dédié (coût/complexité non justifiés pour un titre
+   de liste), limite assumée documentée au rapport.
+   Pas de streaming serveur réel (3 fournisseurs IA aux API de streaming
+   différentes, hors de portée raisonnable de cette passe) : la réponse
+   complète est récupérée puis révélée progressivement côté client
+   (novabotRevelerProgressivement()) pour l'impression de fluidité
+   demandée, sans la complexité d'un vrai flux SSE multi-fournisseurs. */
 
-   Pas de tool-calling natif par fournisseur (3 APIs différentes) : les
-   données réelles (portefeuille/décisions/mandat) sont assemblées ICI,
-   côté client, à partir de ce que l'app a déjà en mémoire, puis envoyées
-   au serveur à chaque tour — voir novabotChatContexte(). Le serveur
-   (api/analyze.js, mode 'novabot-chat') ne fait QUE transmettre ces
-   données au modèle et valider strictement sa réponse, jamais les
-   récupérer lui-même. */
+let NOVABOT_UI = { view:'chat', sidebarOpen:false, portfolioPeriod:'1A' };
+let NOVABOT_CONVERSATIONS = { loaded:false, loading:false, list:[], search:'' };
+let NOVABOT_CHAT = { conversationId:null, messages:[], mandateDraft:{}, sending:false, readyToConfirm:false, loadingThread:false, streamingText:null };
 
-let NOVABOT_CHAT = { loaded:false, loading:false, sending:false, conversationId:null, messages:[], mandateDraft:{} };
-
-/* Recherche déterministe (jamais confiée au modèle) : une décision dont le
-   ticker ou le nom apparaît dans le message de l'utilisateur est jointe
-   au contexte MÊME si elle est plus ancienne que les recentDecisions
-   envoyées par défaut — permet "pourquoi as-tu acheté LVMH en octobre ?"
-   six mois plus tard sans renvoyer tout l'historique à chaque tour. */
+/* ---------- données réelles transmises à Nova Core (inchangé) ---------- */
 function novabotDecisionsPertinentes(texte){
   if (!texte) return [];
   const t = texte.toLowerCase();
@@ -50,15 +44,11 @@ function novabotDecisionsPertinentes(texte){
   }
   return trouvees;
 }
-
 function novabotDecisionCompacte(d){
   return { date:d.date, action:d.action, ticker:d.ticker, name:d.name, priceObserved:d.priceObserved,
     qty:d.qty, amountEUR:d.amountEUR, weightBeforePct:d.weightBeforePct, weightAfterPct:d.weightAfterPct,
     reason:d.reason, executionStatus:d.executionStatus };
 }
-
-/* Assemble ce qui sera transmis à Nova Core pour CE tour — voir
-   CONSIGNE_NOVABOT_CHAT (api/analyze.js) pour comment c'est utilisé. */
 function novabotChatContexte(dernierMessage){
   const confirme = state.novabot.mandateConfirmed;
   if (!confirme){
@@ -86,74 +76,170 @@ function novabotChatContexte(dernierMessage){
   };
 }
 
-/* Charge (ou crée) LA conversation NovaBot — une seule par utilisateur,
-   comme toute conversation Nova Core (module='novabot'). Amorce un
-   premier message d'accueil SCRIPTÉ (aucun appel modèle : un bonjour ne
-   justifie pas un appel IA ni ne consomme de quota) si la conversation
-   est neuve. */
-async function novabotChatCharger(){
-  if (NOVABOT_CHAT.loaded || NOVABOT_CHAT.loading) return;
-  NOVABOT_CHAT.loading = true;
+/* ---------- liste des conversations ---------- */
+async function novabotConversationsCharger(){
+  if (NOVABOT_CONVERSATIONS.loaded || NOVABOT_CONVERSATIONS.loading) return;
+  NOVABOT_CONVERSATIONS.loading = true;
   try {
     const r = await authFetch('/api/me?resource=conversations');
     if (r.ok){
       const data = await r.json();
-      const existante = (data.conversations || []).find(c => c.module === 'novabot');
-      if (existante){
-        const r2 = await authFetch(`/api/me?resource=conversations&id=${encodeURIComponent(existante.id)}`);
-        if (r2.ok){
-          const full = await r2.json();
-          NOVABOT_CHAT.conversationId = full.id;
-          NOVABOT_CHAT.messages = full.messages.map(m => ({ role:m.role, content:m.content }));
-          /* Le brouillon de mandat n'est pas une colonne séparée : repris
-             du dernier instantané joint à un message assistant (voir
-             novabotChatEnvoyer() plus bas) — seule façon de le faire
-             survivre à un rechargement de page sans nouvelle table. */
-          const dernierAvecDraft = [...full.messages].reverse().find(m => m.metadata?.mandateDraftSnapshot);
-          NOVABOT_CHAT.mandateDraft = dernierAvecDraft?.metadata?.mandateDraftSnapshot || {};
-        }
-      }
+      NOVABOT_CONVERSATIONS.list = (data.conversations || [])
+        .filter(c => c.module === 'novabot')
+        .sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
     }
-  } catch (e){ console.warn('[novabot-chat] chargement impossible :', e); }
-  NOVABOT_CHAT.loading = false;
-  NOVABOT_CHAT.loaded = true;
+  } catch (e){ console.warn('[novabot-chat] liste conversations impossible :', e); }
+  NOVABOT_CONVERSATIONS.loading = false;
+  NOVABOT_CONVERSATIONS.loaded = true;
 
-  if (!NOVABOT_CHAT.conversationId){
-    try {
-      const r = await authFetch('/api/me?resource=conversations', { method:'POST',
-        body: JSON.stringify({ module:'novabot', title:'NovaBot' }) });
-      if (r.ok){ const d = await r.json(); NOVABOT_CHAT.conversationId = d.id; }
-    } catch (e){ console.warn('[novabot-chat] création impossible :', e); }
+  if (NOVABOT_CONVERSATIONS.list.length){
+    await novabotConversationOuvrir(NOVABOT_CONVERSATIONS.list[0].id);
+  } else {
+    await novabotConversationNouvelle();
   }
-  if (!NOVABOT_CHAT.messages.length){
-    const accueil = state.novabot.mandateConfirmed
-      ? `Bonjour, je suis Nova. Ton mandat est actif — demande-moi par exemple « qu'as-tu fait récemment ? » ou « pourquoi as-tu acheté X ? ».`
-      : `Bonjour, je suis Nova. Je vais gérer un portefeuille simulé pour toi — jamais d'argent réel. Pour commencer : quel capital souhaites-tu me confier, et pour quel objectif ?`;
-    NOVABOT_CHAT.messages.push({ role:'assistant', content:accueil });
-    if (NOVABOT_CHAT.conversationId){
-      authFetch(`/api/me?resource=conversations&id=${encodeURIComponent(NOVABOT_CHAT.conversationId)}&action=message`,
-        { method:'POST', body: JSON.stringify({ role:'assistant', content:accueil }) }).catch(() => {});
+}
+
+function novabotAccueilTexte(){
+  if (!state.novabot.mandateConfirmed){
+    return `Bonjour, je suis Nova. Je vais gérer un portefeuille simulé pour toi — jamais d'argent réel. Pour commencer : quel capital souhaites-tu me confier, et pour quel objectif ?`;
+  }
+  const pf = novabotPortfolioValue();
+  return `Bonjour, ton portefeuille NovaBot vaut actuellement ${fmt.eur(pf.total)}. Demande-moi par exemple « que surveilles-tu aujourd'hui ? » ou « explique-moi tes dernières décisions ».`;
+}
+/* Suggestions (§3) : affichées sous l'accueil UNIQUEMENT si un mandat est
+   confirmé (avant ça, la conversation est l'onboarding lui-même, pas de
+   raccourcis qui le court-circuiteraient). */
+const NOVABOT_SUGGESTIONS = [
+  'Analyse mon portefeuille',
+  'Que surveilles-tu aujourd\'hui ?',
+  'Explique-moi tes dernières décisions',
+  'Quels risques vois-tu ?',
+  'Compare ta performance au marché',
+];
+
+async function novabotConversationOuvrir(id){
+  if (NOVABOT_CHAT.conversationId === id) { NOVABOT_UI.sidebarOpen = false; render(); return; }
+  NOVABOT_CHAT.loadingThread = true;
+  render();
+  try {
+    const r = await authFetch(`/api/me?resource=conversations&id=${encodeURIComponent(id)}`);
+    if (r.ok){
+      const full = await r.json();
+      NOVABOT_CHAT.conversationId = full.id;
+      NOVABOT_CHAT.messages = full.messages.map(m => ({ role:m.role, content:m.content }));
+      const dernierAvecDraft = [...full.messages].reverse().find(m => m.metadata?.mandateDraftSnapshot);
+      NOVABOT_CHAT.mandateDraft = dernierAvecDraft?.metadata?.mandateDraftSnapshot || {};
+      NOVABOT_CHAT.readyToConfirm = false;
     }
-  }
+  } catch (e){ console.warn('[novabot-chat] ouverture conversation impossible :', e); }
+  NOVABOT_CHAT.loadingThread = false;
+  NOVABOT_UI.sidebarOpen = false;
   render();
 }
 
-/* Envoie un tour complet : persiste le message utilisateur, appelle Nova
-   Core avec le contexte réel assemblé ci-dessus, applique la réponse
-   (texte + éventuel brouillon de mandat mis à jour), persiste la réponse.
-   Ne lève jamais : un échec affiche un message d'erreur DANS la
-   conversation plutôt que de la casser. */
+async function novabotConversationNouvelle(){
+  NOVABOT_UI.sidebarOpen = false;
+  NOVABOT_CHAT = { conversationId:null, messages:[], mandateDraft:{}, sending:false, readyToConfirm:false, loadingThread:false, streamingText:null };
+  const accueil = novabotAccueilTexte();
+  NOVABOT_CHAT.messages.push({ role:'assistant', content:accueil });
+  render();
+  try {
+    const r = await authFetch('/api/me?resource=conversations', { method:'POST',
+      body: JSON.stringify({ module:'novabot', title:null }) });
+    if (r.ok){
+      const d = await r.json();
+      NOVABOT_CHAT.conversationId = d.id;
+      NOVABOT_CONVERSATIONS.list.unshift({ id:d.id, module:'novabot', title:null, createdAt:d.createdAt, updatedAt:d.updatedAt });
+      authFetch(`/api/me?resource=conversations&id=${encodeURIComponent(d.id)}&action=message`,
+        { method:'POST', body: JSON.stringify({ role:'assistant', content:accueil }) }).catch(() => {});
+    }
+  } catch (e){ console.warn('[novabot-chat] création conversation impossible :', e); }
+  render();
+}
+
+async function novabotConversationRenommer(id, titre){
+  const t = (titre || '').trim().slice(0, 200);
+  if (!t) return;
+  const entry = NOVABOT_CONVERSATIONS.list.find(c => c.id === id);
+  if (entry) entry.title = t;
+  render();
+  try {
+    await authFetch(`/api/me?resource=conversations&id=${encodeURIComponent(id)}&action=rename`,
+      { method:'POST', body: JSON.stringify({ title:t }) });
+  } catch (e){ console.warn('[novabot-chat] renommage impossible :', e); }
+}
+/* Titre automatique (§2 : "titres générés automatiquement") — les 50
+   premiers caractères du premier message utilisateur, jamais un appel
+   modèle dédié rien que pour résumer un titre. */
+async function novabotAutoTitrer(id, premierMessage){
+  const entry = NOVABOT_CONVERSATIONS.list.find(c => c.id === id);
+  if (entry && entry.title) return; // déjà titrée, jamais écrasée
+  const titre = premierMessage.trim().slice(0, 50) + (premierMessage.length > 50 ? '…' : '');
+  await novabotConversationRenommer(id, titre);
+}
+
+function novabotConversationSupprimerConfirmer(id){
+  const c = NOVABOT_CONVERSATIONS.list.find(x => x.id === id);
+  if (!c) return;
+  openSheet(`<h3 id="sheetTitle">Supprimer « ${esc(c.title || 'Conversation sans titre')} » ?</h3>
+    <p>Cette conversation et ses messages seront définitivement supprimés. Ton portefeuille et ton mandat NovaBot ne sont pas concernés.</p>
+    <div class="btns" style="margin-top:22px">
+      <button class="btn btn-s" data-close style="flex:1">Annuler</button>
+      <button class="btn btn-a" data-novabot-conv-delete-ok="${esc(id)}" style="flex:1">Supprimer</button></div>`);
+}
+async function novabotConversationSupprimer(id){
+  NOVABOT_CONVERSATIONS.list = NOVABOT_CONVERSATIONS.list.filter(c => c.id !== id);
+  const eraitActive = NOVABOT_CHAT.conversationId === id;
+  try {
+    await authFetch(`/api/me?resource=conversations&id=${encodeURIComponent(id)}`, { method:'DELETE' });
+  } catch (e){ console.warn('[novabot-chat] suppression impossible :', e); }
+  if (eraitActive){
+    if (NOVABOT_CONVERSATIONS.list.length) await novabotConversationOuvrir(NOVABOT_CONVERSATIONS.list[0].id);
+    else await novabotConversationNouvelle();
+  } else {
+    render();
+  }
+}
+
+/* Révélation progressive (voir note d'en-tête : pas de vrai streaming
+   serveur) — purement visuelle, le texte complet est déjà en mémoire. */
+function novabotRevelerProgressivement(texteComplet){
+  NOVABOT_CHAT.streamingText = '';
+  const mots = texteComplet.split(' ');
+  let i = 0;
+  const pas = () => {
+    if (i >= mots.length){ NOVABOT_CHAT.streamingText = null; render(); return; }
+    NOVABOT_CHAT.streamingText = mots.slice(0, i + 1).join(' ');
+    i++;
+    render();
+    setTimeout(pas, 18);
+  };
+  pas();
+}
+
 async function novabotChatEnvoyer(texte){
   const contenu = (texte || '').trim().slice(0, 2000);
   if (!contenu || NOVABOT_CHAT.sending) return;
+  /* CORRECTIF (2026-10-08, vérifié en direct dans le navigateur) : si la
+     création de la conversation a échoué (réseau), conversationId reste
+     null et le message partait silencieusement aux oubliettes, sans
+     aucun signe pour l'utilisateur (particulièrement visible depuis
+     novabotPoserQuestion() : "Demander à Nova pourquoi" semblait ne rien
+     faire). Un message d'erreur VISIBLE vaut mieux qu'un échec muet. */
+  if (!NOVABOT_CHAT.conversationId){
+    NOVABOT_CHAT.messages.push({ role:'assistant', content:"Je n'ai pas pu ouvrir de conversation à l'instant (problème de connexion). Réessaie dans un instant.", error:true });
+    render();
+    return;
+  }
+  const estPremierMessageUtilisateur = !NOVABOT_CHAT.messages.some(m => m.role === 'user');
   NOVABOT_CHAT.sending = true;
   NOVABOT_CHAT.messages.push({ role:'user', content:contenu });
   render();
 
-  if (NOVABOT_CHAT.conversationId){
-    authFetch(`/api/me?resource=conversations&id=${encodeURIComponent(NOVABOT_CHAT.conversationId)}&action=message`,
-      { method:'POST', body: JSON.stringify({ role:'user', content:contenu }) }).catch(() => {});
-  }
+  const convId = NOVABOT_CHAT.conversationId;
+  authFetch(`/api/me?resource=conversations&id=${encodeURIComponent(convId)}&action=message`,
+    { method:'POST', body: JSON.stringify({ role:'user', content:contenu }) }).catch(() => {});
+  if (estPremierMessageUtilisateur) novabotAutoTitrer(convId, contenu);
 
   try {
     const r = await authFetch('/api/analyze', { method:'POST', body: JSON.stringify({
@@ -166,32 +252,30 @@ async function novabotChatEnvoyer(texte){
       const err = await r.json().catch(() => ({}));
       const msg = err.error === 'quota_exceeded'
         ? "J'ai atteint le quota d'analyses IA de ce mois-ci pour notre conversation — réessaie le mois prochain, ou passe à une offre supérieure."
-        : "Je n'ai pas pu répondre à l'instant (problème de connexion au modèle). Réessaie dans un instant.";
-      NOVABOT_CHAT.messages.push({ role:'assistant', content:msg });
+        : "Je n'ai pas pu répondre à l'instant (problème de connexion au modèle).";
+      NOVABOT_CHAT.messages.push({ role:'assistant', content:msg, error:true });
       NOVABOT_CHAT.sending = false; render(); return;
     }
     const d = await r.json();
+    NOVABOT_CHAT.sending = false;
     NOVABOT_CHAT.messages.push({ role:'assistant', content:d.reply });
+    render();
+    novabotRevelerProgressivement(d.reply);
     if (d.mandateDraft){
       NOVABOT_CHAT.mandateDraft = { ...NOVABOT_CHAT.mandateDraft, ...d.mandateDraft };
     }
     NOVABOT_CHAT.readyToConfirm = Boolean(d.readyToConfirm);
-    if (NOVABOT_CHAT.conversationId){
-      authFetch(`/api/me?resource=conversations&id=${encodeURIComponent(NOVABOT_CHAT.conversationId)}&action=message`,
-        { method:'POST', body: JSON.stringify({ role:'assistant', content:d.reply,
-          metadata: { provider:d.provider, model:d.model, mandateDraftSnapshot: NOVABOT_CHAT.mandateDraft } }) }).catch(() => {});
-    }
+    authFetch(`/api/me?resource=conversations&id=${encodeURIComponent(convId)}&action=message`,
+      { method:'POST', body: JSON.stringify({ role:'assistant', content:d.reply,
+        metadata: { provider:d.provider, model:d.model, mandateDraftSnapshot: NOVABOT_CHAT.mandateDraft } }) }).catch(() => {});
+    return;
   } catch (e){
     console.warn('[novabot-chat] envoi impossible :', e);
-    NOVABOT_CHAT.messages.push({ role:'assistant', content:"Je n'ai pas pu répondre à l'instant. Réessaie dans un instant." });
+    NOVABOT_CHAT.messages.push({ role:'assistant', content:"Je n'ai pas pu répondre à l'instant.", error:true });
   }
   NOVABOT_CHAT.sending = false;
   render();
 }
-
-/* Lit #novabotChatInput, vide le champ, envoie — appelée par le clic sur
-   "Envoyer" ET par la touche Entrée (voir le gestionnaire global
-   keydown, index.html, même convention que submitGateEmail()). */
 function novabotChatSoumetre(){
   const input = document.getElementById('novabotChatInput');
   if (!input || !input.value.trim() || NOVABOT_CHAT.sending) return;
@@ -199,21 +283,29 @@ function novabotChatSoumetre(){
   input.value = '';
   novabotChatEnvoyer(texte);
 }
-
-/* Geste explicite de confirmation (§12 : jamais automatique) — commet le
-   brouillon comme mandat réel (novabotConfirmerMandat(), js/core.js) puis
-   ajoute un message de confirmation scripté à la conversation (pas un
-   appel modèle : confirmer une action déjà prise par l'utilisateur ne
-   nécessite aucun raisonnement). */
 function novabotChatConfirmer(){
   novabotConfirmerMandat(NOVABOT_CHAT.mandateDraft);
   NOVABOT_CHAT.readyToConfirm = false;
   const recap = `Mandat confirmé — ${fmt.eur(state.novabot.wallet.invested)} confiés, activé en simulation. `
-    + `Je commence à chercher des opportunités dès que tu le souhaites (bouton « Évaluer maintenant ») ou dis-moi simplement d'y aller.`;
+    + `Je commence à chercher des opportunités dès que tu le souhaites (bouton « Évaluer maintenant », dans Portefeuille) ou dis-moi simplement d'y aller.`;
   NOVABOT_CHAT.messages.push({ role:'assistant', content:recap });
   if (NOVABOT_CHAT.conversationId){
     authFetch(`/api/me?resource=conversations&id=${encodeURIComponent(NOVABOT_CHAT.conversationId)}&action=message`,
       { method:'POST', body: JSON.stringify({ role:'assistant', content:recap }) }).catch(() => {});
   }
   render();
+}
+
+/* "Demander à Nova pourquoi" (§7/§8) : ouvre une NOUVELLE conversation
+   contextualisée plutôt que d'interrompre la conversation en cours — la
+   question elle-même nomme l'entreprise/la décision, suffisant pour que
+   novabotDecisionsPertinentes() (déterministe) la retrouve sans logique
+   serveur supplémentaire. L'accueil générique reste le premier message
+   (déjà persisté côté serveur au moment où la conversation est créée) :
+   le retirer localement sans le supprimer côté serveur désynchroniserait
+   l'affichage d'un simple rechargement de page. */
+async function novabotPoserQuestion(texte){
+  NOVABOT_UI.view = 'chat';
+  await novabotConversationNouvelle();
+  novabotChatEnvoyer(texte);
 }

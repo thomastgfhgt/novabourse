@@ -1014,13 +1014,50 @@ async function handleNovaConversations(req, res, user) {
     }
   }
 
+  /* ---------- suppression (refonte expérience, 2026-10-08, §2 : "Supprimer
+     une conversation après confirmation") : la confirmation elle-même est
+     un geste CLIENT (boîte de dialogue avant l'appel) — ce endpoint
+     exécute, il ne redemande jamais. Cascade sur nova_messages via la
+     contrainte "on delete cascade" déjà posée dans le schéma (sql/2026-
+     10-05_nova_core_conversations.sql), aucune suppression manuelle des
+     messages nécessaire ici. */
+  if (req.method === 'DELETE') {
+    if (!id) return res.status(400).json({ error: 'id_requis' });
+    try {
+      await sb(`nova_conversations?id=eq.${encodeURIComponent(id)}&user_id=eq.${encodeURIComponent(user.id)}`, {
+        method: 'DELETE', headers: { Prefer: 'return=minimal' },
+      });
+      return res.status(200).json({ deleted: true });
+    } catch (e) {
+      console.error('[me] suppression conversation :', e.message);
+      return res.status(503).json({ error: 'suppression_impossible' });
+    }
+  }
+
   if (req.method !== 'POST') {
-    res.setHeader('Allow', 'GET, POST');
+    res.setHeader('Allow', 'GET, POST, DELETE');
     return res.status(405).json({ error: 'methode_non_autorisee' });
   }
 
   const body = req.body || {};
   const str = (v, max) => (typeof v === 'string' ? v.trim().slice(0, max) : '');
+
+  /* ---------- renommer (§2 : "Renommer une conversation") ---------- */
+  if (id && body.action === 'rename') {
+    const titre = str(body.title, 200);
+    if (!titre) return res.status(400).json({ error: 'titre_requis' });
+    try {
+      const updated = await sb(`nova_conversations?id=eq.${encodeURIComponent(id)}&user_id=eq.${encodeURIComponent(user.id)}`, {
+        method: 'PATCH', headers: { Prefer: 'return=representation' },
+        body: JSON.stringify({ title: titre }),
+      });
+      if (!updated.length) return res.status(404).json({ error: 'conversation_introuvable' });
+      return res.status(200).json({ id, title: titre });
+    } catch (e) {
+      console.error('[me] renommage conversation :', e.message);
+      return res.status(503).json({ error: 'ecriture_impossible' });
+    }
+  }
 
   /* ---------- ajout d'un message à une conversation existante ---------- */
   if (id && body.action === 'message') {
