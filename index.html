@@ -171,6 +171,44 @@ window.addEventListener('resize', () => {
   }
 });
 
+/* Clavier iOS pendant la conversation NovaBot (retour utilisateur
+   2026-10-09 : "problèmes de positionnement de la barre de saisie [...]
+   comportement avec le clavier ouvert") : Safari iOS redimensionne le
+   VISUAL viewport à l'ouverture du clavier mais pas forcément le layout
+   viewport — un élément position:sticky/fixed ancré à bottom:0 du layout
+   peut donc finir caché sous le clavier. --kb-inset expose l'écart réel
+   (visualViewport vs innerHeight) en variable CSS, utilisée uniquement
+   par .nb-chat-input/.nb-chat-log (styles.css) ; 0px par défaut (desktop,
+   Android, clavier fermé) ne change rien d'existant. */
+if (window.visualViewport){
+  const vv = window.visualViewport;
+  let kbRaf = null;
+  const syncClavierInset = () => {
+    if (kbRaf) return;
+    kbRaf = requestAnimationFrame(() => {
+      kbRaf = null;
+      const inset = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+      document.documentElement.style.setProperty('--kb-inset', inset + 'px');
+    });
+  };
+  vv.addEventListener('resize', syncClavierInset);
+  vv.addEventListener('scroll', syncClavierInset);
+}
+
+/* Hauteur réelle du bandeau <header class="top"> (logo/recherche/CTA,
+   toujours visible même sur mobile où seuls les LIENS .top-nav sont
+   masqués) : .wrap est son frère, pas son enfant — height:100vh dessus
+   déborderait donc du bandeau d'exactement cette hauteur (mesuré en
+   direct : ~60px, jamais une valeur fixe devinée). Utilisée uniquement
+   par body.nb-immersive .wrap (styles.css) pour que la vue Conversations
+   NovaBot occupe exactement l'espace sous le bandeau, jamais plus. */
+function syncTopHeaderHeight(){
+  const top = document.querySelector('header.top');
+  if (top) document.documentElement.style.setProperty('--top-header-h', top.getBoundingClientRect().height + 'px');
+}
+syncTopHeaderHeight();
+window.addEventListener('resize', syncTopHeaderHeight);
+
 /* Fondus progressifs au scroll (2026-09-23, en 2 temps le même jour) —
    voir --top-fade dans le CSS de .top et --temple-fade dans celui de
    .nova-temple. Un seul écouteur/throttle partagé pour les deux plutôt
@@ -298,6 +336,18 @@ function render(navigated = false){
   document.body.classList.toggle('nb-immersive', route.page === 'novabot' && NOVABOT_UI.view === 'chat');
 
   const view = document.getElementById('view');
+  /* Fil NovaBot (retour utilisateur 2026-10-09 : "problèmes de scroll") :
+     view.innerHTML est entièrement recréé à CHAQUE render() (envoi d'un
+     message, réponse reçue, chaque mot de la révélation progressive...),
+     ce qui détruit #novabotChatLog et réinitialise son scrollTop à 0 —
+     sur une conversation longue, l'utilisateur se retrouvait ramené tout
+     en haut du fil à chaque mise à jour au lieu de rester sur les
+     messages récents. Mesuré AVANT le remplacement (l'ancien noeud
+     existe encore) : était-on déjà proche du bas ? Si oui (ou si le fil
+     vient d'apparaître), on le recolle en bas après coup ; si
+     l'utilisateur avait remonté lire l'historique, on ne le force pas. */
+  const ancienLog = document.getElementById('novabotChatLog');
+  const recollerEnBas = !ancienLog || (ancienLog.scrollHeight - ancienLog.scrollTop - ancienLog.clientHeight) < 80;
   let html;
   try {
     html = route.page === 'stock' ? PAGES.stock(route.arg)
@@ -361,6 +411,10 @@ function render(navigated = false){
   }
   paintNav();
   syncAllSegPills();
+  if (recollerEnBas){
+    const nouveauLog = document.getElementById('novabotChatLog');
+    if (nouveauLog) nouveauLog.scrollTop = nouveauLog.scrollHeight;
+  }
   /* Chargement à la demande : l'accueil/watchlist n'entraîne plus aucun
      appel history/fondamentaux (seules les quotes, déjà séparées, restent
      automatiques). L'ouverture d'une fiche n'en déclenche plus non plus —

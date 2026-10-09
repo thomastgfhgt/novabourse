@@ -1661,8 +1661,21 @@ a.row{color:inherit;text-decoration:none}
    directement sur le fond NovaTitre, plus d'espace vertical, bulles
    utilisateur discrètes, réponses NovaBot aérées avec avatar). */
 .nb-chat{display:flex;flex-direction:column;flex:1;min-height:0}
-.nb-chat-log{display:flex;flex-direction:column;gap:18px;max-height:min(70vh,640px);overflow-y:auto;
+/* margin-top:auto sur le premier enfant (retour utilisateur 2026-10-09 :
+   "espaces vides excessifs") : une conversation courte ne doit pas
+   flotter en haut avec un grand vide au-dessus de la saisie — les
+   messages restent collés en bas, près du champ, comme ChatGPT.
+   JAMAIS justify-content:flex-end ici (testé en direct, puis retiré) :
+   combiné à overflow-y:auto sur une conversation LONGUE, ça fait
+   plafonner scrollHeight à clientHeight dans Chrome/WebKit — les
+   messages les plus anciens deviennent invisibles ET non atteignables
+   au scroll, un bug connu de flexbox+overflow. margin-top:auto n'a cet
+   effet "collé en bas" QUE quand il reste de la place (il ne peut pas
+   devenir négatif) : une conversation qui déborde redevient un flux
+   flex-start classique, parfaitement scrollable. */
+.nb-chat-log{display:flex;flex-direction:column;flex:1;min-height:0;gap:18px;max-height:min(70vh,640px);overflow-y:auto;
   overscroll-behavior:contain;padding:2px 2px 10px}
+.nb-chat-log>:first-child{margin-top:auto}
 .nb-msg-row{display:flex;gap:10px;align-items:flex-start}
 .nb-avatar{flex:0 0 auto;width:28px;height:28px;border-radius:50%;margin-top:2px;
   background:var(--nova-bot);display:flex;align-items:center;justify-content:center}
@@ -1766,16 +1779,47 @@ a.row{color:inherit;text-decoration:none}
   .nb-chat-log{max-height:min(58vh,440px)}
   .nb-msg{font-size:14px}
   .nb-msg-user{max-width:88%}
-  /* Immersif (plus de dock pendant la conversation, règle plus haut) :
-     le fil récupère toute la hauteur libérée. */
-  body.nb-immersive .nb-chat-log{max-height:min(68vh,620px)}
+  /* Immersif : chaîne flex du haut (.wrap) jusqu'au fil (.nb-chat-log),
+     chacun avec min-height:0 (le piège flexbox classique : sans ça, un
+     enfant flex ne rétrécit/scroll jamais sous sa taille de contenu) —
+     SANS cette chaîne, rien n'oblige .nb-chat-log à remplir l'espace
+     sous les onglets/Historique, et une conversation courte laisse un
+     grand vide entre la saisie et le bas de l'écran (retour utilisateur
+     2026-10-09 : "espaces vides excessifs"), la saisie restant "collée"
+     juste après les messages plutôt qu'au bas réel de la zone. Scopé à
+     .nb-immersive (mobile, vue Conversations uniquement) : aucune autre
+     page ne change. */
+  /* height (pas min-height) : un VRAI plafond, pas juste un plancher —
+     sinon flex:1 plus bas n'a aucun budget fixe à partir duquel se
+     calculer et .nb-chat-log pousse la saisie hors de l'écran (testé en
+     direct : overflowDiff > 0, saisie sous le bord inférieur). Moins
+     --top-header-h (index.html, syncTopHeaderHeight()) : .wrap est le
+     FRÈRE de <header class="top"> (toujours visible, ~60px, mesuré en
+     direct), pas son enfant — 100vh plein déborderait donc du bandeau.
+     vh d'abord (repli), dvh ensuite (tient compte du clavier/barres iOS
+     quand supporté — un navigateur qui ne connaît pas dvh ignore cette
+     ligne et garde vh). */
+  body.nb-immersive .wrap{display:flex;flex-direction:column;
+    height:calc(100vh - var(--top-header-h, 60px));
+    height:calc(100dvh - var(--top-header-h, 60px))}
+  body.nb-immersive .nb-page{display:flex;flex-direction:column;flex:1;min-height:0}
+  body.nb-immersive .nb-chat-shell{display:flex;flex-direction:column;flex:1;min-height:0}
+  body.nb-immersive .nb-thread-col{min-height:0}
+  /* Le fil récupère toute la hauteur libérée par le masquage du dock —
+     moins --kb-inset (clavier iOS ouvert, voir index.html) pour que le
+     contenu déjà visible ne finisse pas sous la saisie remontée. */
+  body.nb-immersive .nb-chat-log{max-height:calc(min(68vh,620px) - var(--kb-inset, 0px))}
   /* Zone de saisie au-dessus de la barre de navigation basse (jamais
      cachée dessous), même variable --dock-h/--dock-gap déjà utilisée
      ailleurs pour ce calcul (voir .wrap) — sauf en immersif, où il n'y a
-     plus de dock sous lequel réserver de la place. */
-  .nb-chat-input{position:sticky;bottom:calc(var(--dock-h, 82px) + var(--dock-gap, 12px) + 8px);
+     plus de dock sous lequel réserver de la place. +var(--kb-inset) dans
+     les deux cas : écart réel entre le viewport visuel et le viewport de
+     mise en page quand le clavier iOS est ouvert (0px sinon/ailleurs,
+     voir index.html) — sans lui la saisie reste ancrée au bas du layout
+     viewport et finit cachée sous le clavier. */
+  .nb-chat-input{position:sticky;bottom:calc(var(--dock-h, 82px) + var(--dock-gap, 12px) + 8px + var(--kb-inset, 0px));
     background:var(--bg);padding-top:4px}
-  body.nb-immersive .nb-chat-input{bottom:calc(env(safe-area-inset-bottom, 0px) + 8px)}
+  body.nb-immersive .nb-chat-input{bottom:calc(env(safe-area-inset-bottom, 0px) + 8px + var(--kb-inset, 0px))}
 }
 @media (prefers-reduced-motion:reduce){
   .nb-sidebar{transition:none}
