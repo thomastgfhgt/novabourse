@@ -2326,6 +2326,44 @@ function novabotEnregistrerDecision(d){
   return dec;
 }
 
+/* Accepter/refuser une décision EN ATTENTE (§22, mode "conseil"/"semi-
+   autonome") — geste explicite de l'utilisateur, jamais automatique.
+   novabotAccepterDecision() REVALIDE via le Risk Engine avec l'état
+   ACTUEL du portefeuille/du mandat avant d'exécuter : le temps écoulé
+   depuis la proposition a pu changer le cash disponible ou le mandat
+   lui-même — jamais un rejeu aveugle d'une décision devenue invalide
+   entre-temps. */
+function novabotAccepterDecision(id){
+  const d = state.novabot.decisions.find(x => x.id === id);
+  if (!d || d.executionStatus !== 'pending' || d.action !== 'buy') return { ok:false, msg:'Décision introuvable ou déjà traitée' };
+  const st = byId[d.stockId];
+  if (!st) return { ok:false, msg:'Entreprise introuvable dans le catalogue' };
+  const prix = prixDe(st);
+  if (prix === null) return { ok:false, msg:'Cours indisponible pour le moment' };
+  const mandate = novabotMandat();
+  const priceEUR = toEUR(prix, st.cur);
+  const intent = { action:'buy', stockId:d.stockId, ticker:d.ticker, sector:st.sector,
+    amountEUR:d.amountEUR, priceLocal:prix, currency:st.cur, qty:d.amountEUR / priceEUR };
+  const verdict = novabotRiskCheck(intent, state.novabot.wallet, mandate);
+  if (!verdict.allowed){
+    d.executionStatus = 'rejected';
+    d.reason += ` — Refusé à l'exécution (conditions changées) : ${verdict.violations.map(v => v.message).join(' ')}`;
+    saveState(); pushNovaBot(); render();
+    return { ok:false, msg:'Le Risk Engine refuse cette décision maintenant — les conditions ont changé depuis la proposition.' };
+  }
+  novabotAcheter(d.stockId, d.amountEUR, prix, d.reason);
+  d.executionStatus = 'simulated';
+  d.priceObserved = prix; // prix RÉEL d'exécution, jamais celui (plus ancien) de la proposition
+  saveState(); pushNovaBot(); render();
+  return { ok:true, msg:`Achat confirmé : ${fmt.eur(d.amountEUR)} sur ${d.name || d.ticker}` };
+}
+function novabotRefuserDecision(id){
+  const d = state.novabot.decisions.find(x => x.id === id);
+  if (!d || d.executionStatus !== 'pending') return;
+  d.executionStatus = 'skipped';
+  saveState(); pushNovaBot(); render();
+}
+
 /* 1. DISCOVERY (§8/§7) : "NovaBot ne doit surtout PAS analyser uniquement
    la watchlist [...] il doit pouvoir découvrir une entreprise que
    l'utilisateur n'a jamais ajoutée." Watchlist d'abord (comportement
@@ -2437,7 +2475,27 @@ async function evaluerNovaBot(){
         const motif = avisIA
           ? `NovaScore ${score} ≥ seuil ${cfg.scoreAchat} ; Nova AI : ${avisIA.reasoning}`
           : `NovaScore ${score} ≥ seuil ${cfg.scoreAchat}`;
-        if (verdict.allowed){
+        if (verdict.allowed && cfg.autonomyMode !== 'auto'){
+          /* §22 : "conseil" demande toujours confirmation ; "semi-autonome"
+             aussi POUR LES ACHATS dans cette passe (distinction plus fine
+             entre "petite" et "importante" décision non spécifiée, jamais
+             inventée sans critère donné — limite assumée, documentée au
+             rapport). Les SORTIES (stop-loss/take-profit, plus haut dans
+             cette fonction) restent TOUJOURS immédiates quel que soit le
+             mode : différer une protection de risque en attendant un
+             accord irait à l'encontre de son but. */
+          const pfAvant = portfolioValue(cfg.wallet);
+          const posExistante = cfg.wallet.positions.find(p => p.id === id);
+          const poidsAvant = pfAvant.total > 0 && posExistante ? (toEUR(posExistante.avg * posExistante.qty, st.cur) / pfAvant.total) * 100 : 0;
+          novabotEnregistrerDecision({ action:'buy', stockId:id, ticker:st.ticker, name:st.name,
+            priceObserved:prix, qty:intent.qty, amountEUR:cfg.tradeAmountEUR,
+            cashBefore:cfg.wallet.cash, cashAfter:cfg.wallet.cash, weightBeforePct:poidsAvant, weightAfterPct:poidsAvant,
+            reason:`${motif} (en attente de ton accord — mode ${cfg.autonomyMode === 'advice' ? 'conseil' : 'semi-autonome'})`,
+            executionStatus:'pending',
+            dataUsed:{ novaScore:score, fundamentals:donnees.fundamentals }, mandateSnapshot:mandate, riskResult:verdict,
+            aiProvider:avisIA?.provider || null, aiModel:avisIA?.model || null, confidence:avisIA?.confidence ?? null });
+          changed = true;
+        } else if (verdict.allowed){
           const cashAvant = cfg.wallet.cash;
           const pfAvant = portfolioValue(cfg.wallet);
           const posExistante = cfg.wallet.positions.find(p => p.id === id);

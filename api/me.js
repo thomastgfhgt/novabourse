@@ -938,7 +938,7 @@ async function handleNovaBot(req, res, user) {
           data_used: jsonOrNull(d?.dataUsed), mandate_snapshot: jsonOrNull(d?.mandateSnapshot),
           risk_result: jsonOrNull(d?.riskResult), relevant_news: jsonOrNull(d?.relevantNews), relevant_event: jsonOrNull(d?.relevantEvent),
           ai_provider: str(d?.aiProvider, 20) || null, ai_model: str(d?.aiModel, 40) || null, confidence: num(d?.confidence),
-          execution_status: ['simulated', 'skipped', 'rejected'].includes(d?.executionStatus) ? d.executionStatus : 'simulated',
+          execution_status: ['simulated', 'skipped', 'rejected', 'pending'].includes(d?.executionStatus) ? d.executionStatus : 'simulated',
           occurred_at: occurredAt,
         });
       }

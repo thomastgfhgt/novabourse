@@ -74,8 +74,13 @@ create table if not exists novabot_decisions (
   ai_model text,
   confidence numeric,
 
+  -- 'pending' ajouté le 2026-10-09 (jamais exécuté avant cette date, migration
+  -- encore non lancée au moment de l'ajout) : §22 du brief NovaBot — en mode
+  -- "conseil"/"semi-autonome", un achat approuvé par le Risk Engine attend
+  -- l'accord explicite de l'utilisateur avant de devenir 'simulated' (voir
+  -- novabotAccepterDecision()/novabotRefuserDecision(), js/core.js).
   execution_status text not null default 'simulated'
-    check (execution_status in ('simulated', 'skipped', 'rejected')),
+    check (execution_status in ('simulated', 'skipped', 'rejected', 'pending')),
 
   occurred_at timestamptz not null,
   received_at timestamptz not null default now()

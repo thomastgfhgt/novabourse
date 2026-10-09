@@ -535,17 +535,24 @@ function novabotOuvrirDecision(id){
   if (!d) return;
   const dateD = new Date(d.date).toLocaleString('fr-FR', { day:'2-digit', month:'long', year:'numeric', hour:'2-digit', minute:'2-digit' });
   const ACTION_LABEL = { buy:'Achat simulé', sell:'Vente simulée', reject:'Refusé', watch:'Mise en surveillance', hold:'Conservé', increase:'Renforcement', reduce:'Allègement' };
+  const enAttente = d.executionStatus === 'pending';
   const question = `Pourquoi as-tu ${d.action === 'buy' ? 'acheté' : d.action === 'sell' ? 'vendu' : 'pris cette décision sur'} ${d.name || d.ticker} le ${new Date(d.date).toLocaleDateString('fr-FR')} ?`;
-  openSheet(`<h3 id="sheetTitle">${ACTION_LABEL[d.action] || d.action} · ${esc(d.name || d.ticker || '')}</h3>
+  openSheet(`<h3 id="sheetTitle">${enAttente ? 'Proposition d\'achat' : (ACTION_LABEL[d.action] || d.action)} · ${esc(d.name || d.ticker || '')}</h3>
     <p class="tiny" style="margin-top:6px;color:var(--ink-4)">${dateD}</p>
+    ${enAttente ? `<p class="tiny" style="margin-top:8px;color:var(--warn);font-weight:650">En attente de ton accord (mode ${state.novabot.autonomyMode === 'advice' ? 'conseil' : 'semi-autonome'})</p>` : ''}
     <p style="margin-top:14px;line-height:1.5">${esc(d.reason || '')}</p>
     ${Number.isFinite(d.priceObserved) ? `<div class="kv" style="margin-top:14px"><dt>Cours observé</dt><dd class="tabular-nums">${fmt.cur(d.priceObserved, 'EUR')}</dd></div>` : ''}
     ${Number.isFinite(d.amountEUR) ? `<div class="kv"><dt>Montant</dt><dd class="tabular-nums">${fmt.eur(d.amountEUR)}</dd></div>` : ''}
-    ${Number.isFinite(d.weightBeforePct) && Number.isFinite(d.weightAfterPct) ? `<div class="kv"><dt>Poids avant / après</dt><dd class="tabular-nums">${fmt.num(d.weightBeforePct,1)} % → ${fmt.num(d.weightAfterPct,1)} %</dd></div>` : ''}
+    ${Number.isFinite(d.weightBeforePct) && Number.isFinite(d.weightAfterPct) && !enAttente ? `<div class="kv"><dt>Poids avant / après</dt><dd class="tabular-nums">${fmt.num(d.weightBeforePct,1)} % → ${fmt.num(d.weightAfterPct,1)} %</dd></div>` : ''}
     ${Number.isFinite(d.confidence) ? `<div class="kv"><dt>Confiance Nova AI</dt><dd class="tabular-nums">${d.confidence} %</dd></div>` : ''}
     ${d.aiProvider ? `<div class="kv"><dt>Second avis</dt><dd>${esc(d.aiProvider)} · ${esc(d.aiModel || '')}</dd></div>` : ''}
     ${d.riskResult && !d.riskResult.allowed ? `<p class="tiny" style="margin-top:10px;color:var(--warn)">Refusé par le Risk Engine : ${esc((d.riskResult.violations||[]).map(v=>v.message).join(' '))}</p>` : ''}
-    <button class="btn btn-a" style="width:100%;margin-top:18px" data-novabot-ask="${esc(question)}">Demander à Nova pourquoi →</button>
+    ${enAttente ? `
+      <div class="btns" style="margin-top:18px">
+        <button class="btn btn-s" style="flex:1" data-novabot-decision-refuse="${esc(d.id)}">Refuser</button>
+        <button class="btn btn-a" style="flex:1" data-novabot-decision-accept="${esc(d.id)}">Accepter</button>
+      </div>`
+      : `<button class="btn btn-a" style="width:100%;margin-top:18px" data-novabot-ask="${esc(question)}">Demander à Nova pourquoi →</button>`}
   `);
 }
 
@@ -736,15 +743,23 @@ function novabotPortfolioView(){
         <button class="btn btn-ghost btn-sm" data-novabot-run>Évaluer maintenant</button>
       </div>
       <div class="card" style="margin-top:14px">${cfg.decisions.length ? `<div class="rows">
-        ${cfg.decisions.slice().reverse().slice(0, 20).map(d => {
-          const dateD = new Date(d.date).toLocaleDateString('fr-FR', { day:'2-digit', month:'short' });
+        ${(() => {
+          /* Les décisions EN ATTENTE (mode conseil/semi-autonome, §22)
+             remontent toujours en tête — jamais noyées dans l'ordre
+             chronologique, elles attendent une action de l'utilisateur. */
+          const enAttente = cfg.decisions.filter(d => d.executionStatus === 'pending');
+          const reste = cfg.decisions.filter(d => d.executionStatus !== 'pending').slice().reverse();
           const ACTION_LABEL = { buy:'Achat', sell:'Vente', reject:'Refusé pour risque', watch:'Surveillance', hold:'Conservé', increase:'Renforcement', reduce:'Allègement' };
-          return `<button type="button" class="row" style="width:100%;text-align:left" data-novabot-decision="${esc(d.id)}">
-            <span class="row-main"><span class="row-t">${ACTION_LABEL[d.action] || d.action} · ${esc(d.name || d.ticker || '')}</span>
-              <span class="row-s">${dateD} · ${esc((d.reason || '').slice(0, 70))}${(d.reason||'').length > 70 ? '…' : ''}</span></span>
-            ${Number.isFinite(d.amountEUR) ? `<span class="tabular-nums" style="flex:0 0 auto">${fmt.eur(d.amountEUR)}</span>` : ''}
-          </button>`;
-        }).join('')}
+          return [...enAttente, ...reste].slice(0, 20).map(d => {
+            const dateD = new Date(d.date).toLocaleDateString('fr-FR', { day:'2-digit', month:'short' });
+            const estEnAttente = d.executionStatus === 'pending';
+            return `<button type="button" class="row" style="width:100%;text-align:left" data-novabot-decision="${esc(d.id)}">
+              <span class="row-main"><span class="row-t">${estEnAttente ? `<span style="color:var(--warn)">En attente</span> · ` : ''}${ACTION_LABEL[d.action] || d.action} · ${esc(d.name || d.ticker || '')}</span>
+                <span class="row-s">${dateD} · ${esc((d.reason || '').slice(0, 70))}${(d.reason||'').length > 70 ? '…' : ''}</span></span>
+              ${Number.isFinite(d.amountEUR) ? `<span class="tabular-nums" style="flex:0 0 auto">${fmt.eur(d.amountEUR)}</span>` : ''}
+            </button>`;
+          }).join('');
+        })()}
       </div>` : emptyState('Aucune décision pour l\'instant', 'Dis à Nova de chercher des opportunités, ou clique sur « Évaluer maintenant ».')}</div>
       <p class="tiny" style="margin-top:8px;color:var(--ink-4)">Dernière évaluation : ${esc(dernierPassage)}</p>
     </section>

@@ -1058,6 +1058,18 @@ document.addEventListener('click', e => {
     novabotOuvrirMandat();
     return;
   }
+  if (q('[data-novabot-decision-accept]')){
+    const r = novabotAccepterDecision(q('[data-novabot-decision-accept]').dataset.novabotDecisionAccept);
+    closeSheet();
+    toast(r.msg);
+    return;
+  }
+  if (q('[data-novabot-decision-refuse]')){
+    novabotRefuserDecision(q('[data-novabot-decision-refuse]').dataset.novabotDecisionRefuse);
+    closeSheet();
+    toast('Proposition refusée.');
+    return;
+  }
   if (q('[data-export]')){
     const data = JSON.stringify({ watchlist:state.watchlist, wallet:state.wallet,
       settings:state.settings }, null, 2);
