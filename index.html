@@ -348,6 +348,23 @@ function render(navigated = false){
      l'utilisateur avait remonté lire l'historique, on ne le force pas. */
   const ancienLog = document.getElementById('novabotChatLog');
   const recollerEnBas = !ancienLog || (ancienLog.scrollHeight - ancienLog.scrollTop - ancienLog.clientHeight) < 80;
+  /* CORRECTIF (même cause que le scroll ci-dessus, pas encore couverte) :
+     #novabotChatInput n'est jamais désactivé pendant que Nova répond —
+     rien n'empêche l'utilisateur de taper un message suivant pendant la
+     révélation progressive (novabotRevelerProgressivement(), un render()
+     TOUTES LES 18ms). Comme view.innerHTML recrée entièrement la zone de
+     saisie à chaque passage, un nouveau <textarea> vide remplaçait
+     l'ancien avant même la fin d'une frappe : tout ce qui venait d'être
+     tapé disparaissait quasi instantanément, et le focus/curseur partait
+     avec. Mesuré avant remplacement (valeur + position du curseur +
+     focus), restauré après si l'élément existe toujours (même id) dans
+     le nouveau DOM — jamais si l'utilisateur a changé de page entre deux
+     rendus (l'élément n'existe alors simplement plus). */
+  const ancienInput = document.getElementById('novabotChatInput');
+  const inputAConserver = ancienInput && ancienInput.value
+    ? { valeur: ancienInput.value, debut: ancienInput.selectionStart, fin: ancienInput.selectionEnd,
+        hauteur: ancienInput.style.height, avaitFocus: document.activeElement === ancienInput }
+    : null;
   let html;
   try {
     html = route.page === 'stock' ? PAGES.stock(route.arg)
@@ -414,6 +431,17 @@ function render(navigated = false){
   if (recollerEnBas){
     const nouveauLog = document.getElementById('novabotChatLog');
     if (nouveauLog) nouveauLog.scrollTop = nouveauLog.scrollHeight;
+  }
+  if (inputAConserver){
+    const nouvelInput = document.getElementById('novabotChatInput');
+    if (nouvelInput){
+      nouvelInput.value = inputAConserver.valeur;
+      if (inputAConserver.hauteur) nouvelInput.style.height = inputAConserver.hauteur;
+      if (inputAConserver.avaitFocus){
+        nouvelInput.focus();
+        nouvelInput.setSelectionRange(inputAConserver.debut, inputAConserver.fin);
+      }
+    }
   }
   /* Chargement à la demande : l'accueil/watchlist n'entraîne plus aucun
      appel history/fondamentaux (seules les quotes, déjà séparées, restent
