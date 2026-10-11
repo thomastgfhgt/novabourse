@@ -21,6 +21,9 @@ const ICON = {
   book:'<path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H19v15H6.5A2.5 2.5 0 0 0 4 20.5z"/>',
   trash:'<path d="M4 7h16M9 7V5h6v2M6 7l1 13h10l1-13"/>',
   archive:'<rect x="3.5" y="4" width="17" height="4.5" rx="1"/><path d="M4.5 8.5v10a1.5 1.5 0 0 0 1.5 1.5h12a1.5 1.5 0 0 0 1.5-1.5v-10"/><path d="M10 13h4"/>',
+  redo:'<path d="M3 12a9 9 0 1 1 3 6.7"/><path d="M3 21v-5h5"/>',
+  edit:'<path d="M4 16.5V20h3.5L18 9.5 14.5 6z"/>',
+  copy:'<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/>',
   spark:'<path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/>',
   filter:'<path d="M4 7h16M4 12h10M4 17h6"/><circle cx="17" cy="7" r="2"/><circle cx="11" cy="12" r="2"/><circle cx="7" cy="17" r="2"/>',
   /* Ajoutées 2026-09-23 pour la passe "architecture visuelle" (NovaBot/

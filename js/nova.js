@@ -690,12 +690,42 @@ function novabotSidebarMarkup(){
 
 /* ---------- vue Conversations (style ChatGPT, refonte V4 §2) ---------- */
 const NOVABOT_ROOK_SVG = `<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 20h12M7 20l1-6h8l1 6M8 14V9h1.5V7h2v2h1v-2h2v2H16v5"/></svg>`;
-function novabotMsgRow(contentHtml, { error = false } = {}){
+function novabotMsgRow(contentHtml, { error = false, actionsHtml = '' } = {}){
   return `<div class="nb-msg-row">
     <div class="nb-avatar">${NOVABOT_ROOK_SVG}</div>
-    <div class="nb-msg-col"><div class="nb-msg nb-msg-bot${error ? ' nb-msg-error' : ''}">${contentHtml}</div></div>
+    <div class="nb-msg-col"><div class="nb-msg nb-msg-bot${error ? ' nb-msg-error' : ''}">${contentHtml}</div>${actionsHtml}</div>
   </div>`;
 }
+/* Actions sur un message (V6 §5) — rangée discrète sous la bulle/texte,
+   révélée au survol (ordinateur, via CSS :hover) ou toujours visible sur
+   mobile (pas de hover fiable au doigt) : voir .msg-actions dans
+   styles.css pour la bascule exacte par taille d'écran. */
+function novabotMsgActionsUser(index){
+  return `<div class="nb-msg-actions nb-msg-actions-user">
+    <button type="button" data-novabot-msg-edit="${index}" aria-label="Modifier">${svg(ICON.edit,2)} Modifier</button>
+    <button type="button" data-novabot-msg-copy="${index}" aria-label="Copier">${svg(ICON.copy,2)} Copier</button>
+    <button type="button" data-novabot-msg-resume="${index}" aria-label="Reprendre ici">${svg(ICON.arrow,2)} Reprendre ici</button>
+  </div>`;
+}
+function novabotMsgActionsBot(index, { estDernier, feedback } = {}){
+  return `<div class="nb-msg-actions">
+    <button type="button" data-novabot-msg-copy="${index}" aria-label="Copier">${svg(ICON.copy,2)} Copier</button>
+    ${estDernier ? `<button type="button" data-novabot-msg-regen="${index}" aria-label="Régénérer">${svg(ICON.redo,2)} Régénérer</button>` : ''}
+    <button type="button" data-novabot-msg-feedback="${index}" data-val="up" aria-label="Avis positif" class="${feedback==='up'?'on':''}">${svg(ICON.check,2)}</button>
+    <button type="button" data-novabot-msg-feedback="${index}" data-val="down" aria-label="Avis négatif" class="${feedback==='down'?'on':''}">${svg(ICON.x,2)}</button>
+  </div>`;
+}
+function novabotEditBox(index, texteActuel){
+  return `<div class="nb-edit-box">
+    <textarea id="novabotEditInput${index}" maxlength="2000">${esc(texteActuel)}</textarea>
+    <div class="nb-edit-btns">
+      <button type="button" class="cancel" data-novabot-msg-edit-cancel>Annuler</button>
+      <button type="button" class="save" data-novabot-msg-edit-save="${index}">Enregistrer et régénérer</button>
+    </div>
+  </div>
+  <p class="nb-edit-note">La suite de la conversation sera régénérée à partir d'ici.</p>`;
+}
+
 function novabotChatView(){
   const c = NOVABOT_CHAT;
   const premierTour = c.messages.length <= 1 && state.novabot.mandateConfirmed;
@@ -709,6 +739,7 @@ function novabotChatView(){
   const messagesAffiches = (revele && dernier && dernier.role !== 'user')
     ? c.messages.slice(0, -1) : c.messages;
   const genereEnCours = c.sending || revele;
+  const dernierIndexAffiche = messagesAffiches.length - 1;
   return `<div class="nb-chat-shell${NOVABOT_UI.sidebarOpen ? ' nb-sidebar-open' : ''}">
     ${novabotSidebarMarkup()}
     <div class="nb-thread-col">
@@ -717,12 +748,23 @@ function novabotChatView(){
       </div>
       <div class="nb-chat">
         <div class="nb-chat-log" id="novabotChatLog">
-          ${c.loadingThread ? novabotMsgRow('Chargement…') : messagesAffiches.map(m => m.role === 'user'
-            ? `<div style="display:flex;justify-content:flex-end"><div class="nb-msg nb-msg-user">${esc(m.content)}</div></div>`
-            : novabotMsgRow(esc(m.content), { error: Boolean(m.error) })).join('')}
+          ${c.loadingThread ? novabotMsgRow('Chargement…') : messagesAffiches.map((m, i) => {
+            if (m.role === 'user'){
+              if (c.editingIndex === i){
+                return `<div class="nb-msg-edit-wrap">${novabotEditBox(i, m.content)}</div>`;
+              }
+              return `<div class="nb-msg-user-wrap">
+                <div style="display:flex;justify-content:flex-end"><div class="nb-msg nb-msg-user">${esc(m.content)}</div></div>
+                ${novabotMsgActionsUser(i)}
+              </div>`;
+            }
+            if (m.error) return novabotMsgRow(esc(m.content), { error:true });
+            return novabotMsgRow(esc(m.content), { actionsHtml: novabotMsgActionsBot(i,
+              { estDernier: i === dernierIndexAffiche && !genereEnCours, feedback: m.feedback }) });
+          }).join('')}
           ${revele ? novabotMsgRow(esc(c.streamingText)) : ''}
           ${c.sending ? `<div class="nb-msg-row"><div class="nb-avatar">${NOVABOT_ROOK_SVG}</div>
-            <div class="nb-typing-row"><i></i><i></i><i></i><b>Nova réfléchit…</b></div></div>` : ''}
+            <div class="nb-typing-row"><i></i><i></i><i></i><b>Nova prépare sa réponse…</b></div></div>` : ''}
           ${premierTour && !c.sending ? `<div class="nb-suggestions">
             ${NOVABOT_SUGGESTIONS.map(s => `<button type="button" class="nb-suggestion-chip" data-novabot-suggestion="${esc(s)}">${esc(s)}</button>`).join('')}
           </div>` : ''}
@@ -910,20 +952,33 @@ function novabotOuvrirMandat(){
   `);
 }
 
-PAGES.novabot = () => {
-  const f = NOVA_FEATURES.novabot;
-  if (!NOVABOT_CONVERSATIONS.loaded && !NOVABOT_CONVERSATIONS.loading) novabotConversationsCharger();
-
-  return `<div class="page-in nb-page">
-    <button class="btn btn-g btn-sm" data-back style="margin-bottom:20px">← Retour</button>
-    <p class="eyebrow">Simulation</p>
-    <h1 class="title">${esc(f.title)}</h1>
-
-    <div class="seg nb-tabs" data-seg="novabotView">
+/* En-tête compact (V6, maquettes validées) : une seule ligne discrète
+   (retour/marque/historique) + une pastille de segment centrée — remplace
+   l'ancien bloc Retour pleine largeur + eyebrow + h1 + gros onglets,
+   dénoncé explicitement par l'utilisateur comme prenant "la moitié de
+   l'écran". Le bouton Historique n'a de sens qu'en vue Conversations —
+   masqué (pas juste désactivé, pour ne pas suggérer une action possible)
+   en vue Portefeuille. */
+function novabotTopBar(){
+  return `<div class="nb-topbar">
+    <div class="nb-topbar-row">
+      <button type="button" class="nb-icon-btn" data-back aria-label="Retour" style="transform:scaleX(-1)">${svg(ICON.arrow,2)}</button>
+      <div class="nb-brand-mark"><span class="nb-rook">${svg(ICON.rook,2)}</span><b>NovaBot</b></div>
+      ${NOVABOT_UI.view === 'chat'
+        ? `<button type="button" class="nb-icon-btn" data-novabot-sidebar-open aria-label="Historique">${svg(ICON.list,2)}</button>`
+        : `<span class="nb-icon-btn" style="visibility:hidden"></span>`}
+    </div>
+    <div class="nb-seg-pill" data-seg="novabotView">
       <button type="button" data-novabot-view="chat" aria-pressed="${NOVABOT_UI.view==='chat'}">Conversations</button>
       <button type="button" data-novabot-view="portfolio" aria-pressed="${NOVABOT_UI.view==='portfolio'}">Portefeuille</button>
     </div>
+  </div>`;
+}
+PAGES.novabot = () => {
+  if (!NOVABOT_CONVERSATIONS.loaded && !NOVABOT_CONVERSATIONS.loading) novabotConversationsCharger();
 
+  return `<div class="page-in nb-page">
+    ${novabotTopBar()}
     ${NOVABOT_UI.view === 'chat' ? novabotChatView() : novabotPortfolioView()}
   </div>`;
 };

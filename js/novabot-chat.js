@@ -32,7 +32,7 @@ let NOVABOT_UI = { view:'chat', sidebarOpen:false, portfolioPeriod:'1A' };
 let NOVABOT_CONVERSATIONS = { loaded:false, loading:false, list:[], search:'', archivedList:[], archivedLoaded:false, archivedLoading:false, showArchived:false };
 /* controller/revealTimer (§2, bouton "Stop") : jamais persistés, purement
    l'état d'une requête/animation en cours côté client. */
-let NOVABOT_CHAT = { conversationId:null, messages:[], mandateDraft:{}, sending:false, readyToConfirm:false, loadingThread:false, streamingText:null, controller:null, revealTimer:null };
+let NOVABOT_CHAT = { conversationId:null, messages:[], mandateDraft:{}, sending:false, readyToConfirm:false, loadingThread:false, streamingText:null, controller:null, revealTimer:null, editingIndex:null };
 
 /* ---------- données réelles transmises à Nova Core (inchangé) ---------- */
 function novabotDecisionsPertinentes(texte){
@@ -140,7 +140,10 @@ async function novabotConversationOuvrir(id){
     if (r.ok){
       const full = await r.json();
       NOVABOT_CHAT.conversationId = full.id;
-      NOVABOT_CHAT.messages = full.messages.map(m => ({ role:m.role, content:m.content }));
+      /* id conservé par message (V6 §5 : édition/régénération/reprise ont
+         besoin de cibler un message PRÉCIS côté serveur, voir
+         action=truncate_from, api/me.js) — jamais perdu au chargement. */
+      NOVABOT_CHAT.messages = full.messages.map(m => ({ role:m.role, content:m.content, id:m.id }));
       const dernierAvecDraft = [...full.messages].reverse().find(m => m.metadata?.mandateDraftSnapshot);
       NOVABOT_CHAT.mandateDraft = dernierAvecDraft?.metadata?.mandateDraftSnapshot || {};
       NOVABOT_CHAT.readyToConfirm = false;
@@ -157,7 +160,7 @@ async function novabotConversationNouvelle(){
   NOVABOT_UI.sidebarOpen = false;
   if (NOVABOT_CHAT.controller){ try { NOVABOT_CHAT.controller.abort(); } catch (e){} }
   if (NOVABOT_CHAT.revealTimer) clearTimeout(NOVABOT_CHAT.revealTimer);
-  NOVABOT_CHAT = { conversationId:null, messages:[], mandateDraft:{}, sending:false, readyToConfirm:false, loadingThread:false, streamingText:null, controller:null, revealTimer:null };
+  NOVABOT_CHAT = { conversationId:null, messages:[], mandateDraft:{}, sending:false, readyToConfirm:false, loadingThread:false, streamingText:null, controller:null, revealTimer:null, editingIndex:null };
   const accueil = novabotAccueilTexte();
   NOVABOT_CHAT.messages.push({ role:'assistant', content:accueil });
   render();
@@ -309,6 +312,64 @@ function novabotChatArreter(){
   render();
 }
 
+/* Portion commune à l'envoi normal ET à "Régénérer" (V6 §5) : appelle le
+   modèle sur l'état ACTUEL de NOVABOT_CHAT.messages, ajoute la réponse,
+   la révèle progressivement, la persiste côté serveur. N'ajoute JAMAIS le
+   message utilisateur lui-même — fait par l'appelant, qui sait s'il doit
+   en créer un nouveau (envoi normal) ou réutiliser l'existant (régénérer). */
+async function novabotAppelerModeleEtRepondre(dernierMessageUtilisateur){
+  const convId = NOVABOT_CHAT.conversationId;
+  const controller = new AbortController();
+  NOVABOT_CHAT.controller = controller;
+  try {
+    const r = await authFetch('/api/analyze', { method:'POST', signal: controller.signal, body: JSON.stringify({
+      mode:'novabot-chat',
+      messages: NOVABOT_CHAT.messages,
+      mandateConfirmed: state.novabot.mandateConfirmed,
+      ...novabotChatContexte(dernierMessageUtilisateur),
+    })});
+    if (!r.ok){
+      const err = await r.json().catch(() => ({}));
+      const msg = err.error === 'quota_exceeded'
+        ? "J'ai atteint le quota d'analyses IA de ce mois-ci pour notre conversation — réessaie le mois prochain, ou passe à une offre supérieure."
+        : "Je n'ai pas pu répondre à l'instant (problème de connexion au modèle).";
+      NOVABOT_CHAT.messages.push({ role:'assistant', content:msg, error:true });
+      NOVABOT_CHAT.controller = null; NOVABOT_CHAT.sending = false; render(); return;
+    }
+    const d = await r.json();
+    NOVABOT_CHAT.controller = null;
+    NOVABOT_CHAT.sending = false;
+    const msgObj = { role:'assistant', content:d.reply };
+    NOVABOT_CHAT.messages.push(msgObj);
+    render();
+    novabotRevelerProgressivement(d.reply);
+    if (d.mandateDraft){
+      NOVABOT_CHAT.mandateDraft = { ...NOVABOT_CHAT.mandateDraft, ...d.mandateDraft };
+    }
+    NOVABOT_CHAT.readyToConfirm = Boolean(d.readyToConfirm);
+    /* id serveur du message capturé une fois la réponse arrivée (V6 §5 :
+       nécessaire pour pouvoir le cibler ensuite via "Régénérer"/
+       "Reprendre ici"/truncate_from — voir api/me.js). */
+    authFetch(`/api/me?resource=conversations&id=${encodeURIComponent(convId)}&action=message`,
+      { method:'POST', body: JSON.stringify({ role:'assistant', content:d.reply,
+        metadata: { provider:d.provider, model:d.model, mandateDraftSnapshot: NOVABOT_CHAT.mandateDraft } }) })
+      .then(r2 => r2.ok ? r2.json() : null).then(saved => { if (saved?.id) msgObj.id = saved.id; }).catch(() => {});
+    return;
+  } catch (e){
+    NOVABOT_CHAT.controller = null;
+    /* Interruption volontaire (bouton Stop) : jamais un message d'erreur,
+       juste une note neutre — l'utilisateur a demandé l'arrêt. */
+    if (e && e.name === 'AbortError'){
+      NOVABOT_CHAT.messages.push({ role:'assistant', content:'Réponse interrompue.' });
+      NOVABOT_CHAT.sending = false; render(); return;
+    }
+    console.warn('[novabot-chat] envoi impossible :', e);
+    NOVABOT_CHAT.messages.push({ role:'assistant', content:"Je n'ai pas pu répondre à l'instant.", error:true });
+  }
+  NOVABOT_CHAT.sending = false;
+  render();
+}
+
 async function novabotChatEnvoyer(texte){
   const contenu = (texte || '').trim().slice(0, 2000);
   if (!contenu || NOVABOT_CHAT.sending) return;
@@ -325,58 +386,127 @@ async function novabotChatEnvoyer(texte){
   }
   const estPremierMessageUtilisateur = !NOVABOT_CHAT.messages.some(m => m.role === 'user');
   NOVABOT_CHAT.sending = true;
-  NOVABOT_CHAT.messages.push({ role:'user', content:contenu });
+  const msgObj = { role:'user', content:contenu };
+  NOVABOT_CHAT.messages.push(msgObj);
   render();
 
   const convId = NOVABOT_CHAT.conversationId;
   authFetch(`/api/me?resource=conversations&id=${encodeURIComponent(convId)}&action=message`,
-    { method:'POST', body: JSON.stringify({ role:'user', content:contenu }) }).catch(() => {});
+    { method:'POST', body: JSON.stringify({ role:'user', content:contenu }) })
+    .then(r => r.ok ? r.json() : null).then(saved => { if (saved?.id) msgObj.id = saved.id; }).catch(() => {});
   if (estPremierMessageUtilisateur) novabotAutoTitrer(convId, contenu);
 
-  const controller = new AbortController();
-  NOVABOT_CHAT.controller = controller;
-  try {
-    const r = await authFetch('/api/analyze', { method:'POST', signal: controller.signal, body: JSON.stringify({
-      mode:'novabot-chat',
-      messages: NOVABOT_CHAT.messages,
-      mandateConfirmed: state.novabot.mandateConfirmed,
-      ...novabotChatContexte(contenu),
-    })});
-    if (!r.ok){
-      const err = await r.json().catch(() => ({}));
-      const msg = err.error === 'quota_exceeded'
-        ? "J'ai atteint le quota d'analyses IA de ce mois-ci pour notre conversation — réessaie le mois prochain, ou passe à une offre supérieure."
-        : "Je n'ai pas pu répondre à l'instant (problème de connexion au modèle).";
-      NOVABOT_CHAT.messages.push({ role:'assistant', content:msg, error:true });
-      NOVABOT_CHAT.controller = null; NOVABOT_CHAT.sending = false; render(); return;
-    }
-    const d = await r.json();
-    NOVABOT_CHAT.controller = null;
-    NOVABOT_CHAT.sending = false;
-    NOVABOT_CHAT.messages.push({ role:'assistant', content:d.reply });
-    render();
-    novabotRevelerProgressivement(d.reply);
-    if (d.mandateDraft){
-      NOVABOT_CHAT.mandateDraft = { ...NOVABOT_CHAT.mandateDraft, ...d.mandateDraft };
-    }
-    NOVABOT_CHAT.readyToConfirm = Boolean(d.readyToConfirm);
-    authFetch(`/api/me?resource=conversations&id=${encodeURIComponent(convId)}&action=message`,
-      { method:'POST', body: JSON.stringify({ role:'assistant', content:d.reply,
-        metadata: { provider:d.provider, model:d.model, mandateDraftSnapshot: NOVABOT_CHAT.mandateDraft } }) }).catch(() => {});
-    return;
-  } catch (e){
-    NOVABOT_CHAT.controller = null;
-    /* Interruption volontaire (bouton Stop) : jamais un message d'erreur,
-       juste une note neutre — l'utilisateur a demandé l'arrêt. */
-    if (e && e.name === 'AbortError'){
-      NOVABOT_CHAT.messages.push({ role:'assistant', content:'Réponse interrompue.' });
-      NOVABOT_CHAT.sending = false; render(); return;
-    }
-    console.warn('[novabot-chat] envoi impossible :', e);
-    NOVABOT_CHAT.messages.push({ role:'assistant', content:"Je n'ai pas pu répondre à l'instant.", error:true });
-  }
-  NOVABOT_CHAT.sending = false;
+  await novabotAppelerModeleEtRepondre(contenu);
+}
+function novabotChatSoumetre(){
+  const input = document.getElementById('novabotChatInput');
+  if (!input || !input.value.trim() || NOVABOT_CHAT.sending) return;
+  const texte = input.value;
+  input.value = '';
+  input.style.height = 'auto';
+  novabotChatEnvoyer(texte);
+}
+
+/* ---------- actions sur un message (V6 §5) ---------- */
+function novabotMessageCopier(index){
+  const m = NOVABOT_CHAT.messages[index];
+  if (!m) return;
+  const faireSecours = () => {
+    const ta = document.createElement('textarea');
+    ta.value = m.content; ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select();
+    try { document.execCommand('copy'); } catch (e){}
+    ta.remove();
+    toast('Copié');
+  };
+  if (navigator.clipboard?.writeText){
+    navigator.clipboard.writeText(m.content).then(() => toast('Copié')).catch(faireSecours);
+  } else faireSecours();
+}
+
+/* Avis positif/négatif (V6 §5) — bascule locale, jamais encore persistée
+   côté serveur (pas de colonne dédiée sur nova_messages à ce stade) :
+   survit à la session en cours mais pas à une actualisation complète de
+   la page. Limitation assumée et à faire évoluer si un vrai suivi de
+   satisfaction est demandé — un clic réagit réellement, jamais décoratif. */
+function novabotMessageFeedback(index, valeur){
+  const m = NOVABOT_CHAT.messages[index];
+  if (!m || m.role !== 'assistant') return;
+  m.feedback = m.feedback === valeur ? null : valeur;
   render();
+}
+
+/* Régénérer (Nova uniquement, dernier message du fil) : supprime la
+   réponse côté serveur (truncate_from, inclusif) ET localement, puis
+   relance l'appel modèle sur l'historique qui s'arrête maintenant au
+   dernier message utilisateur — EXACTEMENT comme si cette réponse
+   n'avait jamais existé. */
+async function novabotMessageRegenerer(index){
+  const m = NOVABOT_CHAT.messages[index];
+  if (!m || m.role !== 'assistant' || index !== NOVABOT_CHAT.messages.length - 1 || NOVABOT_CHAT.sending) return;
+  const dernierUtilisateur = [...NOVABOT_CHAT.messages.slice(0, index)].reverse().find(x => x.role === 'user');
+  NOVABOT_CHAT.messages.splice(index, 1);
+  NOVABOT_CHAT.sending = true;
+  render();
+  if (m.id){
+    try {
+      await authFetch(`/api/me?resource=conversations&id=${encodeURIComponent(NOVABOT_CHAT.conversationId)}&action=truncate_from`,
+        { method:'POST', body: JSON.stringify({ fromMessageId: m.id }) });
+    } catch (e){ console.warn('[novabot-chat] troncature (régénérer) impossible :', e); }
+  }
+  await novabotAppelerModeleEtRepondre(dernierUtilisateur?.content || '');
+}
+
+/* Reprendre la conversation à partir de ce message (V6 §5) : garde tout
+   jusqu'à `index` INCLUS, supprime le reste (serveur ET local) — jamais
+   un simple masquage visuel, sinon le fil "ressusciterait" au prochain
+   chargement (novabotConversationOuvrir relit toujours le serveur). */
+async function novabotMessageReprendreIci(index){
+  const suivant = NOVABOT_CHAT.messages[index + 1];
+  NOVABOT_CHAT.messages = NOVABOT_CHAT.messages.slice(0, index + 1);
+  render();
+  toast('Conversation reprise à partir de ce message');
+  if (suivant?.id){
+    try {
+      await authFetch(`/api/me?resource=conversations&id=${encodeURIComponent(NOVABOT_CHAT.conversationId)}&action=truncate_from`,
+        { method:'POST', body: JSON.stringify({ fromMessageId: suivant.id }) });
+    } catch (e){ console.warn('[novabot-chat] troncature (reprendre) impossible :', e); }
+  }
+}
+
+/* Modifier un message utilisateur (V6 §5) : ouvre un champ éditable sur
+   CE message — ne remplace rien tant que l'utilisateur n'a pas confirmé. */
+function novabotMessageModifierOuvrir(index){
+  const m = NOVABOT_CHAT.messages[index];
+  if (!m || m.role !== 'user') return;
+  NOVABOT_CHAT.editingIndex = index;
+  render();
+}
+function novabotMessageModifierAnnuler(){
+  NOVABOT_CHAT.editingIndex = null;
+  render();
+}
+/* Valide l'édition : supprime ce message et tout ce qui suit (serveur ET
+   local — même primitive truncate_from que "Régénérer"/"Reprendre ici"),
+   puis renvoie le texte édité comme un nouveau message normal. Simplifi-
+   cation assumée (pas de vraies branches multiples façon ChatGPT : la
+   version précédente n'est pas conservée à côté, seulement remplacée) —
+   à faire évoluer si le besoin de comparer plusieurs versions se confirme. */
+async function novabotMessageModifierValider(index){
+  const champ = document.getElementById('novabotEditInput' + index);
+  const nouveauTexte = (champ?.value || '').trim().slice(0, 2000);
+  if (!nouveauTexte) return;
+  const m = NOVABOT_CHAT.messages[index];
+  NOVABOT_CHAT.editingIndex = null;
+  NOVABOT_CHAT.messages = NOVABOT_CHAT.messages.slice(0, index);
+  render();
+  if (m?.id){
+    try {
+      await authFetch(`/api/me?resource=conversations&id=${encodeURIComponent(NOVABOT_CHAT.conversationId)}&action=truncate_from`,
+        { method:'POST', body: JSON.stringify({ fromMessageId: m.id }) });
+    } catch (e){ console.warn('[novabot-chat] troncature (modifier) impossible :', e); }
+  }
+  await novabotChatEnvoyer(nouveauTexte);
 }
 function novabotChatSoumetre(){
   const input = document.getElementById('novabotChatInput');

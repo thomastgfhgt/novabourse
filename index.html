@@ -1130,6 +1130,35 @@ document.addEventListener('click', e => {
     novabotChatEnvoyer(q('[data-novabot-suggestion]').dataset.novabotSuggestion);
     return;
   }
+  if (q('[data-novabot-msg-copy]')){
+    novabotMessageCopier(+q('[data-novabot-msg-copy]').dataset.novabotMsgCopy);
+    return;
+  }
+  if (q('[data-novabot-msg-regen]')){
+    novabotMessageRegenerer(+q('[data-novabot-msg-regen]').dataset.novabotMsgRegen);
+    return;
+  }
+  if (q('[data-novabot-msg-resume]')){
+    novabotMessageReprendreIci(+q('[data-novabot-msg-resume]').dataset.novabotMsgResume);
+    return;
+  }
+  if (q('[data-novabot-msg-feedback]')){
+    const b = q('[data-novabot-msg-feedback]');
+    novabotMessageFeedback(+b.dataset.novabotMsgFeedback, b.dataset.val);
+    return;
+  }
+  if (q('[data-novabot-msg-edit]')){
+    novabotMessageModifierOuvrir(+q('[data-novabot-msg-edit]').dataset.novabotMsgEdit);
+    return;
+  }
+  if (q('[data-novabot-msg-edit-cancel]')){
+    novabotMessageModifierAnnuler();
+    return;
+  }
+  if (q('[data-novabot-msg-edit-save]')){
+    novabotMessageModifierValider(+q('[data-novabot-msg-edit-save]').dataset.novabotMsgEditSave);
+    return;
+  }
   if (q('[data-novabot-ask]')){
     closeSheet();
     novabotPoserQuestion(q('[data-novabot-ask]').dataset.novabotAsk);

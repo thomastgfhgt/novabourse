@@ -1623,6 +1623,65 @@ a.row{color:inherit;text-decoration:none}
    pour l'occasion. Préfixe .nb- déjà en usage ailleurs (.nb-pf2,
    .nb-hero-v2, accueil) : même convention de nommage, pas un nouveau
    système. */
+/* ============================================================
+   NOVABOT V6 — IDENTITÉ VISUELLE PROPRE (maquettes validées, 2026-10-12)
+   ============================================================
+   Retour utilisateur explicite : "l'interface ressemble encore à un
+   prototype [...] je veux un niveau de finition comparable à ChatGPT,
+   Claude [...] Conserve l'identité NovaTitre : fond bleu nuit profond,
+   violet comme accent de marque." Le reste du site est actuellement en
+   noir/blanc pur (--bg/--ink globaux, voir plus haut dans ce fichier,
+   retour utilisateur du 2026-10-02) — NovaBot reste volontairement une
+   SURFACE À PART, comme ChatGPT/Claude ont leur propre environnement,
+   jamais un retour en arrière sur le choix noir/blanc du reste du site.
+   Portée : UNIQUEMENT .nb-page et ses descendants (CSS en cascade,
+   jamais de fuite vers le reste de l'app — vérifié : aucune règle
+   ci-dessous ni plus bas ne touche :root). La plupart des composants
+   .nb-* existants consomment déjà --bg-2/-3/-4, --ink/-2/-3/-4, --accent,
+   --line — les redéfinir ICI suffit à les faire basculer sans toucher
+   leurs propres règles une par une. #805DFF = violet de marque NovaBot
+   déjà utilisé ailleurs (NOVA_FEATURES.novabot.accent, js/ui-primitives.js)
+   — jamais une nouvelle couleur inventée pour l'occasion. */
+.nb-page{
+  --bg:#0A0D1C; --bg-2:#11152A; --bg-3:#1A1F3D; --bg-4:#232A4D;
+  --ink:#F1F0F7; --ink-2:#F1F0F7; --ink-3:#A6A8C4; --ink-4:#6E7196;
+  --line:rgba(255,255,255,.08); --line-2:rgba(255,255,255,.05);
+  --accent:#805DFF; --accent-hover:#9478FF; --accent-press:#6B46F0;
+  --accent-soft:rgba(128,93,255,.16); --accent-ink:#ffffff;
+  background:var(--bg); color:var(--ink); border-radius:var(--r-l);
+  padding:0; min-height:0;
+}
+/* La page NovaBot est posée SUR le fond blanc global (body garde son
+   propre fond) : un padding/radius assure qu'elle se présente comme une
+   vraie surface distincte plutôt qu'un rectangle collé au bord. */
+@media (min-width:681px){ .nb-page{ padding:20px 22px 26px } }
+@media (max-width:680px){ .nb-page{ margin:0 -16px; border-radius:0 } }
+
+/* --- en-tête compact (remplace Retour pleine largeur + eyebrow + h1 +
+   gros onglets, dénoncé explicitement : "le bouton Retour ne doit plus
+   être une énorme barre qui traverse toute la largeur de l'écran"). Une
+   seule ligne discrète + une pastille de segment centrée, léger. */
+.nb-topbar{display:flex;flex-direction:column;gap:10px;padding:12px 4px 14px;
+  border-bottom:1px solid var(--line-2);margin-bottom:14px}
+.nb-topbar-row{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.nb-icon-btn{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;
+  justify-content:center;background:none;border:none;color:var(--ink-3);flex:0 0 auto;
+  transition:background-color .15s ease,color .15s ease}
+.nb-icon-btn:hover{background:var(--bg-3);color:var(--ink)}
+.nb-icon-btn svg{width:16px;height:16px}
+.nb-brand-mark{display:flex;align-items:center;gap:8px;min-width:0}
+.nb-rook{width:22px;height:22px;border-radius:7px;flex:0 0 auto;
+  background:linear-gradient(145deg,var(--accent),#5B3FD9);display:flex;align-items:center;
+  justify-content:center;box-shadow:0 0 0 1px rgba(255,255,255,.12),0 4px 10px -2px rgba(128,93,255,.5)}
+.nb-rook svg{width:12px;height:12px;color:#fff}
+.nb-brand-mark b{font-size:14.5px;font-weight:750;letter-spacing:-.01em;white-space:nowrap;
+  overflow:hidden;text-overflow:ellipsis}
+.nb-seg-pill{align-self:center;display:flex;background:var(--bg-2);border:1px solid var(--line);
+  border-radius:999px;padding:3px;width:fit-content}
+.nb-seg-pill button{appearance:none;border:none;background:none;color:var(--ink-3);
+  font-size:12.3px;font-weight:650;padding:7px 16px;border-radius:999px;transition:.15s ease}
+.nb-seg-pill button[aria-pressed="true"]{background:var(--accent);color:#fff}
+
 /* --- onglets Conversations/Portefeuille : .seg déjà existant (période du
    portefeuille personnel, etc.), réutilisé tel quel, juste espacé ici. */
 .nb-tabs{margin-top:18px}
@@ -1698,17 +1757,53 @@ a.row{color:inherit;text-decoration:none}
 .nb-msg-user{align-self:flex-end;max-width:78%;background:var(--accent-soft);color:var(--ink)}
 .nb-msg-bot{background:none;border:none;color:var(--ink);padding:0}
 .nb-msg-bot.nb-msg-error{border:1px solid var(--down);border-radius:var(--r-m);padding:11px 15px}
+
+/* --- actions sur un message (V6 §5) : révélées au survol sur ordinateur
+   (évite d'alourdir visuellement un fil de conversation calme), toujours
+   visibles sur mobile où le survol n'existe pas. */
+.nb-msg-user-wrap{display:flex;flex-direction:column}
+.nb-msg-actions{display:flex;gap:4px;margin-top:6px;opacity:0;transition:opacity .15s ease}
+.nb-msg-actions.nb-msg-actions-user{justify-content:flex-end}
+.nb-msg-user-wrap:hover .nb-msg-actions,.nb-msg-row:hover .nb-msg-actions,
+.nb-msg-actions:focus-within{opacity:1}
+@media (max-width:680px){ .nb-msg-actions{opacity:1} }
+.nb-msg-actions button{display:flex;align-items:center;gap:5px;background:var(--bg-2);
+  border:1px solid var(--line);color:var(--ink-4);font-size:11px;font-weight:600;
+  padding:5px 9px;border-radius:8px;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.nb-msg-actions button:hover{color:var(--ink);border-color:var(--accent)}
+.nb-msg-actions button.on{color:var(--accent-hover);border-color:var(--accent)}
+.nb-msg-actions svg{width:11px;height:11px}
+
+.nb-msg-edit-wrap{display:flex;flex-direction:column;align-items:flex-end;gap:6px}
+.nb-edit-box{background:var(--bg-2);border:1.5px solid var(--accent);border-radius:16px;
+  padding:11px 14px;font-size:14.5px;color:var(--ink);max-width:82%;width:100%;line-height:1.5}
+.nb-edit-box textarea{width:100%;background:none;border:none;color:var(--ink);font:inherit;
+  font-size:inherit;line-height:inherit;resize:vertical;min-height:44px;outline:none;padding:0}
+.nb-edit-btns{display:flex;gap:7px;margin-top:9px;justify-content:flex-end}
+.nb-edit-btns button{font-size:11.5px;font-weight:650;padding:7px 13px;border-radius:9px;
+  border:none;cursor:pointer}
+.nb-edit-btns .cancel{background:var(--bg-3);color:var(--ink-3)}
+.nb-edit-btns .save{background:var(--accent);color:#fff}
+.nb-edit-note{font-size:11px;color:var(--ink-4);align-self:flex-end;max-width:82%;margin:0}
 /* "Nova réfléchit…" (§2/§10) : pastille discrète, jamais le texte brut
    "Chargement…" déjà jugé trop générique ailleurs dans l'app. */
-.nb-typing-row{display:flex;align-items:center;gap:4px;padding:9px 14px;border:1px solid var(--line);
-  border-radius:999px;align-self:flex-start}
-.nb-typing-row i{width:6px;height:6px;border-radius:50%;background:var(--ink-4);display:inline-block;
-  animation:nbTypingDot 1.1s ease-in-out infinite}
+.nb-typing-row{display:flex;align-items:center;gap:4px;padding:9px 14px;background:var(--bg-2);
+  border-radius:14px;align-self:flex-start;position:relative}
+.nb-typing-row i{width:6px;height:6px;border-radius:50%;background:var(--accent-hover);display:inline-block;
+  animation:nbTypingDot 1.1s ease-in-out infinite;transform:translateY(0)}
 .nb-typing-row i:nth-child(2){animation-delay:.15s}
 .nb-typing-row i:nth-child(3){animation-delay:.3s}
-.nb-typing-row b{font-size:13px;color:var(--ink-3);font-style:italic;font-weight:500;margin-left:4px}
-@keyframes nbTypingDot{0%,60%,100%{opacity:.3}30%{opacity:1}}
+.nb-typing-row b{font-size:12.3px;color:var(--ink-4);font-style:normal;font-weight:500;margin-left:5px}
+@keyframes nbTypingDot{0%,60%,100%{opacity:.35;transform:translateY(0)}30%{opacity:1;transform:translateY(-3px)}}
 @media (prefers-reduced-motion:reduce){ .nb-typing-row i{animation:none} }
+/* Lueur violette très subtile sur l'avatar pendant que Nova réfléchit —
+   jamais un faux raisonnement affiché, uniquement un signal d'activité. */
+.nb-msg-row:has(+ .nb-msg-row .nb-typing-row) .nb-avatar,
+.nb-msg-row:has(.nb-typing-row) .nb-avatar{position:relative}
+.nb-msg-row:has(.nb-typing-row) .nb-avatar::after{content:'';position:absolute;inset:-4px;
+  border-radius:50%;border:1.5px solid var(--accent);opacity:0;animation:nbPulse 1.8s ease-out infinite}
+@keyframes nbPulse{0%{opacity:.5;transform:scale(1)}100%{opacity:0;transform:scale(1.7)}}
+@media (prefers-reduced-motion:reduce){ .nb-msg-row:has(.nb-typing-row) .nb-avatar::after{animation:none} }
 .nb-suggestions{display:flex;flex-wrap:wrap;gap:8px;margin-top:2px}
 .nb-suggestion-chip{padding:9px 14px;border-radius:100px;background:var(--bg-3);border:1px solid var(--line);
   font-size:13px;font-weight:550;color:var(--ink-2);cursor:pointer;-webkit-tap-highlight-color:transparent}
@@ -1717,13 +1812,20 @@ a.row{color:inherit;text-decoration:none}
    fixe) + bouton d'envoi circulaire ; .nb-stop-btn réutilise la même
    base que .nb-send-btn, jamais une nouvelle couleur, juste permutée
    avec le bouton d'envoi tant qu'une génération est en cours. */
-.nb-chat-input{display:flex;gap:10px;margin-top:10px;align-items:flex-end}
+/* Une seule barre arrondie au fond légèrement contrasté (§2 : "barre de
+   composition premium"), pas deux éléments arrondis côte à côte — le
+   textarea devient transparent/sans bordure, SEUL le conteneur porte le
+   fond+la bordure+le rayon. */
+.nb-chat-input{display:flex;gap:8px;align-items:flex-end;margin-top:10px;
+  background:var(--bg-2);border:1px solid var(--line);border-radius:22px;padding:7px 7px 7px 16px}
 .nb-chat-input textarea{flex:1;min-width:0;resize:none;max-height:120px;min-height:22px;
-  background:var(--bg-2);border:1px solid var(--line);border-radius:22px;padding:11px 16px;
+  background:none;border:none;padding:7px 0;
   font:inherit;font-size:14.5px;line-height:1.4;color:var(--ink);font-family:inherit}
-.nb-send-btn{flex:0 0 auto;width:40px;height:40px;border-radius:50%;background:var(--accent);
+.nb-chat-input textarea:focus{outline:none}
+.nb-send-btn{flex:0 0 auto;width:36px;height:36px;border-radius:50%;background:var(--accent);
   border:none;color:var(--accent-ink);display:flex;align-items:center;justify-content:center;
-  cursor:pointer;-webkit-tap-highlight-color:transparent}
+  cursor:pointer;-webkit-tap-highlight-color:transparent;transition:background-color .15s ease}
+.nb-send-btn:hover{background:var(--accent-hover)}
 .nb-send-btn svg{width:16px;height:16px}
 .nb-send-btn[disabled]{opacity:.4;cursor:default}
 .nb-send-btn.nb-stop-btn{background:var(--bg-3);color:var(--ink);border:1px solid var(--line)}

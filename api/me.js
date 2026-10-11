@@ -1092,6 +1092,41 @@ async function handleNovaConversations(req, res, user) {
     }
   }
 
+  /* ---------- tronquer à partir d'un message (V6 §5 : "modifier un
+     message", "reprendre la conversation à partir de ce message")
+     ---------- supprime le message fromMessageId ET tous les messages
+     plus récents dans la MÊME conversation, inclusivement. Primitive
+     UNIQUE réutilisée pour les deux usages côté client :
+       - "reprendre depuis ce message" : fromMessageId = message SUIVANT
+         celui qu'on garde (tout après reste, celui-ci et la suite partent) ;
+       - "modifier ce message" : fromMessageId = le message édité lui-même
+         (il part avec tout ce qui suit, remplacé par la version éditée).
+     Sans ceci, une modification locale seule aurait réapparu au prochain
+     chargement de la conversation (novabotConversationOuvrir() relit
+     toujours l'historique complet depuis le serveur). */
+  if (id && body.action === 'truncate_from') {
+    const fromMessageId = typeof body.fromMessageId === 'string' ? body.fromMessageId : null;
+    if (!fromMessageId) return res.status(400).json({ error: 'fromMessageId_requis' });
+    try {
+      const convRows = await sb(
+        `nova_conversations?id=eq.${encodeURIComponent(id)}&user_id=eq.${encodeURIComponent(user.id)}&select=id`
+      );
+      if (!convRows.length) return res.status(404).json({ error: 'conversation_introuvable' });
+      const refRows = await sb(
+        `nova_messages?id=eq.${encodeURIComponent(fromMessageId)}&conversation_id=eq.${encodeURIComponent(id)}&select=created_at`
+      );
+      if (!refRows.length) return res.status(404).json({ error: 'message_introuvable' });
+      await sb(
+        `nova_messages?conversation_id=eq.${encodeURIComponent(id)}&created_at=gte.${encodeURIComponent(refRows[0].created_at)}`,
+        { method: 'DELETE', headers: { Prefer: 'return=minimal' } }
+      );
+      return res.status(200).json({ truncated: true });
+    } catch (e) {
+      console.error('[me] troncature conversation :', e.message);
+      return res.status(503).json({ error: 'ecriture_impossible' });
+    }
+  }
+
   /* ---------- ajout d'un message à une conversation existante ---------- */
   if (id && body.action === 'message') {
     const role = CONV_ROLES.includes(body.role) ? body.role : null;
