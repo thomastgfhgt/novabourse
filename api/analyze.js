@@ -5,7 +5,8 @@
  * texte. Aucun chiffre produit par lui n'est conservé.
  */
 const { userFromToken, sb } = require('./me.js');
-const { PLAN_LIMITS, planReel, limiteDe, consommation, reserver, cloturer, quotaBlock } = require('./_limits.js');
+const { PLAN_LIMITS, planReel, limiteDe, consommation, reserver, cloturer, quotaBlock,
+  limiteChatDe, reserverChat, cloturerChat, quotaChatBlock } = require('./_limits.js');
 const { novascore } = require('./market/_novascore.js');
 
 /* Ordre de priorité : xAI d'abord, c'est la couche qu'on valide en premier.
@@ -653,23 +654,28 @@ async function novabotChatAnalyse(req, res, { user, plan, dispo }){
   const transcript = messages.map(m => `${m.role === 'user' ? 'Utilisateur' : 'Nova'} : ${m.content}`).join('\n');
   const prompt = `${CONSIGNE_NOVABOT_CHAT}\n\nDonnées disponibles :\n${JSON.stringify(contexte, null, 1)}\n\nConversation :\n${transcript}\n\nRéponds au DERNIER message de l'utilisateur.`;
 
-  const resa = await reserver(sb, user.id, plan);
+  /* CORRECTIF (V6 §8, bug réel rapporté : "Coucou" consommait une des 5
+     analyses mensuelles du plan Découverte) : un message de conversation
+     n'est pas une analyse NovaScore — il a son PROPRE quota, bien plus
+     généreux, totalement indépendant (voir reserverChat()/_limits.js et
+     sql/2026-10-12_nova_chat_quota.sql). Ne touche jamais `ai_usage`. */
+  const resa = await reserverChat(sb, user.id, plan);
   if (!resa.ok){
     if (resa.reason === 'quota_exceeded'){
-      const q = quotaBlock(plan, resa.used ?? limiteDe(plan));
+      const q = quotaChatBlock(plan, resa.used ?? limiteChatDe(plan));
       return res.status(429).json({ error:'quota_exceeded',
-        message:`Vous avez utilisé vos ${limiteDe(plan)} analyses incluses ce mois-ci.`, ...q });
+        message:`Vous avez utilisé vos ${limiteChatDe(plan)} messages NovaBot inclus ce mois-ci.`, ...q });
     }
     if (resa.reason === 'rate_limited'){
       return res.status(429).json({ error:'rate_limited',
-        message:"Trop de requêtes lancées en peu de temps. Réessayez dans quelques minutes.", plan });
+        message:"Trop de messages envoyés en peu de temps. Réessayez dans quelques minutes.", plan });
     }
     return res.status(503).json({ error:'quota_indisponible',
-      message:"Le compteur d'analyses est momentanément indisponible. Réessayez." });
+      message:"Le compteur de messages est momentanément indisponible. Réessayez." });
   }
   const reservation = resa.reservationId;
   const utilise = resa.used;
-  const annuler = statut => cloturer(sb, reservation, statut || 'cancelled');
+  const annuler = statut => cloturerChat(sb, reservation, statut || 'cancelled');
 
   let id, modele, parsed, usage;
   try {
@@ -698,11 +704,15 @@ async function novabotChatAnalyse(req, res, { user, plan, dispo }){
   const { assainirTexte } = construireAssainisseur(contexte);
   parsed.reply = assainirTexte(parsed.reply);
 
-  await cloturer(sb, reservation, 'ok', { provider:id, model:modele,
-    tokens_in: usage?.prompt_tokens ?? null, tokens_out: usage?.completion_tokens ?? null });
+  /* cloturerChat() (nova_chat_usage), pas cloturer() (ai_usage) — table
+     plus simple, sans colonnes tokens_in/tokens_out (voir sql/2026-10-12_
+     nova_chat_quota.sql) : un PATCH avec ces champs échouerait (colonne
+     inexistante). usage/coûts du chat restent dans les logs serveur
+     uniquement pour l'instant, pas encore une colonne dédiée. */
+  await cloturerChat(sb, reservation, 'ok', { provider:id, model:modele });
 
   res.setHeader('Cache-Control', 'no-store');
-  return res.status(200).json({ ...parsed, provider: id, model: modele, quota: quotaBlock(plan, utilise) });
+  return res.status(200).json({ ...parsed, provider: id, model: modele, quota: quotaChatBlock(plan, utilise) });
 }
 
 module.exports = async (req, res) => {

@@ -41,6 +41,31 @@ const DEBIT_HORAIRE = {
   elite: 120,
 };
 
+/* ============================================================
+   QUOTA SÉPARÉ — MESSAGES DE CONVERSATION NOVABOT (V6 §8)
+   ============================================================
+   Bug diagnostiqué en production : un simple "Coucou" dans NovaBot
+   consommait une des `analyses` ci-dessus (5/mois sur le plan free) —
+   le même coût qu'une analyse NovaScore complète. Un message de
+   conversation (novabotChatAnalyse(), api/analyze.js) coûte structurellement
+   moins cher (maxTokens:500, pas de récupération de dossier complet) et
+   n'a rien d'une "analyse" au sens produit — il a donc son PROPRE
+   compteur (table nova_chat_usage, fonction reserve_chat_message(), voir
+   sql/2026-10-12_nova_chat_quota.sql), jamais mélangé à `ai_usage`.
+   Limites volontairement généreuses : bavarder avec Nova ne doit jamais
+   épuiser le budget d'analyses réelles d'un utilisateur, ni l'inverse. */
+const CHAT_LIMITS = {
+  free: 50,
+  pro: 1000,
+  elite: Infinity,
+};
+const CHAT_DEBIT_HORAIRE = {
+  free: 20,
+  pro: 80,
+  elite: 240,
+};
+const limiteChatDe = plan => CHAT_LIMITS[plan] ?? CHAT_LIMITS.free;
+
 const ACTIFS = [
   'active',
   'trialing',
@@ -317,6 +342,43 @@ async function reserver(sb, userId, plan) {
 }
 
 /* =========================================================
+   RÉSERVATION ATOMIQUE — CHAT (V6 §8, voir plus haut)
+   ========================================================= */
+
+async function reserverChat(sb, userId, plan) {
+  const { debut, fin } = periode();
+  const limite = limiteChatDe(plan);
+
+  try {
+    const r = await sb(
+      'rpc/reserve_chat_message',
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          p_user: userId,
+          p_limit: Number.isFinite(limite) ? limite : null,
+          p_period_start: debut.toISOString(),
+          p_period_end: fin.toISOString(),
+          p_hourly_limit: CHAT_DEBIT_HORAIRE[plan] || CHAT_DEBIT_HORAIRE.free,
+          p_provider: 'pending',
+          p_model: 'pending',
+        }),
+      }
+    );
+
+    const out = Array.isArray(r) ? r[0] : r;
+    if (!out) return { ok: false, reason: 'reservation_indisponible' };
+
+    if (!out.granted) {
+      return { ok: false, reason: out.reason || 'quota_exceeded', used: out.used ?? null };
+    }
+    return { ok: true, used: out.used, reservationId: out.id };
+  } catch (e) {
+    return { ok: false, reason: 'reservation_indisponible', detail: e.message };
+  }
+}
+
+/* =========================================================
    CLÔTURE
    ========================================================= */
 
@@ -345,6 +407,32 @@ async function cloturer(
       }),
     }
   ).catch(() => {});
+}
+
+async function cloturerChat(sb, id, statut, extra = {}) {
+  if (!id) return;
+  await sb(
+    `nova_chat_usage?id=eq.${encodeURIComponent(id)}`,
+    {
+      method: 'PATCH',
+      headers: { Prefer: 'return=minimal' },
+      body: JSON.stringify({ status: statut, updated_at: new Date().toISOString(), ...extra }),
+    }
+  ).catch(() => {});
+}
+
+function quotaChatBlock(plan, used) {
+  const limite = limiteChatDe(plan);
+  const { debut, fin } = periode();
+  const unlimited = !Number.isFinite(limite);
+  return {
+    plan, used,
+    limit: unlimited ? null : limite,
+    remaining: unlimited ? null : Math.max(0, limite - used),
+    unlimited,
+    periodStart: debut.toISOString(),
+    periodEnd: fin.toISOString(),
+  };
 }
 
 /* =========================================================
@@ -408,4 +496,11 @@ module.exports = {
   cloturer,
 
   quotaBlock,
+
+  CHAT_LIMITS,
+  CHAT_DEBIT_HORAIRE,
+  limiteChatDe,
+  reserverChat,
+  cloturerChat,
+  quotaChatBlock,
 };
