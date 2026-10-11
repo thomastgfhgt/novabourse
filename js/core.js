@@ -276,6 +276,7 @@ const DEFAULT_STATE = {
        mis en pause (enabled=false) sans perdre sa confirmation. */
     mandateConfirmed:false,
     lastRunAt:null,
+    lastConversationId:null,
   },
 
   auth:{
@@ -460,6 +461,11 @@ function loadState(){
           autonomyMode: ['advice','semi_auto','auto'].includes(saved.novabot?.autonomyMode) ? saved.novabot.autonomyMode : 'advice',
           mandateConfirmed: saved.novabot?.mandateConfirmed === true,
           lastRunAt: Number.isFinite(saved.novabot?.lastRunAt) ? saved.novabot.lastRunAt : null,
+          /* V5 Phase A (§2 : "Conserver la conversation active après
+             actualisation") : identifiant (uuid serveur, donc une string)
+             de la dernière conversation ouverte — novabotConversationsCharger()
+             le préfère à list[0] s'il existe toujours dans la liste reçue. */
+          lastConversationId: typeof saved.novabot?.lastConversationId === 'string' ? saved.novabot.lastConversationId : null,
         },
       };
     }

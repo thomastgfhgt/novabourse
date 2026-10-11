@@ -1114,6 +1114,18 @@ document.addEventListener('click', e => {
     closeSheet();
     return;
   }
+  if (q('[data-novabot-archive-conv]')){
+    novabotConversationArchiver(q('[data-novabot-archive-conv]').dataset.novabotArchiveConv);
+    return;
+  }
+  if (q('[data-novabot-unarchive-conv]')){
+    novabotConversationDesarchiver(q('[data-novabot-unarchive-conv]').dataset.novabotUnarchiveConv);
+    return;
+  }
+  if (q('[data-novabot-archives-toggle]')){
+    novabotArchivesBasculer();
+    return;
+  }
   if (q('[data-novabot-suggestion]')){
     novabotChatEnvoyer(q('[data-novabot-suggestion]').dataset.novabotSuggestion);
     return;

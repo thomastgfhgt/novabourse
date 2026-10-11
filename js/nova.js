@@ -613,29 +613,56 @@ function novabotRenommerOuvrir(id){
 function novabotConvItem(c){
   const actif = c.id === NOVABOT_CHAT.conversationId;
   const date = new Date(c.updatedAt || c.createdAt).toLocaleDateString('fr-FR', { day:'2-digit', month:'short' });
+  /* Archivées (V5 Phase A, §2) : désarchiver remplace le bouton
+     archiver/supprimer habituel — jamais les deux ensemble, une
+     conversation archivée ne se supprime pas depuis cette vue (il faut la
+     désarchiver d'abord, cohérent avec "archiver" = pas "supprimer"). */
   return `<div class="nb-conv-item${actif ? ' active' : ''}">
     <button type="button" class="nb-conv-item-main" data-novabot-open-conv="${esc(c.id)}">
       <span class="nb-conv-item-title">${esc(c.title || 'Nouvelle conversation')}</span>
       <span class="nb-conv-item-date">${date}</span>
     </button>
     <span class="nb-conv-item-actions">
-      <button type="button" data-novabot-rename-conv="${esc(c.id)}" aria-label="Renommer">${svg(ICON.book,2)}</button>
-      <button type="button" data-novabot-delete-conv="${esc(c.id)}" aria-label="Supprimer">${svg(ICON.trash,2)}</button>
+      ${c.archived ? `
+        <button type="button" data-novabot-unarchive-conv="${esc(c.id)}" aria-label="Désarchiver">${svg(ICON.archive,2)}</button>
+      ` : `
+        <button type="button" data-novabot-rename-conv="${esc(c.id)}" aria-label="Renommer">${svg(ICON.book,2)}</button>
+        <button type="button" data-novabot-archive-conv="${esc(c.id)}" aria-label="Archiver">${svg(ICON.archive,2)}</button>
+        <button type="button" data-novabot-delete-conv="${esc(c.id)}" aria-label="Supprimer">${svg(ICON.trash,2)}</button>
+      `}
     </span>
   </div>`;
+}
+/* V5 Phase A (§2 : "Grouper l'historique par Aujourd'hui, Hier, 7 derniers
+   jours et Plus anciennes") — fonction PURE (prend `maintenant` en
+   paramètre) pour rester testable sans horloge réelle, voir
+   scripts/test-novabot-ux-rebuild.js. Frontières par JOUR CALENDAIRE,
+   jamais une fenêtre glissante de 24h : une conversation d'hier 23h59 doit
+   apparaître sous "Hier", pas sous "Aujourd'hui" juste parce qu'elle a
+   moins de 24h. */
+function novabotGrouperParDate(list, maintenant = Date.now()){
+  const jour = (t) => { const d = new Date(t); d.setHours(0,0,0,0); return d.getTime(); };
+  const aujourdhuiJour = jour(maintenant);
+  const hierJour = aujourdhuiJour - 86400000;
+  const septJoursJour = aujourdhuiJour - 7 * 86400000;
+  const groupes = { aujourdhui:[], hier:[], septJours:[], plusAnciennes:[] };
+  for (const c of list){
+    const j = jour(new Date(c.updatedAt || c.createdAt).getTime());
+    if (j === aujourdhuiJour) groupes.aujourdhui.push(c);
+    else if (j === hierJour) groupes.hier.push(c);
+    else if (j > septJoursJour) groupes.septJours.push(c);
+    else groupes.plusAnciennes.push(c);
+  }
+  return groupes;
 }
 function novabotSidebarMarkup(){
   const q = (NOVABOT_CONVERSATIONS.search || '').toLowerCase();
   const list = q
     ? NOVABOT_CONVERSATIONS.list.filter(c => (c.title || '').toLowerCase().includes(q))
     : NOVABOT_CONVERSATIONS.list;
-  /* Regroupement "Récentes / Plus anciennes" (§3 : "niveau ChatGPT")
-     plutôt qu'une simple liste plate — seuil à 7 jours, pas de 3ᵉ palier
-     pour rester lisible sur un panneau étroit. */
-  const seuil = Date.now() - 7 * 24 * 60 * 60 * 1000;
-  const recentes = list.filter(c => new Date(c.updatedAt || c.createdAt).getTime() >= seuil);
-  const anciennes = list.filter(c => new Date(c.updatedAt || c.createdAt).getTime() < seuil);
+  const groupes = novabotGrouperParDate(list);
   const groupe = (titre, items) => items.length ? `<p class="tiny" style="margin:10px 0 2px;font-weight:650;color:var(--ink-3);text-transform:uppercase;letter-spacing:.03em;font-size:11px">${titre}</p>${items.map(novabotConvItem).join('')}` : '';
+  const ac = NOVABOT_CONVERSATIONS;
   return `<aside class="nb-sidebar">
     <button type="button" class="btn btn-a btn-sm" style="width:100%" data-novabot-new-conv">+ Nouvelle conversation</button>
     <div class="nb-sidebar-search">
@@ -643,9 +670,19 @@ function novabotSidebarMarkup(){
         oninput="NOVABOT_CONVERSATIONS.search=this.value;render()">
     </div>
     <div class="nb-conv-list">
-      ${list.length ? (q ? list.map(novabotConvItem).join('') : groupe('Récentes', recentes) + groupe('Plus anciennes', anciennes))
+      ${list.length ? (q ? list.map(novabotConvItem).join('')
+          : groupe('Aujourd\'hui', groupes.aujourdhui) + groupe('Hier', groupes.hier)
+            + groupe('7 derniers jours', groupes.septJours) + groupe('Plus anciennes', groupes.plusAnciennes))
         : `<p class="tiny" style="padding:12px;color:var(--ink-4)">${q ? 'Aucun résultat.' : 'Aucune conversation.'}</p>`}
     </div>
+    <button type="button" class="nb-archive-toggle" data-novabot-archives-toggle style="width:100%;text-align:left;margin-top:6px">
+      ${svg(ICON.archive,2)} Archivées${ac.archivedLoaded ? ` (${ac.archivedList.length})` : ''} ${ac.showArchived ? '▲' : '▼'}
+    </button>
+    ${ac.showArchived ? `<div class="nb-conv-list nb-conv-list-archived">
+      ${ac.archivedLoading ? `<p class="tiny" style="padding:12px;color:var(--ink-4)">Chargement…</p>`
+        : ac.archivedList.length ? ac.archivedList.map(novabotConvItem).join('')
+        : `<p class="tiny" style="padding:12px;color:var(--ink-4)">Aucune conversation archivée.</p>`}
+    </div>` : ''}
     <p class="tiny" style="color:var(--ink-4);line-height:1.4">Même portefeuille, même mandat et même mémoire financière dans toutes les conversations.</p>
   </aside>
   <div class="nb-sidebar-backdrop" data-novabot-sidebar-close></div>`;

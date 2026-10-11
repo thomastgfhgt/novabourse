@@ -1648,6 +1648,18 @@ a.row{color:inherit;text-decoration:none}
   -webkit-tap-highlight-color:transparent}
 .nb-conv-item-actions button:hover{background:var(--bg-4);color:var(--ink)}
 .nb-conv-item-actions svg{width:14px;height:14px}
+/* V5 Phase A (§2 : "archiver les conversations") — section repliable sous
+   la liste active, jamais dans le même flex:1 (sinon un historique long
+   ferait disparaître le bouton "+ Nouvelle conversation" hors de
+   .nb-sidebar, qui a un max-height fixe). max-height propre + overflow-y
+   pour que .nb-sidebar garde une hauteur totale prévisible même ouverte. */
+.nb-archive-toggle{display:flex;align-items:center;gap:7px;padding:8px 10px;font-size:12.5px;
+  font-weight:600;color:var(--ink-3);background:none;border:none;border-radius:var(--r-s);
+  cursor:pointer;-webkit-tap-highlight-color:transparent;flex:0 0 auto}
+.nb-archive-toggle:hover{background:var(--bg-3);color:var(--ink)}
+.nb-archive-toggle svg{width:14px;height:14px;flex:0 0 auto}
+.nb-conv-list-archived{display:flex;flex-direction:column;gap:3px;overflow-y:auto;
+  max-height:160px;flex:0 0 auto;padding-top:2px;border-top:1px solid var(--line)}
 .nb-sidebar-backdrop{display:none}
 .nb-thread-col{flex:1;min-width:0;display:flex;flex-direction:column}
 .nb-thread-head{display:none}

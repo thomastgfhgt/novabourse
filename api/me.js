@@ -994,17 +994,24 @@ async function handleNovaConversations(req, res, user) {
         );
         const c = convRows[0];
         return res.status(200).json({
-          id: c.id, module: c.module, title: c.title, context: c.context,
+          id: c.id, module: c.module, title: c.title, context: c.context, archived: Boolean(c.archived),
           createdAt: c.created_at, updatedAt: c.updated_at,
           messages: msgRows.map(m => ({ id: m.id, role: m.role, content: m.content, metadata: m.metadata, date: m.created_at })),
         });
       }
+      /* ?archived=1 : liste les conversations ARCHIVÉES au lieu des actives
+         (§2 : "archiver" doit rester consultable séparément, jamais une
+         suppression déguisée) — deux listes distinctes plutôt qu'un seul
+         appel mélangé, pour que le sidebar n'ait jamais à retrier côté
+         client une liste de 200 lignes à chaque frappe de recherche. */
+      const archivedFilter = req.query?.archived === '1' ? 'eq.true' : 'eq.false';
       const rows = await sb(
-        `nova_conversations?user_id=eq.${encodeURIComponent(user.id)}&select=id,module,title,context,created_at,updated_at&order=updated_at.desc&limit=200`
+        `nova_conversations?user_id=eq.${encodeURIComponent(user.id)}&archived=${archivedFilter}`
+        + `&select=id,module,title,context,archived,created_at,updated_at&order=updated_at.desc&limit=200`
       );
       return res.status(200).json({
         conversations: rows.map(c => ({
-          id: c.id, module: c.module, title: c.title, context: c.context,
+          id: c.id, module: c.module, title: c.title, context: c.context, archived: Boolean(c.archived),
           createdAt: c.created_at, updatedAt: c.updated_at,
         })),
       });
@@ -1061,6 +1068,26 @@ async function handleNovaConversations(req, res, user) {
       return res.status(200).json({ id, title: titre });
     } catch (e) {
       console.error('[me] renommage conversation :', e.message);
+      return res.status(503).json({ error: 'ecriture_impossible' });
+    }
+  }
+
+  /* ---------- archiver / désarchiver (§2 : "archiver les conversations")
+     ---------- toggle réversible, jamais une confirmation requise (contraste
+     volontaire avec la suppression, destructive et irréversible, qui en a
+     une côté client) — archiver retire simplement la conversation de la
+     liste active sans jamais effacer ses messages. */
+  if (id && (body.action === 'archive' || body.action === 'unarchive')) {
+    const archived = body.action === 'archive';
+    try {
+      const updated = await sb(`nova_conversations?id=eq.${encodeURIComponent(id)}&user_id=eq.${encodeURIComponent(user.id)}`, {
+        method: 'PATCH', headers: { Prefer: 'return=representation' },
+        body: JSON.stringify({ archived }),
+      });
+      if (!updated.length) return res.status(404).json({ error: 'conversation_introuvable' });
+      return res.status(200).json({ id, archived });
+    } catch (e) {
+      console.error('[me] archivage conversation :', e.message);
       return res.status(503).json({ error: 'ecriture_impossible' });
     }
   }

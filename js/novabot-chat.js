@@ -24,7 +24,12 @@
    demandée, sans la complexité d'un vrai flux SSE multi-fournisseurs. */
 
 let NOVABOT_UI = { view:'chat', sidebarOpen:false, portfolioPeriod:'1A' };
-let NOVABOT_CONVERSATIONS = { loaded:false, loading:false, list:[], search:'' };
+/* archivedList/archivedLoaded/showArchived (V5 Phase A, §2 : "archiver les
+   conversations") : liste SÉPARÉE de `list`, chargée paresseusement
+   uniquement quand l'utilisateur ouvre la section "Archivées" du panneau —
+   jamais au chargement initial, pour ne jamais payer ce coût réseau tant
+   que personne n'en a besoin. */
+let NOVABOT_CONVERSATIONS = { loaded:false, loading:false, list:[], search:'', archivedList:[], archivedLoaded:false, archivedLoading:false, showArchived:false };
 /* controller/revealTimer (§2, bouton "Stop") : jamais persistés, purement
    l'état d'une requête/animation en cours côté client. */
 let NOVABOT_CHAT = { conversationId:null, messages:[], mandateDraft:{}, sending:false, readyToConfirm:false, loadingThread:false, streamingText:null, controller:null, revealTimer:null };
@@ -95,7 +100,14 @@ async function novabotConversationsCharger(){
   NOVABOT_CONVERSATIONS.loaded = true;
 
   if (NOVABOT_CONVERSATIONS.list.length){
-    await novabotConversationOuvrir(NOVABOT_CONVERSATIONS.list[0].id);
+    /* V5 Phase A (§2 : "Conserver la conversation active après
+       actualisation") : rouvre la conversation EXACTE quittée à la session
+       précédente si elle existe toujours dans la liste reçue (jamais
+       seulement "la plus récente" — l'utilisateur a pu consulter une
+       conversation plus ancienne juste avant de recharger la page). */
+    const derniere = state.novabot.lastConversationId
+      && NOVABOT_CONVERSATIONS.list.find(c => c.id === state.novabot.lastConversationId);
+    await novabotConversationOuvrir((derniere || NOVABOT_CONVERSATIONS.list[0]).id);
   } else {
     await novabotConversationNouvelle();
   }
@@ -132,6 +144,8 @@ async function novabotConversationOuvrir(id){
       const dernierAvecDraft = [...full.messages].reverse().find(m => m.metadata?.mandateDraftSnapshot);
       NOVABOT_CHAT.mandateDraft = dernierAvecDraft?.metadata?.mandateDraftSnapshot || {};
       NOVABOT_CHAT.readyToConfirm = false;
+      state.novabot.lastConversationId = full.id;
+      saveState();
     }
   } catch (e){ console.warn('[novabot-chat] ouverture conversation impossible :', e); }
   NOVABOT_CHAT.loadingThread = false;
@@ -153,7 +167,9 @@ async function novabotConversationNouvelle(){
     if (r.ok){
       const d = await r.json();
       NOVABOT_CHAT.conversationId = d.id;
-      NOVABOT_CONVERSATIONS.list.unshift({ id:d.id, module:'novabot', title:null, createdAt:d.createdAt, updatedAt:d.updatedAt });
+      NOVABOT_CONVERSATIONS.list.unshift({ id:d.id, module:'novabot', title:null, archived:false, createdAt:d.createdAt, updatedAt:d.updatedAt });
+      state.novabot.lastConversationId = d.id;
+      saveState();
       authFetch(`/api/me?resource=conversations&id=${encodeURIComponent(d.id)}&action=message`,
         { method:'POST', body: JSON.stringify({ role:'assistant', content:accueil }) }).catch(() => {});
     }
@@ -203,6 +219,60 @@ async function novabotConversationSupprimer(id){
   } else {
     render();
   }
+}
+
+/* ---------- archiver / désarchiver (V5 Phase A, §2) ----------
+   Toggle réversible, jamais de confirmation (contraste volontaire avec la
+   suppression ci-dessus, destructive) : retire la conversation de la liste
+   ACTIVE et, si la section "Archivées" a déjà été chargée, l'y ajoute
+   immédiatement plutôt que de forcer un rechargement réseau complet. */
+async function novabotConversationArchiver(id){
+  const c = NOVABOT_CONVERSATIONS.list.find(x => x.id === id);
+  NOVABOT_CONVERSATIONS.list = NOVABOT_CONVERSATIONS.list.filter(x => x.id !== id);
+  if (c && NOVABOT_CONVERSATIONS.archivedLoaded){
+    NOVABOT_CONVERSATIONS.archivedList = [{ ...c, archived:true }, ...NOVABOT_CONVERSATIONS.archivedList];
+  }
+  const eraitActive = NOVABOT_CHAT.conversationId === id;
+  try {
+    await authFetch(`/api/me?resource=conversations&id=${encodeURIComponent(id)}&action=archive`, { method:'POST' });
+  } catch (e){ console.warn('[novabot-chat] archivage impossible :', e); }
+  if (eraitActive){
+    if (NOVABOT_CONVERSATIONS.list.length) await novabotConversationOuvrir(NOVABOT_CONVERSATIONS.list[0].id);
+    else await novabotConversationNouvelle();
+  } else {
+    render();
+  }
+}
+async function novabotConversationDesarchiver(id){
+  const c = NOVABOT_CONVERSATIONS.archivedList.find(x => x.id === id);
+  NOVABOT_CONVERSATIONS.archivedList = NOVABOT_CONVERSATIONS.archivedList.filter(x => x.id !== id);
+  if (c){
+    NOVABOT_CONVERSATIONS.list = [{ ...c, archived:false }, ...NOVABOT_CONVERSATIONS.list]
+      .sort((a, b) => new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt));
+  }
+  render();
+  try {
+    await authFetch(`/api/me?resource=conversations&id=${encodeURIComponent(id)}&action=unarchive`, { method:'POST' });
+  } catch (e){ console.warn('[novabot-chat] désarchivage impossible :', e); }
+}
+/* Chargement paresseux : seulement à la première ouverture de la section
+   "Archivées" du panneau, jamais au chargement initial de NovaBot. */
+async function novabotArchivesBasculer(){
+  NOVABOT_CONVERSATIONS.showArchived = !NOVABOT_CONVERSATIONS.showArchived;
+  if (NOVABOT_CONVERSATIONS.showArchived && !NOVABOT_CONVERSATIONS.archivedLoaded && !NOVABOT_CONVERSATIONS.archivedLoading){
+    NOVABOT_CONVERSATIONS.archivedLoading = true;
+    render();
+    try {
+      const r = await authFetch('/api/me?resource=conversations&archived=1');
+      if (r.ok){
+        const data = await r.json();
+        NOVABOT_CONVERSATIONS.archivedList = (data.conversations || []).filter(c => c.module === 'novabot');
+      }
+    } catch (e){ console.warn('[novabot-chat] liste archivées impossible :', e); }
+    NOVABOT_CONVERSATIONS.archivedLoading = false;
+    NOVABOT_CONVERSATIONS.archivedLoaded = true;
+  }
+  render();
 }
 
 /* Révélation progressive (voir note d'en-tête : pas de vrai streaming
