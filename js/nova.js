@@ -707,6 +707,36 @@ function novabotMsgActionsUser(index){
     <button type="button" data-novabot-msg-resume="${index}" aria-label="Reprendre ici">${svg(ICON.arrow,2)} Reprendre ici</button>
   </div>`;
 }
+/* Fiche décision (V6 §7) — toutes les valeurs viennent de `d` (copie de
+   state.novabot.decisions, JAMAIS du modèle, voir novabotAppelerModeleEt
+   Repondre()) sauf le cours actuel, lu en direct dans QUOTES/byId comme
+   partout ailleurs dans l'app. "Donnée indisponible" plutôt qu'un calcul
+   sur une valeur absente — jamais un pourcentage inventé. */
+function novabotDecisionCard(d){
+  if (!d) return '';
+  const st = byId[d.stockId];
+  const q = st ? QUOTES.get(st.id) : null;
+  const coursActuel = q && Number.isFinite(q.price) ? q.price : null;
+  const evolutionPct = (coursActuel !== null && Number.isFinite(d.priceObserved) && d.priceObserved > 0)
+    ? ((coursActuel - d.priceObserved) / d.priceObserved) * 100 : null;
+  const dateLisible = d.date ? new Date(d.date).toLocaleDateString('fr-FR', { day:'2-digit', month:'short', year:'numeric' }) : '—';
+  const actionLabel = { buy:'Achat', sell:'Vente', hold:'Conservation', increase:'Renforcement',
+    reduce:'Réduction', watch:'Surveillance', reject:'Refusé' }[d.action] || d.action;
+  return `<div class="nb-decision-card">
+    <div class="nb-decision-card-head">
+      <span class="nb-decision-ticker">${esc(d.ticker || '—')}</span>
+      <div class="t"><div class="name">${esc(d.name || d.ticker || '—')}</div><div class="sub">${actionLabel} · ${dateLisible}</div></div>
+      ${evolutionPct !== null ? `<span class="nb-decision-evol ${evolutionPct >= 0 ? 'up' : 'down'}">${evolutionPct >= 0 ? '+' : ''}${evolutionPct.toFixed(1)}%</span>` : ''}
+    </div>
+    <div class="nb-decision-grid">
+      <div><span class="l">Prix observé</span><span class="v">${Number.isFinite(d.priceObserved) ? fmt.cur(d.priceObserved, st?.cur) : 'Donnée indisponible'}</span></div>
+      <div><span class="l">Quantité</span><span class="v">${Number.isFinite(d.qty) ? d.qty : 'Donnée indisponible'}</span></div>
+      <div><span class="l">Poids du portefeuille</span><span class="v">${Number.isFinite(d.weightAfterPct) ? d.weightAfterPct.toFixed(1) + '%' : 'Donnée indisponible'}</span></div>
+      <div><span class="l">Cours actuel</span><span class="v">${coursActuel !== null ? fmt.cur(coursActuel, st?.cur) : 'Donnée indisponible'}</span></div>
+    </div>
+    ${d.reason ? `<p class="nb-decision-reason">${esc(d.reason)}</p>` : ''}
+  </div>`;
+}
 function novabotMsgActionsBot(index, { estDernier, feedback } = {}){
   return `<div class="nb-msg-actions">
     <button type="button" data-novabot-msg-copy="${index}" aria-label="Copier">${svg(ICON.copy,2)} Copier</button>
@@ -759,7 +789,7 @@ function novabotChatView(){
               </div>`;
             }
             if (m.error) return novabotMsgRow(esc(m.content), { error:true });
-            return novabotMsgRow(esc(m.content), { actionsHtml: novabotMsgActionsBot(i,
+            return novabotMsgRow(esc(m.content) + novabotDecisionCard(m.relatedDecision), { actionsHtml: novabotMsgActionsBot(i,
               { estDernier: i === dernierIndexAffiche && !genereEnCours, feedback: m.feedback }) });
           }).join('')}
           ${revele ? novabotMsgRow(esc(c.streamingText)) : ''}

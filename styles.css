@@ -1774,6 +1774,28 @@ a.row{color:inherit;text-decoration:none}
 .nb-msg-actions button.on{color:var(--accent-hover);border-color:var(--accent)}
 .nb-msg-actions svg{width:11px;height:11px}
 
+/* --- fiche décision (V6 §7) : toutes les valeurs viennent de
+   state.novabot.decisions (voir novabotDecisionCard(), js/nova.js), le
+   cours actuel de QUOTES comme partout ailleurs — jamais du modèle. */
+.nb-decision-card{margin-top:10px;background:var(--bg-2);border:1px solid var(--line);
+  border-radius:14px;padding:13px 15px;max-width:360px}
+.nb-decision-card-head{display:flex;align-items:center;gap:10px}
+.nb-decision-ticker{width:32px;height:32px;border-radius:9px;background:var(--bg-3);
+  display:flex;align-items:center;justify-content:center;font-size:10.5px;font-weight:750;
+  color:var(--accent-hover);flex:0 0 auto}
+.nb-decision-card-head .t{flex:1;min-width:0}
+.nb-decision-card-head .name{font-size:13px;font-weight:650;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.nb-decision-card-head .sub{font-size:11px;color:var(--ink-4)}
+.nb-decision-evol{font-family:var(--f-mono,inherit);font-size:12px;font-weight:700;
+  padding:3px 8px;border-radius:999px;flex:0 0 auto}
+.nb-decision-evol.up{background:var(--green-50);color:var(--green-700)}
+.nb-decision-evol.down{background:var(--down-soft);color:var(--down)}
+.nb-decision-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 14px;margin-top:11px}
+.nb-decision-grid .l{display:block;font-size:10.5px;color:var(--ink-4);margin-bottom:2px}
+.nb-decision-grid .v{display:block;font-size:12.6px;font-weight:650;color:var(--ink)}
+.nb-decision-reason{font-size:11.8px;color:var(--ink-3);margin:10px 0 0;line-height:1.5;
+  padding-top:10px;border-top:1px solid var(--line-2)}
+
 .nb-msg-edit-wrap{display:flex;flex-direction:column;align-items:flex-end;gap:6px}
 .nb-edit-box{background:var(--bg-2);border:1.5px solid var(--accent);border-radius:16px;
   padding:11px 14px;font-size:14.5px;color:var(--ink);max-width:82%;width:100%;line-height:1.5}

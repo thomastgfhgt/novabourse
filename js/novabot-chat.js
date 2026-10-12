@@ -52,7 +52,7 @@ function novabotDecisionsPertinentes(texte){
   return trouvees;
 }
 function novabotDecisionCompacte(d){
-  return { date:d.date, action:d.action, ticker:d.ticker, name:d.name, priceObserved:d.priceObserved,
+  return { date:d.date, action:d.action, ticker:d.ticker, name:d.name, stockId:d.stockId, priceObserved:d.priceObserved,
     qty:d.qty, amountEUR:d.amountEUR, weightBeforePct:d.weightBeforePct, weightAfterPct:d.weightAfterPct,
     reason:d.reason, executionStatus:d.executionStatus };
 }
@@ -339,7 +339,14 @@ async function novabotAppelerModeleEtRepondre(dernierMessageUtilisateur){
     const d = await r.json();
     NOVABOT_CHAT.controller = null;
     NOVABOT_CHAT.sending = false;
-    const msgObj = { role:'assistant', content:d.reply };
+    /* Fiche décision (V6 §7 : "fiches d'actions", exemple exact du brief
+       "pourquoi as-tu acheté Nvidia ?") — JAMAIS généré par le modèle :
+       entièrement dérivé de state.novabot.decisions (déjà réel, déjà
+       affiché ailleurs dans l'app), donc aucun risque de donnée
+       inventée. Attachée au message dès qu'une décision correspond au
+       dernier message utilisateur, que la réponse texte en parle ou non. */
+    const decisionLiee = novabotDecisionsPertinentes(dernierMessageUtilisateur)[0] || null;
+    const msgObj = { role:'assistant', content:d.reply, relatedDecision: decisionLiee ? novabotDecisionCompacte(decisionLiee) : null };
     NOVABOT_CHAT.messages.push(msgObj);
     render();
     novabotRevelerProgressivement(d.reply);
