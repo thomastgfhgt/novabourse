@@ -788,7 +788,9 @@ function novabotChatView(){
                 ${novabotMsgActionsUser(i)}
               </div>`;
             }
-            if (m.error) return novabotMsgRow(esc(m.content), { error:true });
+            if (m.error) return novabotMsgRow(esc(m.content) + (m.retryTexte
+              ? `<button type="button" class="nb-retry-btn" data-novabot-retry="${i}">${svg(ICON.redo,2)}<span>Réessayer</span></button>` : ''),
+              { error:true });
             return novabotMsgRow(esc(m.content) + novabotDecisionCard(m.relatedDecision), { actionsHtml: novabotMsgActionsBot(i,
               { estDernier: i === dernierIndexAffiche && !genereEnCours, feedback: m.feedback }) });
           }).join('')}

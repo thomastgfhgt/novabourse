@@ -336,10 +336,29 @@ async function novabotAppelerModeleEtRepondre(dernierMessageUtilisateur){
     })});
     if (!r.ok){
       const err = await r.json().catch(() => ({}));
-      const msg = err.error === 'quota_exceeded'
-        ? "J'ai atteint le quota d'analyses IA de ce mois-ci pour notre conversation — réessaie le mois prochain, ou passe à une offre supérieure."
-        : "Je n'ai pas pu répondre à l'instant (problème de connexion au modèle).";
-      NOVABOT_CHAT.messages.push({ role:'assistant', content:msg, error:true });
+      /* CORRECTIF (audit 2026-10-12, §7 : "afficher le type de limite
+         atteinte et sa date de réinitialisation lorsqu'elle est connue")
+         — le message précédent était un texte générique fixe, ignorant
+         periodEnd pourtant déjà renvoyé par quotaChatBlock() (_limits.js).
+         Distingue aussi quota (mensuel) de rate_limited (débit horaire,
+         repart de lui-même en quelques minutes) — deux situations
+         différentes, jamais confondues dans le message affiché. */
+      let msg;
+      if (err.error === 'quota_exceeded'){
+        const dateReset = err.periodEnd ? new Date(err.periodEnd).toLocaleDateString('fr-FR', { day:'numeric', month:'long' }) : null;
+        msg = `J'ai atteint le quota de messages NovaBot inclus dans ton offre ce mois-ci`
+          + (dateReset ? ` (renouvellement le ${dateReset})` : '') + ` — passe à une offre supérieure pour continuer dès maintenant.`;
+      } else if (err.error === 'rate_limited'){
+        msg = "Trop de messages envoyés en peu de temps — réessaie dans quelques minutes.";
+      } else {
+        msg = "Je n'ai pas pu répondre à l'instant (problème de connexion au modèle).";
+      }
+      /* Bouton Réessayer (§4) : rejoue le DERNIER message utilisateur
+         exactement comme "Régénérer" le ferait sur une réponse normale —
+         retryTexte porté par le message d'erreur lui-même, jamais une
+         variable globale qui pourrait pointer sur le mauvais message
+         après plusieurs échecs successifs. */
+      NOVABOT_CHAT.messages.push({ role:'assistant', content:msg, error:true, retryTexte: dernierMessageUtilisateur || null });
       NOVABOT_CHAT.controller = null; NOVABOT_CHAT.sending = false; render(); return;
     }
     const d = await r.json();
@@ -378,7 +397,7 @@ async function novabotAppelerModeleEtRepondre(dernierMessageUtilisateur){
       NOVABOT_CHAT.sending = false; render(); return;
     }
     console.warn('[novabot-chat] envoi impossible :', e);
-    NOVABOT_CHAT.messages.push({ role:'assistant', content:"Je n'ai pas pu répondre à l'instant.", error:true });
+    NOVABOT_CHAT.messages.push({ role:'assistant', content:"Je n'ai pas pu répondre à l'instant (problème réseau).", error:true, retryTexte: dernierMessageUtilisateur || null });
   }
   NOVABOT_CHAT.sending = false;
   render();
@@ -394,7 +413,13 @@ async function novabotChatEnvoyer(texte){
      novabotPoserQuestion() : "Demander à Nova pourquoi" semblait ne rien
      faire). Un message d'erreur VISIBLE vaut mieux qu'un échec muet. */
   if (!NOVABOT_CHAT.conversationId){
-    NOVABOT_CHAT.messages.push({ role:'assistant', content:"Je n'ai pas pu ouvrir de conversation à l'instant (problème de connexion). Réessaie dans un instant.", error:true });
+    /* retryTexte = `contenu` lui-même (pas dernierMessageUtilisateur, qui
+       n'existe pas encore ici) : sans ceci, le texte que l'utilisateur
+       vient de taper (déjà effacé du champ par novabotChatSoumetre())
+       serait purement et simplement perdu si la conversation n'a pas pu
+       s'ouvrir — un échec réseau ne doit jamais faire disparaître ce que
+       l'utilisateur a écrit. */
+    NOVABOT_CHAT.messages.push({ role:'assistant', content:"Je n'ai pas pu ouvrir de conversation à l'instant (problème de connexion).", error:true, retryTexte: contenu });
     render();
     return;
   }
@@ -419,6 +444,20 @@ function novabotChatSoumetre(){
   input.value = '';
   input.style.height = 'auto';
   novabotChatEnvoyer(texte);
+}
+
+/* Réessayer (audit 2026-10-12, §4 : "afficher une erreur claire et un
+   bouton Réessayer en cas d'échec") : rejoue le texte conservé sur le
+   message d'erreur lui-même (retryTexte) — retire ce message d'erreur
+   avant de renvoyer, pour ne jamais accumuler plusieurs échecs affichés
+   à la suite d'un simple clic. */
+async function novabotMessageReessayer(index){
+  const m = NOVABOT_CHAT.messages[index];
+  if (!m || !m.retryTexte || NOVABOT_CHAT.sending) return;
+  const texte = m.retryTexte;
+  NOVABOT_CHAT.messages.splice(index, 1);
+  render();
+  await novabotChatEnvoyer(texte);
 }
 
 /* ---------- actions sur un message (V6 §5) ---------- */
