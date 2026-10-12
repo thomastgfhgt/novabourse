@@ -1802,15 +1802,29 @@ a.row{color:inherit;text-decoration:none}
 .nb-retry-btn svg{width:14px;height:14px}
 .nb-retry-btn:active{opacity:.7}
 
-/* --- actions sur un message (V6 §5) : révélées au survol sur ordinateur
-   (évite d'alourdir visuellement un fil de conversation calme), toujours
-   visibles sur mobile où le survol n'existe pas. */
+/* --- actions sur un message : révélées au survol sur ordinateur (évite
+   d'alourdir visuellement un fil de conversation calme). */
 .nb-msg-user-wrap{display:flex;flex-direction:column}
 .nb-msg-actions{display:flex;gap:4px;margin-top:6px;opacity:0;transition:opacity .15s ease}
 .nb-msg-actions.nb-msg-actions-user{justify-content:flex-end}
 .nb-msg-user-wrap:hover .nb-msg-actions,.nb-msg-row:hover .nb-msg-actions,
 .nb-msg-actions:focus-within{opacity:1}
-@media (max-width:680px){ .nb-msg-actions{opacity:1} }
+/* CORRECTIF (audit 2026-10-12, §2 : "pas une grosse barre technique
+   permanente sous chaque message [...] présentation discrète et
+   contextuelle, adaptée aux interactions tactiles sur iPhone") :
+   auparavant opacity:1 inconditionnel sur mobile (pas de survol au
+   doigt), donc visible en permanence sous CHAQUE message. Collapsed par
+   défaut (max-height:0, en plus de opacity:0, pour ne réserver AUCUN
+   espace — pas juste invisible, vraiment absent de la mise en page tant
+   que fermé) ; .nb-revealed (posée par novabotMessageActionsBasculer(),
+   js/novabot-chat.js, au tap sur la bulle) l'ouvre. Un seul message
+   ouvert à la fois (état transitoire, jamais persisté). */
+@media (max-width:680px){
+  .nb-msg-actions{max-height:0;overflow:hidden;margin-top:0;
+    transition:opacity .15s ease,max-height .2s ease,margin-top .2s ease}
+  .nb-msg-actions.nb-revealed{opacity:1;max-height:44px;margin-top:6px}
+  .nb-msg:not(.nb-msg-error){cursor:pointer}
+}
 .nb-msg-actions button{display:flex;align-items:center;gap:5px;background:var(--bg-2);
   border:1px solid var(--line);color:var(--ink-4);font-size:11px;font-weight:600;
   padding:5px 9px;border-radius:8px;cursor:pointer;-webkit-tap-highlight-color:transparent}
@@ -2019,7 +2033,21 @@ a.row{color:inherit;text-decoration:none}
   body.nb-immersive .wrap{display:flex;flex-direction:column;padding:0;
     height:calc(100vh - var(--top-header-h, 60px));
     height:calc(100dvh - var(--top-header-h, 60px))}
-  body.nb-immersive .nb-page{display:flex;flex-direction:column;flex:1;min-height:0;margin:0}
+  /* CORRECTIF (audit 2026-10-12 suite : "le bouton d'envoi blanc est
+     coupé sur la droite" au clavier) : en vidant le padding de .wrap
+     ci-dessus pour supprimer le cadre clair/sombre, plus RIEN entre
+     .nb-page et ses enfants (.nb-topbar, .nb-chat-input...) ne porte de
+     marge horizontale propre — tout, y compris le bouton d'envoi
+     circulaire, se retrouvait littéralement au ras du bord de l'écran,
+     sans la moindre marge de sécurité. Le padding se pose ICI, sur
+     .nb-page, PAS sur .wrap : le fond sombre (background, voir plus
+     haut) couvre padding ET contenu par défaut, donc la surface reste
+     plein écran bord à bord (aucun retour du cadre clair/sombre) tandis
+     que le CONTENU respire, avec les safe-area-inset-left/right pour les
+     iPhone avec encoche/Dynamic Island en paysage. */
+  body.nb-immersive .nb-page{display:flex;flex-direction:column;flex:1;min-height:0;margin:0;
+    padding-left:calc(env(safe-area-inset-left, 0px) + 16px);
+    padding-right:calc(env(safe-area-inset-right, 0px) + 16px)}
   body.nb-immersive .nb-chat-shell{display:flex;flex-direction:column;flex:1;min-height:0}
   body.nb-immersive .nb-thread-col{min-height:0}
   /* Le fil récupère toute la hauteur libérée par le masquage du dock —

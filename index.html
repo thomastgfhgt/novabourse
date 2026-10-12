@@ -1140,6 +1140,10 @@ document.addEventListener('click', e => {
     novabotChatEnvoyer(q('[data-novabot-suggestion]').dataset.novabotSuggestion);
     return;
   }
+  if (q('[data-novabot-msg-toggle]')){
+    novabotMessageActionsBasculer(+q('[data-novabot-msg-toggle]').dataset.novabotMsgToggle);
+    return;
+  }
   if (q('[data-novabot-msg-copy]')){
     novabotMessageCopier(+q('[data-novabot-msg-copy]').dataset.novabotMsgCopy);
     return;

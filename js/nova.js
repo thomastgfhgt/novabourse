@@ -690,18 +690,25 @@ function novabotSidebarMarkup(){
 
 /* ---------- vue Conversations (style ChatGPT, refonte V4 §2) ---------- */
 const NOVABOT_ROOK_SVG = `<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 20h12M7 20l1-6h8l1 6M8 14V9h1.5V7h2v2h1v-2h2v2H16v5"/></svg>`;
-function novabotMsgRow(contentHtml, { error = false, actionsHtml = '' } = {}){
+function novabotMsgRow(contentHtml, { error = false, actionsHtml = '', index = null } = {}){
+  const toggleAttr = (index !== null && !error) ? ` data-novabot-msg-toggle="${index}"` : '';
   return `<div class="nb-msg-row">
     <div class="nb-avatar">${NOVABOT_ROOK_SVG}</div>
-    <div class="nb-msg-col"><div class="nb-msg nb-msg-bot${error ? ' nb-msg-error' : ''}">${contentHtml}</div>${actionsHtml}</div>
+    <div class="nb-msg-col"><div class="nb-msg nb-msg-bot${error ? ' nb-msg-error' : ''}"${toggleAttr}>${contentHtml}</div>${actionsHtml}</div>
   </div>`;
 }
-/* Actions sur un message (V6 §5) — rangée discrète sous la bulle/texte,
-   révélée au survol (ordinateur, via CSS :hover) ou toujours visible sur
-   mobile (pas de hover fiable au doigt) : voir .msg-actions dans
-   styles.css pour la bascule exacte par taille d'écran. */
-function novabotMsgActionsUser(index){
-  return `<div class="nb-msg-actions nb-msg-actions-user">
+/* Actions sur un message — rangée discrète sous la bulle, révélée au
+   survol sur ordinateur (CSS :hover), et AU TOUCHER (tap sur la bulle
+   pour basculer, voir data-novabot-msg-toggle/novabotMessageActionsBasc
+   uler) sur mobile, où il n'existe pas de survol fiable au doigt.
+   CORRECTIF (audit 2026-10-12, §2 : "pas une grosse barre technique
+   permanente sous chaque message [...] présentation discrète et
+   contextuelle, adaptée aux interactions tactiles") : auparavant
+   toujours visible sur mobile (opacity:1 inconditionnel) — maintenant
+   masquée par défaut, affichée seulement pour le message actuellement
+   "ouvert" (c.revealedActionsIndex), un seul à la fois. */
+function novabotMsgActionsUser(index, revealed){
+  return `<div class="nb-msg-actions nb-msg-actions-user${revealed ? ' nb-revealed' : ''}">
     <button type="button" data-novabot-msg-edit="${index}" aria-label="Modifier">${svg(ICON.edit,2)} Modifier</button>
     <button type="button" data-novabot-msg-copy="${index}" aria-label="Copier">${svg(ICON.copy,2)} Copier</button>
     <button type="button" data-novabot-msg-resume="${index}" aria-label="Reprendre ici">${svg(ICON.arrow,2)} Reprendre ici</button>
@@ -737,8 +744,8 @@ function novabotDecisionCard(d){
     ${d.reason ? `<p class="nb-decision-reason">${esc(d.reason)}</p>` : ''}
   </div>`;
 }
-function novabotMsgActionsBot(index, { estDernier, feedback } = {}){
-  return `<div class="nb-msg-actions">
+function novabotMsgActionsBot(index, { estDernier, feedback, revealed } = {}){
+  return `<div class="nb-msg-actions${revealed ? ' nb-revealed' : ''}">
     <button type="button" data-novabot-msg-copy="${index}" aria-label="Copier">${svg(ICON.copy,2)} Copier</button>
     ${estDernier ? `<button type="button" data-novabot-msg-regen="${index}" aria-label="Régénérer">${svg(ICON.redo,2)} Régénérer</button>` : ''}
     <button type="button" data-novabot-msg-feedback="${index}" data-val="up" aria-label="Avis positif" class="${feedback==='up'?'on':''}">${svg(ICON.check,2)}</button>
@@ -784,15 +791,15 @@ function novabotChatView(){
                 return `<div class="nb-msg-edit-wrap">${novabotEditBox(i, m.content)}</div>`;
               }
               return `<div class="nb-msg-user-wrap">
-                <div style="display:flex;justify-content:flex-end"><div class="nb-msg nb-msg-user">${esc(m.content)}</div></div>
-                ${novabotMsgActionsUser(i)}
+                <div style="display:flex;justify-content:flex-end"><div class="nb-msg nb-msg-user" data-novabot-msg-toggle="${i}">${esc(m.content)}</div></div>
+                ${novabotMsgActionsUser(i, c.revealedActionsIndex === i)}
               </div>`;
             }
             if (m.error) return novabotMsgRow(esc(m.content) + (m.retryTexte
               ? `<button type="button" class="nb-retry-btn" data-novabot-retry="${i}">${svg(ICON.redo,2)}<span>Réessayer</span></button>` : ''),
               { error:true });
-            return novabotMsgRow(esc(m.content) + novabotDecisionCard(m.relatedDecision), { actionsHtml: novabotMsgActionsBot(i,
-              { estDernier: i === dernierIndexAffiche && !genereEnCours, feedback: m.feedback }) });
+            return novabotMsgRow(esc(m.content) + novabotDecisionCard(m.relatedDecision), { index:i, actionsHtml: novabotMsgActionsBot(i,
+              { estDernier: i === dernierIndexAffiche && !genereEnCours, feedback: m.feedback, revealed: c.revealedActionsIndex === i }) });
           }).join('')}
           ${revele ? novabotMsgRow(esc(c.streamingText)) : ''}
           ${c.sending ? `<div class="nb-msg-row"><div class="nb-avatar">${NOVABOT_ROOK_SVG}</div>

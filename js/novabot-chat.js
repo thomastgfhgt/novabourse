@@ -32,7 +32,7 @@ let NOVABOT_UI = { view:'chat', sidebarOpen:false, portfolioPeriod:'1A' };
 let NOVABOT_CONVERSATIONS = { loaded:false, loading:false, list:[], search:'', archivedList:[], archivedLoaded:false, archivedLoading:false, showArchived:false };
 /* controller/revealTimer (§2, bouton "Stop") : jamais persistés, purement
    l'état d'une requête/animation en cours côté client. */
-let NOVABOT_CHAT = { conversationId:null, messages:[], mandateDraft:{}, sending:false, readyToConfirm:false, loadingThread:false, streamingText:null, controller:null, revealTimer:null, editingIndex:null };
+let NOVABOT_CHAT = { conversationId:null, messages:[], mandateDraft:{}, sending:false, readyToConfirm:false, loadingThread:false, streamingText:null, controller:null, revealTimer:null, editingIndex:null, revealedActionsIndex:null };
 
 /* ---------- données réelles transmises à Nova Core (inchangé) ---------- */
 function novabotDecisionsPertinentes(texte){
@@ -166,7 +166,7 @@ async function novabotConversationNouvelle(){
   NOVABOT_UI.sidebarOpen = false;
   if (NOVABOT_CHAT.controller){ try { NOVABOT_CHAT.controller.abort(); } catch (e){} }
   if (NOVABOT_CHAT.revealTimer) clearTimeout(NOVABOT_CHAT.revealTimer);
-  NOVABOT_CHAT = { conversationId:null, messages:[], mandateDraft:{}, sending:false, readyToConfirm:false, loadingThread:false, streamingText:null, controller:null, revealTimer:null, editingIndex:null };
+  NOVABOT_CHAT = { conversationId:null, messages:[], mandateDraft:{}, sending:false, readyToConfirm:false, loadingThread:false, streamingText:null, controller:null, revealTimer:null, editingIndex:null, revealedActionsIndex:null };
   const accueil = novabotAccueilTexte();
   NOVABOT_CHAT.messages.push({ role:'assistant', content:accueil });
   render();
@@ -444,6 +444,18 @@ function novabotChatSoumetre(){
   input.value = '';
   input.style.height = 'auto';
   novabotChatEnvoyer(texte);
+}
+
+/* Bascule des actions d'un message (audit 2026-10-12, §2 : "présentation
+   discrète et contextuelle, adaptée aux interactions tactiles" — plus
+   une barre technique permanente sous chaque message sur mobile). Tap
+   sur la bulle : ouvre ses actions (un seul message ouvert à la fois,
+   re-tap referme). Édition en cours : ignoré, la bulle devient un champ
+   de texte, pas une cible de bascule. */
+function novabotMessageActionsBasculer(index){
+  if (NOVABOT_CHAT.editingIndex !== null) return;
+  NOVABOT_CHAT.revealedActionsIndex = (NOVABOT_CHAT.revealedActionsIndex === index) ? null : index;
+  render();
 }
 
 /* Réessayer (audit 2026-10-12, §4 : "afficher une erreur claire et un
