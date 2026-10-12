@@ -2427,6 +2427,22 @@ const NOVABOT_DISCOVERY_MAX = 20;
    NovaScore — jamais un passage qui consommerait tout le quota mensuel
    d'un plan Découverte (5 analyses) d'un coup. */
 const NOVABOT_LLM_MAX = 3;
+/* CORRECTIF (audit NovaBot V7, 2026-10-12, §3 — bug confirmé par capture
+   d'écran : "dizaines de lignes similaires Refusé pour risque — Alphabet
+   Inc. — 500€" sur un portefeuille de 500€) : cfg.tradeAmountEUR (500€
+   par défaut, montant FIXE par achat) était utilisé tel quel comme
+   montant de l'intention d'achat, sans jamais être réduit pour respecter
+   la réserve de liquidités du mandat (cashMinPct) ni le maximum par
+   position (maxPositionPct) — le Risk Engine ne faisait que REJETER
+   après coup un montant déjà voué à l'échec. Avec un portefeuille DE LA
+   TAILLE du montant par défaut (500€ cash = 500€ tradeAmountEUR) et
+   n'importe quelle réserve minimale > 0 %, CHAQUE tentative d'achat
+   dépense 100% du cash, ce qui viole TOUJOURS la réserve — un rejet
+   mathématiquement garanti, identique à chaque passage, pour n'importe
+   quel candidat. MONTANT_MIN_INVESTISSABLE : en dessous, une "position"
+   serait dérisoire (quelques centimes) — on considère qu'il n'y a plus
+   rien d'investissable plutôt que de proposer un montant symbolique. */
+const NOVABOT_MONTANT_MIN_INVESTISSABLE = 5;
 function novabotDiscoveryCandidats(mandate){
   const dejaDetenus = new Set(state.novabot.wallet.positions.map(p => p.id));
   const estAutorise = st => {
@@ -2481,6 +2497,40 @@ async function evaluerNovaBot(){
   }
 
   /* --- entrées : discovery au-delà de la seule watchlist (§7) --- */
+  /* CORRECTIF (audit V7 §3) : calculé UNE SEULE FOIS avant la boucle (le
+     cash disponible ne change pas entre candidats tant qu'aucun achat
+     n'a eu lieu ce passage-ci) — si la réserve minimale du mandat
+     n'autorise déjà plus aucun montant sensé, aucun candidat n'a besoin
+     d'être évalué individuellement : UNE décision explique la vraie
+     cause ("liquidités déjà au minimum du mandat"), jamais une décision
+     "Refusé" par candidat qui répéterait la même information. */
+  const pfInitial = portfolioValue(cfg.wallet);
+  const cashMinGlobal = (mandate.cashMinPct / 100) * pfInitial.total;
+  const cashDisponiblePourInvestir = cfg.wallet.cash - cashMinGlobal;
+  if (cashDisponiblePourInvestir < NOVABOT_MONTANT_MIN_INVESTISSABLE){
+    /* Même garde-fou "jamais réémis dans les 24h" que pour les décisions
+       `watch` plus bas dans cette fonction (dejaWatch) — même situation
+       de cash inchangée, même raison, pas d'information nouvelle tant
+       que rien n'a bougé (dépôt, retrait, vente). */
+    const dejaSignale = cfg.decisions.some(d => d.dataUsed?.raison === 'cash_reserve_globale'
+      && (Date.now() - new Date(d.date).getTime()) < 24 * 3600 * 1000);
+    if (!dejaSignale){
+      /* name explicite (jamais null) : d.name est interpolé tel quel dans
+         novabotOuvrirDecision() (js/nova.js, bouton "Demander à Nova
+         pourquoi") — un null y afficherait littéralement "null" dans la
+         question posée au modèle. */
+      novabotEnregistrerDecision({ action:'reject', stockId:null, ticker:null, name:'Réserve de liquidités',
+        executionStatus:'skipped',
+        reason:`Liquidités disponibles (${fmt.eur(cfg.wallet.cash)}) déjà au minimum du mandat (${mandate.cashMinPct} % de réserve) — aucun nouvel achat n'est possible avant un dépôt ou une vente.`,
+        dataUsed:{ raison:'cash_reserve_globale', cash:cfg.wallet.cash, cashMinGlobal } });
+      changed = true;
+    }
+    state.novabot.lastRunAt = Date.now();
+    saveState();
+    pushNovaBot();
+    if (changed) render();
+    return;
+  }
   const candidats = novabotDiscoveryCandidats(mandate);
   let appelsIA = 0; // borne les appels Nova Core de CE passage (§23/§24, voir plus bas)
   for (const id of candidats){
@@ -2513,8 +2563,34 @@ async function evaluerNovaBot(){
 
       if (actionDecidee === 'buy'){
         const priceEUR = toEUR(prix, st.cur);
+        /* CORRECTIF (audit V7 §3) : montant RÉELLEMENT investissable pour
+           CE candidat, recalculé à chaque itération (le cash a pu changer
+           si un candidat précédent de CE MÊME passage vient d'acheter) —
+           jamais le plafond fixe cfg.tradeAmountEUR utilisé tel quel, qui
+           ignorait la réserve de cash et le maximum par position du
+           mandat et produisait un rejet garanti dès que ce plafond
+           dépassait l'un des deux. Les trois bornes : le plafond
+           configuré, le cash dispo au-delà de la réserve, et la place
+           restante avant le maximum par position (position EXISTANTE
+           incluse, pour un renforcement). novabotRiskCheck() reste
+           appelé ensuite : filet de sécurité final (secteur/actif
+           interdit, nombre max de positions...), jamais redondant avec
+           ce calcul qui ne couvre QUE cash_min et position_max. */
+        const pfCourant = portfolioValue(cfg.wallet);
+        const posExistante = cfg.wallet.positions.find(p => p.id === id);
+        const valeurExistanteEUR = posExistante ? toEUR(posExistante.avg * posExistante.qty, st.cur) : 0;
+        const plafondPosition = (mandate.maxPositionPct / 100) * pfCourant.total - valeurExistanteEUR;
+        const cashDispoCourant = cfg.wallet.cash - (mandate.cashMinPct / 100) * pfCourant.total;
+        const montantInvestissable = Math.min(cfg.tradeAmountEUR, cashDispoCourant, plafondPosition);
+        if (montantInvestissable < NOVABOT_MONTANT_MIN_INVESTISSABLE){
+          /* Pas assez de place pour CE candidat précisément (position déjà
+             proche du max, ou cash épuisé par un achat précédent dans ce
+             même passage) — on passe au suivant plutôt que de proposer un
+             montant symbolique ou de répéter le même rejet. */
+          continue;
+        }
         const intent = { action:'buy', stockId:id, ticker:st.ticker, sector:st.sector,
-          amountEUR:cfg.tradeAmountEUR, priceLocal:prix, currency:st.cur, qty:cfg.tradeAmountEUR / priceEUR };
+          amountEUR:montantInvestissable, priceLocal:prix, currency:st.cur, qty:montantInvestissable / priceEUR };
         const verdict = novabotRiskCheck(intent, cfg.wallet, mandate);
         const motif = avisIA
           ? `NovaScore ${score} ≥ seuil ${cfg.scoreAchat} ; Nova AI : ${avisIA.reasoning}`
@@ -2532,7 +2608,7 @@ async function evaluerNovaBot(){
           const posExistante = cfg.wallet.positions.find(p => p.id === id);
           const poidsAvant = pfAvant.total > 0 && posExistante ? (toEUR(posExistante.avg * posExistante.qty, st.cur) / pfAvant.total) * 100 : 0;
           novabotEnregistrerDecision({ action:'buy', stockId:id, ticker:st.ticker, name:st.name,
-            priceObserved:prix, qty:intent.qty, amountEUR:cfg.tradeAmountEUR,
+            priceObserved:prix, qty:intent.qty, amountEUR:intent.amountEUR,
             cashBefore:cfg.wallet.cash, cashAfter:cfg.wallet.cash, weightBeforePct:poidsAvant, weightAfterPct:poidsAvant,
             reason:`${motif} (en attente de ton accord — mode ${cfg.autonomyMode === 'advice' ? 'conseil' : 'semi-autonome'})`,
             executionStatus:'pending',
@@ -2544,12 +2620,12 @@ async function evaluerNovaBot(){
           const pfAvant = portfolioValue(cfg.wallet);
           const posExistante = cfg.wallet.positions.find(p => p.id === id);
           const poidsAvant = pfAvant.total > 0 && posExistante ? (toEUR(posExistante.avg * posExistante.qty, st.cur) / pfAvant.total) * 100 : 0;
-          novabotAcheter(id, cfg.tradeAmountEUR, prix, motif);
+          novabotAcheter(id, intent.amountEUR, prix, motif);
           const pfApres = portfolioValue(cfg.wallet);
           const posApres = cfg.wallet.positions.find(p => p.id === id);
           const poidsApres = pfApres.total > 0 && posApres ? (toEUR(posApres.avg * posApres.qty, st.cur) / pfApres.total) * 100 : 0;
           novabotEnregistrerDecision({ action:'buy', stockId:id, ticker:st.ticker, name:st.name,
-            priceObserved:prix, qty:intent.qty, amountEUR:cfg.tradeAmountEUR,
+            priceObserved:prix, qty:intent.qty, amountEUR:intent.amountEUR,
             cashBefore:cashAvant, cashAfter:cfg.wallet.cash, weightBeforePct:poidsAvant, weightAfterPct:poidsApres,
             reason:motif, dataUsed:{ novaScore:score, fundamentals:donnees.fundamentals }, mandateSnapshot:mandate, riskResult:verdict,
             aiProvider:avisIA?.provider || null, aiModel:avisIA?.model || null, confidence:avisIA?.confidence ?? null });
@@ -2557,7 +2633,7 @@ async function evaluerNovaBot(){
         } else {
           const bloqueCash = verdict.violations.some(v => v.type === 'cash_insuffisant' || v.type === 'cash_min');
           novabotEnregistrerDecision({ action:'reject', stockId:id, ticker:st.ticker, name:st.name,
-            priceObserved:prix, amountEUR:cfg.tradeAmountEUR, executionStatus:'rejected',
+            priceObserved:prix, amountEUR:intent.amountEUR, executionStatus:'rejected',
             reason:verdict.violations.map(v => v.message).join(' '),
             dataUsed:{ novaScore:score }, mandateSnapshot:mandate, riskResult:verdict,
             aiProvider:avisIA?.provider || null, aiModel:avisIA?.model || null, confidence:avisIA?.confidence ?? null });
