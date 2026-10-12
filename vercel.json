@@ -42,5 +42,17 @@
       "destination": "/api/stripe/webhook",
       "permanent": true
     }
+  ],
+  "functions": {
+    "api/market/extra.js": {
+      "maxDuration": 60
+    }
+  },
+  "crons": [
+    {
+      "comment": "NovaBot V7 phase 2 (2026-10-12) : cycle autonome côté serveur, sorties stop-loss/take-profit uniquement (v1, voir api/market/_novabotEngine.js). Hobby plan = 1 déclenchement/jour max ; ajuster si le plan change.",
+      "path": "/api/market/extra?kind=novabot-cron",
+      "schedule": "0 7 * * *"
+    }
   ]
 }

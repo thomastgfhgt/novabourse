@@ -29,7 +29,14 @@
  * cascade, mêmes garde-fous).
  */
 
+const fs = require('fs');
+const path = require('path');
 const { sb, configure } = require('./_supabase.js');
+/* novabotRiskCheckServeur/montantInvestissableServeur : pas encore
+   utilisés ici (v1 = sorties uniquement, voir handleNovabotCron plus
+   bas) — déjà exportés par _novabotEngine.js pour le jour où la
+   découverte de nouveaux achats sera portée côté serveur. */
+const { rejouerNovaBot } = require('./_novabotEngine.js');
 const { deviseDe, SOURCE_NAME, SOURCE_URL } = require('../../scripts/lib/catalogImport.js');
 const {
   SEARCH,
@@ -490,6 +497,140 @@ async function handleHealth(req, res) {
 }
 
 /* ============================================================
+   kind=novabot-cron — V7 phase 2 (2026-10-12) : "le système doit
+   fonctionner côté serveur, même lorsque l'utilisateur ferme son
+   navigateur". Déclenché par Vercel Cron (voir vercel.json, "crons") —
+   Vercel ajoute automatiquement Authorization: Bearer $CRON_SECRET sur
+   ces appels dès que la variable d'env CRON_SECRET existe ; même en-tête
+   accepté pour un déclenchement manuel de test (curl), aucune distinction
+   nécessaire. Jamais appelable sans ce secret : return 404 (pas 401, pour
+   ne même pas révéler que la route existe) si le secret serveur est
+   absent — même convention défensive que DIAG_SECRET ci-dessus.
+
+   PORTÉE V1 (limitation assumée et documentée dans _novabotEngine.js) :
+   uniquement les SORTIES (stop-loss/take-profit) sur les positions déjà
+   détenues, pour TOUS les modes d'autonomie (comme côté navigateur :
+   "les sorties restent TOUJOURS immédiates quel que soit le mode" — une
+   protection de risque n'attend jamais un accord). Les NOUVEAUX achats
+   automatiques depuis ce cycle serveur sont un chantier séparé (nécessite
+   un cache de score construit côté serveur, voir le commentaire en tête
+   de _novabotEngine.js) — pas encore livré ici.
+
+   Bornes de charge (budget de temps d'une fonction serverless) : au plus
+   NOVABOT_CRON_MAX_COMPTES comptes actifs par déclenchement, un seul
+   appel /api/market/company par position détenue (jamais par compte —
+   deux comptes qui détiennent la même action ne la requêtent qu'une
+   fois). */
+const NOVABOT_CRON_MAX_COMPTES = 15;
+
+let CATALOGUE_PAR_ID = null;
+function catalogueParId(){
+  if (CATALOGUE_PAR_ID) return CATALOGUE_PAR_ID;
+  try {
+    const brut = fs.readFileSync(path.join(process.cwd(), 'catalog.json'), 'utf8');
+    const liste = JSON.parse(brut);
+    CATALOGUE_PAR_ID = new Map(liste.map(st => [st.id, st]));
+  } catch (e){
+    console.error('[novabot-cron] catalogue illisible :', e.message);
+    CATALOGUE_PAR_ID = new Map();
+  }
+  return CATALOGUE_PAR_ID;
+}
+
+async function handleNovabotCron(req, res) {
+  res.setHeader('Cache-Control', 'no-store');
+
+  const attendu = process.env.CRON_SECRET;
+  if (!attendu) return res.status(404).json({ error: 'introuvable' });
+  const auth = req.headers['authorization'] || '';
+  const fourni = auth.startsWith('Bearer ') ? auth.slice(7) : null;
+  if (fourni !== attendu) return res.status(401).json({ error: 'non_autorise' });
+
+  if (!configure()) return res.status(503).json({ error: 'supabase_indisponible' });
+
+  const rapport = { comptesTraites: 0, positionsExaminees: 0, ventesDeclenchees: 0, erreurs: [] };
+
+  try {
+    const comptes = await sb(`novabot_accounts?status=eq.active&select=*&limit=${NOVABOT_CRON_MAX_COMPTES}`);
+    const byId = catalogueParId();
+    const proto = req.headers['x-forwarded-proto'] || 'https';
+    const base = `${proto}://${req.headers.host}`;
+    const prixCache = new Map(); // un seul appel /api/market/company par stockId, partagé entre comptes
+
+    for (const compte of comptes) {
+      rapport.comptesTraites++;
+      try {
+        const txRows = await sb(`novabot_transactions?account_id=eq.${encodeURIComponent(compte.id)}&select=*`);
+        const transactions = txRows.map(r => ({
+          stockId: r.stock_id, type: r.type, qty: r.qty, priceLocal: r.price_local,
+          currency: r.currency, amountEUR: r.amount_eur, realizedGain: r.realized_gain, date: r.occurred_at,
+        }));
+        const wallet = rejouerNovaBot(transactions);
+        if (!wallet.positions.length) continue;
+
+        const mandateRows = await sb(`novabot_mandates?account_id=eq.${encodeURIComponent(compte.id)}&is_current=eq.true&select=*&limit=1`);
+        const mandate = mandateRows[0] || {};
+        const stopLossPct = 10, takeProfitPct = 20; // §24 : mêmes valeurs par défaut que state.novabot côté client
+
+        for (const pos of [...wallet.positions]){
+          rapport.positionsExaminees++;
+          const st = byId.get(pos.id);
+          if (!st || st.cur !== 'EUR') continue; // limitation V1 : conversion devise non gérée ici (voir _novabotEngine.js)
+
+          if (!prixCache.has(pos.id)){
+            try {
+              const r = await fetch(`${base}/api/market/company?ticker=${encodeURIComponent(st.ticker)}`
+                + `&exchange=${encodeURIComponent(st.exchangeCode || '')}&type=${encodeURIComponent(st.type || 'stock')}`);
+              const d = r.ok ? await r.json() : null;
+              prixCache.set(pos.id, Number.isFinite(d?.price) && d.price > 0 ? d.price : null);
+            } catch { prixCache.set(pos.id, null); }
+          }
+          const prix = prixCache.get(pos.id);
+          if (prix === null) continue; // §32 : cours indisponible -> pas d'ordre, jamais un cours inventé
+
+          const gainPct = ((prix - pos.avg) / pos.avg) * 100;
+          if (gainPct > -stopLossPct && gainPct < takeProfitPct) continue;
+
+          const motif = gainPct <= -stopLossPct
+            ? `Stop-loss déclenché (cycle automatique) : position à ${gainPct.toFixed(1)} %`
+            : `Take-profit déclenché (cycle automatique) : position à +${gainPct.toFixed(1)} %`;
+          const amountEUR = prix * pos.qty;
+          const cashAvant = wallet.cash;
+          const txId = 'nbtx' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+          const decId = 'nd' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+          const nowIso = new Date().toISOString();
+
+          await sb('novabot_transactions', { method: 'POST', body: JSON.stringify([{
+            id: txId, user_id: compte.user_id, account_id: compte.id,
+            stock_id: pos.id, ticker: st.ticker, name: st.name, type: 'sell',
+            qty: pos.qty, price_local: prix, currency: st.cur, amount_eur: amountEUR,
+            realized_gain: (prix - pos.avg) * pos.qty, decision_id: decId, reason: motif,
+            occurred_at: nowIso,
+          }]) });
+          await sb('novabot_decisions', { method: 'POST', body: JSON.stringify([{
+            id: decId, user_id: compte.user_id, account_id: compte.id,
+            action: 'sell', stock_id: pos.id, ticker: st.ticker, name: st.name,
+            price_observed: prix, qty: pos.qty, amount_eur: amountEUR,
+            cash_before: cashAvant, cash_after: cashAvant + amountEUR,
+            reason: motif, data_used: { gainPct, source: 'novabot-cron' },
+            execution_status: 'simulated', occurred_at: nowIso,
+          }]) });
+          wallet.cash += amountEUR;
+          rapport.ventesDeclenchees++;
+        }
+      } catch (e){
+        rapport.erreurs.push({ accountId: compte.id, message: e.message });
+      }
+    }
+  } catch (e){
+    console.error('[novabot-cron] échec :', e.message);
+    return res.status(503).json({ error: 'cycle_impossible', message: e.message });
+  }
+
+  return res.status(200).json(rapport);
+}
+
+/* ============================================================
    dispatch
    ============================================================ */
 module.exports = async (req, res) => {
@@ -498,6 +639,7 @@ module.exports = async (req, res) => {
   if (kind === 'worldnews') return handleWorldNews(req, res);
   if (kind === 'catalog') return handleCatalog(req, res);
   if (kind === 'health') return handleHealth(req, res);
+  if (kind === 'novabot-cron') return handleNovabotCron(req, res);
   res.setHeader('Cache-Control', 'no-store');
-  return res.status(400).json({ error: 'kind_invalide', kinds_valides: ['news', 'worldnews', 'catalog', 'health'] });
+  return res.status(400).json({ error: 'kind_invalide', kinds_valides: ['news', 'worldnews', 'catalog', 'health', 'novabot-cron'] });
 };
