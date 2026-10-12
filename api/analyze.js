@@ -245,7 +245,7 @@ envoyé à un broker). Tu parles en français, ton direct et chaleureux, jamais 
 jargon non expliqué.
 
 Réponds TOUJOURS en JSON strict :
-{"reply":"...","mandateDraft":{"initialCapital":null,"objective":null,"riskLevel":null,"horizonYears":null,"hardRules":null,"autonomyMode":null}|null,"readyToConfirm":false}
+{"reply":"...","mandateDraft":{"initialCapital":null,"objective":null,"riskLevel":null,"horizonYears":null,"hardRules":null,"preferences":null,"autonomyMode":null}|null,"readyToConfirm":false,"newPreferences":null}
 
 DEUX RÔLES SELON "mandateConfirmed" transmis ci-dessous :
 
@@ -257,7 +257,13 @@ DEUX RÔLES SELON "mandateConfirmed" transmis ci-dessous :
    - riskLevel : "low", "moderate", ou "high"
    - horizonYears (nombre d'années)
    - hardRules : tableau d'objets {"type":"excluded_sector"|"excluded_asset","value":"..."} pour
-     chaque secteur/entreprise que l'utilisateur exclut EXPLICITEMENT
+     chaque secteur/entreprise que l'utilisateur exclut EXPLICITEMENT (contrainte JAMAIS
+     outrepassable, ex. "je refuse l'armement")
+   - preferences : tableau d'objets {"type":"investment_style","value":"..."} pour une préférence
+     DURABLE mais NON contraignante que l'utilisateur exprime (ex. "je préfère investir à long
+     terme", "j'évite plutôt les cryptomonnaies" sans l'exclure formellement) — jamais la même
+     chose qu'une hardRule : une préférence peut être nuancée par Nova selon le contexte, une
+     hardRule ne peut jamais être franchie
    - autonomyMode : "advice" (propose, demande toujours confirmation), "semi_auto", ou "auto"
    N'invente AUCUNE valeur non mentionnée explicitement ou clairement déductible (ex. "risque
    modéré" -> "moderate"). Si l'utilisateur répond "je ne sais pas" à une notion, explique-la
@@ -272,8 +278,17 @@ DEUX RÔLES SELON "mandateConfirmed" transmis ci-dessous :
 
 2) mandateConfirmed=true : tu réponds aux questions sur le portefeuille/les décisions/le mandat
    RÉELLEMENT transmis ci-dessous ("mandate"/"portfolio"/"recentDecisions"/"specificDecisions").
-   "mandateDraft" reste null dans ce mode (le mandat ne change QUE via une procédure de
-   modification explicite, jamais glissé dans une réponse à une autre question).
+   "mandateDraft" reste null dans ce mode (le mandat NE CHANGE QUE via une procédure de
+   modification explicite, jamais glissé dans une réponse à une autre question) — ceci reste
+   ABSOLU pour initialCapital/objective/riskLevel/horizonYears/hardRules/autonomyMode.
+   "mandate.preferences" (transmis ci-dessous, déjà connues) sert à PERSONNALISER tes réponses —
+   une mémoire COMMUNE à toutes les conversations de cet utilisateur, pas seulement celle-ci.
+   Si l'utilisateur exprime en passant une NOUVELLE préférence durable et non contraignante (ex.
+   "je préfère les actions qui versent un dividende"), note-la dans "newPreferences" (tableau
+   d'objets {"type":"investment_style","value":"..."}, jamais plus de 2 par réponse, null si
+   aucune) — ceci N'EST PAS "mandateDraft" et ne nécessite aucune confirmation (non contraignant,
+   l'utilisateur peut la supprimer à tout moment depuis son mandat). Ne répète JAMAIS dans
+   "newPreferences" une préférence déjà listée dans "mandate.preferences".
    N'invente JAMAIS un chiffre, une date, une transaction ou une décision absente de ces données —
    si l'information demandée n'y figure pas (ex. décision trop ancienne non transmise), dis-le
    honnêtement ("je n'ai pas cette décision dans ce que je peux consulter maintenant") plutôt que
@@ -504,6 +519,19 @@ function nombreOuChaineBorne(v, max){
    dans un objet de profondeur arbitraire (fondamentaux dont la forme
    varie selon le fournisseur de données, voir api/market/_providers.js) —
    jamais une clé de type inconnu transmise telle quelle au modèle. */
+/* CORRECTIF (V6 §6, trouvé en câblant mandate.preferences dans le
+   contexte transmis au modèle) : cette fonction ignorait silencieusement
+   TOUTE propriété de type tableau — `!Array.isArray(v)` excluait les
+   tableaux de la branche "objet imbriqué" sans jamais leur donner de
+   branche à eux. Conséquence réelle, pas seulement théorique :
+   mandate.hardRules (exclusions CONTRAIGNANTES de l'utilisateur) et
+   mandate.preferences étaient systématiquement supprimés avant d'arriver
+   au modèle, dans LES DEUX rôles de CONSIGNE_NOVABOT_CHAT — Nova n'a
+   donc jamais réellement "connu" les exclusions de l'utilisateur en
+   conversation, malgré une architecture conçue pour les lui transmettre.
+   Les éléments d'un tableau sont filtrés un par un (nombre/texte borné/
+   objet imbriqué valide), jamais un tableau entier rejeté pour un seul
+   élément invalide — même tolérance que pour les objets. */
 function sanitiserDonnees(obj, profondeur = 0){
   if (profondeur > 2 || !obj || typeof obj !== 'object' || Array.isArray(obj)) return null;
   const out = {};
@@ -511,7 +539,19 @@ function sanitiserDonnees(obj, profondeur = 0){
     if (typeof v === 'number' && Number.isFinite(v)) out[k] = v;
     else if (typeof v === 'string' && v.length < 200) out[k] = texteBorne(v, 200);
     else if (typeof v === 'boolean') out[k] = v;
-    else if (v && typeof v === 'object' && !Array.isArray(v)){
+    else if (Array.isArray(v)){
+      const items = v.slice(0, 30).map(item => {
+        if (typeof item === 'number' && Number.isFinite(item)) return item;
+        if (typeof item === 'string' && item.length < 200) return texteBorne(item, 200);
+        if (item && typeof item === 'object' && !Array.isArray(item)){
+          const nested = sanitiserDonnees(item, profondeur + 1);
+          return (nested && Object.keys(nested).length) ? nested : null;
+        }
+        return null;
+      }).filter(x => x !== null);
+      if (items.length) out[k] = items;
+    }
+    else if (v && typeof v === 'object'){
       const nested = sanitiserDonnees(v, profondeur + 1);
       if (nested && Object.keys(nested).length) out[k] = nested;
     }
@@ -615,6 +655,20 @@ async function novabotDecisionAnalyse(req, res, { user, plan, dispo }){
 const NOVABOT_OBJECTIVES = new Set(['growth', 'income', 'preserve']);
 const NOVABOT_RISK_LEVELS = new Set(['low', 'moderate', 'high']);
 const NOVABOT_AUTONOMY = new Set(['advice', 'semi_auto', 'auto']);
+/* V6 §6 ("mémoire commune") : une préférence est TOUJOURS {type, value},
+   jamais contraignante (contrairement à hardRules) — réutilisé pour le
+   mandateDraft d'onboarding ET pour newPreferences en conversation
+   confirmée (voir novabotChatAnalyse ci-dessous). `max` différent selon
+   le contexte : l'onboarding peut en poser plusieurs d'un coup, un tour
+   de conversation normal n'en ajoute jamais plus de 2 (déjà imposé au
+   modèle dans CONSIGNE_NOVABOT_CHAT, revérifié ici côté serveur). */
+function validerPreferences(arr, max){
+  if (!Array.isArray(arr)) return null;
+  const prefs = arr
+    .filter(p => p && typeof p.type === 'string' && typeof p.value === 'string' && p.value.trim())
+    .slice(0, max).map(p => ({ type: texteBorne(p.type, 40), value: texteBorne(p.value, 80) }));
+  return prefs.length ? prefs : null;
+}
 function validerMandateDraft(d){
   if (!d || typeof d !== 'object' || Array.isArray(d)) return null;
   const out = {};
@@ -628,6 +682,8 @@ function validerMandateDraft(d){
       .slice(0, 20).map(r => ({ type:r.type, value: texteBorne(r.value, 60) }));
     if (regles.length) out.hardRules = regles;
   }
+  const prefs = validerPreferences(d.preferences, 20);
+  if (prefs) out.preferences = prefs;
   if (NOVABOT_AUTONOMY.has(d.autonomyMode)) out.autonomyMode = d.autonomyMode;
   return Object.keys(out).length ? out : null;
 }
@@ -693,6 +749,11 @@ async function novabotChatAnalyse(req, res, { user, plan, dispo }){
           reply: rep.reply.slice(0, 800),
           mandateDraft: mandateConfirmed ? null : validerMandateDraft(rep.mandateDraft),
           readyToConfirm: rep.readyToConfirm === true,
+          /* newPreferences : UNIQUEMENT en conversation déjà confirmée (voir
+             CONSIGNE_NOVABOT_CHAT, rôle 2) — jamais pendant l'onboarding, où
+             les préférences passent par mandateDraft/readyToConfirm comme le
+             reste du mandat en construction. */
+          newPreferences: mandateConfirmed ? validerPreferences(rep.newPreferences, 2) : null,
         };
       },
     }));
@@ -714,6 +775,7 @@ async function novabotChatAnalyse(req, res, { user, plan, dispo }){
   res.setHeader('Cache-Control', 'no-store');
   return res.status(200).json({ ...parsed, provider: id, model: modele, quota: quotaChatBlock(plan, utilise) });
 }
+
 
 module.exports = async (req, res) => {
   if (req.method === 'GET'){

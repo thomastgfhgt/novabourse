@@ -75,7 +75,13 @@ function novabotChatContexte(dernierMessage){
     mandateConfirmed:true,
     mandate: { objective:mandate.objective, riskLevel:mandate.riskLevel,
       horizonYears:mandate.horizonYears, cashMinPct:mandate.cashMinPct, maxPositionPct:mandate.maxPositionPct,
-      hardRules:mandate.hardRules, autonomyMode:state.novabot.autonomyMode },
+      hardRules:mandate.hardRules,
+      /* V6 §6 ("mémoire commune") : transmis sur CHAQUE message, pas
+         seulement à l'onboarding — "Nova doit pouvoir en tenir compte"
+         dans une conversation différente de celle où la préférence a été
+         exprimée. Nécessitait le correctif sanitiserDonnees() côté
+         serveur (les tableaux étaient silencieusement supprimés). */
+      preferences:mandate.preferences, autonomyMode:state.novabot.autonomyMode },
     portfolio: { cash:state.novabot.wallet.cash, totalValue:pf.total, realizedPnL:state.novabot.wallet.realizedPnL,
       positions, lastRunAt: state.novabot.lastRunAt ? new Date(state.novabot.lastRunAt).toISOString() : null },
     recentDecisions: recentes,
@@ -354,6 +360,7 @@ async function novabotAppelerModeleEtRepondre(dernierMessageUtilisateur){
       NOVABOT_CHAT.mandateDraft = { ...NOVABOT_CHAT.mandateDraft, ...d.mandateDraft };
     }
     NOVABOT_CHAT.readyToConfirm = Boolean(d.readyToConfirm);
+    if (d.newPreferences) novabotAjouterPreferences(d.newPreferences);
     /* id serveur du message capturé une fois la réponse arrivée (V6 §5 :
        nécessaire pour pouvoir le cibler ensuite via "Régénérer"/
        "Reprendre ici"/truncate_from — voir api/me.js). */

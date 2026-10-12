@@ -1029,6 +1029,16 @@ document.addEventListener('click', e => {
     swBtn.setAttribute('aria-checked', String(state.settings[key]));
     return;
   }
+  if (q('[data-novabot-del-pref]')){
+    novabotSupprimerPreference(+q('[data-novabot-del-pref]').dataset.novabotDelPref);
+    novabotOuvrirMandat();
+    return;
+  }
+  if (q('[data-novabot-del-rule]')){
+    novabotSupprimerHardRule(+q('[data-novabot-del-rule]').dataset.novabotDelRule);
+    novabotOuvrirMandat();
+    return;
+  }
   if (q('[data-novabot-toggle]')){
     state.novabot.enabled = !state.novabot.enabled;
     saveState();

@@ -948,7 +948,14 @@ function novabotOuvrirMandat(){
     <div class="kv"><dt>Risque</dt><dd>${cfg.riskLevel ? esc(RISK_LABEL[cfg.riskLevel]) : '—'}</dd></div>
     <div class="kv"><dt>Horizon</dt><dd>${Number.isFinite(cfg.horizonYears) ? cfg.horizonYears + ' an' + (cfg.horizonYears>1?'s':'') : '—'}</dd></div>
     <div class="kv"><dt>Autonomie</dt><dd>${{advice:'Conseil (confirmation à chaque fois)',semi_auto:'Semi-autonome',auto:'Autonome'}[cfg.autonomyMode] || '—'}</dd></div>
-    ${cfg.hardRules.length ? `<div class="kv"><dt>Exclusions</dt><dd>${cfg.hardRules.map(r=>esc(r.value)).join(', ')}</dd></div>` : ''}
+    ${cfg.hardRules.length || cfg.preferences.length ? `<div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--line-2)">
+      <p class="h3" style="font-size:13.5px">Mémoire</p>
+      <p class="tiny" style="color:var(--ink-4);margin-top:2px">Ce que Nova retient pour personnaliser ses réponses, dans toutes tes conversations.</p>
+      ${cfg.hardRules.length ? `<p class="tiny" style="margin-top:12px;font-weight:650;color:var(--ink-3)">Exclusions (contraignantes)</p>
+        <div class="nb-memory-chips">${cfg.hardRules.map((r,i)=>`<span class="nb-memory-chip hard">${esc(r.value)}<button type="button" data-novabot-del-rule="${i}" aria-label="Supprimer">×</button></span>`).join('')}</div>` : ''}
+      ${cfg.preferences.length ? `<p class="tiny" style="margin-top:12px;font-weight:650;color:var(--ink-3)">Préférences</p>
+        <div class="nb-memory-chips">${cfg.preferences.map((p,i)=>`<span class="nb-memory-chip">${esc(p.value)}<button type="button" data-novabot-del-pref="${i}" aria-label="Supprimer">×</button></span>`).join('')}</div>` : ''}
+    </div>` : ''}
     <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--line-2)">
       ${settingRow('Liquidités minimales', 'NovaBot n\'achète jamais si cela ferait passer le cash sous ce seuil.',
         `<input type="number" class="field" style="width:76px;text-align:right" min="0" max="100" step="5"

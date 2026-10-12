@@ -2285,6 +2285,44 @@ function novabotMandat(){
     horizonYears: Number.isFinite(cfg.horizonYears) ? cfg.horizonYears : null,
   };
 }
+/* V6 §6 ("mémoire commune", "interface permettant de consulter, corriger
+   et supprimer les souvenirs") : préférences NON contraignantes capturées
+   en passant par Nova (voir novabotAppelerModeleEtRepondre(), d.newPreferences)
+   — contrairement à hardRules/objective/etc., jamais besoin d'une
+   confirmation explicite (non liant), mais TOUJOURS visible et supprimable
+   par l'utilisateur (novabotSupprimerPreference ci-dessous). */
+function novabotAjouterPreferences(nouvelles){
+  if (!Array.isArray(nouvelles) || !nouvelles.length) return;
+  const existantes = Array.isArray(state.novabot.preferences) ? state.novabot.preferences : [];
+  const vus = new Set(existantes.map(p => (p.type + '|' + p.value).toLowerCase()));
+  const ajoutees = [];
+  for (const p of nouvelles){
+    if (!p || typeof p.type !== 'string' || typeof p.value !== 'string' || !p.value.trim()) continue;
+    const cle = (p.type + '|' + p.value).toLowerCase();
+    if (vus.has(cle)) continue;
+    vus.add(cle);
+    ajoutees.push({ type:p.type, value:p.value.trim() });
+  }
+  if (!ajoutees.length) return;
+  state.novabot.preferences = [...existantes, ...ajoutees];
+  saveState();
+  toast(`Nova a retenu : ${ajoutees.map(p => p.value).join(', ')}`);
+}
+function novabotSupprimerPreference(index){
+  const existantes = Array.isArray(state.novabot.preferences) ? state.novabot.preferences : [];
+  if (index < 0 || index >= existantes.length) return;
+  state.novabot.preferences = existantes.filter((_, i) => i !== index);
+  saveState();
+  render();
+}
+function novabotSupprimerHardRule(index){
+  const existantes = Array.isArray(state.novabot.hardRules) ? state.novabot.hardRules : [];
+  if (index < 0 || index >= existantes.length) return;
+  state.novabot.hardRules = existantes.filter((_, i) => i !== index);
+  saveState();
+  render();
+  toast('Règle supprimée');
+}
 function novabotRiskCheck(intent, wallet, mandate){
   const violations = [];
   const pf = portfolioValue(wallet);
