@@ -1656,6 +1656,30 @@ a.row{color:inherit;text-decoration:none}
    vraie surface distincte plutôt qu'un rectangle collé au bord. */
 @media (min-width:681px){ .nb-page{ padding:20px 22px 26px } }
 @media (max-width:680px){ .nb-page{ margin:0 -16px; border-radius:0 } }
+/* CORRECTIF (audit 2026-10-12, bug confirmé par capture d'écran iPhone :
+   "l'historique s'ouvre en deux temps" — un premier panneau apparaît,
+   puis un repositionnement/changement de hauteur survient peu après) :
+   view.innerHTML est entièrement recréé à CHAQUE render() (voir
+   index.html, commentaire au-dessus de render()), y compris pour un
+   simple clic sur "Historique" — ce qui redéclenche .page-in (.38s,
+   transform) et .page-in>* (stagger, .5s, transform) sur un TOUT
+   NOUVEAU noeud à chaque fois, pas seulement à la navigation.
+   Piège CSS classique : tant que .nb-page (ou .nb-chat-shell, son
+   enfant direct et PARENT de .nb-sidebar) a un `transform` actif (même
+   en cours d'animation), il devient le bloc de référence pour tout
+   descendant en position:fixed — .nb-sidebar s'affiche alors par
+   rapport à CET ancêtre, pas au viewport, jusqu'à la fin de
+   l'animation (~380-500ms), où il "saute" à sa vraie position plein
+   écran. Solution ciblée : .nb-page et ses enfants directs gardent un
+   simple fondu en opacité (aucune perte de transform à n'importe quel
+   instant), le reste du site garde pageIn/stagger avec transform
+   intacts — portée strictement limitée à .nb-page (cf. commentaire plus
+   haut sur le scope de cette classe). */
+.page-in.nb-page{animation:nbPageInFade .3s ease}
+.page-in.nb-page>*{animation:nbPageInFade .35s ease backwards}
+.page-in.nb-page>*:nth-child(1){animation-delay:.02s}
+.page-in.nb-page>*:nth-child(2){animation-delay:.06s}
+@keyframes nbPageInFade{from{opacity:0}to{opacity:1}}
 
 /* --- en-tête compact (remplace Retour pleine largeur + eyebrow + h1 +
    gros onglets, dénoncé explicitement : "le bouton Retour ne doit plus
@@ -1874,9 +1898,19 @@ a.row{color:inherit;text-decoration:none}
    fond+la bordure+le rayon. */
 .nb-chat-input{display:flex;gap:8px;align-items:flex-end;margin-top:10px;
   background:var(--bg-2);border:1px solid var(--line);border-radius:22px;padding:7px 7px 7px 16px}
+/* CORRECTIF (audit 2026-10-12, bug confirmé : "Safari provoque un
+   comportement visuel anormal" au toucher du champ) : cause exacte —
+   iOS Safari zoome automatiquement la page au focus sur tout champ de
+   saisie dont le font-size calculé est SOUS 16px (seuil documenté
+   WebKit, aucun rapport avec le viewport ou un bug) ; 14.5px déclenchait
+   ce zoom à chaque fois. Jamais user-scalable=no/maximum-scale=1 dans le
+   <meta viewport> (demande explicite : ne pas bloquer le zoom
+   d'accessibilité pour masquer le problème) — on supprime le
+   DÉCLENCHEUR, pas le zoom lui-même. 16px (au lieu de 14.5px) est la
+   correction standard documentée, pas un contournement. */
 .nb-chat-input textarea{flex:1;min-width:0;resize:none;max-height:120px;min-height:22px;
   background:none;border:none;padding:7px 0;
-  font:inherit;font-size:14.5px;line-height:1.4;color:var(--ink);font-family:inherit}
+  font:inherit;font-size:16px;line-height:1.4;color:var(--ink);font-family:inherit}
 .nb-chat-input textarea:focus{outline:none}
 .nb-send-btn{flex:0 0 auto;width:36px;height:36px;border-radius:50%;background:var(--accent);
   border:none;color:var(--accent-ink);display:flex;align-items:center;justify-content:center;
@@ -1969,10 +2003,23 @@ a.row{color:inherit;text-decoration:none}
      vh d'abord (repli), dvh ensuite (tient compte du clavier/barres iOS
      quand supporté — un navigateur qui ne connaît pas dvh ignore cette
      ligne et garde vh). */
-  body.nb-immersive .wrap{display:flex;flex-direction:column;
+  /* CORRECTIF (audit 2026-10-12, bug confirmé par capture d'écran iPhone :
+     "grand rectangle presque noir, avec des marges et des bordures qui
+     cassent la continuité visuelle [...] donne l'impression d'une page
+     web insérée dans une autre page") : .wrap garde son padding GÉNÉRIQUE
+     de page (32px / 22px / 120px — var(--sp-4)/22px/var(--sp-6)+40px,
+     prévu pour une page normale avec dock en bas) même en mode immersif,
+     où .nb-page a SA PROPRE barre de tête et sa propre saisie ancrée —
+     ce padding créait un cadre visible (clair autour, sombre dedans)
+     plutôt qu'une surface qui occupe l'écran. padding:0 ici + margin:0
+     sur .nb-page (au lieu du margin:0 -16px générique, qui ne
+     compensait qu'un padding mobile standard de 16px, pas les 22px/120px
+     réels de .wrap) donnent un fond plein écran, sans cadre ni marge
+     résiduelle. */
+  body.nb-immersive .wrap{display:flex;flex-direction:column;padding:0;
     height:calc(100vh - var(--top-header-h, 60px));
     height:calc(100dvh - var(--top-header-h, 60px))}
-  body.nb-immersive .nb-page{display:flex;flex-direction:column;flex:1;min-height:0}
+  body.nb-immersive .nb-page{display:flex;flex-direction:column;flex:1;min-height:0;margin:0}
   body.nb-immersive .nb-chat-shell{display:flex;flex-direction:column;flex:1;min-height:0}
   body.nb-immersive .nb-thread-col{min-height:0}
   /* Le fil récupère toute la hauteur libérée par le masquage du dock —
