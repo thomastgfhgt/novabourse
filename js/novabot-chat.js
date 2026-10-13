@@ -698,17 +698,30 @@ function novabotChatSoumetre(){
   input.style.height = 'auto';
   novabotChatEnvoyer(texte);
 }
+/* CORRECTIF (audit 2026-10-13, "je veux que tout soit automatisé [...]
+   sans appuyer sur un bouton") : avant ce correctif, confirmer le mandat
+   affichait littéralement "clique sur Évaluer maintenant" — exactement
+   l'inverse de "entièrement automatique" pour un mandat en mode auto,
+   et un geste manuel superflu même en conseil/semi-autonome (l'analyse
+   elle-même peut démarrer seule ; seule l'EXÉCUTION d'un achat reste
+   soumise à confirmation dans ces deux modes, déjà géré par
+   evaluerNovaBot() lui-même). Lance maintenant la première évaluation
+   directement à la confirmation, pour TOUS les modes — jamais besoin de
+   trouver un bouton pour que NovaBot commence à travailler. Le cycle
+   quotidien côté serveur (vercel.json, "crons") prend ensuite le relais
+   sans navigateur ouvert. */
 function novabotChatConfirmer(){
   novabotConfirmerMandat(NOVABOT_CHAT.mandateDraft);
   NOVABOT_CHAT.readyToConfirm = false;
   const recap = `Mandat confirmé — ${fmt.eur(state.novabot.wallet.invested)} confiés, activé en simulation. `
-    + `Je commence à chercher des opportunités dès que tu le souhaites (bouton « Évaluer maintenant », dans Portefeuille) ou dis-moi simplement d'y aller.`;
+    + `Je lance une première évaluation tout de suite, puis je repasserai chaque jour automatiquement sans que tu aies rien à faire.`;
   const msgRecap = { role:'assistant', content:recap };
   NOVABOT_CHAT.messages.push(msgRecap);
   if (NOVABOT_CHAT.conversationId){
     novabotSauvegarderMessage(NOVABOT_CHAT.conversationId, msgRecap, { role:'assistant', content:recap });
   }
   render();
+  evaluerNovaBot();
 }
 
 /* "Demander à Nova pourquoi" (§7/§8) : ouvre une NOUVELLE conversation
