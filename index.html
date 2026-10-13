@@ -1061,8 +1061,16 @@ document.addEventListener('click', e => {
        tranche B) fonctionne déjà indépendamment du catalogue complet — une
        watchlist vide limitait simplement les positions SURVEILLÉES pour la
        sortie (stop-loss/take-profit), jamais les candidats à l'achat. */
-    toast('NovaBot évalue vos règles…');
+    /* Toast "NovaBot évalue vos règles…" retiré (audit 2026-10-13) : le
+       panneau "NovaBot travaille" (NOVABOT_UI.activite, ouvert par
+       evaluerNovaBot() lui-même dès son premier instant) remplace
+       avantageusement ce simple message — retour visuel réel et détaillé
+       plutôt qu'un texte générique redondant. */
     evaluerNovaBot();
+    return;
+  }
+  if (q('[data-novabot-activite-fermer]')){
+    novabotActiviteFermer();
     return;
   }
   if (q('[data-novabot-chat-send]')){

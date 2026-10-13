@@ -2642,8 +2642,15 @@ async function evaluerNovaBot(){
   const cfg = state.novabot;
   const mandate = novabotMandat();
   let changed = false;
+  /* Panneau "NovaBot travaille" (audit 2026-10-13, V7 §4) — fonctions
+     no-op si jamais appelées hors contexte navigateur (ex. un futur
+     appelant serveur) : garde défensive, pas une dépendance dure. */
+  const activite = typeof novabotActiviteDemarrer === 'function';
+  if (activite) novabotActiviteDemarrer();
 
   /* --- sorties : positions détenues --- */
+  const nbPositionsDepart = cfg.wallet.positions.length;
+  const etapePositions = activite ? novabotActiviteDebuter(`Vérification de ${nbPositionsDepart} position(s) détenue(s)`) : null;
   for (const pos of [...cfg.wallet.positions]){
     const st = byId[pos.id];
     const prix = st ? prixDe(st) : null;
@@ -2661,8 +2668,11 @@ async function evaluerNovaBot(){
         priceObserved:prix, qty:pos.qty, cashBefore:cashAvant, cashAfter:cfg.wallet.cash,
         weightBeforePct:poidsAvant, weightAfterPct:0, reason:motif, dataUsed:{ gainPct } });
       changed = true;
+      if (activite) novabotActiviteEtapeDirecte(`Vente simulée : ${st.ticker}`, 'terminee', motif);
     }
   }
+  if (activite) novabotActiviteConclure(etapePositions, 'terminee',
+    nbPositionsDepart ? 'Positions vérifiées.' : 'Aucune position détenue pour l\'instant.');
 
   /* --- entrées : discovery au-delà de la seule watchlist (§7) --- */
   /* CORRECTIF (audit V7 §3) : calculé UNE SEULE FOIS avant la boucle (le
@@ -2696,19 +2706,24 @@ async function evaluerNovaBot(){
     state.novabot.lastRunAt = Date.now();
     saveState();
     pushNovaBot();
+    if (activite) novabotActiviteTerminer('Décision : conserver les liquidités (déjà au minimum du mandat).');
     if (changed) render();
     return;
   }
   const candidats = novabotDiscoveryCandidats(mandate);
+  const etapeDecouverte = activite ? novabotActiviteDebuter(`Recherche d'opportunités (${candidats.length} candidat(s) à examiner)`) : null;
   let appelsIA = 0; // borne les appels Nova Core de CE passage (§23/§24, voir plus bas)
+  let nbAchats = 0, nbVentes = (nbPositionsDepart - cfg.wallet.positions.length);
   for (const id of candidats){
     const st = byId[id];
-    if (!st) continue; // §33 : instrument ambigu/introuvable -> pas d'ordre
+    const etapeCandidat = activite ? novabotActiviteDebuter(`Analyse de ${st ? st.ticker : id}`) : null;
+    if (!st){ if (activite) novabotActiviteConclure(etapeCandidat, 'echouee', 'Instrument introuvable dans le catalogue.'); continue; } // §33 : instrument ambigu/introuvable -> pas d'ordre
     const prix = prixDe(st);
-    if (prix === null) continue; // §32
+    if (prix === null){ if (activite) novabotActiviteConclure(etapeCandidat, 'echouee', 'Cours indisponible.'); continue; } // §32
     const donnees = await novabotDonneesMarche(st);
-    if (donnees === null) continue; // §32 : NovaScore indisponible -> pas d'ordre, WATCH non plus (rien à dire)
+    if (donnees === null){ if (activite) novabotActiviteConclure(etapeCandidat, 'echouee', 'NovaScore indisponible (données insuffisantes).'); continue; } // §32 : NovaScore indisponible -> pas d'ordre, WATCH non plus (rien à dire)
     const score = donnees.score;
+    if (activite) novabotActiviteConclure(etapeCandidat, 'terminee', `NovaScore ${score}/100${Number.isFinite(donnees.volatility) ? ` · volatilité ${(donnees.volatility*100).toFixed(0)}%` : ''}`);
 
     if (score >= cfg.scoreAchat){
       /* Second avis Nova Core (tranche C, §1/§9) : UNIQUEMENT si
@@ -2805,6 +2820,8 @@ async function evaluerNovaBot(){
             reason:motif, dataUsed:{ novaScore:score, fundamentals:donnees.fundamentals, sizing:sizing.detail }, mandateSnapshot:mandate, riskResult:verdict,
             aiProvider:avisIA?.provider || null, aiModel:avisIA?.model || null, confidence:avisIA?.confidence ?? null });
           changed = true;
+          nbAchats++;
+          if (activite) novabotActiviteEtapeDirecte(`Achat simulé : ${st.ticker}`, 'terminee', `${fmt.eur(intent.amountEUR)} — ${motifMontant}`);
         } else {
           const bloqueCash = verdict.violations.some(v => v.type === 'cash_insuffisant' || v.type === 'cash_min');
           novabotEnregistrerDecision({ action:'reject', stockId:id, ticker:st.ticker, name:st.name,
@@ -2860,6 +2877,13 @@ async function evaluerNovaBot(){
     }
   }
 
+  if (activite){
+    novabotActiviteConclure(etapeDecouverte, 'terminee', `${candidats.length} candidat(s) examiné(s).`);
+    const resume = nbAchats || nbVentes
+      ? `${nbAchats} achat(s), ${nbVentes} vente(s) simulé(s).`
+      : 'Décision : conserver les liquidités — aucune opportunité ne satisfait les critères du mandat pour l\'instant.';
+    novabotActiviteTerminer(resume);
+  }
   state.novabot.lastRunAt = Date.now();
   saveState();
   pushNovaBot();

@@ -892,6 +892,35 @@ function novabotGestionAutoCard(cfg, dernierPassage){
     </div>
   </div>`;
 }
+/* Panneau "NovaBot travaille" (audit 2026-10-13, V7 §4) — affiche les
+   étapes RÉELLES de NOVABOT_UI.activite (posées en direct par
+   evaluerNovaBot(), js/core.js, jamais une simulation). Rendu
+   uniquement si une activité a été ouverte au moins une fois dans cette
+   session (ouvert=true) ; se referme explicitement (×) une fois
+   terminée, jamais automatiquement — l'utilisateur doit pouvoir relire
+   le résumé avant qu'il disparaisse. */
+function novabotActivitePanel(){
+  const a = NOVABOT_UI.activite;
+  if (!a || !a.ouvert) return '';
+  const ICONE_STATUT = { en_cours:null, terminee:svg(ICON.check,2.4), echouee:svg(ICON.x,2.4) };
+  return `<div class="card nb-activite-panel" style="margin-top:14px">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px">
+      <div style="display:flex;align-items:center;gap:8px">
+        ${a.enCours ? '<span class="nb-activite-spin"></span>' : ''}
+        <b style="font-size:14.5px">NovaBot travaille</b>
+      </div>
+      ${!a.enCours ? `<button type="button" class="nb-icon-btn" data-novabot-activite-fermer aria-label="Fermer">${svg(ICON.x,2)}</button>` : ''}
+    </div>
+    <div class="nb-activite-etapes">
+      ${a.etapes.map(e => `<div class="nb-activite-etape nb-activite-${e.statut}">
+        <span class="nb-activite-icone">${e.statut === 'en_cours' ? '<i></i>' : ICONE_STATUT[e.statut]}</span>
+        <div style="min-width:0"><div class="nb-activite-label">${esc(e.label)}</div>
+          ${e.detail ? `<div class="nb-activite-detail">${esc(e.detail)}</div>` : ''}</div>
+      </div>`).join('')}
+    </div>
+    ${!a.enCours && a.resume ? `<p class="nb-activite-resume">${esc(a.resume)}</p>` : ''}
+  </div>`;
+}
 /* ---------- vue Portefeuille (inspiration Revolut, §5) ---------- */
 function novabotPortfolioView(){
   const cfg = state.novabot;
@@ -929,6 +958,7 @@ function novabotPortfolioView(){
       </div>
     </div>
 
+    ${novabotActivitePanel()}
     ${novabotGestionAutoCard(cfg, dernierPassage)}
 
     <div class="card" style="margin-top:14px">

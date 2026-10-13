@@ -23,7 +23,52 @@
    (novabotRevelerProgressivement()) pour l'impression de fluidité
    demandée, sans la complexité d'un vrai flux SSE multi-fournisseurs. */
 
-let NOVABOT_UI = { view:'chat', sidebarOpen:false, portfolioPeriod:'1A' };
+let NOVABOT_UI = { view:'chat', sidebarOpen:false, portfolioPeriod:'1A', activite:{ ouvert:false, enCours:false, etapes:[] } };
+
+/* CORRECTIF (audit 2026-10-13, "fonctionnalités pas abouties" — §4 du
+   prompt V7, qualifié par l'utilisateur de "l'une de mes demandes les
+   plus importantes" : "je veux voir NovaBot travailler") — n'existait
+   PAS du tout avant ce correctif, pas une amélioration d'un panneau
+   existant. CONTRAINTE EXPLICITE RESPECTÉE : "Aucune recherche fictive
+   ne doit être affichée comme une recherche réellement effectuée" —
+   chaque étape ci-dessous est posée au moment EXACT où evaluerNovaBot()
+   (js/core.js) effectue RÉELLEMENT ce travail, jamais une simulation ni
+   une étape décorative ajoutée après coup pour "faire plus vivant". */
+function novabotActiviteDemarrer(){
+  NOVABOT_UI.activite = { ouvert:true, enCours:true, etapes:[] };
+  render();
+}
+/* Démarre une étape "en_cours", renvoie une RÉFÉRENCE DIRECTE à son objet
+   (pas un index : des étapes peuvent s'intercaler avant sa conclusion —
+   ex. une vente déclenchée pendant la vérification des positions — un
+   index deviendrait faux ; la référence reste toujours valide). L'appelant
+   la conclut lui-même via novabotActiviteConclure(). Une étape déjà
+   conclue en un seul appel (jamais "en cours" entre-temps, ex. une vente
+   déjà effective quand on l'apprend) se pousse directement via
+   novabotActiviteEtapeDirecte(). */
+function novabotActiviteDebuter(label){
+  const etape = { label, statut:'en_cours', detail:null };
+  NOVABOT_UI.activite.etapes.push(etape);
+  render();
+  return etape;
+}
+function novabotActiviteConclure(etape, statut, detail){
+  etape.statut = statut; etape.detail = detail || null;
+  render();
+}
+function novabotActiviteEtapeDirecte(label, statut, detail){
+  NOVABOT_UI.activite.etapes.push({ label, statut, detail: detail || null });
+  render();
+}
+function novabotActiviteTerminer(resume){
+  NOVABOT_UI.activite.enCours = false;
+  NOVABOT_UI.activite.resume = resume || null;
+  render();
+}
+function novabotActiviteFermer(){
+  NOVABOT_UI.activite.ouvert = false;
+  render();
+}
 /* archivedList/archivedLoaded/showArchived (V5 Phase A, §2 : "archiver les
    conversations") : liste SÉPARÉE de `list`, chargée paresseusement
    uniquement quand l'utilisateur ouvre la section "Archivées" du panneau —
