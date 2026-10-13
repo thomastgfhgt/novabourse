@@ -32,11 +32,7 @@
 const fs = require('fs');
 const path = require('path');
 const { sb, configure } = require('./_supabase.js');
-/* novabotRiskCheckServeur/montantInvestissableServeur : pas encore
-   utilisés ici (v1 = sorties uniquement, voir handleNovabotCron plus
-   bas) — déjà exportés par _novabotEngine.js pour le jour où la
-   découverte de nouveaux achats sera portée côté serveur. */
-const { rejouerNovaBot } = require('./_novabotEngine.js');
+const { rejouerNovaBot, novabotRiskCheckServeur, montantInvestissableServeur, MONTANT_MIN_INVESTISSABLE } = require('./_novabotEngine.js');
 const { deviseDe, SOURCE_NAME, SOURCE_URL } = require('../../scripts/lib/catalogImport.js');
 const {
   SEARCH,
@@ -497,7 +493,9 @@ async function handleHealth(req, res) {
 }
 
 /* ============================================================
-   kind=novabot-cron — V7 phase 2 (2026-10-12) : "le système doit
+   kind=novabot-cron — V7 phase 2 (2026-10-12), étendu le 2026-10-13
+   pour inclure les NOUVEAUX achats automatiques ("je veux que tout soit
+   automatisé [...] sans appuyer sur un bouton") : "le système doit
    fonctionner côté serveur, même lorsque l'utilisateur ferme son
    navigateur". Déclenché par Vercel Cron (voir vercel.json, "crons") —
    Vercel ajoute automatiquement Authorization: Bearer $CRON_SECRET sur
@@ -507,21 +505,58 @@ async function handleHealth(req, res) {
    ne même pas révéler que la route existe) si le secret serveur est
    absent — même convention défensive que DIAG_SECRET ci-dessus.
 
-   PORTÉE V1 (limitation assumée et documentée dans _novabotEngine.js) :
-   uniquement les SORTIES (stop-loss/take-profit) sur les positions déjà
-   détenues, pour TOUS les modes d'autonomie (comme côté navigateur :
-   "les sorties restent TOUJOURS immédiates quel que soit le mode" — une
-   protection de risque n'attend jamais un accord). Les NOUVEAUX achats
-   automatiques depuis ce cycle serveur sont un chantier séparé (nécessite
-   un cache de score construit côté serveur, voir le commentaire en tête
-   de _novabotEngine.js) — pas encore livré ici.
+   SORTIES (stop-loss/take-profit) : pour TOUS les modes d'autonomie,
+   comme côté navigateur ("une protection de risque n'attend jamais un
+   accord"). ENTRÉES (nouveaux achats) : exécutées immédiatement
+   seulement en mode 'auto' ; en 'advice'/'semi_auto', une décision
+   'pending' est créée — identique au comportement du bouton "Évaluer
+   maintenant" côté navigateur, l'utilisateur l'approuve ensuite dans
+   l'application.
+
+   LIMITATION ASSUMÉE ET DOCUMENTÉE — univers de découverte restreint :
+   la sélection de candidats côté navigateur s'appuie sur un score mis
+   en cache localement au fil de la navigation (state local), qu'un
+   serveur démarrant à froid n'a pas ; scanner tout le catalogue
+   (46 000+ instruments) en vrais NovaScore à chaque cycle dépasserait
+   le budget de temps d'une fonction serverless. NOVABOT_CRON_UNIVERS_
+   DECOUVERTE ci-dessous est un panier volontairement restreint et
+   explicite (19 grandes capitalisations réelles, réparties sur 6
+   secteurs réels du catalogue) — PAS le catalogue entier, le temps
+   qu'un vrai cache de score serveur soit construit (chantier séparé).
+   Chaque score reste 100% réel (même pipeline /api/market/company que
+   le reste de l'app) : restreindre l'UNIVERS examiné n'invente jamais
+   une note pour un instrument qui y figure.
+
+   LIMITATION ASSUMÉE — réglages non synchronisés côté serveur : le
+   seuil NovaScore d'achat, le stop-loss/take-profit et le montant par
+   trade (cfg.scoreAchat/stopLossPct/takeProfitPct/tradeAmountEUR) ne
+   sont stockés QUE côté navigateur (aucune colonne correspondante sur
+   novabot_mandates) — ce cycle utilise les mêmes valeurs par défaut que
+   l'application (70/10%/20%/500€), qui peuvent diverger d'un réglage
+   que l'utilisateur aurait personnalisé. Synchroniser ces réglages vers
+   le mandat serveur est un prérequis pour lever cette limitation,
+   signalé ici plutôt que silencieusement ignoré.
 
    Bornes de charge (budget de temps d'une fonction serverless) : au plus
-   NOVABOT_CRON_MAX_COMPTES comptes actifs par déclenchement, un seul
-   appel /api/market/company par position détenue (jamais par compte —
-   deux comptes qui détiennent la même action ne la requêtent qu'une
-   fois). */
+   NOVABOT_CRON_MAX_COMPTES comptes actifs par déclenchement ; un seul
+   appel /api/market/company par instrument (position détenue OU
+   candidat à l'achat), jamais par compte — PARTAGÉ et récupéré EN
+   PARALLÈLE (Promise.all) entre tous les comptes traités, pour rester
+   dans le budget de temps malgré plusieurs comptes et jusqu'à 20
+   candidats de découverte. */
 const NOVABOT_CRON_MAX_COMPTES = 15;
+const NOVABOT_CRON_UNIVERS_DECOUVERTE = [
+  'AAPL-NAS', 'MSFT-NAS', 'GOOGL-NAS', 'NVDA-NAS', 'ADBE-NAS', 'CSCO-NAS', // Technologie
+  'AMZN-NAS', 'HD-NYS', 'KO-NYS', 'PEP-NAS', // Consommation
+  'META-NAS', 'DIS-NYS', 'NFLX-NAS', // Télécommunications
+  'JNJ-NYS', 'UNH-NYS', 'PFE-NYS', // Santé
+  'JPM-NYS', 'V-NYS', // Finance
+  'XOM-NYS', // Énergie
+];
+/* Score minimum pour déclencher un achat — même défaut que state.novabot.
+   scoreAchat côté client (limitation ci-dessus : non synchronisé). */
+const NOVABOT_CRON_SCORE_ACHAT = 70;
+const NOVABOT_CRON_TRADE_AMOUNT_EUR = 500;
 
 let CATALOGUE_PAR_ID = null;
 function catalogueParId(){
@@ -548,45 +583,79 @@ async function handleNovabotCron(req, res) {
 
   if (!configure()) return res.status(503).json({ error: 'supabase_indisponible' });
 
-  const rapport = { comptesTraites: 0, positionsExaminees: 0, ventesDeclenchees: 0, erreurs: [] };
+  const rapport = { comptesTraites: 0, positionsExaminees: 0, ventesDeclenchees: 0,
+    candidatsExamines: 0, achatsDeclenches: 0, propositionsCreees: 0, erreurs: [] };
 
   try {
     const comptes = await sb(`novabot_accounts?status=eq.active&select=*&limit=${NOVABOT_CRON_MAX_COMPTES}`);
     const byId = catalogueParId();
     const proto = req.headers['x-forwarded-proto'] || 'https';
     const base = `${proto}://${req.headers.host}`;
-    const prixCache = new Map(); // un seul appel /api/market/company par stockId, partagé entre comptes
 
+    /* Un seul appel /api/market/company par instrument pour TOUT le
+       cycle — positions détenues ET univers de découverte confondus —
+       jamais répété par compte. dossierCache : id -> { prix, score,
+       volatility, maxDrawdown, fundamentals } | null (échec ou données
+       insuffisantes, jamais une valeur inventée à la place). */
+    const dossierCache = new Map();
+    async function recupererDossier(id){
+      if (dossierCache.has(id)) return dossierCache.get(id);
+      const st = byId.get(id);
+      if (!st){ dossierCache.set(id, null); return null; }
+      try {
+        const r = await fetch(`${base}/api/market/company?ticker=${encodeURIComponent(st.ticker)}`
+          + `&exchange=${encodeURIComponent(st.exchangeCode || '')}&type=${encodeURIComponent(st.type || 'stock')}`);
+        const d = r.ok ? await r.json() : null;
+        const dossier = d && Number.isFinite(d.price) && d.price > 0 ? {
+          prix: d.price,
+          score: Number.isFinite(d.novaScore?.score) ? d.novaScore.score : null,
+          volatility: Number.isFinite(d.novaScore?.volatility) ? d.novaScore.volatility : null,
+          maxDrawdown: Number.isFinite(d.novaScore?.maxDrawdown) ? d.novaScore.maxDrawdown : null,
+          fundamentals: d.fundamentals || null,
+        } : null;
+        dossierCache.set(id, dossier);
+        return dossier;
+      } catch { dossierCache.set(id, null); return null; }
+    }
+
+    /* Positions RÉELLEMENT détenues par au moins un des comptes traités
+       + l'univers de découverte entier : récupérés EN PARALLÈLE avant la
+       boucle par compte (Promise.all), pas en série — reste dans le
+       budget de temps malgré plusieurs comptes et jusqu'à 20 candidats. */
+    const walletsParCompte = new Map();
     for (const compte of comptes) {
-      rapport.comptesTraites++;
       try {
         const txRows = await sb(`novabot_transactions?account_id=eq.${encodeURIComponent(compte.id)}&select=*`);
         const transactions = txRows.map(r => ({
           stockId: r.stock_id, type: r.type, qty: r.qty, priceLocal: r.price_local,
           currency: r.currency, amountEUR: r.amount_eur, realizedGain: r.realized_gain, date: r.occurred_at,
         }));
-        const wallet = rejouerNovaBot(transactions);
-        if (!wallet.positions.length) continue;
+        walletsParCompte.set(compte.id, rejouerNovaBot(transactions));
+      } catch (e){
+        rapport.erreurs.push({ accountId: compte.id, message: e.message });
+      }
+    }
+    const idsAPrefetcher = new Set(NOVABOT_CRON_UNIVERS_DECOUVERTE);
+    for (const wallet of walletsParCompte.values()) for (const pos of wallet.positions) idsAPrefetcher.add(pos.id);
+    await Promise.all([...idsAPrefetcher].map(recupererDossier));
 
+    for (const compte of comptes) {
+      rapport.comptesTraites++;
+      const wallet = walletsParCompte.get(compte.id);
+      if (!wallet) continue; // rejeu du journal déjà en échec, erreur déjà consignée ci-dessus
+      try {
         const mandateRows = await sb(`novabot_mandates?account_id=eq.${encodeURIComponent(compte.id)}&is_current=eq.true&select=*&limit=1`);
-        const mandate = mandateRows[0] || {};
+        const mandateRow = mandateRows[0];
         const stopLossPct = 10, takeProfitPct = 20; // §24 : mêmes valeurs par défaut que state.novabot côté client
 
+        /* --- sorties : positions détenues (inchangé) --- */
         for (const pos of [...wallet.positions]){
           rapport.positionsExaminees++;
           const st = byId.get(pos.id);
           if (!st || st.cur !== 'EUR') continue; // limitation V1 : conversion devise non gérée ici (voir _novabotEngine.js)
-
-          if (!prixCache.has(pos.id)){
-            try {
-              const r = await fetch(`${base}/api/market/company?ticker=${encodeURIComponent(st.ticker)}`
-                + `&exchange=${encodeURIComponent(st.exchangeCode || '')}&type=${encodeURIComponent(st.type || 'stock')}`);
-              const d = r.ok ? await r.json() : null;
-              prixCache.set(pos.id, Number.isFinite(d?.price) && d.price > 0 ? d.price : null);
-            } catch { prixCache.set(pos.id, null); }
-          }
-          const prix = prixCache.get(pos.id);
-          if (prix === null) continue; // §32 : cours indisponible -> pas d'ordre, jamais un cours inventé
+          const dossier = dossierCache.get(pos.id);
+          if (!dossier) continue; // §32 : cours indisponible -> pas d'ordre, jamais un cours inventé
+          const prix = dossier.prix;
 
           const gainPct = ((prix - pos.avg) / pos.avg) * 100;
           if (gainPct > -stopLossPct && gainPct < takeProfitPct) continue;
@@ -616,7 +685,98 @@ async function handleNovabotCron(req, res) {
             execution_status: 'simulated', occurred_at: nowIso,
           }]) });
           wallet.cash += amountEUR;
+          /* CORRECTIF (2026-10-13, trouvé en ajoutant les entrées ci-
+             dessous) : la position vendue n'était jamais retirée de
+             wallet.positions — sans incidence tant que seules les
+             sorties existaient (chaque position n'est examinée qu'une
+             fois par passage), mais la logique d'entrée plus bas
+             vérifie "déjà détenu ?" sur CE MÊME wallet en mémoire : sans
+             ce retrait, un titre à peine vendu aurait pu être
+             immédiatement rejugé "détenu" à tort. */
+          wallet.positions = wallet.positions.filter(p => p.id !== pos.id);
           rapport.ventesDeclenchees++;
+        }
+
+        /* --- entrées : nouveaux achats (2026-10-13, "tout automatisé
+           sans appuyer sur un bouton") --- */
+        if (!mandateRow) continue; // pas de mandat confirmé -> rien à risque-vérifier, jamais un achat sans mandat réel
+        const mandate = {
+          cashMinPct: Number.isFinite(mandateRow.cash_min_pct) ? mandateRow.cash_min_pct : 20,
+          maxPositionPct: Number.isFinite(mandateRow.max_position_pct) ? mandateRow.max_position_pct : 10,
+          hardRules: Array.isArray(mandateRow.hard_rules) ? mandateRow.hard_rules : [],
+        };
+        for (const id of NOVABOT_CRON_UNIVERS_DECOUVERTE){
+          const st = byId.get(id);
+          if (!st || st.cur !== 'EUR') continue; // même limitation devise que les sorties
+          if (wallet.positions.some(p => p.id === id)) continue; // déjà détenu -> renforcement non géré par ce cycle (v1)
+          if (mandate.hardRules.some(r => r.type === 'excluded_sector' && r.value === st.sector)) continue;
+          if (mandate.hardRules.some(r => r.type === 'excluded_asset' && (r.value === id || r.value === st.ticker))) continue;
+          rapport.candidatsExamines++;
+          const dossier = dossierCache.get(id);
+          if (!dossier || dossier.score === null) continue; // §32 : NovaScore indisponible -> pas d'ordre
+          if (dossier.score < NOVABOT_CRON_SCORE_ACHAT) continue;
+
+          const pfCourant = { total: wallet.cash + wallet.positions.reduce((s, p) => {
+            const pst = byId.get(p.id); const pd = dossierCache.get(p.id);
+            return s + (pst && pd ? pd.prix * p.qty : p.avg * p.qty);
+          }, 0) };
+          const sizing = montantInvestissableServeur({
+            tradeAmountEUR: NOVABOT_CRON_TRADE_AMOUNT_EUR,
+            cashDispo: wallet.cash - (mandate.cashMinPct / 100) * pfCourant.total,
+            pfTotalEUR: pfCourant.total, maxPositionPct: mandate.maxPositionPct, valeurExistanteEUR: 0,
+          });
+          if (sizing < MONTANT_MIN_INVESTISSABLE) continue;
+
+          const intent = { action: 'buy', stockId: id, ticker: st.ticker, sector: st.sector, amountEUR: sizing };
+          const verdict = novabotRiskCheckServeur(intent, wallet, mandate, pfCourant.total);
+          const motif = `NovaScore ${dossier.score} ≥ seuil ${NOVABOT_CRON_SCORE_ACHAT} (cycle automatique)`;
+          const decId = 'nd' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+          const nowIso = new Date().toISOString();
+
+          if (!verdict.allowed){
+            await sb('novabot_decisions', { method: 'POST', body: JSON.stringify([{
+              id: decId, user_id: compte.user_id, account_id: compte.id,
+              action: 'reject', stock_id: id, ticker: st.ticker, name: st.name,
+              price_observed: dossier.prix, amount_eur: sizing, execution_status: 'rejected',
+              reason: verdict.violations.map(v => v.message).join(' '),
+              data_used: { novaScore: dossier.score, source: 'novabot-cron' }, occurred_at: nowIso,
+            }]) });
+            continue;
+          }
+
+          if (compte.autonomy_mode === 'auto'){
+            const qty = sizing / dossier.prix;
+            const txId = 'nbtx' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+            await sb('novabot_transactions', { method: 'POST', body: JSON.stringify([{
+              id: txId, user_id: compte.user_id, account_id: compte.id,
+              stock_id: id, ticker: st.ticker, name: st.name, type: 'buy',
+              qty, price_local: dossier.prix, currency: st.cur, amount_eur: sizing,
+              decision_id: decId, reason: motif, occurred_at: nowIso,
+            }]) });
+            await sb('novabot_decisions', { method: 'POST', body: JSON.stringify([{
+              id: decId, user_id: compte.user_id, account_id: compte.id,
+              action: 'buy', stock_id: id, ticker: st.ticker, name: st.name,
+              price_observed: dossier.prix, qty, amount_eur: sizing,
+              cash_before: wallet.cash, cash_after: wallet.cash - sizing,
+              reason: motif, data_used: { novaScore: dossier.score, volatility: dossier.volatility,
+                maxDrawdown: dossier.maxDrawdown, source: 'novabot-cron' },
+              execution_status: 'simulated', occurred_at: nowIso,
+            }]) });
+            wallet.cash -= sizing;
+            wallet.positions.push({ id, qty, avg: dossier.prix, currency: st.cur });
+            rapport.achatsDeclenches++;
+          } else {
+            await sb('novabot_decisions', { method: 'POST', body: JSON.stringify([{
+              id: decId, user_id: compte.user_id, account_id: compte.id,
+              action: 'buy', stock_id: id, ticker: st.ticker, name: st.name,
+              price_observed: dossier.prix, qty: sizing / dossier.prix, amount_eur: sizing,
+              cash_before: wallet.cash, cash_after: wallet.cash,
+              reason: `${motif} (en attente de ton accord — mode ${compte.autonomy_mode === 'advice' ? 'conseil' : 'semi-autonome'})`,
+              data_used: { novaScore: dossier.score, source: 'novabot-cron' },
+              execution_status: 'pending', occurred_at: nowIso,
+            }]) });
+            rapport.propositionsCreees++;
+          }
         }
       } catch (e){
         rapport.erreurs.push({ accountId: compte.id, message: e.message });
