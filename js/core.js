@@ -792,13 +792,32 @@ const stocks = [];
    catalogue arrivé, sans rien recâbler ailleurs dans ce fichier. */
 const byId = {};
 
-/* Identifiant stable pour une société, qu'elle vienne du catalogue local ou
-   d'un résultat /api/market/search. Même convention que le catalogue
-   (TICKER-CODE_MARCHÉ) pour que les deux sources produisent le même id pour
-   la même société et ne créent jamais de doublon. */
+/* CORRECTIF (audit 2026-10-13, bug réel rapporté : "Apple et bien
+   d'autres entreprises apparaissent en plusieurs fois" sur Marchés) —
+   cette fonction PRÉTENDAIT déjà produire "le même id" que le catalogue
+   statique (voir commentaire ci-dessous, jamais vérifié jusqu'ici), mais
+   ne le faisait PAS réellement pour NASDAQ/NYSE/NYSE ARCA : catalog.json
+   (scripts/build-catalog.js, table ID_SUFFIX) abrège ces 3 places
+   précises dans l'ID ("AAPL-NAS"), alors que remoteId() utilisait le nom
+   complet tel que renvoyé par /api/market/search ou le catalogue distant
+   ("AAPL-NASDAQ") — DEUX ids différents pour la MÊME société réelle dès
+   qu'elle existe dans les deux sources, donc DEUX cartes dans la liste.
+   Un correctif antérieur (js/data-services.js, TOP_SYMBOLES_PRECHARGES)
+   avait déjà documenté exactement ce mécanisme pour UN SEUL cas précis
+   (le préchargement de cotations) sans jamais corriger la cause réelle
+   ici — ensureRuntimeStock()/searchProviders()/searchCatalog(), qui
+   alimentent TOUTE la page Marchés, restaient donc affectés pour
+   N'IMPORTE QUELLE société de ces 3 places. ID_EXCHANGE_SUFFIX reproduit
+   EXACTEMENT la table ID_SUFFIX de scripts/build-catalog.js (à garder
+   synchronisées manuellement) — UNIQUEMENT pour le calcul de l'id
+   (dédoublonnage) : exchangeCode lui-même (stocké sur l'objet stock,
+   transmis tel quel à /api/market/history|fundamentals|quotes) n'est
+   JAMAIS abrégé, aucun risque de casser un appel API existant. */
+const ID_EXCHANGE_SUFFIX = { NASDAQ:'NAS', NYSE:'NYS', 'NYSE ARCA':'NYA' };
 function remoteId(ticker, exchangeCode){
   const t = String(ticker || '').toUpperCase().trim();
-  const e = String(exchangeCode || '').toUpperCase().trim();
+  const eBrut = String(exchangeCode || '').toUpperCase().trim();
+  const e = ID_EXCHANGE_SUFFIX[eBrut] || eBrut;
   return e ? `${t}-${e}` : t;
 }
 

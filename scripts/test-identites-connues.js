@@ -3,9 +3,13 @@
 // watchlist/positions sur un chargement "froid") pour la verifier sans
 // navigateur, avec un searchRemote()/ensureRuntimeStock() simules.
 
+// Correctif 2026-10-13 ("Apple apparaît en plusieurs fois" sur Marchés)
+// reporté ici pour que cette copie reste fidèle à js/core.js.
+const ID_EXCHANGE_SUFFIX = { NASDAQ:'NAS', NYSE:'NYS', 'NYSE ARCA':'NYA' };
 function remoteId(ticker, exchangeCode){
   const t = String(ticker || '').toUpperCase().trim();
-  const e = String(exchangeCode || '').toUpperCase().trim();
+  const eBrut = String(exchangeCode || '').toUpperCase().trim();
+  const e = ID_EXCHANGE_SUFFIX[eBrut] || eBrut;
   return e ? `${t}-${e}` : t;
 }
 
