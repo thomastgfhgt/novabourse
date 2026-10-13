@@ -149,7 +149,10 @@ async function novabotConversationOuvrir(id){
       /* id conservé par message (V6 §5 : édition/régénération/reprise ont
          besoin de cibler un message PRÉCIS côté serveur, voir
          action=truncate_from, api/me.js) — jamais perdu au chargement. */
-      NOVABOT_CHAT.messages = full.messages.map(m => ({ role:m.role, content:m.content, id:m.id }));
+      /* feedback restauré depuis metadata.feedback (voir action=feedback,
+         api/me.js) — correctif 2026-10-13, sans quoi un avis persisté
+         côté serveur réapparaîtrait "non donné" à chaque réouverture. */
+      NOVABOT_CHAT.messages = full.messages.map(m => ({ role:m.role, content:m.content, id:m.id, feedback:m.metadata?.feedback || null }));
       const dernierAvecDraft = [...full.messages].reverse().find(m => m.metadata?.mandateDraftSnapshot);
       NOVABOT_CHAT.mandateDraft = dernierAvecDraft?.metadata?.mandateDraftSnapshot || {};
       NOVABOT_CHAT.readyToConfirm = false;
@@ -543,16 +546,31 @@ function novabotMessageCopier(index){
   } else faireSecours();
 }
 
-/* Avis positif/négatif (V6 §5) — bascule locale, jamais encore persistée
-   côté serveur (pas de colonne dédiée sur nova_messages à ce stade) :
-   survit à la session en cours mais pas à une actualisation complète de
-   la page. Limitation assumée et à faire évoluer si un vrai suivi de
-   satisfaction est demandé — un clic réagit réellement, jamais décoratif. */
-function novabotMessageFeedback(index, valeur){
+/* CORRECTIF (audit 2026-10-13, "fonctionnalités pas abouties") : jusqu'ici
+   une bascule PUREMENT locale — semblait fonctionner (retour visuel
+   immédiat) mais l'avis disparaissait à la moindre actualisation,
+   jamais réellement enregistré. Persisté maintenant via action=feedback
+   (api/me.js, metadata.feedback sur nova_messages) dès que le message a
+   un id serveur ; si le PATCH échoue, la bascule visuelle est annulée —
+   mieux vaut rien afficher qu'afficher un avis qui n'a pas réellement
+   été pris en compte. */
+async function novabotMessageFeedback(index, valeur){
   const m = NOVABOT_CHAT.messages[index];
   if (!m || m.role !== 'assistant') return;
-  m.feedback = m.feedback === valeur ? null : valeur;
+  const avant = m.feedback || null;
+  const apres = avant === valeur ? null : valeur;
+  m.feedback = apres;
   render();
+  if (!m.id || !NOVABOT_CHAT.conversationId) return; // pas encore de message serveur à cibler (sauvegarde en cours) : bascule locale seule pour l'instant
+  try {
+    const r = await authFetch(`/api/me?resource=conversations&id=${encodeURIComponent(NOVABOT_CHAT.conversationId)}&action=feedback`,
+      { method:'POST', body: JSON.stringify({ messageId:m.id, feedback:apres }) });
+    if (!r.ok) throw new Error('réponse non ok');
+  } catch (e){
+    console.warn('[novabot-chat] avis non enregistré :', e);
+    m.feedback = avant; // annule la bascule visuelle : jamais un avis affiché qui n'a pas réellement été pris en compte
+    render();
+  }
 }
 
 /* Régénérer (Nova uniquement, dernier message du fil) : supprime la

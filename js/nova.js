@@ -841,6 +841,57 @@ function novabotChatView(){
   </div>`;
 }
 
+/* CORRECTIF (audit 2026-10-13, "fonctionnalités pas abouties") : avant ce
+   correctif, le SEUL endroit pour voir si NovaBot était actif ou en
+   pause — et pour le réactiver — était un interrupteur enterré dans
+   "Mon mandat" -> "Réglages avancés" (un <details> fermé par défaut).
+   Trouvé en diagnostiquant pourquoi le compte réel de l'utilisateur
+   était silencieusement passé en pause sans qu'il s'en aperçoive.
+   Correspond exactement à la demande V7 §8 ("Gestion automatique
+   NovaBot [...] Le moteur autonome doit être utilisable sans que
+   l'utilisateur ait à rechercher un bouton caché dans les paramètres") :
+   statut, dernière/prochaine évaluation, résumé de la dernière décision,
+   pause/reprise en un tap, DIRECTEMENT sur l'écran Portefeuille. */
+function novabotProchaineEvaluation(maintenant = new Date()){
+  /* Cycle automatique côté serveur (vercel.json, "crons") : 1 fois/jour
+     à 7h UTC — plan Vercel Hobby, voir api/market/extra.js kind=
+     novabot-cron. Calcul en direct à partir de l'heure actuelle, jamais
+     une estimation : si 7h UTC est déjà passée aujourd'hui, c'est demain.
+     Paramètre `maintenant` injectable (défaut : l'heure réelle) pour que
+     ce calcul reste testable sans dépendre de l'horloge système — voir
+     test-novabot-gestion-auto.js. */
+  const prochaine = new Date(Date.UTC(maintenant.getUTCFullYear(), maintenant.getUTCMonth(), maintenant.getUTCDate(), 7, 0, 0));
+  if (prochaine <= maintenant) prochaine.setUTCDate(prochaine.getUTCDate() + 1);
+  return prochaine;
+}
+function novabotGestionAutoCard(cfg, dernierPassage){
+  const derniere = cfg.decisions.length ? cfg.decisions[cfg.decisions.length - 1] : null;
+  const ACTION_LABEL = { buy:'Achat', sell:'Vente', reject:'Refusé pour risque', watch:'Surveillance', hold:'Conservé', increase:'Renforcement', reduce:'Allègement' };
+  const resumeDerniere = derniere
+    ? `${ACTION_LABEL[derniere.action] || derniere.action} · ${esc(derniere.name || derniere.ticker || 'Portefeuille')}`
+    : 'Aucune évaluation effectuée pour l\'instant.';
+  const prochaine = cfg.enabled
+    ? novabotProchaineEvaluation().toLocaleString('fr-FR', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' }) + ' (cycle automatique quotidien)'
+    : '—';
+  return `<div class="card" style="margin-top:14px">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px">
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="width:9px;height:9px;border-radius:50%;background:${cfg.enabled ? 'var(--up)' : 'var(--ink-4)'};flex:0 0 auto"></span>
+        <b style="font-size:14.5px">Gestion automatique NovaBot</b>
+      </div>
+      <span class="tag ${cfg.enabled ? 'tag-up' : ''}">${cfg.enabled ? 'Actif' : 'En pause'}</span>
+    </div>
+    <dl style="margin-top:12px;display:flex;flex-direction:column;gap:7px">
+      <div class="kv"><dt>Dernière évaluation</dt><dd>${esc(dernierPassage)}</dd></div>
+      <div class="kv"><dt>Prochaine évaluation</dt><dd>${esc(prochaine)}</dd></div>
+      <div class="kv"><dt>Dernière décision</dt><dd style="text-align:right;max-width:60%">${resumeDerniere}</dd></div>
+    </dl>
+    <div class="btns" style="margin-top:14px">
+      <button type="button" class="btn ${cfg.enabled ? 'btn-g' : 'btn-a'}" style="flex:1" data-novabot-toggle>${cfg.enabled ? 'Mettre en pause' : 'Reprendre'}</button>
+      <button type="button" class="btn btn-ghost" style="flex:1" data-novabot-mandat-open>Mon mandat</button>
+    </div>
+  </div>`;
+}
 /* ---------- vue Portefeuille (inspiration Revolut, §5) ---------- */
 function novabotPortfolioView(){
   const cfg = state.novabot;
@@ -877,6 +928,8 @@ function novabotPortfolioView(){
         <button type="button" class="btn btn-g" data-novabot-funds-open="withdraw">Retirer des fonds</button>
       </div>
     </div>
+
+    ${novabotGestionAutoCard(cfg, dernierPassage)}
 
     <div class="card" style="margin-top:14px">
       <div class="seg" data-seg="novabotPeriod" style="width:100%">

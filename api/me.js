@@ -1127,6 +1127,37 @@ async function handleNovaConversations(req, res, user) {
     }
   }
 
+  /* ---------- avis (pouce haut/bas) sur un message ----------
+     CORRECTIF (audit 2026-10-13, "fonctionnalités pas abouties") :
+     novabotMessageFeedback() (js/novabot-chat.js) ne modifiait QUE
+     NOVABOT_CHAT.messages en mémoire — le bouton semblait fonctionner
+     (bascule visuelle immédiate) mais l'avis n'était jamais persisté :
+     un rechargement de page ou une réouverture de la conversation le
+     faisait disparaître sans aucune trace. Même mécanisme que
+     truncate_from ci-dessus (id = conversation, messageId dans le
+     corps) — PATCH metadata.feedback ('up'|'down'|null), jamais une
+     nouvelle table pour un seul champ. */
+  if (id && body.action === 'feedback') {
+    const messageId = typeof body.messageId === 'string' ? body.messageId : null;
+    const valeur = ['up', 'down', null].includes(body.feedback) ? body.feedback : undefined;
+    if (!messageId || valeur === undefined) return res.status(400).json({ error: 'feedback_invalide' });
+    try {
+      const msgRows = await sb(
+        `nova_messages?id=eq.${encodeURIComponent(messageId)}&conversation_id=eq.${encodeURIComponent(id)}&user_id=eq.${encodeURIComponent(user.id)}&select=id,metadata`
+      );
+      if (!msgRows.length) return res.status(404).json({ error: 'message_introuvable' });
+      const metadata = { ...(msgRows[0].metadata || {}), feedback: valeur };
+      await sb(`nova_messages?id=eq.${encodeURIComponent(messageId)}`, {
+        method: 'PATCH', headers: { Prefer: 'return=minimal' },
+        body: JSON.stringify({ metadata }),
+      });
+      return res.status(200).json({ id: messageId, feedback: valeur });
+    } catch (e) {
+      console.error('[me] avis sur message :', e.message);
+      return res.status(503).json({ error: 'ecriture_impossible' });
+    }
+  }
+
   /* ---------- ajout d'un message à une conversation existante ---------- */
   if (id && body.action === 'message') {
     const role = CONV_ROLES.includes(body.role) ? body.role : null;
