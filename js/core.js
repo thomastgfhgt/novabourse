@@ -2917,6 +2917,18 @@ async function syncNovaBot(){
          confirmation explicite du mandat (novabotConfirmerMandat() plus
          bas), 'active'/'paused' ensuite — une seule source de vérité. */
       state.novabot.mandateConfirmed = data.account.status !== 'setup';
+      /* CORRECTIF (2026-10-13, bug réel confirmé en base : un compte
+         NovaBot resté "paused" côté serveur alors que rien n'indiquait
+         pourquoi) — state.novabot.enabled était poussé VERS le serveur
+         (pushNovaBot(), plus bas) mais jamais relu DEPUIS lui : un
+         changement fait ailleurs (autre appareil, ou ici même côté
+         serveur pour déboguer) était silencieusement écrasé par le
+         prochain pushNovaBot() déclenché par CE navigateur, qui renvoyait
+         aveuglément son propre état local périmé. Synchronisé comme
+         mandateConfirmed, une seule source de vérité au chargement —
+         un nouveau appui sur le bouton Activer/Désactiver (index.html)
+         reste bien sûr prioritaire ensuite pour CETTE session. */
+      state.novabot.enabled = data.account.status === 'active';
     }
     const serverDec = Array.isArray(data.decisions) ? data.decisions.map(d => ({ ...d, date: d.occurredAt })) : [];
     const decById = new Map();
