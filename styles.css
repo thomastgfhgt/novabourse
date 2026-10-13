@@ -2097,6 +2097,30 @@ a.row{color:inherit;text-decoration:none}
   .nb-chat-input{position:sticky;bottom:calc(var(--dock-h, 82px) + var(--dock-gap, 12px) + 8px + var(--kb-inset, 0px));
     background:var(--bg);padding-top:4px}
   body.nb-immersive .nb-chat-input{bottom:calc(env(safe-area-inset-bottom, 0px) + 8px + var(--kb-inset, 0px))}
+  /* CORRECTIF (audit esthétique mobile, 2026-10-13) : cible tactile sous
+     le minimum recommandé (44×44px) sur les boutons les plus utilisés au
+     doigt — bouton d'envoi (36px) et icônes de la barre de tête (retour,
+     Historique, 32px). Pas une question de goût : en dessous de 44px, un
+     bouton devient difficile à toucher précisément à une main, ce qui
+     contribue directement à une impression de finition bâclée sur
+     téléphone. Desktop non concerné (scopé à ce media query), où la
+     souris n'a pas ce problème de précision. */
+  .nb-send-btn{width:44px;height:44px}
+  .nb-send-btn svg{width:18px;height:18px}
+  .nb-icon-btn{width:44px;height:44px}
+  /* border-radius relevé avec le bouton d'envoi agrandi ci-dessus : la
+     barre de saisie, désormais plus haute (44px + 7px de marge interne de
+     chaque côté ≈ 58px), gardait un rayon de 22px calibré pour son
+     ancienne hauteur — resterait visuellement "moins en pilule" sans cet
+     ajustement, un détail qui se voit sur un composeur mis en avant. */
+  .nb-chat-input{border-radius:29px}
+  /* Boutons d'action sous un message (Copier/Régénérer/Reprendre ici...)
+     : secondaires et révélés au tap (jamais permanents, voir le
+     correctif contextuel du 2026-10-12), mais 5px/9px de marge interne
+     les rendait serrés au doigt une fois ouverts. Toujours pas 44px
+     plein (seraient disproportionnés à côté du texte du bouton), juste
+     assez d'air pour un tap confortable. */
+  .nb-msg-actions button{padding:9px 13px}
 }
 @media (prefers-reduced-motion:reduce){
   .nb-sidebar{transition:none}
