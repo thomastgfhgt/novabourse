@@ -85,6 +85,53 @@ function dispoPourTache(tache){
    la phrase. Comportement et compromis assumé inchangés par ce
    déplacement — voir le commentaire original conservé plus bas où cette
    fonction est appelée pour l'analyse d'entreprise. */
+/* CORRECTIF (audit 2026-10-13, bug réel rapporté : "Tu souhaites
+   investir [donnée non vérifiée] [donnée non vérifiée]€...") — cause
+   exacte : construireAssainisseur() ne connaît que les nombres déjà
+   présents dans `contexte` (mandat confirmé, portefeuille, décisions —
+   des données STRUCTURÉES déjà en base). Un montant que l'utilisateur
+   vient de taper DANS SON MESSAGE ("j'aimerais investir 10000€") n'a
+   jamais existé ailleurs : quand le modèle le reprend fidèlement pour
+   confirmer qu'il a compris ("Tu souhaites investir 10 000€..."), le
+   verrou anti-hallucination le traite comme un nombre halluciné et le
+   redacte — alors qu'il vient MOT POUR MOT de l'utilisateur, jamais
+   inventé par le modèle. Le mécanisme de sécurité reste légitime (un
+   prix ou un score inventé doit toujours être bloqué) : ce correctif
+   ÉLARGIT l'ensemble des nombres autorisés aux montants que
+   l'utilisateur a RÉELLEMENT écrits dans la conversation, jamais aux
+   nombres produits par le modèle lui-même (seuls les messages role=
+   'user' sont scannés).
+
+   Gère toutes les écritures listées dans le rapport : 10000, 10 000,
+   10.000 (séparateur de milliers, convention FR), 10k, 1 500,50
+   (décimale après la virgule). LIMITATION ASSUMÉE : un montant
+   entièrement en toutes lettres ("dix mille euros") n'est PAS extrait
+   ici — seules les écritures chiffrées le sont ; le modèle peut
+   toujours comprendre et reformuler un montant en lettres, mais sa
+   propre reformulation en CHIFFRES de ce montant pourrait alors être
+   redactée. Volontairement permissif plutôt que de deviner UNE SEULE
+   convention de séparateurs : plusieurs lectures plausibles d'un même
+   nombre sont ajoutées à l'ensemble autorisé (impact nul — ce sont des
+   nombres que l'utilisateur a réellement écrits, jamais une donnée
+   inventée qu'on laisserait passer par erreur). */
+function nombresDuTexteUtilisateur(messages){
+  const nombres = new Set();
+  const ajouter = n => { if (Number.isFinite(n)) nombres.add(Math.round(n * 100) / 100); };
+  for (const m of messages){
+    if (m.role !== 'user' || typeof m.content !== 'string') continue;
+    for (const k of m.content.matchAll(/(\d+(?:[.,]\d+)?)\s*k\b/gi)){
+      ajouter(Number(k[1].replace(',', '.')) * 1000);
+    }
+    for (const bloc of m.content.matchAll(/\d[\d .,]*\d|\d/g)){
+      const brut = bloc[0];
+      ajouter(Number(brut.replace(/[ .,]/g, ''))); // tous séparateurs ignorés -> entier (10 000 -> 10000)
+      const finDecimale = brut.match(/^(.*)[,.](\d{1,2})$/); // dernier séparateur = décimale (1 500,50 -> 1500.50)
+      if (finDecimale) ajouter(Number(finDecimale[1].replace(/[ .,]/g, '') + '.' + finDecimale[2]));
+    }
+  }
+  return [...nombres];
+}
+
 function construireAssainisseur(contexte){
   function nombresAutorises(valeur, acc){
     if (typeof valeur === 'number' && Number.isFinite(valeur)){
@@ -100,10 +147,33 @@ function construireAssainisseur(contexte){
   }
   const autorises = nombresAutorises(contexte, new Set());
   const compteur = { retires: 0 };
+  /* CORRECTIF (audit 2026-10-13) — deuxième cause du même bug rapporté
+     ("[donnée non vérifiée] [donnée non vérifiée]€", DEUX marqueurs
+     consécutifs) : l'ancienne regex /-?\d+(?:[.,]\d+)?/g ne reconnaît
+     qu'UN SEUL groupe de chiffres par jeton — "10 000" (convention
+     française usuelle pour le séparateur de milliers, que le modèle
+     reproduit naturellement) était donc scanné comme DEUX jetons
+     distincts ("10" puis "000"), chacun vérifié ISOLÉMENT contre
+     l'ensemble autorisé (qui ne contient que "10000", jamais "10" ni
+     "000" seuls) — DEUX échecs, DEUX marqueurs, exactement le symptôme
+     rapporté. Touche tous les appelants de construireAssainisseur()
+     (analyse d'entreprise, novareview, novabot), pas seulement le chat :
+     même correctif pour tous, même mécanisme.
+     Nouvelle regex : tente d'abord un nombre à groupes de milliers
+     (espace OU point, 3 chiffres par groupe, virgule décimale optionnelle
+     à la fin) AVANT de retomber sur un nombre simple — "10 000", "10.000"
+     et "1 500,50" deviennent chacun UN SEUL jeton. */
   function assainirTexte(texte){
     if (typeof texte !== 'string') return texte;
-    return texte.replace(/-?\d+(?:[.,]\d+)?/g, jeton => {
-      const n = Number(jeton.replace(',', '.'));
+    return texte.replace(/-?\d{1,3}(?:[ .]\d{3})+(?:,\d+)?|-?\d+(?:[.,]\d+)?/g, jeton => {
+      // Un jeton à groupes de milliers n'a de sens QUE si chaque groupe fait
+      // exactement 3 chiffres (déjà garanti par la regex) : on retire les
+      // séparateurs de milliers (espace/point) et on normalise la virgule
+      // décimale finale, jamais l'inverse (un simple "1.5" reste 1.5, pas 15).
+      const normalise = /^-?\d{1,3}(?:[ .]\d{3})+(?:,\d+)?$/.test(jeton)
+        ? jeton.replace(/[ .]/g, '').replace(',', '.')
+        : jeton.replace(',', '.');
+      const n = Number(normalise);
       if (!Number.isFinite(n)) return jeton;
       for (const d of [0, 1, 2]) {
         if (autorises.has(n.toFixed(d))) return jeton;
@@ -268,6 +338,13 @@ DEUX RÔLES SELON "mandateConfirmed" transmis ci-dessous :
    N'invente AUCUNE valeur non mentionnée explicitement ou clairement déductible (ex. "risque
    modéré" -> "moderate"). Si l'utilisateur répond "je ne sais pas" à une notion, explique-la
    simplement en 1-2 phrases puis repose la question dans "reply".
+   Si l'utilisateur donne une durée vague ("le plus court possible", "rapidement") plutôt qu'un
+   nombre d'années précis : ne déduis PAS horizonYears, demande la durée exacte dans "reply" (ex.
+   "quelques semaines, quelques mois, un an ?"). Si l'utilisateur demande un risque "nul" ou
+   "totalement sans risque" : explique en une phrase qu'aucun placement n'est réellement sans
+   risque et qu'un horizon très court limite encore les options disponibles, AVANT de proposer
+   riskLevel "low" comme l'option la plus prudente réellement possible — jamais une promesse de
+   risque zéro.
    Une fois initialCapital+objective+riskLevel+horizonYears tous connus (dans ce message ou les
    précédents, voir mandateDraft déjà connu transmis ci-dessous) : pose au maximum 1 question sur
    les exclusions ET 1 question sur l'autonomie si elles ne sont pas déjà connues, PUIS résume le
@@ -762,7 +839,15 @@ async function novabotChatAnalyse(req, res, { user, plan, dispo }){
     return res.status(502).json({ error: e.type || 'reponse_illisible', provider: e.provider ?? null, detail: e.detail });
   }
 
-  const { assainirTexte } = construireAssainisseur(contexte);
+  /* CORRECTIF (audit 2026-10-13) : nombresDuTexteUtilisateur(messages)
+     passé À PART de `contexte` (jamais fusionné dedans) — `contexte` est
+     aussi sérialisé tel quel DANS LE PROMPT envoyé au modèle (voir plus
+     haut), et ces montants bruts extraits du texte utilisateur n'ont pas
+     leur place parmi les "Données disponibles" structurées ; le modèle
+     voit déjà ces mêmes nombres dans la section Conversation du prompt.
+     Ce tableau ne sert qu'à élargir l'ensemble autorisé du verrou
+     anti-hallucination, rien d'autre. */
+  const { assainirTexte } = construireAssainisseur({ ...contexte, montantsDeclaresParUtilisateur: nombresDuTexteUtilisateur(messages) });
   parsed.reply = assainirTexte(parsed.reply);
 
   /* cloturerChat() (nova_chat_usage), pas cloturer() (ai_usage) — table
