@@ -168,7 +168,8 @@ async function novabotConversationNouvelle(){
   if (NOVABOT_CHAT.revealTimer) clearTimeout(NOVABOT_CHAT.revealTimer);
   NOVABOT_CHAT = { conversationId:null, messages:[], mandateDraft:{}, sending:false, readyToConfirm:false, loadingThread:false, streamingText:null, controller:null, revealTimer:null, editingIndex:null, revealedActionsIndex:null };
   const accueil = novabotAccueilTexte();
-  NOVABOT_CHAT.messages.push({ role:'assistant', content:accueil });
+  const msgAccueil = { role:'assistant', content:accueil };
+  NOVABOT_CHAT.messages.push(msgAccueil);
   render();
   try {
     const r = await authFetch('/api/me?resource=conversations', { method:'POST',
@@ -179,8 +180,7 @@ async function novabotConversationNouvelle(){
       NOVABOT_CONVERSATIONS.list.unshift({ id:d.id, module:'novabot', title:null, archived:false, createdAt:d.createdAt, updatedAt:d.updatedAt });
       state.novabot.lastConversationId = d.id;
       saveState();
-      authFetch(`/api/me?resource=conversations&id=${encodeURIComponent(d.id)}&action=message`,
-        { method:'POST', body: JSON.stringify({ role:'assistant', content:accueil }) }).catch(() => {});
+      novabotSauvegarderMessage(d.id, msgAccueil, { role:'assistant', content:accueil });
     }
   } catch (e){ console.warn('[novabot-chat] création conversation impossible :', e); }
   render();
@@ -383,10 +383,8 @@ async function novabotAppelerModeleEtRepondre(dernierMessageUtilisateur){
     /* id serveur du message capturé une fois la réponse arrivée (V6 §5 :
        nécessaire pour pouvoir le cibler ensuite via "Régénérer"/
        "Reprendre ici"/truncate_from — voir api/me.js). */
-    authFetch(`/api/me?resource=conversations&id=${encodeURIComponent(convId)}&action=message`,
-      { method:'POST', body: JSON.stringify({ role:'assistant', content:d.reply,
-        metadata: { provider:d.provider, model:d.model, mandateDraftSnapshot: NOVABOT_CHAT.mandateDraft } }) })
-      .then(r2 => r2.ok ? r2.json() : null).then(saved => { if (saved?.id) msgObj.id = saved.id; }).catch(() => {});
+    novabotSauvegarderMessage(convId, msgObj, { role:'assistant', content:d.reply,
+      metadata: { provider:d.provider, model:d.model, mandateDraftSnapshot: NOVABOT_CHAT.mandateDraft } });
     return;
   } catch (e){
     NOVABOT_CHAT.controller = null;
@@ -401,6 +399,64 @@ async function novabotAppelerModeleEtRepondre(dernierMessageUtilisateur){
   }
   NOVABOT_CHAT.sending = false;
   render();
+}
+
+/* CORRECTIF (audit 2026-10-13, "conversations disparues") : bug réel et
+   grave confirmé contre la vraie base — les 9 conversations NovaBot
+   réelles de l'utilisateur avaient TOUTES 0 message enregistré. Chaque
+   sauvegarde de message (le sien, celui de Nova, le message d'accueil)
+   partait en fire-and-forget avec .catch(() => {}) : le moindre échec
+   (coupure réseau, jeton d'authentification expiré en cours de session,
+   erreur serveur ponctuelle) faisait disparaître le message SANS AUCUNE
+   trace ni pour l'utilisateur ni dans les journaux — la conversation
+   continuait à fonctionner normalement en apparence (Nova répond quand
+   même, l'appel au modèle est indépendant de la sauvegarde) pendant que
+   son contenu ne persistait jamais réellement côté serveur.
+   novabotSauvegarderMessage() : UNE tentative + UNE relance après 1,5 s
+   en cas d'échec (laisse le temps à un jeton de se rafraîchir ou un
+   réseau de se rétablir) ; si la relance échoue aussi, pose
+   msgObj.saveFailed = true (affiché discrètement, voir novabotMsgRow()/
+   styles.css) ET conserve le texte pour une tentative manuelle plutôt que
+   de l'abandonner en silence — jamais à nouveau un échec invisible. */
+async function novabotSauvegarderMessage(convId, msgObj, payload){
+  /* tenter() avale elle-même toute exception (authFetch() qui REJETTE,
+     pas seulement une réponse HTTP non-ok) et renvoie null dans les deux
+     cas — CORRECTIF trouvé en testant ce helper (test-novabot-message-
+     persistence.js) : sans ce try/catch interne, une vraie coupure
+     réseau (fetch() qui lève, pas un simple 4xx/5xx) faisait sortir
+     directement vers le catch EXTÉRIEUR, sautant purement et simplement
+     la relance — exactement la classe d'erreur la plus probable derrière
+     le bug "conversations disparues" (coupure réseau en cours de
+     session), celle que la relance est censée couvrir en premier. */
+  const tenter = async () => {
+    try {
+      const r = await authFetch(`/api/me?resource=conversations&id=${encodeURIComponent(convId)}&action=message`,
+        { method:'POST', body: JSON.stringify(payload) });
+      return r.ok ? await r.json() : null;
+    } catch { return null; }
+  };
+  let saved = await tenter();
+  if (!saved){
+    await new Promise(r => setTimeout(r, 1500));
+    saved = await tenter();
+  }
+  if (saved?.id){
+    msgObj.id = saved.id;
+    if (msgObj.saveFailed){ msgObj.saveFailed = false; render(); }
+  } else {
+    console.warn('[novabot-chat] message non sauvegardé après relance');
+    msgObj.saveFailed = true;
+    render();
+  }
+}
+
+/* Bouton "Réessayer" manuel sur le badge "Non sauvegardé" (novabotSave
+   FailedBadge, js/nova.js) — relance une sauvegarde, pas un nouveau
+   message distinct (jamais de doublon dans la conversation). */
+function novabotMessageResauvegarder(index){
+  const m = NOVABOT_CHAT.messages[index];
+  if (!m || !m.saveFailed || !NOVABOT_CHAT.conversationId) return;
+  novabotSauvegarderMessage(NOVABOT_CHAT.conversationId, m, { role:m.role, content:m.content });
 }
 
 async function novabotChatEnvoyer(texte){
@@ -430,9 +486,7 @@ async function novabotChatEnvoyer(texte){
   render();
 
   const convId = NOVABOT_CHAT.conversationId;
-  authFetch(`/api/me?resource=conversations&id=${encodeURIComponent(convId)}&action=message`,
-    { method:'POST', body: JSON.stringify({ role:'user', content:contenu }) })
-    .then(r => r.ok ? r.json() : null).then(saved => { if (saved?.id) msgObj.id = saved.id; }).catch(() => {});
+  novabotSauvegarderMessage(convId, msgObj, { role:'user', content:contenu });
   if (estPremierMessageUtilisateur) novabotAutoTitrer(convId, contenu);
 
   await novabotAppelerModeleEtRepondre(contenu);
@@ -586,10 +640,10 @@ function novabotChatConfirmer(){
   NOVABOT_CHAT.readyToConfirm = false;
   const recap = `Mandat confirmé — ${fmt.eur(state.novabot.wallet.invested)} confiés, activé en simulation. `
     + `Je commence à chercher des opportunités dès que tu le souhaites (bouton « Évaluer maintenant », dans Portefeuille) ou dis-moi simplement d'y aller.`;
-  NOVABOT_CHAT.messages.push({ role:'assistant', content:recap });
+  const msgRecap = { role:'assistant', content:recap };
+  NOVABOT_CHAT.messages.push(msgRecap);
   if (NOVABOT_CHAT.conversationId){
-    authFetch(`/api/me?resource=conversations&id=${encodeURIComponent(NOVABOT_CHAT.conversationId)}&action=message`,
-      { method:'POST', body: JSON.stringify({ role:'assistant', content:recap }) }).catch(() => {});
+    novabotSauvegarderMessage(NOVABOT_CHAT.conversationId, msgRecap, { role:'assistant', content:recap });
   }
   render();
 }

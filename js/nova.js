@@ -690,6 +690,21 @@ function novabotSidebarMarkup(){
 
 /* ---------- vue Conversations (style ChatGPT, refonte V4 §2) ---------- */
 const NOVABOT_ROOK_SVG = `<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 20h12M7 20l1-6h8l1 6M8 14V9h1.5V7h2v2h1v-2h2v2H16v5"/></svg>`;
+/* CORRECTIF (audit 2026-10-13, "conversations disparues") : indicateur
+   discret quand un message n'a pas pu être sauvegardé côté serveur après
+   la relance automatique (voir novabotSauvegarderMessage(), js/novabot-
+   chat.js) — le message reste visible et utilisable dans CETTE session,
+   mais sans ce signal, disparaîtrait silencieusement au prochain
+   rechargement, exactement le bug diagnostiqué. Pour un message bot :
+   concaténé DANS la bulle (contentHtml) ; pour un message utilisateur :
+   élément frère sous la bulle (voir novabotChatView()) — d'où le `isUser`
+   qui ajuste juste la marge. */
+function novabotSaveFailedBadge(index, isUser){
+  return `<div class="nb-save-failed"${isUser ? ' style="justify-content:flex-end"' : ''}>
+    ${svg(ICON.x,2)}<span>Non sauvegardé</span>
+    <button type="button" data-novabot-msg-resave="${index}">Réessayer</button>
+  </div>`;
+}
 function novabotMsgRow(contentHtml, { error = false, actionsHtml = '', index = null } = {}){
   const toggleAttr = (index !== null && !error) ? ` data-novabot-msg-toggle="${index}"` : '';
   return `<div class="nb-msg-row">
@@ -792,13 +807,15 @@ function novabotChatView(){
               }
               return `<div class="nb-msg-user-wrap">
                 <div style="display:flex;justify-content:flex-end"><div class="nb-msg nb-msg-user" data-novabot-msg-toggle="${i}">${esc(m.content)}</div></div>
+                ${m.saveFailed ? novabotSaveFailedBadge(i, true) : ''}
                 ${novabotMsgActionsUser(i, c.revealedActionsIndex === i)}
               </div>`;
             }
             if (m.error) return novabotMsgRow(esc(m.content) + (m.retryTexte
               ? `<button type="button" class="nb-retry-btn" data-novabot-retry="${i}">${svg(ICON.redo,2)}<span>Réessayer</span></button>` : ''),
               { error:true });
-            return novabotMsgRow(esc(m.content) + novabotDecisionCard(m.relatedDecision), { index:i, actionsHtml: novabotMsgActionsBot(i,
+            return novabotMsgRow(esc(m.content) + novabotDecisionCard(m.relatedDecision) + (m.saveFailed ? novabotSaveFailedBadge(i, false) : ''),
+              { index:i, actionsHtml: novabotMsgActionsBot(i,
               { estDernier: i === dernierIndexAffiche && !genereEnCours, feedback: m.feedback, revealed: c.revealedActionsIndex === i }) });
           }).join('')}
           ${revele ? novabotMsgRow(esc(c.streamingText)) : ''}

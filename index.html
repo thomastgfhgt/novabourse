@@ -1156,6 +1156,10 @@ document.addEventListener('click', e => {
     novabotMessageReessayer(+q('[data-novabot-retry]').dataset.novabotRetry);
     return;
   }
+  if (q('[data-novabot-msg-resave]')){
+    novabotMessageResauvegarder(+q('[data-novabot-msg-resave]').dataset.novabotMsgResave);
+    return;
+  }
   if (q('[data-novabot-msg-resume]')){
     novabotMessageReprendreIci(+q('[data-novabot-msg-resume]').dataset.novabotMsgResume);
     return;

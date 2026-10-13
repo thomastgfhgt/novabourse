@@ -1821,6 +1821,19 @@ a.row{color:inherit;text-decoration:none}
 .nb-retry-btn svg{width:14px;height:14px}
 .nb-retry-btn:active{opacity:.7}
 
+/* CORRECTIF (audit 2026-10-13, "conversations disparues") : badge discret
+   quand un message a survécu à la relance automatique (novabotSauvegarder
+   Message(), js/novabot-chat.js) sans jamais réussir à persister côté
+   serveur — jamais un takeover visuel comme .nb-msg-error (le message
+   reste parfaitement lisible/utilisable dans cette session), juste un
+   signal clair + une reprise manuelle en un tap. --warn (ambre) : un
+   AVERTISSEMENT réel ici, pas une décoration (voir l'audit couleurs
+   jaune/doré du 2026-10-13 — ce cas précis en est l'exception légitime). */
+.nb-save-failed{display:flex;align-items:center;gap:5px;margin-top:4px;font-size:11.5px;color:var(--warn)}
+.nb-save-failed svg{width:11px;height:11px;flex:0 0 auto}
+.nb-save-failed button{background:none;border:none;color:var(--warn);font-size:11.5px;font-weight:700;
+  text-decoration:underline;cursor:pointer;padding:0}
+
 /* --- actions sur un message : révélées au survol sur ordinateur (évite
    d'alourdir visuellement un fil de conversation calme). */
 .nb-msg-user-wrap{display:flex;flex-direction:column}
