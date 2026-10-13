@@ -211,6 +211,17 @@ module.exports = async (req, res) => {
     novaScore: nova.score === null ? null : {
       engine: nova.engine, score: nova.score, coverage: nova.coverage,
       coherence: nova.coherence, confidence: nova.confidence,
+      /* Champ additif (audit NovaBot 2026-10-13, "calcul intelligent des
+         montants investis") : volatilité annualisée et drawdown maximum
+         réels, déjà calculés par novascore() à partir de l'historique OHLCV
+         (voir metriquesMarche(), _novascore.js) mais jusqu'ici jamais
+         exposés hors de nova.inputs (interne) — NovaBot en a besoin pour
+         dimensionner une position selon le risque RÉEL de chaque
+         instrument plutôt qu'un plafond identique pour tous. null si
+         l'historique est trop court (<25 points) pour un calcul fiable,
+         jamais une estimation approximative à la place. */
+      volatility: Number.isFinite(nova.inputs?.volatility) ? nova.inputs.volatility : null,
+      maxDrawdown: Number.isFinite(nova.inputs?.maxDrawdown) ? nova.inputs.maxDrawdown : null,
     },
     sources: {
       quote: aMarket ? q.source : null,

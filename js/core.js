@@ -2182,7 +2182,16 @@ async function novabotDonneesMarche(st){
     if (!r.ok) return null;
     const d = await r.json();
     if (!Number.isFinite(d.novaScore?.score)) return null;
-    return { score: d.novaScore.score, fundamentals: d.fundamentals || null };
+    /* volatility/maxDrawdown/coverage/confidence (audit 2026-10-13,
+       "calcul intelligent des montants investis") : réels, déjà calculés
+       par le moteur NovaScore à partir de l'historique de prix (voir
+       api/market/company.js, api/market/_novascore.js metriquesMarche())
+       — jamais recalculés ni approximés ici, seulement transmis. null si
+       l'historique est trop court pour un calcul fiable (<25 points),
+       jamais une estimation de repli. */
+    return { score: d.novaScore.score, fundamentals: d.fundamentals || null,
+      volatility: d.novaScore.volatility, maxDrawdown: d.novaScore.maxDrawdown,
+      coverage: d.novaScore.coverage, confidence: d.novaScore.confidence };
   } catch { return null; }
 }
 
@@ -2443,6 +2452,165 @@ const NOVABOT_LLM_MAX = 3;
    serait dérisoire (quelques centimes) — on considère qu'il n'y a plus
    rien d'investissable plutôt que de proposer un montant symbolique. */
 const NOVABOT_MONTANT_MIN_INVESTISSABLE = 5;
+
+/* ============================================================
+   POSITION SIZING ENGINE (audit 2026-10-13, "calcul intelligent des
+   montants investis")
+
+   PROBLÈME SIGNALÉ : NovaBot a investi exactement 75€ dans Apple,
+   Microsoft, Nvidia, Alphabet ET ASML — la même somme partout.
+
+   AUDIT (étape 1 demandée) — origine EXACTE confirmée par le calcul :
+   75 = 15% × 500. Ce n'est PAS une valeur codée en dur : c'est
+   montantInvestissableServeur()/le calcul équivalent ci-dessous
+   (correctif du 2026-10-12, voir plus haut) appliquant SES TROIS bornes
+   — cfg.tradeAmountEUR (500€), le cash disponible (~450€), et
+   mandate.maxPositionPct (15% × 500€ = 75€ pour CHAQUE nouvelle ligne,
+   puisqu'aucune des deux n'a de position existante et que le total du
+   portefeuille reste ~constant d'un candidat à l'autre dans le même
+   passage). La borne la plus stricte était TOUJOURS le plafond par
+   position, IDENTIQUE pour tout candidat qui le franchit — le calcul
+   fonctionnait exactement comme conçu, mais sa conception ne faisait
+   AUCUNE différence entre les candidats au-delà de ce plafond uniforme.
+   Ce n'est donc pas un bug au sens d'un calcul faux : c'est l'absence
+   du moteur demandé ici.
+
+   PRINCIPE : le plafond par position (mandat) reste la limite ABSOLUE,
+   jamais dépassée. À l'intérieur de cette limite, le montant RÉELLEMENT
+   proposé varie selon deux facteurs, tous deux dérivés de données
+   RÉELLEMENT mesurées (jamais une estimation inventée) :
+     - qualité de l'opportunité : NovaScore, déjà déterministe et
+       traçable (api/market/_novascore.js) ;
+     - risque propre à l'instrument : volatilité annualisée + drawdown
+       maximum, réellement calculés par ce même moteur à partir de
+       l'historique de prix (novabotDonneesMarche() les transmet
+       maintenant, voir plus haut) — null si l'historique est trop
+       court, JAMAIS remplacé par une supposition.
+   Liquidité, corrélations inter-actions : non calculées ici — aucune
+   donnée de volume ni de séries de rendements appariées n'est
+   actuellement disponible côté NovaBot pour les mesurer réellement ;
+   limitation assumée et documentée plutôt qu'une valeur inventée pour
+   remplir la case. Concentration sectorielle : calculée (voir
+   novabotPlafondSecteur ci-dessous), à partir des positions RÉELLES du
+   portefeuille. */
+
+/* Mêmes seuils EXACTEMENT que SCALES.volatility/SCALES.maxDrawdown et la
+   même interpolation linéaire que bareme() dans api/market/_novascore.js
+   — jamais une nouvelle échelle inventée côté client : la volatilité et
+   le drawdown doivent se lire de la même façon partout dans l'app. Ces
+   deux fichiers doivent rester synchronisés manuellement (même
+   compromis assumé que _novabotEngine.js, voir son grand commentaire
+   d'en-tête) : _novascore.js est un module serveur, non importable
+   depuis le navigateur. */
+const NOVABOT_ECHELLE_VOLATILITE = [[0.12,100],[0.20,78],[0.30,52],[0.42,25],[0.55,0]];
+const NOVABOT_ECHELLE_DRAWDOWN   = [[0.08,100],[0.18,75],[0.30,48],[0.45,20],[0.60,0]];
+function novabotBareme(points, v){
+  if (!Number.isFinite(v)) return null;
+  if (v <= points[0][0]) return points[0][1];
+  if (v >= points[points.length-1][0]) return points[points.length-1][1];
+  for (let i = 1; i < points.length; i++){
+    if (v <= points[i][0]){
+      const [x0,y0] = points[i-1], [x1,y1] = points[i];
+      return Math.round(y0 + ((v-x0)/(x1-x0)) * (y1-y0));
+    }
+  }
+  return null;
+}
+/* Score de risque 0-100 (100 = le plus stable) : moyenne des deux
+   signaux disponibles. Si UN SEUL est disponible, la moyenne porte sur
+   celui-là seul (jamais un null pollue la moyenne). Si AUCUN n'est
+   disponible (historique trop court), renvoie null — l'appelant traite
+   explicitement ce cas comme une INCERTITUDE, jamais comme "risque
+   neutre" par optimisme. */
+function novabotScoreRisque(donnees){
+  const notes = [novabotBareme(NOVABOT_ECHELLE_VOLATILITE, donnees.volatility),
+    novabotBareme(NOVABOT_ECHELLE_DRAWDOWN, donnees.maxDrawdown)].filter(n => n !== null);
+  return notes.length ? Math.round(notes.reduce((a,b) => a+b, 0) / notes.length) : null;
+}
+/* Exposition sectorielle actuelle (valeur de marché des positions du
+   même secteur que le candidat) — données RÉELLES du portefeuille,
+   jamais une estimation. */
+function novabotExpositionSecteur(wallet, secteur){
+  if (!secteur) return 0;
+  return wallet.positions.reduce((somme, pos) => {
+    const st = byId[pos.id];
+    if (!st || st.sector !== secteur) return somme;
+    const cours = prixDe(st);
+    return somme + (cours !== null ? toEUR(cours * pos.qty, st.cur) : toEUR(pos.avg * pos.qty, st.cur));
+  }, 0);
+}
+/* FACTEUR_SECTEUR : un secteur dans son ensemble peut peser jusqu'à 2,5×
+   le plafond d'UNE SEULE position — hypothèse de diversification
+   raisonnable et documentée (jamais demandée en valeur exacte par
+   l'utilisateur, donc explicitée ici plutôt que silencieuse), pas une
+   limite réglementaire. Avec maxPositionPct=15%, un secteur plafonne
+   donc à 37,5% du portefeuille — large mais empêche la concentration
+   totale sur un seul secteur. */
+const NOVABOT_FACTEUR_SECTEUR = 2.5;
+/* PLANCHER_ALLOCATION : même un candidat tout juste au-dessus du seuil
+   NovaScore (score == cfg.scoreAchat) et au risque inconnu reçoit encore
+   40% du plafond théorique — l'opportunité a déjà été jugée valable pour
+   être examinée (elle a franchi le seuil), un montant quasi nul serait
+   une décision "achat" en apparence mais sans substance réelle. Au-delà
+   de ce plancher, le reste (60%) varie selon la qualité et le risque. */
+const NOVABOT_PLANCHER_ALLOCATION = 0.4;
+/* Poids qualité vs risque dans le facteur d'allocation : la qualité de
+   l'opportunité (NovaScore, déjà validé par le seuil d'achat) pèse
+   légèrement plus que le risque pur, mais le risque reste significatif
+   — ni ignoré, ni dominant au point d'écraser le NovaScore. Choix
+   documenté, pas une constante magique sans justification. */
+const NOVABOT_POIDS_QUALITE = 0.6, NOVABOT_POIDS_RISQUE = 0.4;
+
+/* Moteur principal : calcule le montant RÉELLEMENT proposé pour CE
+   candidat précis, dans la limite du plafond déterministe déjà existant
+   (cash disponible, plafond par position du mandat). Retourne un objet
+   détaillé — jamais juste un nombre — pour que CHAQUE euro investi soit
+   explicable après coup (§5 de la demande) à partir de données
+   réellement enregistrées, pas reconstruites a posteriori. */
+function novabotDimensionnerPosition({ cfg, mandate, st, prix, donnees, pfTotal, valeurExistanteEUR }){
+  const cashDispo = cfg.wallet.cash - (mandate.cashMinPct / 100) * pfTotal;
+  const plafondPosition = (mandate.maxPositionPct / 100) * pfTotal - valeurExistanteEUR;
+  const plafondTheorique = Math.min(cfg.tradeAmountEUR, cashDispo, plafondPosition);
+
+  const scoreRisque = novabotScoreRisque(donnees);
+  const facteurQualite = Math.max(0, Math.min(1, (donnees.score - cfg.scoreAchat) / Math.max(1, 100 - cfg.scoreAchat)));
+  /* Risque inconnu (historique insuffisant) : facteur neutre (0.5),
+     jamais 1 (ce serait traiter l'incertitude comme une garantie de
+     stabilité) ni 0 (ce serait pénaliser une donnée simplement absente
+     comme si elle était mauvaise — deux suppositions également
+     injustifiées). */
+  const facteurRisque = scoreRisque === null ? 0.5 : scoreRisque / 100;
+  const facteurAllocation = NOVABOT_POIDS_QUALITE * facteurQualite + NOVABOT_POIDS_RISQUE * facteurRisque;
+  const montantPropose = plafondTheorique * (NOVABOT_PLANCHER_ALLOCATION + (1 - NOVABOT_PLANCHER_ALLOCATION) * facteurAllocation);
+
+  const expositionSecteur = novabotExpositionSecteur(cfg.wallet, st.sector);
+  const plafondSecteur = (mandate.maxPositionPct * NOVABOT_FACTEUR_SECTEUR / 100) * pfTotal - expositionSecteur;
+
+  const bornes = [
+    { type:'tradeAmountEUR', valeur:cfg.tradeAmountEUR },
+    { type:'cash_disponible', valeur:cashDispo },
+    { type:'plafond_position', valeur:plafondPosition },
+    { type:'allocation_qualite_risque', valeur:montantPropose },
+    { type:'plafond_secteur', valeur:Math.max(0, plafondSecteur) },
+  ];
+  const borneActive = bornes.reduce((min, b) => b.valeur < min.valeur ? b : min, bornes[0]);
+  const montant = Math.max(0, borneActive.valeur);
+
+  return {
+    montant,
+    detail: {
+      prix, instrument:st.ticker, secteur:st.sector || null,
+      novaScore:donnees.score, scoreRisque, volatility:donnees.volatility, maxDrawdown:donnees.maxDrawdown,
+      coverage:donnees.coverage ?? null, confidence:donnees.confidence ?? null,
+      facteurQualite:Math.round(facteurQualite*100)/100, facteurRisque:Math.round(facteurRisque*100)/100,
+      facteurAllocation:Math.round(facteurAllocation*100)/100,
+      cashDispo, plafondPosition, plafondTheorique, plafondSecteur:Math.max(0, plafondSecteur), expositionSecteurAvant:expositionSecteur,
+      montantProposeAvantContraintes:Math.round(montantPropose*100)/100,
+      bornePlusStricte:borneActive.type, montantFinal:Math.round(montant*100)/100,
+    },
+  };
+}
+
 function novabotDiscoveryCandidats(mandate){
   const dejaDetenus = new Set(state.novabot.wallet.positions.map(p => p.id));
   const estAutorise = st => {
@@ -2563,38 +2731,45 @@ async function evaluerNovaBot(){
 
       if (actionDecidee === 'buy'){
         const priceEUR = toEUR(prix, st.cur);
-        /* CORRECTIF (audit V7 §3) : montant RÉELLEMENT investissable pour
-           CE candidat, recalculé à chaque itération (le cash a pu changer
-           si un candidat précédent de CE MÊME passage vient d'acheter) —
-           jamais le plafond fixe cfg.tradeAmountEUR utilisé tel quel, qui
-           ignorait la réserve de cash et le maximum par position du
-           mandat et produisait un rejet garanti dès que ce plafond
-           dépassait l'un des deux. Les trois bornes : le plafond
-           configuré, le cash dispo au-delà de la réserve, et la place
-           restante avant le maximum par position (position EXISTANTE
-           incluse, pour un renforcement). novabotRiskCheck() reste
-           appelé ensuite : filet de sécurité final (secteur/actif
-           interdit, nombre max de positions...), jamais redondant avec
-           ce calcul qui ne couvre QUE cash_min et position_max. */
+        /* CORRECTIF (audit 2026-10-13, "calcul intelligent des montants
+           investis") : remplace le plafond uniforme (qui donnait
+           systématiquement le même montant — 15% du portefeuille — à
+           CHAQUE candidat franchissant le seuil, cause exacte des 75€
+           répétés) par novabotDimensionnerPosition() : même plafond
+           ABSOLU (jamais dépassé), mais le montant RÉELLEMENT proposé à
+           l'intérieur varie selon le NovaScore et le risque (volatilité/
+           drawdown) réels de CE candidat précis. Recalculé à chaque
+           itération (le cash/les positions ont pu changer si un
+           candidat précédent de ce même passage vient d'acheter).
+           novabotRiskCheck() reste appelé ensuite : filet de sécurité
+           final (secteur/actif interdit, nombre max de positions...),
+           jamais redondant avec le dimensionnement. */
         const pfCourant = portfolioValue(cfg.wallet);
         const posExistante = cfg.wallet.positions.find(p => p.id === id);
         const valeurExistanteEUR = posExistante ? toEUR(posExistante.avg * posExistante.qty, st.cur) : 0;
-        const plafondPosition = (mandate.maxPositionPct / 100) * pfCourant.total - valeurExistanteEUR;
-        const cashDispoCourant = cfg.wallet.cash - (mandate.cashMinPct / 100) * pfCourant.total;
-        const montantInvestissable = Math.min(cfg.tradeAmountEUR, cashDispoCourant, plafondPosition);
+        const sizing = novabotDimensionnerPosition({ cfg, mandate, st, prix, donnees, pfTotal:pfCourant.total, valeurExistanteEUR });
+        const montantInvestissable = sizing.montant;
         if (montantInvestissable < NOVABOT_MONTANT_MIN_INVESTISSABLE){
           /* Pas assez de place pour CE candidat précisément (position déjà
-             proche du max, ou cash épuisé par un achat précédent dans ce
-             même passage) — on passe au suivant plutôt que de proposer un
-             montant symbolique ou de répéter le même rejet. */
+             proche du max, cash épuisé par un achat précédent dans ce
+             même passage, ou secteur déjà concentré) — on passe au
+             suivant plutôt que de proposer un montant symbolique ou de
+             répéter le même rejet. */
           continue;
         }
         const intent = { action:'buy', stockId:id, ticker:st.ticker, sector:st.sector,
           amountEUR:montantInvestissable, priceLocal:prix, currency:st.cur, qty:montantInvestissable / priceEUR };
         const verdict = novabotRiskCheck(intent, cfg.wallet, mandate);
-        const motif = avisIA
+        /* Justification (§5 : "pourquoi as-tu investi davantage dans
+           cette action que dans une autre ?") — entièrement dérivée de
+           sizing.detail, déjà calculé, jamais reconstruite après coup. */
+        const motifRisque = sizing.detail.scoreRisque === null
+          ? 'risque non mesurable (historique de prix insuffisant)'
+          : `risque ${sizing.detail.scoreRisque}/100 (volatilité ${sizing.detail.volatility !== null ? (sizing.detail.volatility*100).toFixed(0)+'%' : '—'}, drawdown max ${sizing.detail.maxDrawdown !== null ? (sizing.detail.maxDrawdown*100).toFixed(0)+'%' : '—'})`;
+        const motifMontant = `Montant ${fmt.eur(sizing.detail.montantFinal)} = ${fmt.eur(sizing.detail.plafondTheorique)} plafond × facteur qualité/risque ${(sizing.detail.facteurAllocation*100).toFixed(0)}% (borne la plus stricte : ${sizing.detail.bornePlusStricte})`;
+        const motif = (avisIA
           ? `NovaScore ${score} ≥ seuil ${cfg.scoreAchat} ; Nova AI : ${avisIA.reasoning}`
-          : `NovaScore ${score} ≥ seuil ${cfg.scoreAchat}`;
+          : `NovaScore ${score} ≥ seuil ${cfg.scoreAchat}`) + ` ; ${motifRisque}. ${motifMontant}`;
         if (verdict.allowed && cfg.autonomyMode !== 'auto'){
           /* §22 : "conseil" demande toujours confirmation ; "semi-autonome"
              aussi POUR LES ACHATS dans cette passe (distinction plus fine
@@ -2612,7 +2787,7 @@ async function evaluerNovaBot(){
             cashBefore:cfg.wallet.cash, cashAfter:cfg.wallet.cash, weightBeforePct:poidsAvant, weightAfterPct:poidsAvant,
             reason:`${motif} (en attente de ton accord — mode ${cfg.autonomyMode === 'advice' ? 'conseil' : 'semi-autonome'})`,
             executionStatus:'pending',
-            dataUsed:{ novaScore:score, fundamentals:donnees.fundamentals }, mandateSnapshot:mandate, riskResult:verdict,
+            dataUsed:{ novaScore:score, fundamentals:donnees.fundamentals, sizing:sizing.detail }, mandateSnapshot:mandate, riskResult:verdict,
             aiProvider:avisIA?.provider || null, aiModel:avisIA?.model || null, confidence:avisIA?.confidence ?? null });
           changed = true;
         } else if (verdict.allowed){
@@ -2627,7 +2802,7 @@ async function evaluerNovaBot(){
           novabotEnregistrerDecision({ action:'buy', stockId:id, ticker:st.ticker, name:st.name,
             priceObserved:prix, qty:intent.qty, amountEUR:intent.amountEUR,
             cashBefore:cashAvant, cashAfter:cfg.wallet.cash, weightBeforePct:poidsAvant, weightAfterPct:poidsApres,
-            reason:motif, dataUsed:{ novaScore:score, fundamentals:donnees.fundamentals }, mandateSnapshot:mandate, riskResult:verdict,
+            reason:motif, dataUsed:{ novaScore:score, fundamentals:donnees.fundamentals, sizing:sizing.detail }, mandateSnapshot:mandate, riskResult:verdict,
             aiProvider:avisIA?.provider || null, aiModel:avisIA?.model || null, confidence:avisIA?.confidence ?? null });
           changed = true;
         } else {
@@ -2635,7 +2810,7 @@ async function evaluerNovaBot(){
           novabotEnregistrerDecision({ action:'reject', stockId:id, ticker:st.ticker, name:st.name,
             priceObserved:prix, amountEUR:intent.amountEUR, executionStatus:'rejected',
             reason:verdict.violations.map(v => v.message).join(' '),
-            dataUsed:{ novaScore:score }, mandateSnapshot:mandate, riskResult:verdict,
+            dataUsed:{ novaScore:score, sizing:sizing.detail }, mandateSnapshot:mandate, riskResult:verdict,
             aiProvider:avisIA?.provider || null, aiModel:avisIA?.model || null, confidence:avisIA?.confidence ?? null });
           changed = true;
           /* Cash insuffisant/sous le minimum ne va pas s'améliorer pour le
