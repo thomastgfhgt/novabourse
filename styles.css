@@ -1,25 +1,33 @@
 
 :root{
   color-scheme:light;
-  /* Palette officielle NovaTitre v2 (2026-09-23, retour utilisateur :
-     "remplace le orange et le bleu par rose noir blanc gris et violet
-     pour l'intégralité du site, vraiment tout") — remplace la précédente
-     identité orange/bleu/vert (2026-09-21/22). Rose devient l'accent
-     PRIMAIRE (rôle exact de l'ancien orange : --accent), violet l'accent
-     SECONDAIRE (rôle exact de l'ancien bleu électrique : --blue-accent,
-     nom de variable et des classes .btn-blue/.btn-blue-outline conservés
-     tels quels — seul renommer risquait de casser des usages dispersés
-     dans tout le fichier pour un gain cosmétique seul ; c'est la VALEUR
-     qui compte ici, plus la couleur "bleu" du nom). Vert/rouge (hausse/
-     baisse) et l'ambre d'avertissement ne sont PAS concernés : ce sont
-     des couleurs sémantiques universelles en finance (gain/perte/alerte),
-     jamais une couleur de marque décorative — les changer n'a pas été
-     demandé et casserait une convention que l'utilisateur attend
-     probablement ailleurs dans l'app. Échelles à 6 crans (50/100/300/
-     500/700/900) conservées telles quelles, seules les valeurs changent. */
+  /* Palette officielle NovaTitre v3 (2026-10-13, audit V7 §6 : "supprimer
+     le jaune/doré comme couleur dominante" — capture d'écran à l'appui) :
+     --accent (boutons primaires, CTA, états actifs — PARTOUT sur le
+     site) était resté mappé sur --orange-500 malgré le commentaire
+     ci-dessous (2026-09-23) annonçant déjà son remplacement par le rose —
+     jamais appliqué à la variable elle-même, cause racine confirmée de
+     "jaune partout" dans les captures. --accent passe maintenant sur
+     --violet-500 (#805DFF), la couleur de marque NovaBot déjà établie
+     (js/ui-primitives.js, .nb-page) — jamais une teinte inventée pour
+     l'occasion, maquette validée par l'utilisateur (artifact
+     XV25HLFvNiCeSRrzXm9hDa) avant ce changement. --orange-* reste défini
+     (encore référencé nulle part après ce correctif, mais retiré
+     seulement si un usage futur en dépendait par erreur serait pire
+     qu'une variable inutilisée) — plus aucun usage actif après ce
+     correctif (voir .btn-a/.nb-cta-a plus bas, corrigés pour ne plus
+     référencer --orange-light directement). Vert/rouge (hausse/baisse) et
+     l'ambre d'avertissement restent INCHANGÉS : couleurs sémantiques
+     universelles en finance (gain/perte/alerte), jamais une couleur de
+     marque décorative — seule l'étoile "favori" (une décoration, pas un
+     avertissement) a été corrigée séparément pour ne plus emprunter
+     --warn. Échelles à 6 crans (50/100/300/500/700/900) conservées. */
   --orange-50:#fef3e7;  --orange-100:#fce3c3; --orange-300:#f5b876;
   --orange-500:#e67e22; --orange-700:#b85f12; --orange-900:#7a3d08;
   --orange-light:#f39c12;
+  --violet-50:#f1edff;  --violet-100:#e0d4ff; --violet-300:#b49cff;
+  --violet-500:#805dff; --violet-700:#6b46f0; --violet-900:#4527a8;
+  --violet-light:#9478ff;
   --cyan-50:#e5fbff;  --cyan-100:#ccf7ff; --cyan-300:#66e8ff;
   --cyan-500:#00d4ff; --cyan-700:#00a8cc; --cyan-900:#006b85;
   --green-50:#e7fbf4;  --green-100:#c3f5e3; --green-300:#6ee7b7;
@@ -39,14 +47,13 @@
   --ink-2:#000000;
   --ink-3:#000000;
   --ink-4:#000000;
-  --accent:var(--orange-500);
-  /* Sens hover/press conforme à la spec NovaTitre (dégradé bouton
-     PRIMARY : #E67E22 -> #F39C12 au survol, donc PLUS clair, pas plus
-     sombre) — inversé par rapport à la convention précédente (rose
-     s'assombrissait au survol). */
-  --accent-hover:var(--orange-light);
-  --accent-press:var(--orange-700);
-  --accent-soft:var(--orange-50);
+  --accent:var(--violet-500);
+  /* Même sens hover (plus clair, pas plus sombre) que l'ancien accent
+     orange — seules les valeurs changent, --violet-light (#9478FF) joue
+     le même rôle que jouait --orange-light. */
+  --accent-hover:var(--violet-light);
+  --accent-press:var(--violet-700);
+  --accent-soft:var(--violet-50);
   --accent-ink:#ffffff;
   /* Bleu nuit officiel NovaTitre (#0A0E27) : utilisé pour le texte sur
      fond cyan clair (--blue-accent ci-dessous) — un texte blanc y serait
@@ -83,7 +90,15 @@
   --shadow-1:none;
   --shadow-2:0 1px 2px rgba(13,17,23,.04), 0 8px 24px rgba(13,17,23,.05);
   --shadow-3:0 2px 6px rgba(13,17,23,.06), 0 24px 48px rgba(13,17,23,.08);
-  --shadow-accent:0 8px 24px rgba(236,72,153,.24);
+  /* CORRECTIF (2026-10-13, cohérence avec le nouvel --accent violet) :
+     cette ombre était restée teintée rose (halo d'une identité "rose
+     primaire" antérieure jamais vraiment appliquée à --accent, voir le
+     commentaire au-dessus de --violet-50) — un bouton violet avec un
+     halo rose aurait été tout aussi incohérent que l'était le halo
+     orange déjà corrigé ci-dessous pour le thème sombre. rgba(128,93,
+     255,...) = --violet-500 en rgb, jamais une teinte indépendante du
+     bouton qu'elle encadre. */
+  --shadow-accent:0 8px 24px rgba(128,93,255,.24);
   --space-2:8px;  --space-3:12px; --space-4:16px; --space-5:24px;
   --space-6:32px; --space-7:48px; --space-8:64px; --space-9:96px;
   --sp-1:8px; --sp-2:16px; --sp-3:24px; --sp-4:32px; --sp-5:48px; --sp-6:80px;
@@ -322,21 +337,25 @@ body{
   filter:blur(65px);opacity:.32;
   animation:auroraDrift 26s ease-in-out infinite, auroraHue 60s linear infinite;
   will-change:transform}
-/* Couleurs en variables (mise à jour 2026-09-28, pivot marque NovaTitre :
-   "Primary = Orange toujours", cyan réservé aux boutons secondaires —
-   jamais un accent général ; recoloré depuis rose/violet, voir note de
-   palette tout en haut du fichier). Orange (2 tons) domine, cyan en 3e
-   touche — même rôle structurel que le violet qu'il remplace, cohérent
-   avec le reste de la nouvelle identité (boutons, temple...). Toujours
-   personnalisable par section via body[data-bg=...] (paintNav()/render()). */
+/* CORRECTIF (2026-10-13, audit V7 §6 : "des effets lumineux jaunes") :
+   ce fond animé plein écran (2 taches floutées + une 3e en accent cyan)
+   était resté orange par défaut depuis le pivot du 2026-09-28, jamais
+   mis à jour quand --accent est devenu violet (voir note de palette tout
+   en haut du fichier) — très probablement la source la plus VISIBLE de
+   "jaune partout" (grande tache floutée animée derrière le contenu sur
+   la plupart des pages), plus que les petits composants déjà corrigés.
+   aurora-1/1b/2/2b suivent maintenant --violet-500/--violet-light/
+   --violet-700/--violet-500 — mêmes rôles structurels, cyan (accent
+   secondaire, 3e touche) inchangé. Toujours personnalisable par section
+   via body[data-bg=...] (paintNav()/render()). */
 .aurora-bg::before{width:55vw;height:55vw;top:-18vw;left:-12vw;
-  background:radial-gradient(circle,var(--aurora-1,#e67e22) 0%,var(--aurora-1b,#f39c12) 45%,transparent 72%)}
+  background:radial-gradient(circle,var(--aurora-1,#805dff) 0%,var(--aurora-1b,#9478ff) 45%,transparent 72%)}
 .aurora-bg::after{width:50vw;height:50vw;bottom:-22vw;right:-14vw;animation-delay:-13s;
-  background:radial-gradient(circle,var(--aurora-2,#b85f12) 0%,var(--aurora-2b,#e67e22) 40%,transparent 72%)}
+  background:radial-gradient(circle,var(--aurora-2,#6b46f0) 0%,var(--aurora-2b,#805dff) 40%,transparent 72%)}
 .aurora-bg .aurora-3{width:38vw;height:38vw;top:38vh;left:32vw;animation-delay:-8s;
   animation-duration:32s;opacity:.24;
   background:radial-gradient(circle,var(--aurora-3,#00a8cc) 0%,var(--aurora-3b,#00d4ff) 45%,transparent 72%)}
-body[data-bg="portfolio"]{--aurora-1:#00a8cc;--aurora-1b:#00d4ff;--aurora-2:#e67e22;--aurora-2b:#f39c12;
+body[data-bg="portfolio"]{--aurora-1:#00a8cc;--aurora-1b:#00d4ff;--aurora-2:#805dff;--aurora-2b:#9478ff;
   --aurora-3:#00a8cc;--aurora-3b:#00d4ff}
 body[data-bg="account"]{--aurora-1:#8d95a4;--aurora-1b:#aeb4c0;--aurora-2:#646c7c;--aurora-2b:#9aa1b1;
   --aurora-3:#8d95a4;--aurora-3b:#aeb4c0}
@@ -656,7 +675,7 @@ button:active{transform:scale(.97)}
    toutes les animations infinies de ce fichier (la leçon du fond
    aurora, plus haut, documente pourquoi une durée quasi nulle plutôt
    qu'un arrêt franc a déjà causé un vrai bug cette session). */
-.btn-a{background:linear-gradient(135deg,var(--accent) 0%,var(--orange-light,var(--accent-hover)) 100%);
+.btn-a{background:linear-gradient(135deg,var(--accent) 0%,var(--accent-hover) 100%);
   background-size:200% 200%;animation:gradientShift 4s ease-in-out infinite;
   color:var(--accent-ink);box-shadow:var(--shadow-accent)}
 @keyframes gradientShift{
@@ -1485,7 +1504,7 @@ a.row{color:inherit;text-decoration:none}
    violet de l'identité précédente sur le CTA PRIMAIRE de la page
    d'accueil ("Analyser") — un oubli du reste du rebrand, corrigé ici
    pour rejoindre le même dégradé orange que .btn-a partout ailleurs. */
-.nb-cta-a{background:linear-gradient(135deg,var(--accent) 0%,var(--orange-light) 100%);color:#fff;
+.nb-cta-a{background:linear-gradient(135deg,var(--accent) 0%,var(--accent-hover) 100%);color:#fff;
   box-shadow:0 8px 28px rgba(230,126,34,.24)}
 .nb-cta-a:active{transform:scale(.98)}
 .nb-cta-s{background:rgba(17,22,49,.55);border:1px solid rgba(255,255,255,.10);color:#fff}
@@ -2564,7 +2583,16 @@ body.no-spark .row-spark{display:none}
 .info:hover{background:var(--accent);color:#fff}
 .star{width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:var(--ink-4);flex:0 0 auto}
 .star:hover{background:var(--bg-2)}
-.star[aria-pressed="true"]{color:var(--warn)}
+/* CORRECTIF (audit V7 §6, 2026-10-12 : "supprimer le jaune comme
+   décoration dominante") : l'étoile de suivi (ajouter/retirer une
+   entreprise de la watchlist, visible sur de nombreuses pages — fiches,
+   recherche, listes) utilisait --warn (ambre/doré), une couleur de
+   AVERTISSEMENT réelle ailleurs dans l'app (notice, erreur de source,
+   couverture insuffisante — restées inchangées, ce sont de vrais
+   avertissements). "Favori" n'est pas un avertissement : bascule sur
+   --accent, déjà la couleur de marque établie, jamais une couleur
+   inventée pour l'occasion. */
+.star[aria-pressed="true"]{color:var(--accent)}
 .star svg{width:20px;height:20px}
 .stat{padding:var(--sp-2);border-radius:var(--r-m);background:var(--bg-2);min-width:0}
 .stat-k{font-size:12.5px;color:var(--ink-3);letter-spacing:-.01em}
