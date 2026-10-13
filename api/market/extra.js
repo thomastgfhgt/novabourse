@@ -520,8 +520,9 @@ async function handleHealth(req, res) {
    (46 000+ instruments) en vrais NovaScore à chaque cycle dépasserait
    le budget de temps d'une fonction serverless. NOVABOT_CRON_UNIVERS_
    DECOUVERTE ci-dessous est un panier volontairement restreint et
-   explicite (19 grandes capitalisations réelles, réparties sur 6
-   secteurs réels du catalogue) — PAS le catalogue entier, le temps
+   explicite (18 grandes capitalisations européennes réelles, réparties
+   sur 8 secteurs réels du catalogue, toutes cotées en EUR — voir le
+   correctif de devise plus bas) — PAS le catalogue entier, le temps
    qu'un vrai cache de score serveur soit construit (chantier séparé).
    Chaque score reste 100% réel (même pipeline /api/market/company que
    le reste de l'app) : restreindre l'UNIVERS examiné n'invente jamais
@@ -545,13 +546,26 @@ async function handleHealth(req, res) {
    dans le budget de temps malgré plusieurs comptes et jusqu'à 20
    candidats de découverte. */
 const NOVABOT_CRON_MAX_COMPTES = 15;
+/* CORRECTIF (2026-10-13, trouvé en vérifiant le tout premier déclenchement
+   réel en production) : la liste initiale (Apple, Microsoft, Nvidia...)
+   était intégralement en USD — la restriction "devise EUR uniquement"
+   déjà en place pour les sorties (conversion non gérée par ce cycle,
+   voir _novabotEngine.js) les excluait donc TOUTES, rendant la
+   découverte totalement inopérante malgré un déploiement propre et des
+   tests qui passaient (les tests vérifient la logique de filtrage,
+   jamais le contenu réel du catalogue — une lacune de couverture
+   corrigée indirectement en vérifiant ces ids en production). Remplacé
+   par 18 grandes capitalisations européennes RÉELLEMENT cotées en EUR
+   (vérifié contre catalog.json), mêmes secteurs représentés. */
 const NOVABOT_CRON_UNIVERS_DECOUVERTE = [
-  'AAPL-NAS', 'MSFT-NAS', 'GOOGL-NAS', 'NVDA-NAS', 'ADBE-NAS', 'CSCO-NAS', // Technologie
-  'AMZN-NAS', 'HD-NYS', 'KO-NYS', 'PEP-NAS', // Consommation
-  'META-NAS', 'DIS-NYS', 'NFLX-NAS', // Télécommunications
-  'JNJ-NYS', 'UNH-NYS', 'PFE-NYS', // Santé
-  'JPM-NYS', 'V-NYS', // Finance
-  'XOM-NYS', // Énergie
+  'ASML-AS', // Technologie
+  'MC-PA', 'OR-PA', 'RMS-PA', 'MBG-DE', // Consommation
+  'TTE-PA', // Énergie
+  'SAN-MC', 'BNP-PA', 'CS-PA', 'ISP-MI', // Finance
+  'SU-PA', 'DG-PA', 'SGO-PA', // Industrie
+  'BAS-DE', 'ORA-PA', // Matériaux
+  'DTE-DE', // Télécommunications
+  'IBE-MC', 'ENGI-PA', // Services publics
 ];
 /* Score minimum pour déclencher un achat — même défaut que state.novabot.
    scoreAchat côté client (limitation ci-dessus : non synchronisé). */
