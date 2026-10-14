@@ -731,7 +731,15 @@ async function handleNovabotCron(req, res) {
           cashMinPct: Number.isFinite(mandateRow.cash_min_pct) ? mandateRow.cash_min_pct : 20,
           maxPositionPct: Number.isFinite(mandateRow.max_position_pct) ? mandateRow.max_position_pct : 10,
           hardRules: Array.isArray(mandateRow.hard_rules) ? mandateRow.hard_rules : [],
+          /* preferences (2026-10-15, parité avec js/core.js) : NON
+             contraignantes par définition — consommées ICI pour filtrer la
+             découverte, jamais ajoutées à novabotRiskCheckServeur() qui
+             reste strictement réservé aux hard rules (même séparation que
+             côté client, voir evaluerNovaBot()). */
+          preferences: Array.isArray(mandateRow.preferences) ? mandateRow.preferences : [],
         };
+        const maxPriceEURPref = Number(mandate.preferences.find(p => p.type === 'max_price_eur')?.value);
+        const prixPlafond = Number.isFinite(maxPriceEURPref) ? maxPriceEURPref : null;
         for (const id of NOVABOT_CRON_UNIVERS_DECOUVERTE){
           const st = byId.get(id);
           if (!st || st.cur !== 'EUR') continue; // même limitation devise que les sorties
@@ -742,6 +750,9 @@ async function handleNovabotCron(req, res) {
           const dossier = dossierCache.get(id);
           if (!dossier || dossier.score === null) continue; // §32 : NovaScore indisponible -> pas d'ordre
           if (dossier.score < scoreAchat) continue;
+          /* dossier.prix est déjà en EUR à ce stade (st.cur==='EUR' imposé
+             ligne ci-dessus) — jamais de conversion supplémentaire ici. */
+          if (prixPlafond !== null && dossier.prix > prixPlafond) continue;
 
           const pfCourant = { total: wallet.cash + wallet.positions.reduce((s, p) => {
             const pst = byId.get(p.id); const pd = dossierCache.get(p.id);

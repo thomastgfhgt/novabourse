@@ -676,12 +676,51 @@ async function handlePortfolio(req, res, user) {
  *   - transactions / snapshots: upsert idempotent, même mécanique exacte
  *     que ?resource=portfolio.
  */
-const NOVABOT_CLIENT_STATUSES = ['setup', 'active', 'paused'];
+/* 'cancelled' ajouté le 2026-10-15 (pilotage du mandat depuis le chat) :
+   annulation EXPLICITE du mandat, distincte de 'paused' — voir
+   sql/2026-10-15_novabot_mandate_amendments.sql pour la contrainte DB
+   correspondante. Le cron (api/market/extra.js) ne lit déjà que
+   status=eq.active : un compte 'cancelled' est ignoré exactement comme un
+   compte 'paused', aucun changement nécessaire côté cron. */
+const NOVABOT_CLIENT_STATUSES = ['setup', 'active', 'paused', 'cancelled'];
 const NOVABOT_AUTONOMY_MODES = ['advice', 'semi_auto', 'auto'];
 const NOVABOT_TX_TYPES = ['buy', 'sell', 'deposit', 'withdraw', 'fee'];
 const NOVABOT_MANDATE_KEYS = ['objective', 'horizon_years', 'risk_level', 'max_drawdown_pct', 'cash_min_pct',
   'max_position_pct', 'max_positions_count', 'preferences', 'hard_rules', 'allowed_regions', 'currencies',
   'benchmark', 'notes', 'trading_rules'];
+
+/* Mappages partagés entre le GET (lecture) et les nouvelles actions de
+   confirmation/restauration (2026-10-15) — évite de dupliquer la forme
+   camelCase<->snake_case à chaque nouveau point d'entrée. */
+function mandatVersEntree(m) {
+  return {
+    objective: m.objective, horizonYears: m.horizon_years, riskLevel: m.risk_level,
+    maxDrawdownPct: m.max_drawdown_pct, cashMinPct: m.cash_min_pct, maxPositionPct: m.max_position_pct,
+    maxPositionsCount: m.max_positions_count, preferences: m.preferences, hardRules: m.hard_rules,
+    allowedRegions: m.allowed_regions, currencies: m.currencies, benchmark: m.benchmark, notes: m.notes,
+    tradingRules: m.trading_rules,
+  };
+}
+function mandatVersSortie(m) {
+  return {
+    id: m.id, objective: m.objective, horizonYears: m.horizon_years, riskLevel: m.risk_level,
+    maxDrawdownPct: m.max_drawdown_pct, cashMinPct: m.cash_min_pct, maxPositionPct: m.max_position_pct,
+    maxPositionsCount: m.max_positions_count, preferences: m.preferences, hardRules: m.hard_rules,
+    allowedRegions: m.allowed_regions, currencies: m.currencies, benchmark: m.benchmark, notes: m.notes,
+    tradingRules: m.trading_rules || null, createdAt: m.created_at,
+  };
+}
+/* Diff calculé à la lecture entre deux lignes adjacentes de
+   novabot_mandates (jamais stocké — l'historique complet existe déjà,
+   append-only, voir sql/2026-10-07_novabot_foundation.sql) : plus récent
+   (a) vs précédent (b). */
+function diffMandats(a, b) {
+  const out = {};
+  for (const k of NOVABOT_MANDATE_KEYS) {
+    if (JSON.stringify(a[k]) !== JSON.stringify(b[k])) out[k] = { from: b[k], to: a[k] };
+  }
+  return out;
+}
 
 async function getNovaBotAccount(user) {
   const rows = await sb(`novabot_accounts?user_id=eq.${encodeURIComponent(user.id)}&select=*`);
@@ -710,25 +749,16 @@ async function handleNovaBot(req, res, user) {
           initialCapital: account.initial_capital,
           createdAt: account.created_at,
         },
-        mandate: current && {
-          id: current.id,
-          objective: current.objective,
-          horizonYears: current.horizon_years,
-          riskLevel: current.risk_level,
-          maxDrawdownPct: current.max_drawdown_pct,
-          cashMinPct: current.cash_min_pct,
-          maxPositionPct: current.max_position_pct,
-          maxPositionsCount: current.max_positions_count,
-          preferences: current.preferences,
-          hardRules: current.hard_rules,
-          allowedRegions: current.allowed_regions,
-          currencies: current.currencies,
-          benchmark: current.benchmark,
-          notes: current.notes,
-          tradingRules: current.trading_rules || null,
-          createdAt: current.created_at,
-        },
-        mandateHistory: mandateRows.map(m => ({ id: m.id, isCurrent: m.is_current, createdAt: m.created_at })),
+        mandate: current && mandatVersSortie(current),
+        /* mandateRows est trié created_at.desc (requête ci-dessus) : la
+           ligne suivante dans le tableau est donc toujours la version
+           PRÉCÉDENTE de la ligne courante — le diff se calcule sans
+           requête supplémentaire. La toute première version (la plus
+           ancienne, onboarding) n'a pas de précédente : changes=null. */
+        mandateHistory: mandateRows.map((m, i) => ({
+          id: m.id, isCurrent: m.is_current, createdAt: m.created_at,
+          changes: mandateRows[i + 1] ? diffMandats(m, mandateRows[i + 1]) : null,
+        })),
         transactions: txRows.map(r => ({
           id: r.id, stockId: r.stock_id, ticker: r.ticker, name: r.name, type: r.type,
           qty: r.qty, priceLocal: r.price_local, currency: r.currency, amountEUR: r.amount_eur,
@@ -765,6 +795,32 @@ async function handleNovaBot(req, res, user) {
   const str = (v, max) => (typeof v === 'string' ? v.trim().slice(0, max) : '');
   const num = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
   const isoDate = (v) => { const d = new Date(v); return Number.isFinite(d.getTime()) ? d.toISOString() : null; };
+  /* Factorisé le 2026-10-15 (pilotage du mandat depuis le chat) : utilisé
+     à la fois par le mandat complet (body.mandate ci-dessous) et par une
+     modification partielle confirmée depuis la conversation
+     (confirm_mandate_amendment) — mêmes bornes, une seule source de
+     vérité, jamais deux validations qui pourraient diverger. */
+  const construireMandatDepuisEntree = (m) => ({
+    objective: str(m.objective, 40) || null,
+    horizon_years: num(m.horizonYears),
+    risk_level: str(m.riskLevel, 20) || null,
+    max_drawdown_pct: num(m.maxDrawdownPct),
+    cash_min_pct: num(m.cashMinPct) ?? 20,
+    max_position_pct: num(m.maxPositionPct) ?? 10,
+    max_positions_count: Number.isInteger(m.maxPositionsCount) ? m.maxPositionsCount : null,
+    preferences: Array.isArray(m.preferences) ? m.preferences : [],
+    hard_rules: Array.isArray(m.hardRules) ? m.hardRules : [],
+    allowed_regions: Array.isArray(m.allowedRegions) ? m.allowedRegions : null,
+    currencies: Array.isArray(m.currencies) ? m.currencies : null,
+    benchmark: str(m.benchmark, 20) || null,
+    notes: str(m.notes, 2000) || null,
+    trading_rules: (m.tradingRules && typeof m.tradingRules === 'object') ? {
+      scoreAchat: Number.isFinite(m.tradingRules.scoreAchat) ? Math.max(0, Math.min(100, m.tradingRules.scoreAchat)) : null,
+      stopLossPct: Number.isFinite(m.tradingRules.stopLossPct) ? Math.max(1, Math.min(90, m.tradingRules.stopLossPct)) : null,
+      takeProfitPct: Number.isFinite(m.tradingRules.takeProfitPct) ? Math.max(1, Math.min(500, m.tradingRules.takeProfitPct)) : null,
+      tradeAmountEUR: Number.isFinite(m.tradingRules.tradeAmountEUR) ? Math.max(10, Math.min(1000000, m.tradingRules.tradeAmountEUR)) : null,
+    } : null,
+  });
 
   try {
     let account = await getNovaBotAccount(user);
@@ -811,39 +867,117 @@ async function handleNovaBot(req, res, user) {
       account.status = body.status;
     }
 
+    /* ---------- pilotage du mandat depuis le chat (2026-10-15) ----------
+       Chemins DÉDIÉS et séparés du bloc générique body.mandate plus bas :
+       celui-ci sert à TOUS les syncs silencieux (réglages, trading_rules,
+       etc., déclenchés à chaque pushNovaBot()) ; ceux-ci sont les SEULS
+       déclenchés par une confirmation EXPLICITE de l'utilisateur dans la
+       conversation — ils vérifient la concurrence (baseMandateId, pour ne
+       jamais écraser un changement fait entre-temps par un autre onglet/
+       conversation) et journalisent la modification dans
+       novabot_mandate_changes (voir sql/2026-10-15_novabot_mandate_
+       amendments.sql). Aucun des deux ne touche jamais wallet/positions. */
+    if (body.action === 'confirm_mandate_amendment') {
+      if (!account) return res.status(409).json({ error: 'compte_inexistant' });
+      const changes = body.changes && typeof body.changes === 'object' && !Array.isArray(body.changes)
+        ? body.changes : null;
+      if (!changes) return res.status(400).json({ error: 'changement_invalide' });
+
+      const currentRows = await sb(`novabot_mandates?account_id=eq.${encodeURIComponent(account.id)}&is_current=eq.true&select=*`);
+      const current = currentRows[0] || null;
+      if (!current) return res.status(409).json({ error: 'mandat_inexistant' });
+
+      const baseMandateId = str(body.baseMandateId, 64);
+      if (baseMandateId && baseMandateId !== current.id) {
+        /* Un autre onglet/conversation a déjà écrit une nouvelle version
+           pendant que celle-ci était proposée — on ne devine jamais lequel
+           des deux changements doit gagner, on refuse et on renvoie le
+           mandat réel pour que la conversation le relaie honnêtement. */
+        return res.status(409).json({ error: 'mandat_modifie_depuis', mandate: mandatVersSortie(current) });
+      }
+
+      if (typeof changes.autonomyMode === 'string' && NOVABOT_AUTONOMY_MODES.includes(changes.autonomyMode)
+        && changes.autonomyMode !== account.autonomy_mode) {
+        /* autonomyMode est une colonne de compte, pas du mandat versionné
+           (§ plan) : appliqué directement, même mécanisme que le bloc
+           "mode d'autonomie" plus haut, jamais une ligne novabot_mandates. */
+        await sb(`novabot_accounts?id=eq.${encodeURIComponent(account.id)}`, {
+          method: 'PATCH', headers: { Prefer: 'return=minimal' },
+          body: JSON.stringify({ autonomy_mode: changes.autonomyMode, updated_at: new Date().toISOString() }),
+        });
+        account.autonomy_mode = changes.autonomyMode;
+      }
+
+      const merged = { ...mandatVersEntree(current), ...changes };
+      const next = construireMandatDepuisEntree(merged);
+      const memeMandat = NOVABOT_MANDATE_KEYS.every(k => JSON.stringify(current[k]) === JSON.stringify(next[k]));
+      if (memeMandat) return res.status(400).json({ error: 'amendement_vide' });
+
+      await sb(`novabot_mandates?id=eq.${encodeURIComponent(current.id)}`, {
+        method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ is_current: false }),
+      });
+      const [created] = await sb('novabot_mandates', {
+        method: 'POST',
+        body: JSON.stringify([{ user_id: user.id, account_id: account.id, is_current: true, ...next }]),
+      });
+      await sb('novabot_mandate_changes', {
+        method: 'POST', headers: { Prefer: 'return=minimal' },
+        body: JSON.stringify([{
+          user_id: user.id, account_id: account.id, previous_mandate_id: current.id, new_mandate_id: created.id,
+          source: 'chat', conversation_id: str(body.conversationId, 64) || null, kind: 'amendment',
+          summary: str(body.summary, 300) || 'Modification du mandat depuis la conversation.',
+        }]),
+      });
+      const versionRows = await sb(`novabot_mandates?account_id=eq.${encodeURIComponent(account.id)}&select=id`);
+      return res.status(200).json({ applied: true, mandateId: created.id, version: versionRows.length });
+    }
+
+    if (body.action === 'restore_mandate_version') {
+      if (!account) return res.status(409).json({ error: 'compte_inexistant' });
+      const targetId = str(body.targetMandateId, 64);
+      if (!targetId) return res.status(400).json({ error: 'version_invalide' });
+
+      const [targetRows, currentRows] = await Promise.all([
+        sb(`novabot_mandates?id=eq.${encodeURIComponent(targetId)}&account_id=eq.${encodeURIComponent(account.id)}&select=*`),
+        sb(`novabot_mandates?account_id=eq.${encodeURIComponent(account.id)}&is_current=eq.true&select=*`),
+      ]);
+      const target = targetRows[0] || null;
+      const current = currentRows[0] || null;
+      if (!target) return res.status(404).json({ error: 'version_introuvable' });
+      if (!current) return res.status(409).json({ error: 'mandat_inexistant' });
+
+      if (target.id === current.id) {
+        return res.status(200).json({ applied: true, unchanged: true, mandateId: current.id });
+      }
+
+      await sb(`novabot_mandates?id=eq.${encodeURIComponent(current.id)}`, {
+        method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ is_current: false }),
+      });
+      /* Restaurer crée une NOUVELLE ligne copiant les valeurs de la cible
+         -- on ne rebascule JAMAIS l'ancienne ligne "target" en courante :
+         l'historique n'est jamais réécrit, seulement prolongé (§ plan). */
+      const restored = {};
+      for (const k of NOVABOT_MANDATE_KEYS) restored[k] = target[k];
+      const [created] = await sb('novabot_mandates', {
+        method: 'POST',
+        body: JSON.stringify([{ user_id: user.id, account_id: account.id, is_current: true, ...restored }]),
+      });
+      await sb('novabot_mandate_changes', {
+        method: 'POST', headers: { Prefer: 'return=minimal' },
+        body: JSON.stringify([{
+          user_id: user.id, account_id: account.id, previous_mandate_id: current.id, new_mandate_id: created.id,
+          source: 'chat', conversation_id: str(body.conversationId, 64) || null, kind: 'restore',
+          summary: 'Restauration d\'une version précédente du mandat.',
+        }]),
+      });
+      const versionRows = await sb(`novabot_mandates?account_id=eq.${encodeURIComponent(account.id)}&select=id`);
+      return res.status(200).json({ applied: true, mandateId: created.id, version: versionRows.length });
+    }
+
     /* ---------- mandat : nouvelle version si différente de l'actuelle ---------- */
     if (body.mandate && typeof body.mandate === 'object') {
       if (!account) return res.status(409).json({ error: 'compte_inexistant' });
-      const m = body.mandate;
-      const next = {
-        objective: str(m.objective, 40) || null,
-        horizon_years: num(m.horizonYears),
-        risk_level: str(m.riskLevel, 20) || null,
-        max_drawdown_pct: num(m.maxDrawdownPct),
-        cash_min_pct: num(m.cashMinPct) ?? 20,
-        max_position_pct: num(m.maxPositionPct) ?? 10,
-        max_positions_count: Number.isInteger(m.maxPositionsCount) ? m.maxPositionsCount : null,
-        preferences: Array.isArray(m.preferences) ? m.preferences : [],
-        hard_rules: Array.isArray(m.hardRules) ? m.hardRules : [],
-        allowed_regions: Array.isArray(m.allowedRegions) ? m.allowedRegions : null,
-        currencies: Array.isArray(m.currencies) ? m.currencies : null,
-        benchmark: str(m.benchmark, 20) || null,
-        notes: str(m.notes, 2000) || null,
-        /* CORRECTIF (audit 2026-10-14) : NovaScore minimum pour acheter,
-           stop-loss, take-profit, montant par trade — jusqu'ici jamais
-           synchronisés côté serveur, le cycle automatique utilisait donc
-           systématiquement les valeurs par défaut au lieu d'un réglage
-           personnalisé (voir sql/2026-10-14_novabot_trading_rules.sql).
-           Bornes larges mais réelles (même esprit que setCapital()) :
-           jamais un NaN silencieux, jamais une valeur aberrante propagée
-           jusqu'au moteur de risque serveur. */
-        trading_rules: (m.tradingRules && typeof m.tradingRules === 'object') ? {
-          scoreAchat: Number.isFinite(m.tradingRules.scoreAchat) ? Math.max(0, Math.min(100, m.tradingRules.scoreAchat)) : null,
-          stopLossPct: Number.isFinite(m.tradingRules.stopLossPct) ? Math.max(1, Math.min(90, m.tradingRules.stopLossPct)) : null,
-          takeProfitPct: Number.isFinite(m.tradingRules.takeProfitPct) ? Math.max(1, Math.min(500, m.tradingRules.takeProfitPct)) : null,
-          tradeAmountEUR: Number.isFinite(m.tradingRules.tradeAmountEUR) ? Math.max(10, Math.min(1000000, m.tradingRules.tradeAmountEUR)) : null,
-        } : null,
-      };
+      const next = construireMandatDepuisEntree(body.mandate);
       const [currentRows] = await Promise.all([
         sb(`novabot_mandates?account_id=eq.${encodeURIComponent(account.id)}&is_current=eq.true&select=*`),
       ]);

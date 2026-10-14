@@ -20,6 +20,14 @@ function novabotTraiterAction(action, state, appels){
   } else if (action === 'resume' && !state.novabot.enabled){
     state.novabot.enabled = true;
     appels.toasts.push('NovaBot réactivé.');
+  } else if (action === 'cancel_mandate' && !state.novabot.cancelled){
+    // 2026-10-15 : distinct de "pause" — annule le mandat, jamais une vente/suppression de position.
+    state.novabot.cancelled = true;
+    appels.cancelMandateAppele = (appels.cancelMandateAppele || 0) + 1;
+    appels.toasts.push('Mandat annulé — tes positions restent inchangées.');
+  } else if (action === 'restore_last_mandate_version'){
+    appels.restoreAppele = (appels.restoreAppele || 0) + 1;
+    appels.toasts.push('Version précédente du mandat restaurée.');
   }
 }
 
@@ -86,15 +94,44 @@ function check(name, cond){ results.push([name, Boolean(cond)]); }
   check('une action null/inconnue n\'a jamais d\'effet', appels.evaluations === 0 && appels.toasts.length === 0 && state.novabot.enabled === true);
 }
 
-/* ---------- validation serveur (api/analyze.js) : liste blanche stricte ---------- */
+/* ---------- cancel_mandate : annule bien, jamais une vente ---------- */
+{
+  const state = { novabot:{ enabled:true, cancelled:false } };
+  const appels = { evaluations:0, toasts:[] };
+  novabotTraiterAction('cancel_mandate', state, appels);
+  check('"cancel_mandate" annule bien le mandat', state.novabot.cancelled === true);
+  check('RÉGRESSION : aucun champ "positions"/"transactions" n\'est même référencé par ce dispatch (annuler ne vend jamais rien)',
+    appels.cancelMandateAppele === 1 && !('positions' in appels) && !('transactions' in appels));
+}
+
+/* ---------- RÉGRESSION : cancel_mandate déjà annulé -> aucun effet redondant ---------- */
+{
+  const state = { novabot:{ enabled:true, cancelled:true } };
+  const appels = { evaluations:0, toasts:[] };
+  novabotTraiterAction('cancel_mandate', state, appels);
+  check('RÉGRESSION : "cancel_mandate" sur un mandat déjà annulé -> aucun toast redondant', appels.toasts.length === 0);
+}
+
+/* ---------- restore_last_mandate_version : dispatché ---------- */
+{
+  const state = { novabot:{ enabled:true, cancelled:false } };
+  const appels = { evaluations:0, toasts:[] };
+  novabotTraiterAction('restore_last_mandate_version', state, appels);
+  check('"restore_last_mandate_version" est bien dispatché', appels.restoreAppele === 1);
+}
+
+/* ---------- validation serveur (api/analyze.js) : liste blanche stricte, désormais 5 valeurs ---------- */
 function validerAction(mandateConfirmed, repAction){
-  return mandateConfirmed && ['run_evaluation', 'pause', 'resume'].includes(repAction) ? repAction : null;
+  return mandateConfirmed && ['run_evaluation', 'pause', 'resume', 'cancel_mandate', 'restore_last_mandate_version'].includes(repAction)
+    ? repAction : null;
 }
 check('RÉGRESSION (sécurité) : une valeur hors liste blanche n\'est JAMAIS transmise au client, quoi que le modèle renvoie',
-  validerAction(true, 'achete_tout') === null && validerAction(true, 'vends_apple') === null);
+  validerAction(true, 'achete_tout') === null && validerAction(true, 'vends_apple') === null && validerAction(true, 'vend_les_positions') === null);
 check('RÉGRESSION (sécurité) : "action" toujours null tant que le mandat n\'est pas confirmé (onboarding), même si le modèle en renvoie une',
-  validerAction(false, 'run_evaluation') === null);
+  validerAction(false, 'run_evaluation') === null && validerAction(false, 'cancel_mandate') === null);
 check('une valeur valide en mandat confirmé passe bien', validerAction(true, 'run_evaluation') === 'run_evaluation');
+check('les 2 nouvelles valeurs (2026-10-15) passent bien en mandat confirmé',
+  validerAction(true, 'cancel_mandate') === 'cancel_mandate' && validerAction(true, 'restore_last_mandate_version') === 'restore_last_mandate_version');
 check('une absence de valeur (undefined/null) reste null', validerAction(true, undefined) === null && validerAction(true, null) === null);
 
 /* ---------- rapport ---------- */

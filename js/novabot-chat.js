@@ -77,7 +77,13 @@ function novabotActiviteFermer(){
 let NOVABOT_CONVERSATIONS = { loaded:false, loading:false, list:[], search:'', archivedList:[], archivedLoaded:false, archivedLoading:false, showArchived:false };
 /* controller/revealTimer (§2, bouton "Stop") : jamais persistés, purement
    l'état d'une requête/animation en cours côté client. */
-let NOVABOT_CHAT = { conversationId:null, messages:[], mandateDraft:{}, sending:false, readyToConfirm:false, loadingThread:false, streamingText:null, controller:null, revealTimer:null, editingIndex:null, revealedActionsIndex:null };
+let NOVABOT_CHAT = { conversationId:null, messages:[], mandateDraft:{}, sending:false, readyToConfirm:false, loadingThread:false, streamingText:null, controller:null, revealTimer:null, editingIndex:null, revealedActionsIndex:null,
+  /* 2026-10-15 (pilotage du mandat depuis le chat) : REMPLACÉ, jamais
+     fusionné, à chaque nouvelle proposition (contrairement à mandateDraft
+     ci-dessus, cumulatif pendant l'onboarding) — une nouvelle proposition
+     ne doit jamais hériter d'un champ d'une proposition précédente non
+     confirmée. */
+  pendingMandateAmendment:null, readyToConfirmAmendment:false };
 
 /* ---------- données réelles transmises à Nova Core (inchangé) ---------- */
 function novabotDecisionsPertinentes(texte){
@@ -118,7 +124,7 @@ function novabotChatContexte(dernierMessage){
   const specifiques = novabotDecisionsPertinentes(dernierMessage).map(novabotDecisionCompacte);
   return {
     mandateConfirmed:true,
-    mandate: { objective:mandate.objective, riskLevel:mandate.riskLevel,
+    mandate: { id:mandate.id, objective:mandate.objective, riskLevel:mandate.riskLevel,
       horizonYears:mandate.horizonYears, cashMinPct:mandate.cashMinPct, maxPositionPct:mandate.maxPositionPct,
       hardRules:mandate.hardRules,
       /* V6 §6 ("mémoire commune") : transmis sur CHAQUE message, pas
@@ -136,6 +142,11 @@ function novabotChatContexte(dernierMessage){
       enabled: state.novabot.enabled },
     recentDecisions: recentes,
     specificDecisions: specifiques.length ? specifiques : null,
+    /* NOUVEAU (2026-10-15) : une proposition de modification du mandat
+       déjà en attente de confirmation — le modèle doit en tenir compte
+       plutôt que d'en recréer une autre à chaque tour (voir
+       CONSIGNE_NOVABOT_CHAT, api/analyze.js). */
+    pendingMandateAmendment: NOVABOT_CHAT.pendingMandateAmendment,
   };
 }
 
@@ -219,7 +230,13 @@ async function novabotConversationNouvelle(){
   NOVABOT_UI.sidebarOpen = false;
   if (NOVABOT_CHAT.controller){ try { NOVABOT_CHAT.controller.abort(); } catch (e){} }
   if (NOVABOT_CHAT.revealTimer) clearTimeout(NOVABOT_CHAT.revealTimer);
-  NOVABOT_CHAT = { conversationId:null, messages:[], mandateDraft:{}, sending:false, readyToConfirm:false, loadingThread:false, streamingText:null, controller:null, revealTimer:null, editingIndex:null, revealedActionsIndex:null };
+  NOVABOT_CHAT = { conversationId:null, messages:[], mandateDraft:{}, sending:false, readyToConfirm:false, loadingThread:false, streamingText:null, controller:null, revealTimer:null, editingIndex:null, revealedActionsIndex:null,
+  /* 2026-10-15 (pilotage du mandat depuis le chat) : REMPLACÉ, jamais
+     fusionné, à chaque nouvelle proposition (contrairement à mandateDraft
+     ci-dessus, cumulatif pendant l'onboarding) — une nouvelle proposition
+     ne doit jamais hériter d'un champ d'une proposition précédente non
+     confirmée. */
+  pendingMandateAmendment:null, readyToConfirmAmendment:false };
   const accueil = novabotAccueilTexte();
   const msgAccueil = { role:'assistant', content:accueil };
   NOVABOT_CHAT.messages.push(msgAccueil);
@@ -442,7 +459,7 @@ function novabotChatArreter(){
    de tourner. Un message visible confirme toujours l'action déclenchée
    — jamais une action silencieuse que l'utilisateur ne verrait nulle
    part. */
-function novabotTraiterAction(action){
+async function novabotTraiterAction(action){
   if (action === 'run_evaluation'){
     if (!state.novabot.enabled){ toast('NovaBot est en pause — réactive-le avant de lancer une évaluation.'); return; }
     evaluerNovaBot();
@@ -452,6 +469,15 @@ function novabotTraiterAction(action){
   } else if (action === 'resume' && !state.novabot.enabled){
     state.novabot.enabled = true; saveState(); pushNovaBot();
     toast('NovaBot réactivé.'); render();
+  } else if (action === 'cancel_mandate' && !state.novabot.cancelled){
+    /* `await` réel, contrairement à pause/resume ci-dessus (2026-10-15) :
+       annuler est irréversible sans refaire l'onboarding — jamais annoncé
+       avant une vraie confirmation serveur. */
+    const ok = await novabotAnnulerMandat();
+    toast(ok ? 'Mandat annulé — tes positions restent inchangées.' : "Impossible d'annuler le mandat pour l'instant.");
+  } else if (action === 'restore_last_mandate_version'){
+    const ok = await novabotRestaurerVersionPrecedente();
+    toast(ok ? 'Version précédente du mandat restaurée.' : 'Aucune version précédente à restaurer, ou restauration impossible.');
   }
 }
 
@@ -516,6 +542,16 @@ async function novabotAppelerModeleEtRepondre(dernierMessageUtilisateur){
       NOVABOT_CHAT.mandateDraft = { ...NOVABOT_CHAT.mandateDraft, ...d.mandateDraft };
     }
     NOVABOT_CHAT.readyToConfirm = Boolean(d.readyToConfirm);
+    /* mandateAmendment (2026-10-15) : REMPLACÉ, jamais fusionné —
+       contrairement à mandateDraft ci-dessus (cumulatif pendant
+       l'onboarding), une nouvelle proposition de modification ne doit
+       jamais hériter d'un champ d'une proposition précédente non
+       confirmée (voir la déclaration de NOVABOT_CHAT plus haut). */
+    if (d.mandateAmendment){
+      NOVABOT_CHAT.pendingMandateAmendment = { id: d.amendmentId, changes: d.mandateAmendment,
+        summary: d.summary, baseMandateId: d.baseMandateId };
+    }
+    NOVABOT_CHAT.readyToConfirmAmendment = Boolean(d.readyToConfirmAmendment);
     if (d.newPreferences) novabotAjouterPreferences(d.newPreferences);
     if (d.action) novabotTraiterAction(d.action);
     /* id serveur du message capturé une fois la réponse arrivée (V6 §5 :
@@ -812,6 +848,48 @@ function novabotChatConfirmer(){
   }
   render();
   evaluerNovaBot();
+}
+
+/* Sibling de novabotChatConfirmer() ci-dessus, mais pour une MODIFICATION
+   du mandat déjà confirmé (2026-10-15, "NovaBot — pilotage complet du
+   mandat depuis le chat") — jamais le même chemin : novabotConfirmerMandat()
+   est écrit exclusivement pour l'onboarding (dépôt initial, activation),
+   le réappeler ici redéposerait du capital et redéclencherait "activé" à
+   tort. `await` RÉEL de la réponse serveur (contrairement à la plupart
+   des mutations NovaBot, silencieuses) : le message de succès n'est
+   affiché qu'APRÈS une écriture confirmée, jamais avant ("ne jamais
+   annoncer une modification réussie si elle n'a pas été enregistrée"). */
+async function novabotChatConfirmerAmendement(){
+  const p = NOVABOT_CHAT.pendingMandateAmendment;
+  if (!p) return;
+  NOVABOT_CHAT.readyToConfirmAmendment = false;
+  let recap;
+  try {
+    const r = await authFetch('/api/me?resource=novabot', { method:'POST', body: JSON.stringify({
+      action:'confirm_mandate_amendment', amendmentId:p.id, changes:p.changes,
+      baseMandateId:p.baseMandateId, conversationId:NOVABOT_CHAT.conversationId, summary:p.summary,
+    })});
+    const d = await r.json().catch(() => ({}));
+    if (r.ok){
+      recap = `Modification enregistrée (version ${d.version}) — ${p.summary}`;
+      await syncNovaBot(); // relit le mandat fraîchement écrit, une seule source de vérité
+    } else if (d.error === 'mandat_modifie_depuis'){
+      recap = "Le mandat a changé entre-temps (une autre conversation ou un autre appareil) — je n'ai rien modifié pour éviter d'écraser ce changement. Dis-moi si tu veux toujours appliquer la même chose.";
+      await syncNovaBot();
+    } else {
+      recap = "Je n'ai pas pu enregistrer ce changement (problème serveur) — rien n'a été modifié.";
+    }
+  } catch (e){
+    console.warn('[novabot-chat] confirmation de modification impossible :', e);
+    recap = "Je n'ai pas pu enregistrer ce changement (problème réseau) — rien n'a été modifié.";
+  }
+  NOVABOT_CHAT.pendingMandateAmendment = null;
+  const msgRecap = { role:'assistant', content:recap };
+  NOVABOT_CHAT.messages.push(msgRecap);
+  if (NOVABOT_CHAT.conversationId){
+    novabotSauvegarderMessage(NOVABOT_CHAT.conversationId, msgRecap, { role:'assistant', content:recap });
+  }
+  render();
 }
 
 /* "Demander à Nova pourquoi" (§7/§8) : ouvre une NOUVELLE conversation

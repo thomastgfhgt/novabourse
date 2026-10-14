@@ -277,6 +277,18 @@ const DEFAULT_STATE = {
     mandateConfirmed:false,
     lastRunAt:null,
     lastConversationId:null,
+    /* NOUVEAU (2026-10-15, pilotage du mandat depuis le chat) : rien ne
+       suivait jusqu'ici la ligne novabot_mandates réellement courante côté
+       client — nécessaire pour la vérification de concurrence optimiste
+       (baseMandateId) avant d'appliquer une modification proposée par la
+       conversation. mandateHistory : juste assez pour permettre une
+       restauration (ids/dates), jamais le contenu complet de chaque
+       version en mémoire. cancelled : distinct de `enabled`, même principe
+       que mandateConfirmed ci-dessus — annuler le mandat n'est PAS la même
+       chose que le mettre en pause (voir novabotAnnulerMandat() plus bas). */
+    mandateId:null,
+    mandateHistory:[],
+    cancelled:false,
   },
 
   auth:{
@@ -2303,6 +2315,12 @@ function novabotVendre(id, prix, motif){
 function novabotMandat(){
   const cfg = state.novabot;
   return {
+    /* id (2026-10-15) : identité de la ligne novabot_mandates actuellement
+       courante — jamais utilisée par novabotRiskCheck() ni le moteur de
+       décision, UNIQUEMENT pour la vérification de concurrence optimiste
+       avant une modification confirmée depuis le chat (voir
+       novabotChatContexte(), js/novabot-chat.js). */
+    id: cfg.mandateId || null,
     cashMinPct: cfg.cashMinPct,
     maxPositionPct: cfg.maxPositionPct,
     maxPositionsCount: Number.isFinite(cfg.maxPositionsCount) ? cfg.maxPositionsCount : null,
@@ -2731,6 +2749,14 @@ async function evaluerNovaBot(){
   }
   const candidats = novabotDiscoveryCandidats(mandate);
   const etapeDecouverte = activite ? novabotActiviteDebuter(`Recherche d'opportunités (${candidats.length} candidat(s) à examiner)`) : null;
+  /* Préférence de prix (2026-10-15, "recherche des actions à moins de
+     X€") : NON contraignante (§0.A du plan — une préférence, jamais une
+     hard rule), donc filtrée ICI à la découverte plutôt que dans
+     novabotRiskCheck(), qui reste strictement réservé aux hard rules.
+     Hoisté hors de la boucle : une seule lecture de mandate.preferences
+     pour tous les candidats, pas une par candidat. */
+  const maxPriceEUR = Number(mandate.preferences?.find(p => p.type === 'max_price_eur')?.value);
+  const prixPlafond = Number.isFinite(maxPriceEUR) ? maxPriceEUR : null;
   let appelsIA = 0; // borne les appels Nova Core de CE passage (§23/§24, voir plus bas)
   let nbAchats = 0, nbVentes = (nbPositionsDepart - cfg.wallet.positions.length);
   for (const id of candidats){
@@ -2739,6 +2765,10 @@ async function evaluerNovaBot(){
     if (!st){ if (activite) novabotActiviteConclure(etapeCandidat, 'echouee', 'Instrument introuvable dans le catalogue.'); continue; } // §33 : instrument ambigu/introuvable -> pas d'ordre
     const prix = prixDe(st);
     if (prix === null){ if (activite) novabotActiviteConclure(etapeCandidat, 'echouee', 'Cours indisponible.'); continue; } // §32
+    if (prixPlafond !== null && toEUR(prix, st.cur) > prixPlafond){
+      if (activite) novabotActiviteConclure(etapeCandidat, 'echouee', `Au-dessus de la préférence de prix (≤ ${fmt.eur(prixPlafond)}).`);
+      continue;
+    }
     const donnees = await novabotDonneesMarche(st);
     if (donnees === null){ if (activite) novabotActiviteConclure(etapeCandidat, 'echouee', 'NovaScore indisponible (données insuffisantes).'); continue; } // §32 : NovaScore indisponible -> pas d'ordre, WATCH non plus (rien à dire)
     const score = donnees.score;
@@ -3125,6 +3155,10 @@ async function syncNovaBot(){
     state.novabot.wallet.positions = rejoue.positions;
     state.novabot.wallet.realizedPnL = rejoue.realizedPnL;
     if (data.mandate){
+      /* NOUVEAU (2026-10-15) : identité de la ligne courante, nécessaire à
+         la vérification de concurrence optimiste avant une modification
+         confirmée depuis le chat (voir novabotChatConfirmerAmendement()). */
+      if (typeof data.mandate.id === 'string') state.novabot.mandateId = data.mandate.id;
       if (Number.isFinite(data.mandate.cashMinPct)) state.novabot.cashMinPct = data.mandate.cashMinPct;
       if (Number.isFinite(data.mandate.maxPositionPct)) state.novabot.maxPositionPct = data.mandate.maxPositionPct;
       state.novabot.maxPositionsCount = Number.isFinite(data.mandate.maxPositionsCount) ? data.mandate.maxPositionsCount : null;
@@ -3164,6 +3198,13 @@ async function syncNovaBot(){
          un nouveau appui sur le bouton Activer/Désactiver (index.html)
          reste bien sûr prioritaire ensuite pour CETTE session. */
       state.novabot.enabled = data.account.status === 'active';
+      /* NOUVEAU (2026-10-15) : annulation EXPLICITE du mandat, distincte
+         de "paused" — même source unique (le statut serveur) que
+         mandateConfirmed/enabled ci-dessus. */
+      state.novabot.cancelled = data.account.status === 'cancelled';
+    }
+    if (Array.isArray(data.mandateHistory)){
+      state.novabot.mandateHistory = data.mandateHistory.map(m => ({ id: m.id, createdAt: m.createdAt }));
     }
     const serverDec = Array.isArray(data.decisions) ? data.decisions.map(d => ({ ...d, date: d.occurredAt })) : [];
     const decById = new Map();
@@ -3182,5 +3223,45 @@ async function syncNovaBot(){
     render();
   } catch (e){ console.warn('[novabot] synchronisation impossible :', e); return; }
   pushNovaBot();
+}
+
+/* Annulation EXPLICITE du mandat (2026-10-15, pilotage depuis le chat) —
+   DISTINCTE de la mise en pause (state.novabot.enabled=false, réversible
+   en un clic) : annuler signifie "arrête tout, il faudra refaire
+   l'onboarding pour relancer NovaBot". N'envoie STRICTEMENT que {status},
+   jamais wallet/transactions/positions — ne peut donc, par construction,
+   jamais déclencher une vente. `await` réel (pas de pushNovaBot()
+   silencieux) : l'état local n'est mis à jour qu'après une réponse serveur
+   réussie, pour que le chat n'annonce jamais un succès qui n'a pas eu
+   lieu (voir novabotTraiterAction(), js/novabot-chat.js). */
+async function novabotAnnulerMandat(){
+  const r = await authFetch('/api/me?resource=novabot', {
+    method:'POST', body: JSON.stringify({ status:'cancelled' }),
+  });
+  if (!r.ok) return false;
+  state.novabot.enabled = false;
+  state.novabot.cancelled = true;
+  saveState();
+  render();
+  return true;
+}
+
+/* Restaure la version du mandat précédant la dernière modification
+   confirmée (2026-10-15) — réutilise l'historique déjà présent côté
+   serveur (novabot_mandates, append-only) : state.novabot.mandateHistory
+   est trié du plus récent au plus ancien (voir syncNovaBot() ci-dessus),
+   l'index 1 est donc la version AVANT le dernier changement. Restaurer
+   crée une NOUVELLE version côté serveur (jamais une réécriture) —
+   syncNovaBot() relit ensuite l'état réellement appliqué, une seule
+   source de vérité plutôt qu'une supposition locale. */
+async function novabotRestaurerVersionPrecedente(){
+  const cible = state.novabot.mandateHistory?.[1];
+  if (!cible?.id) return false;
+  const r = await authFetch('/api/me?resource=novabot', {
+    method:'POST', body: JSON.stringify({ action:'restore_mandate_version', targetMandateId: cible.id }),
+  });
+  if (!r.ok) return false;
+  await syncNovaBot();
+  return true;
 }
 

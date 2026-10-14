@@ -8,6 +8,7 @@ const { userFromToken, sb } = require('./me.js');
 const { PLAN_LIMITS, planReel, limiteDe, consommation, reserver, cloturer, quotaBlock,
   limiteChatDe, reserverChat, cloturerChat, quotaChatBlock } = require('./_limits.js');
 const { novascore } = require('./market/_novascore.js');
+const { randomUUID } = require('crypto');
 
 /* Ordre de priorité : xAI d'abord, c'est la couche qu'on valide en premier.
    Le modèle est configurable pour ne pas avoir à toucher au code. */
@@ -329,7 +330,7 @@ envoyé à un broker). Tu parles en français, ton direct et chaleureux, jamais 
 jargon non expliqué.
 
 Réponds TOUJOURS en JSON strict :
-{"reply":"...","mandateDraft":{"initialCapital":null,"objective":null,"riskLevel":null,"horizonYears":null,"hardRules":null,"preferences":null,"autonomyMode":null}|null,"readyToConfirm":false,"newPreferences":null,"action":null}
+{"reply":"...","mandateDraft":{"initialCapital":null,"objective":null,"riskLevel":null,"horizonYears":null,"hardRules":null,"preferences":null,"autonomyMode":null}|null,"readyToConfirm":false,"newPreferences":null,"mandateAmendment":{"objective":null,"riskLevel":null,"horizonYears":null,"hardRules":null,"cashMinPct":null,"maxPositionPct":null,"maxPositionsCount":null,"maxDrawdownPct":null,"benchmark":null,"notes":null,"autonomyMode":null}|null,"readyToConfirmAmendment":false,"action":null}
 
 DEUX RÔLES SELON "mandateConfirmed" transmis ci-dessous :
 
@@ -369,21 +370,44 @@ DEUX RÔLES SELON "mandateConfirmed" transmis ci-dessous :
 
 2) mandateConfirmed=true : tu réponds aux questions sur le portefeuille/les décisions/le mandat
    RÉELLEMENT transmis ci-dessous ("mandate"/"portfolio"/"recentDecisions"/"specificDecisions").
-   "mandateDraft" reste null dans ce mode (le mandat NE CHANGE QUE via une procédure de
-   modification explicite, jamais glissé dans une réponse à une autre question) — ceci reste
-   ABSOLU pour initialCapital/objective/riskLevel/horizonYears/hardRules/autonomyMode.
+   "mandateDraft" reste TOUJOURS null dans ce mode (le mandat initial ne se reconstruit jamais
+   après coup) — ceci reste ABSOLU pour initialCapital/objective/riskLevel/horizonYears/hardRules/
+   autonomyMode via mandateDraft. Pour MODIFIER le mandat une fois confirmé, utilise
+   "mandateAmendment" (voir plus bas) — un mécanisme séparé et distinct, jamais mandateDraft.
    "mandate.preferences" (transmis ci-dessous, déjà connues) sert à PERSONNALISER tes réponses —
    une mémoire COMMUNE à toutes les conversations de cet utilisateur, pas seulement celle-ci.
    Si l'utilisateur exprime en passant une NOUVELLE préférence durable et non contraignante (ex.
-   "je préfère les actions qui versent un dividende"), note-la dans "newPreferences" (tableau
-   d'objets {"type":"investment_style","value":"..."}, jamais plus de 2 par réponse, null si
-   aucune) — ceci N'EST PAS "mandateDraft" et ne nécessite aucune confirmation (non contraignant,
-   l'utilisateur peut la supprimer à tout moment depuis son mandat). Ne répète JAMAIS dans
-   "newPreferences" une préférence déjà listée dans "mandate.preferences".
+   "je préfère les actions qui versent un dividende", "cherche/préfère des actions à moins de 5€"),
+   note-la dans "newPreferences" (tableau d'objets {"type":"investment_style"|"max_price_eur",
+   "value":"..."}, jamais plus de 2 par réponse, null si aucune) — ceci N'EST PAS "mandateAmendment"
+   et ne nécessite AUCUNE confirmation (non contraignant, l'utilisateur peut la supprimer à tout
+   moment). Un prix plafond ("actions à moins de X€") est TOUJOURS une préférence, jamais un
+   mandateAmendment — et précise honnêtement dans "reply" que ce filtre ne s'applique qu'aux
+   actions déjà examinées par NovaBot (un petit nombre, pas tout le marché), et que le prix seul
+   ne dit rien sur la qualité d'une entreprise. Ne répète JAMAIS dans "newPreferences" une
+   préférence déjà listée dans "mandate.preferences".
    N'invente JAMAIS un chiffre, une date, une transaction ou une décision absente de ces données —
    si l'information demandée n'y figure pas (ex. décision trop ancienne non transmise), dis-le
    honnêtement ("je n'ai pas cette décision dans ce que je peux consulter maintenant") plutôt que
-   de deviner.
+   de deviner. Si l'utilisateur demande une analyse que tu ne peux PAS vraiment faire (risque de
+   faillite, dilution potentielle, risque de radiation/délistage, liquidité) : dis explicitement
+   que NovaBot ne modélise pas ça aujourd'hui, plutôt que de produire une évaluation inventée.
+
+   "mandateAmendment" (modification du mandat DÉJÀ confirmé, 2026-10-15) : UNIQUEMENT quand
+   l'utilisateur demande EXPLICITEMENT et SANS AMBIGUÏTÉ de changer une règle contraignante du
+   mandat (risque, horizon, exclusions, cash minimum, taille max d'une position, mode d'autonomie,
+   etc.) — jamais déduit d'une remarque en passant glissée dans une réponse à une autre question
+   (même règle que mandateDraft pendant l'onboarding). Objet avec UNIQUEMENT les champs
+   réellement changés (mêmes noms/valeurs que mandateDraft : objective/riskLevel/horizonYears/
+   hardRules/autonomyMode, plus cashMinPct/maxPositionPct/maxPositionsCount/maxDrawdownPct/
+   benchmark/notes), null sinon. Si "pendingMandateAmendment" (transmis ci-dessous) montre qu'une
+   proposition est DÉJÀ en attente de confirmation, ne la reproduis pas sans raison — rappelle-la
+   dans "reply" plutôt que d'en recréer une autre, SAUF si l'utilisateur demande explicitement
+   autre chose (dans ce cas, décris la nouvelle proposition complète). Tu ne gères ni ne vois
+   d'identifiant de proposition : le serveur s'en occupe. "readyToConfirmAmendment":true
+   UNIQUEMENT au tour où tu résumes clairement le changement proposé et demandes confirmation.
+   Ne mélange JAMAIS un mandateAmendment avec une vente de position ou une fermeture de
+   portefeuille — ces opérations n'existent pas ici.
 
 Règles absolues (les deux rôles) :
 - "reply" : 1 à 4 phrases, jamais un pavé, jamais de markdown.
@@ -399,12 +423,21 @@ Règles absolues (les deux rôles) :
 d'exécuter le MÊME pipeline déterministe que les boutons de l'application — toi, le modèle de
 langage, ne décides JAMAIS toi-même d'un achat/vente précis ni d'un montant ; tu demandes
 seulement au moteur déjà existant de tourner, EXACTEMENT comme si l'utilisateur avait cliqué le
-bouton correspondant. Trois valeurs possibles, un SEUL champ par réponse, null si aucune :
+bouton correspondant. Cinq valeurs possibles, un SEUL champ par réponse, null si aucune :
 - "run_evaluation" : l'utilisateur demande explicitement de chercher des opportunités, d'évaluer
   son portefeuille, de "lancer" NovaBot ou équivalent ("vas-y", "fais une évaluation", "regarde ce
   qu'il y a à faire") — jamais pour une simple question sur l'état actuel.
-- "pause" : l'utilisateur demande explicitement de mettre en pause/arrêter la gestion automatique.
+- "pause" : l'utilisateur demande explicitement de mettre en pause/arrêter la gestion automatique
+  (TEMPORAIRE — reprend quand il veut, le mandat reste intact).
 - "resume" : l'utilisateur demande explicitement de réactiver/reprendre la gestion automatique.
+- "cancel_mandate" : l'utilisateur demande explicitement d'ANNULER le mandat/d'arrêter
+  complètement NovaBot (pas juste une pause) — ex. "annule mon mandat", "arrête complètement
+  NovaBot". N'EFFACE JAMAIS les positions déjà détenues ni ne vend rien — dis-le explicitement
+  dans "reply" ("tes positions actuelles restent inchangées"). Distinct de "pause" : si le mot de
+  l'utilisateur est ambigu entre les deux, demande une clarification plutôt que de deviner.
+- "restore_last_mandate_version" : l'utilisateur demande explicitement d'annuler SA DERNIÈRE
+  MODIFICATION du mandat et de revenir à la version précédente (ex. "annule le dernier changement",
+  "remets mes règles précédentes").
 "portfolio.enabled" (transmis ci-dessous) indique l'état RÉEL actuel — ne propose jamais "resume"
 si déjà actif, ni "pause" si déjà en pause ; dis-le simplement dans "reply" ("NovaBot est déjà
 actif") plutôt que de renvoyer une action sans effet.
@@ -776,6 +809,17 @@ function validerPreferences(arr, max){
     .slice(0, max).map(p => ({ type: texteBorne(p.type, 40), value: texteBorne(p.value, 80) }));
   return prefs.length ? prefs : null;
 }
+/* Extrait le 2026-10-15 (pilotage du mandat depuis le chat) : même liste de
+   types de hardRules consommée par le brouillon d'onboarding ET par une
+   modification post-confirmation (validerMandateAmendment plus bas) — une
+   seule source de vérité plutôt que deux listes qui pourraient diverger. */
+function validerHardRules(arr, max){
+  if (!Array.isArray(arr)) return null;
+  const regles = arr
+    .filter(r => r && (r.type === 'excluded_sector' || r.type === 'excluded_asset') && typeof r.value === 'string')
+    .slice(0, max).map(r => ({ type:r.type, value: texteBorne(r.value, 60) }));
+  return regles.length ? regles : null;
+}
 function validerMandateDraft(d){
   if (!d || typeof d !== 'object' || Array.isArray(d)) return null;
   const out = {};
@@ -783,14 +827,34 @@ function validerMandateDraft(d){
   if (NOVABOT_OBJECTIVES.has(d.objective)) out.objective = d.objective;
   if (NOVABOT_RISK_LEVELS.has(d.riskLevel)) out.riskLevel = d.riskLevel;
   if (Number.isFinite(d.horizonYears) && d.horizonYears > 0) out.horizonYears = d.horizonYears;
-  if (Array.isArray(d.hardRules)){
-    const regles = d.hardRules
-      .filter(r => r && (r.type === 'excluded_sector' || r.type === 'excluded_asset') && typeof r.value === 'string')
-      .slice(0, 20).map(r => ({ type:r.type, value: texteBorne(r.value, 60) }));
-    if (regles.length) out.hardRules = regles;
-  }
+  const regles = validerHardRules(d.hardRules, 20);
+  if (regles) out.hardRules = regles;
   const prefs = validerPreferences(d.preferences, 20);
   if (prefs) out.preferences = prefs;
+  if (NOVABOT_AUTONOMY.has(d.autonomyMode)) out.autonomyMode = d.autonomyMode;
+  return Object.keys(out).length ? out : null;
+}
+/* NOUVEAU (2026-10-15, "NovaBot — pilotage complet du mandat depuis le
+   chat") : contrairement à validerMandateDraft (onboarding, un objet
+   CUMULATIF construit sur plusieurs tours), ceci valide un changement
+   PARTIEL proposé en une fois après confirmation du mandat -- seuls les
+   champs réellement présents et valides sont gardés, null si le modèle n'a
+   en réalité rien proposé de concret (jamais une "modification vide"
+   silencieusement acceptée plus loin dans la chaîne). */
+function validerMandateAmendment(d){
+  if (!d || typeof d !== 'object' || Array.isArray(d)) return null;
+  const out = {};
+  if (NOVABOT_OBJECTIVES.has(d.objective)) out.objective = d.objective;
+  if (NOVABOT_RISK_LEVELS.has(d.riskLevel)) out.riskLevel = d.riskLevel;
+  if (Number.isFinite(d.horizonYears) && d.horizonYears > 0) out.horizonYears = d.horizonYears;
+  const regles = validerHardRules(d.hardRules, 20);
+  if (regles) out.hardRules = regles;
+  if (Number.isFinite(d.cashMinPct) && d.cashMinPct >= 0 && d.cashMinPct <= 100) out.cashMinPct = d.cashMinPct;
+  if (Number.isFinite(d.maxPositionPct) && d.maxPositionPct >= 1 && d.maxPositionPct <= 100) out.maxPositionPct = d.maxPositionPct;
+  if (Number.isInteger(d.maxPositionsCount) && d.maxPositionsCount > 0) out.maxPositionsCount = d.maxPositionsCount;
+  if (Number.isFinite(d.maxDrawdownPct) && d.maxDrawdownPct >= 0 && d.maxDrawdownPct <= 100) out.maxDrawdownPct = d.maxDrawdownPct;
+  if (typeof d.benchmark === 'string' && d.benchmark.trim()) out.benchmark = texteBorne(d.benchmark, 20);
+  if (typeof d.notes === 'string' && d.notes.trim()) out.notes = texteBorne(d.notes, 2000);
   if (NOVABOT_AUTONOMY.has(d.autonomyMode)) out.autonomyMode = d.autonomyMode;
   return Object.keys(out).length ? out : null;
 }
@@ -812,6 +876,11 @@ async function novabotChatAnalyse(req, res, { user, plan, dispo }){
       ? req.body.recentDecisions.slice(0, 15).map(d => sanitiserDonnees(d)).filter(Boolean) : null,
     specificDecisions: mandateConfirmed && Array.isArray(req.body?.specificDecisions)
       ? req.body.specificDecisions.slice(0, 10).map(d => sanitiserDonnees(d)).filter(Boolean) : null,
+    /* NOUVEAU (2026-10-15) : symétrique de mandateDraftConnu pour
+       l'onboarding — indique au modèle qu'une proposition de modification
+       est déjà sur la table, en attente de la réponse de cet utilisateur
+       (évite de reproposer la même chose ou d'en ignorer l'existence). */
+    pendingMandateAmendment: mandateConfirmed ? sanitiserDonnees(req.body?.pendingMandateAmendment) : null,
   };
 
   const transcript = messages.map(m => `${m.role === 'user' ? 'Utilisateur' : 'Nova'} : ${m.content}`).join('\n');
@@ -861,23 +930,56 @@ async function novabotChatAnalyse(req, res, { user, plan, dispo }){
              les préférences passent par mandateDraft/readyToConfirm comme le
              reste du mandat en construction. */
           newPreferences: mandateConfirmed ? validerPreferences(rep.newPreferences, 2) : null,
+          /* mandateAmendment (2026-10-15, "NovaBot — pilotage complet du
+             mandat depuis le chat") : contrairement à mandateDraft,
+             UNIQUEMENT disponible une fois le mandat confirmé — c'est
+             l'inverse exact de la porte mandateDraft ci-dessus (ABSOLUE
+             pour mandateDraft après confirmation, ABSOLUE pour
+             mandateAmendment avant). Le modèle ne fixe/voit jamais
+             l'identifiant de la proposition : il est généré/géré par le
+             serveur juste après (voir plus bas), jamais par le modèle. */
+          mandateAmendment: mandateConfirmed ? validerMandateAmendment(rep.mandateAmendment) : null,
+          readyToConfirmAmendment: rep.readyToConfirmAmendment === true,
           /* action (audit 2026-10-14, "je veux que NovaBot puisse gérer
              tout ce qu'on lui donne automatiquement sans aucun bouton à
              taper [...] comme Claude Code") : liste BLANCHE stricte —
-             une valeur hors de ces trois jamais transmise au client, qui
-             ne SAIT exécuter que ces trois actions précises (voir
+             une valeur hors de cette liste jamais transmise au client, qui
+             ne SAIT exécuter que ces actions précises (voir
              novabotTraiterAction(), js/novabot-chat.js). Le modèle ne
              décide JAMAIS d'un achat/vente ni d'un montant ici — il ne
              fait que demander au PIPELINE DÉTERMINISTE déjà existant
              (evaluerNovaBot(), identique au bouton "Évaluer maintenant")
-             de tourner, ou de mettre en pause/reprendre. */
-          action: mandateConfirmed && ['run_evaluation', 'pause', 'resume'].includes(rep.action) ? rep.action : null,
+             de tourner, de mettre en pause/reprendre/annuler, ou de
+             restaurer la version précédente du mandat (2026-10-15 :
+             cancel_mandate/restore_last_mandate_version, jamais une vente
+             de position ni une fermeture de portefeuille — ces actions
+             n'existent nulle part ici). */
+          action: mandateConfirmed && ['run_evaluation', 'pause', 'resume', 'cancel_mandate', 'restore_last_mandate_version'].includes(rep.action)
+            ? rep.action : null,
         };
       },
     }));
   } catch (e){
     await annuler('cancelled');
     return res.status(502).json({ error: e.type || 'reponse_illisible', provider: e.provider ?? null, detail: e.detail });
+  }
+
+  /* Identité de la proposition gérée par le SERVEUR, jamais par le modèle
+     (2026-10-15) : si une proposition était déjà en attente (même id
+     renvoyé par le client dans pendingMandateAmendment), on continue la
+     MÊME proposition plutôt que d'en recréer une nouvelle à chaque tour —
+     sinon un "oui" tardif se rattacherait au mauvais changement. Un
+     changement de contenu entre deux tours (le modèle a reformulé sa
+     proposition) régénère quand même un nouvel id : la proposition
+     affichée doit toujours correspondre exactement à ce que le client va
+     effectivement confirmer. */
+  let amendmentId = null, amendmentSummary = null, baseMandateId = null;
+  if (parsed.mandateAmendment){
+    const dejaEnAttente = contexte.pendingMandateAmendment;
+    const memeContenu = dejaEnAttente && JSON.stringify(dejaEnAttente.changes) === JSON.stringify(parsed.mandateAmendment);
+    amendmentId = memeContenu && typeof dejaEnAttente.id === 'string' ? dejaEnAttente.id : randomUUID();
+    amendmentSummary = parsed.reply.slice(0, 300);
+    baseMandateId = (contexte.mandate && typeof contexte.mandate.id === 'string') ? contexte.mandate.id : null;
   }
 
   /* CORRECTIF (audit 2026-10-13) : nombresDuTexteUtilisateur(messages)
@@ -899,7 +1001,10 @@ async function novabotChatAnalyse(req, res, { user, plan, dispo }){
   await cloturerChat(sb, reservation, 'ok', { provider:id, model:modele });
 
   res.setHeader('Cache-Control', 'no-store');
-  return res.status(200).json({ ...parsed, provider: id, model: modele, quota: quotaChatBlock(plan, utilise) });
+  return res.status(200).json({
+    ...parsed, provider: id, model: modele, quota: quotaChatBlock(plan, utilise),
+    amendmentId, summary: amendmentSummary, baseMandateId,
+  });
 }
 
 

@@ -862,6 +862,7 @@ function novabotChatView(){
           </div>` : ''}
         </div>
         ${c.readyToConfirm ? `<button class="btn btn-a" style="width:100%;margin-top:12px" data-novabot-confirm-mandat>Confirmer le mandat</button>` : ''}
+        ${c.readyToConfirmAmendment ? `<button class="btn btn-a" style="width:100%;margin-top:12px" data-novabot-confirm-amendement>Confirmer ce changement</button>` : ''}
         <div class="nb-chat-input">
           <textarea id="novabotChatInput" placeholder="Écris à Nova…" maxlength="2000" rows="1"
             oninput="this.style.height='auto';this.style.height=Math.min(this.scrollHeight,120)+'px'"></textarea>
@@ -909,6 +910,27 @@ function novabotGestionAutoCard(cfg, dernierPassage){
   const prochaine = cfg.enabled
     ? novabotProchaineEvaluation().toLocaleString('fr-FR', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' }) + ' (cycle automatique quotidien)'
     : '—';
+  /* NOUVEAU (2026-10-15) : "annulé" est DISTINCT de "en pause" — annulé
+     signifie que le mandat lui-même a été arrêté (il faut refaire
+     l'onboarding pour relancer NovaBot), jamais une simple reprise en un
+     clic comme la pause. Les positions déjà détenues restent affichées
+     normalement ailleurs dans cette page (cancel_mandate ne les touche
+     jamais) — seul ce statut/bandeau change ici. */
+  if (cfg.cancelled){
+    return `<div class="card" style="margin-top:14px">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px">
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="width:9px;height:9px;border-radius:50%;background:var(--ink-4);flex:0 0 auto"></span>
+          <b style="font-size:14.5px">Gestion automatique NovaBot</b>
+        </div>
+        <span class="tag">Mandat annulé</span>
+      </div>
+      <p style="margin-top:10px;font-size:13.5px;color:var(--ink-3)">Le mandat a été annulé — NovaBot ne fera plus aucune opération automatique. Tes positions déjà détenues restent inchangées.</p>
+      <div class="btns" style="margin-top:14px">
+        <button type="button" class="btn btn-a" style="flex:1" data-novabot-mandat-open>Relancer NovaBot</button>
+      </div>
+    </div>`;
+  }
   return `<div class="card" style="margin-top:14px">
     <div style="display:flex;align-items:center;justify-content:space-between;gap:10px">
       <div style="display:flex;align-items:center;gap:8px">
