@@ -77,6 +77,24 @@ function toEUR(amount, cur){
   return Number.isFinite(rate) ? amount * rate : amount;
 }
 
+/* ---- mouvement (motion design premium, phase 1, 2026-10-15) ----
+   prefersReducedMotion() centralise ce qu'index.html déclarait seul
+   jusqu'ici (REDUCED_MOTION, utilisé par le fondu/zoom du temple au
+   scroll) — nécessaire pour que tout futur fichier JS (novabot-chat.js,
+   page-home.js...) puisse vérifier la préférence sans dupliquer
+   matchMedia(). animationsDisabled() ajoute le réglage applicatif
+   "Animations" (state.settings.animations, déjà respecté côté CSS via
+   .no-anim{animation:none!important} — voir styles.css) : toute
+   DÉCISION PRISE EN JS (pas une simple règle CSS) doit vérifier les DEUX
+   signaux, jamais un seul, sinon désactiver les animations dans les
+   réglages ne suffirait pas à arrêter un minuteur JS déjà en cours. */
+function prefersReducedMotion(){
+  return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+}
+function animationsDisabled(){
+  return prefersReducedMotion() || state.settings.animations === false;
+}
+
 /* ---- formatage ---- */
 const fmt = {
   num(v, d = 0){

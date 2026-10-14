@@ -234,7 +234,7 @@ window.addEventListener('resize', syncTopHeaderHeight);
    l'accueil par navigation (scroll remis à 0 par render() lui-même)
    pourrait laisser le temple visuellement figé à l'ancien niveau de
    fondu jusqu'au prochain scroll. */
-const REDUCED_MOTION = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+const REDUCED_MOTION = prefersReducedMotion(); // voir js/core.js
 function updateScrollFades(){
   const HEADER_FADE_DISTANCE = 160;  // px de scroll pour atteindre le minimum
   const HEADER_FADE_FLOOR = .15;     // jamais totalement invisible (lisibilité)
