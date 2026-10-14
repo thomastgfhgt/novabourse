@@ -840,10 +840,17 @@ button:active{transform:scale(.97)}
    côté serveur) — un article sans image garde simplement le layout texte
    seul, jamais une image de remplacement inventée. */
 .news-item{display:flex;align-items:flex-start;gap:14px;padding:16px 4px;
-  border-bottom:1px solid var(--line-2);color:inherit;text-decoration:none}
+  border-bottom:1px solid var(--line-2);color:inherit;text-decoration:none;
+  /* Motion design premium, phase 2 (2026-10-15) : survol sans transition
+     (changement de fond instantané) et aucun état :active, lacune
+     confirmée par audit — background-color uniquement, même principe que
+     .row:hover (jamais padding/margin, qui restent du changement de mise
+     en page). */
+  transition:background-color var(--fast) ease}
 .news-item:last-child{border-bottom:none}
 .news-item:hover{background:var(--bg-2);border-radius:var(--r-s);padding-left:12px;padding-right:12px;
   margin-left:-12px;margin-right:-12px;border-color:transparent}
+.news-item:active{transform:scale(.99)}
 .news-item-img{width:96px;height:72px;object-fit:cover;border-radius:var(--r-s);
   flex:0 0 auto;background:var(--bg-3)}
 .news-item-body{flex:1;min-width:0}
@@ -908,6 +915,16 @@ a.row{color:inherit;text-decoration:none}
 .row:last-child{border-bottom:none}
 .row:hover{background:var(--bg-2);border-radius:var(--r-s);padding-left:10px;padding-right:10px;
   margin-left:-10px;margin-right:-10px;border-color:transparent}
+/* .row-static (motion design premium, phase 2, 2026-10-15) : correctif de
+   cohérence, pas une nouvelle animation -- certaines lignes (événements
+   Nova Event, décisions passées Nova Review) utilisent .row comme simple
+   conteneur sans aucun gestionnaire de clic, mais recevaient quand même
+   le survol ci-dessus, laissant croire à tort qu'elles étaient
+   cliquables. Neutralise uniquement le survol + le curseur, laisse tout
+   le reste de .row (mise en page, bordure) intact. */
+.row-static{cursor:default}
+.row-static:hover{background:none;border-radius:0;padding-left:0;padding-right:0;
+  margin-left:0;margin-right:0;border-color:var(--line-2)}
 .av{width:40px;height:40px;border-radius:12px;display:flex;align-items:center;justify-content:center;flex:0 0 auto;
   font-size:13px;font-weight:700;letter-spacing:-.03em;color:#fff;position:relative;overflow:hidden}
 /* Plus compact dans une ligne de liste (Marchés, Suivi, Radar...) : 40px

@@ -424,7 +424,7 @@ function carteDecisionNovaReview(tx, ev){
   const sousTitre = ev.ouverte
     ? `Acheté le ${dateTx} · ${fmt.eur(tx.amountEUR)} investis`
     : `Vendu le ${dateTx} · ${fmt.eur(tx.amountEUR)} récupérés`;
-  return `<div class="row" style="padding:14px 0;align-items:flex-start;flex-direction:column;gap:8px">
+  return `<div class="row row-static" style="padding:14px 0;align-items:flex-start;flex-direction:column;gap:8px">
     <div style="display:flex;justify-content:space-between;width:100%;align-items:flex-start;gap:10px">
       <span class="row-main">
         <span class="row-t">${esc(tx.name)}</span>
@@ -1457,7 +1457,7 @@ PAGES.novaevent = () => {
     <h2 style="margin-bottom:4px">Nova Event</h2>
     <p class="tiny" style="color:var(--ink-3);margin-bottom:18px">Résultats et dividendes à venir, pour vos valeurs suivies et détenues. Couverture : actions cotées aux États-Unis (Nasdaq/NYSE/AMEX) uniquement.</p>
     ${evts.length ? `<div class="card"><div class="rows">
-      ${evts.map(e => `<div class="row">
+      ${evts.map(e => `<div class="row row-static">
         <span class="row-main"><span class="row-t">${esc(e.ticker)} <span class="tiny" style="color:var(--ink-3)">${esc(e.label)}</span></span>
           <span class="row-s">${e.type === 'earnings'
             ? `Résultats ${e.estimated ? 'estimés' : 'prévus'} le ${dateEvenementAffichee(e.date)}`
