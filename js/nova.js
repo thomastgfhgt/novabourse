@@ -537,10 +537,12 @@ function novabotOuvrirDecision(id){
   const ACTION_LABEL = { buy:'Achat simulé', sell:'Vente simulée', reject:'Refusé', watch:'Mise en surveillance', hold:'Conservé', increase:'Renforcement', reduce:'Allègement' };
   const enAttente = d.executionStatus === 'pending';
   const question = `Pourquoi as-tu ${d.action === 'buy' ? 'acheté' : d.action === 'sell' ? 'vendu' : 'pris cette décision sur'} ${d.name || d.ticker} le ${new Date(d.date).toLocaleDateString('fr-FR')} ?`;
+  const gain = novabotDecisionGainPct(d);
   openSheet(`<h3 id="sheetTitle">${enAttente ? 'Proposition d\'achat' : (ACTION_LABEL[d.action] || d.action)} · ${esc(d.name || d.ticker || '')}</h3>
     <p class="tiny" style="margin-top:6px;color:var(--ink-4)">${dateD}</p>
     ${enAttente ? `<p class="tiny" style="margin-top:8px;color:var(--warn);font-weight:650">En attente de ton accord (mode ${state.novabot.autonomyMode === 'advice' ? 'conseil' : 'semi-autonome'})</p>` : ''}
     <p style="margin-top:14px;line-height:1.5">${esc(d.reason || '')}</p>
+    ${gain ? `<div class="kv" style="margin-top:14px"><dt>${esc(gain.label)}</dt><dd class="tabular-nums ${gain.pct>=0?'up-t':'down-t'}">${gain.pct>=0?'+':''}${gain.pct.toFixed(1)} %</dd></div>` : ''}
     ${Number.isFinite(d.priceObserved) ? `<div class="kv" style="margin-top:14px"><dt>Cours observé</dt><dd class="tabular-nums">${fmt.cur(d.priceObserved, 'EUR')}</dd></div>` : ''}
     ${Number.isFinite(d.amountEUR) ? `<div class="kv"><dt>Montant</dt><dd class="tabular-nums">${fmt.eur(d.amountEUR)}</dd></div>` : ''}
     ${Number.isFinite(d.weightBeforePct) && Number.isFinite(d.weightAfterPct) && !enAttente ? `<div class="kv"><dt>Poids avant / après</dt><dd class="tabular-nums">${fmt.num(d.weightBeforePct,1)} % → ${fmt.num(d.weightAfterPct,1)} %</dd></div>` : ''}
@@ -734,6 +736,40 @@ function novabotMsgActionsUser(index, revealed){
    Repondre()) sauf le cours actuel, lu en direct dans QUOTES/byId comme
    partout ailleurs dans l'app. "Donnée indisponible" plutôt qu'un calcul
    sur une valeur absente — jamais un pourcentage inventé. */
+/* CORRECTIF (audit 2026-10-14, rapport : "on ne voit pas les gains ou
+   les pertes des choix de NovaBot") : ni la liste d'activité (ligne de
+   décision) ni la fiche détaillée ne montraient jamais le résultat
+   réel d'un achat ou d'une vente — seulement le motif et le montant
+   engagé, jamais ce que ça a RAPPORTÉ. Calcule un pourcentage réel,
+   jamais inventé :
+   - vente : dataUsed.gainPct, déjà calculé au moment du déclenchement
+     (stop-loss/take-profit, voir evaluerNovaBot()) — le gain/perte
+     RÉELLEMENT réalisé par cette vente précise, jamais recalculé après
+     coup avec un cours d'aujourd'hui qui n'a plus de sens pour une
+     position déjà clôturée.
+   - achat encore détenu : performance depuis l'achat, cours actuel réel
+     (QUOTES) comparé au prix observé à l'achat — "Donnée indisponible"
+     si le cours actuel n'est pas disponible, jamais une estimation.
+   - achat dont la position a depuis été vendue : rien affiché ici (le
+     résultat réel de cette position appartient à LA VENTE qui l'a
+     clôturée, pas à l'achat — jamais un chiffre qui mélangerait les
+     deux et induirait en erreur). */
+function novabotDecisionGainPct(d){
+  if (d.action === 'sell' && Number.isFinite(d.dataUsed?.gainPct)){
+    return { pct: d.dataUsed.gainPct, label: 'Gain/perte réalisé' };
+  }
+  if (d.action === 'buy' && d.executionStatus === 'simulated'
+    && Number.isFinite(d.priceObserved) && d.priceObserved > 0
+    && state.novabot.wallet.positions.some(p => p.id === d.stockId)){
+    const st = byId[d.stockId];
+    const q = st ? QUOTES.get(st.id) : null;
+    const coursActuel = q && Number.isFinite(q.price) ? q.price : null;
+    if (coursActuel !== null){
+      return { pct: ((coursActuel - d.priceObserved) / d.priceObserved) * 100, label: 'Performance depuis l\'achat' };
+    }
+  }
+  return null;
+}
 function novabotDecisionCard(d){
   if (!d) return '';
   const st = byId[d.stockId];
@@ -1016,10 +1052,14 @@ function novabotPortfolioView(){
           return [...enAttente, ...reste].slice(0, 20).map(d => {
             const dateD = new Date(d.date).toLocaleDateString('fr-FR', { day:'2-digit', month:'short' });
             const estEnAttente = d.executionStatus === 'pending';
+            const gain = novabotDecisionGainPct(d);
             return `<button type="button" class="row" style="width:100%;text-align:left" data-novabot-decision="${esc(d.id)}">
               <span class="row-main"><span class="row-t">${estEnAttente ? `<span style="color:var(--warn)">En attente</span> · ` : ''}${ACTION_LABEL[d.action] || d.action} · ${esc(d.name || d.ticker || '')}</span>
                 <span class="row-s">${dateD} · ${esc((d.reason || '').slice(0, 70))}${(d.reason||'').length > 70 ? '…' : ''}</span></span>
-              ${Number.isFinite(d.amountEUR) ? `<span class="tabular-nums" style="flex:0 0 auto">${fmt.eur(d.amountEUR)}</span>` : ''}
+              <span style="text-align:right;flex:0 0 auto">
+                ${Number.isFinite(d.amountEUR) ? `<span class="tabular-nums" style="display:block">${fmt.eur(d.amountEUR)}</span>` : ''}
+                ${gain ? `<span class="tabular-nums ${gain.pct>=0?'up-t':'down-t'}" style="display:block;font-size:12px">${gain.pct>=0?'+':''}${gain.pct.toFixed(1)}%</span>` : ''}
+              </span>
             </button>`;
           }).join('');
         })()}
