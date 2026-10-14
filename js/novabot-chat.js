@@ -128,7 +128,12 @@ function novabotChatContexte(dernierMessage){
          serveur (les tableaux étaient silencieusement supprimés). */
       preferences:mandate.preferences, autonomyMode:state.novabot.autonomyMode },
     portfolio: { cash:state.novabot.wallet.cash, totalValue:pf.total, realizedPnL:state.novabot.wallet.realizedPnL,
-      positions, lastRunAt: state.novabot.lastRunAt ? new Date(state.novabot.lastRunAt).toISOString() : null },
+      positions, lastRunAt: state.novabot.lastRunAt ? new Date(state.novabot.lastRunAt).toISOString() : null,
+      /* enabled (audit 2026-10-14, "action" déclenchable depuis le chat) :
+         sans ce champ, le modèle ne saurait pas si NovaBot tourne déjà ou
+         est en pause — risque de proposer "resume" alors que c'est déjà
+         actif, ou de ne jamais suggérer de le réactiver. */
+      enabled: state.novabot.enabled },
     recentDecisions: recentes,
     specificDecisions: specifiques.length ? specifiques : null,
   };
@@ -423,6 +428,33 @@ function novabotChatArreter(){
   render();
 }
 
+/* CORRECTIF (audit 2026-10-14, "je veux que NovaBot puisse gérer tout ce
+   qu'on lui donne automatiquement sans aucun bouton à taper [...] comme
+   Claude Code") : jusqu'ici la conversation ne faisait JAMAIS plus que
+   parler — même après confirmation du mandat, "lance une évaluation"
+   n'avait aucun effet réel, il fallait physiquement trouver et cliquer
+   le bouton "Évaluer maintenant" (ou celui de pause/reprise, enterré
+   dans les réglages avancés du mandat). `action` (validé côté serveur,
+   api/analyze.js — liste blanche stricte de 3 valeurs) ne fait
+   qu'appeler le MÊME pipeline déterministe que ces boutons, EXACTEMENT
+   comme un clic réel : le modèle ne décide jamais lui-même d'un achat/
+   vente ni d'un montant, il demande seulement au moteur déjà existant
+   de tourner. Un message visible confirme toujours l'action déclenchée
+   — jamais une action silencieuse que l'utilisateur ne verrait nulle
+   part. */
+function novabotTraiterAction(action){
+  if (action === 'run_evaluation'){
+    if (!state.novabot.enabled){ toast('NovaBot est en pause — réactive-le avant de lancer une évaluation.'); return; }
+    evaluerNovaBot();
+  } else if (action === 'pause' && state.novabot.enabled){
+    state.novabot.enabled = false; saveState(); pushNovaBot();
+    toast('NovaBot mis en pause.'); render();
+  } else if (action === 'resume' && !state.novabot.enabled){
+    state.novabot.enabled = true; saveState(); pushNovaBot();
+    toast('NovaBot réactivé.'); render();
+  }
+}
+
 /* Portion commune à l'envoi normal ET à "Régénérer" (V6 §5) : appelle le
    modèle sur l'état ACTUEL de NOVABOT_CHAT.messages, ajoute la réponse,
    la révèle progressivement, la persiste côté serveur. N'ajoute JAMAIS le
@@ -485,6 +517,7 @@ async function novabotAppelerModeleEtRepondre(dernierMessageUtilisateur){
     }
     NOVABOT_CHAT.readyToConfirm = Boolean(d.readyToConfirm);
     if (d.newPreferences) novabotAjouterPreferences(d.newPreferences);
+    if (d.action) novabotTraiterAction(d.action);
     /* id serveur du message capturé une fois la réponse arrivée (V6 §5 :
        nécessaire pour pouvoir le cibler ensuite via "Régénérer"/
        "Reprendre ici"/truncate_from — voir api/me.js). */

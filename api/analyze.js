@@ -329,7 +329,7 @@ envoyé à un broker). Tu parles en français, ton direct et chaleureux, jamais 
 jargon non expliqué.
 
 Réponds TOUJOURS en JSON strict :
-{"reply":"...","mandateDraft":{"initialCapital":null,"objective":null,"riskLevel":null,"horizonYears":null,"hardRules":null,"preferences":null,"autonomyMode":null}|null,"readyToConfirm":false,"newPreferences":null}
+{"reply":"...","mandateDraft":{"initialCapital":null,"objective":null,"riskLevel":null,"horizonYears":null,"hardRules":null,"preferences":null,"autonomyMode":null}|null,"readyToConfirm":false,"newPreferences":null,"action":null}
 
 DEUX RÔLES SELON "mandateConfirmed" transmis ci-dessous :
 
@@ -393,7 +393,23 @@ Règles absolues (les deux rôles) :
   demandant confirmation.
 - Jamais de recommandation d'achat/vente dans cette conversation elle-même (c'est le rôle du
   pipeline de décision NovaBot, pas de ce chat) — tu expliques ce qui a DÉJÀ été décidé, tu ne
-  décides pas ici.`;
+  décides PAS quelle action acheter/vendre ici, ni pour quel montant.
+
+"action" (UNIQUEMENT en mandateConfirmed=true, sinon toujours null) : demande explicite au CLIENT
+d'exécuter le MÊME pipeline déterministe que les boutons de l'application — toi, le modèle de
+langage, ne décides JAMAIS toi-même d'un achat/vente précis ni d'un montant ; tu demandes
+seulement au moteur déjà existant de tourner, EXACTEMENT comme si l'utilisateur avait cliqué le
+bouton correspondant. Trois valeurs possibles, un SEUL champ par réponse, null si aucune :
+- "run_evaluation" : l'utilisateur demande explicitement de chercher des opportunités, d'évaluer
+  son portefeuille, de "lancer" NovaBot ou équivalent ("vas-y", "fais une évaluation", "regarde ce
+  qu'il y a à faire") — jamais pour une simple question sur l'état actuel.
+- "pause" : l'utilisateur demande explicitement de mettre en pause/arrêter la gestion automatique.
+- "resume" : l'utilisateur demande explicitement de réactiver/reprendre la gestion automatique.
+"portfolio.enabled" (transmis ci-dessous) indique l'état RÉEL actuel — ne propose jamais "resume"
+si déjà actif, ni "pause" si déjà en pause ; dis-le simplement dans "reply" ("NovaBot est déjà
+actif") plutôt que de renvoyer une action sans effet.
+N'utilise "action" QUE si la demande est sans ambiguïté — en cas de doute, laisse "action":null et
+demande une clarification dans "reply" plutôt que de deviner une intention.`;
 
 const CONSIGNE = `Tu analyses une entreprise cotée à partir des seuls chiffres fournis.
 Réponds en JSON strict : {"whatItDoes":"...","verdict":"positif|neutre|negatif|insuffisant","uncertainty":"faible|moyenne|elevee","summary":"...","positive":["..."],"negative":["..."]}
@@ -845,6 +861,17 @@ async function novabotChatAnalyse(req, res, { user, plan, dispo }){
              les préférences passent par mandateDraft/readyToConfirm comme le
              reste du mandat en construction. */
           newPreferences: mandateConfirmed ? validerPreferences(rep.newPreferences, 2) : null,
+          /* action (audit 2026-10-14, "je veux que NovaBot puisse gérer
+             tout ce qu'on lui donne automatiquement sans aucun bouton à
+             taper [...] comme Claude Code") : liste BLANCHE stricte —
+             une valeur hors de ces trois jamais transmise au client, qui
+             ne SAIT exécuter que ces trois actions précises (voir
+             novabotTraiterAction(), js/novabot-chat.js). Le modèle ne
+             décide JAMAIS d'un achat/vente ni d'un montant ici — il ne
+             fait que demander au PIPELINE DÉTERMINISTE déjà existant
+             (evaluerNovaBot(), identique au bouton "Évaluer maintenant")
+             de tourner, ou de mettre en pause/reprendre. */
+          action: mandateConfirmed && ['run_evaluation', 'pause', 'resume'].includes(rep.action) ? rep.action : null,
         };
       },
     }));
