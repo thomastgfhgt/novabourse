@@ -1431,6 +1431,34 @@ a.row{color:inherit;text-decoration:none}
   .nova-temple{animation:none}
   .temple-part{opacity:1;animation:none}
 }
+/* Survol lumineux premium, une seule fois à la toute première visite
+   (motion design premium, phase 1, 2026-10-15 — demande explicite :
+   "un résultat visuellement spectaculaire sur l'accueil, particulièrement
+   autour du temple"). Joué APRÈS la cascade des temple-part (délai .85s,
+   cascade complète ~.77s + marge) : un ::after séparé, jamais le même
+   nœud que templeScaleIn/templeGlowPulse ci-dessus (évite deux animations
+   sur la même propriété du même élément). transform+opacity UNIQUEMENT
+   (translation d'un dégradé, jamais background-position qui repeindrait
+   toute la zone à chaque frame) -- coût de composition minimal, un seul
+   passage, jamais répété. mix-blend-mode:overlay : s'adapte aux deux
+   thèmes sans teinte séparée, jamais assez opaque pour gêner la
+   lisibilité (aucune donnée financière dans cette zone). Portée par
+   :has(.nova-temple:not(.no-intro)) -- réutilise EXACTEMENT le même
+   indicateur "déjà vu cette session" que la cascade elle-même
+   (templeIntroPlayed, js/page-home.js), jamais un second drapeau. */
+.nova-temple-section:has(.nova-temple:not(.no-intro))::after{
+  content:'';position:absolute;inset:0;pointer-events:none;overflow:hidden;
+  background:linear-gradient(100deg,transparent 35%,rgba(255,255,255,.5) 50%,rgba(0,212,255,.38) 57%,transparent 68%);
+  mix-blend-mode:overlay;transform:translateX(-130%);opacity:0;
+  animation:templeShimmer 1s ease-out .85s forwards}
+@keyframes templeShimmer{
+  0%{transform:translateX(-130%);opacity:0}
+  14%{opacity:1}
+  100%{transform:translateX(130%);opacity:0}
+}
+@media (prefers-reduced-motion:reduce){
+  .nova-temple-section::after{display:none}
+}
 /* CORRECTIF (2026-09-23, retour utilisateur : "quand je reviens sur
    Accueil le temple n'est plus là et réapparaît au bout de quelques
    secondes") : PAGES.home() reconstruit le SVG en entier à CHAQUE
