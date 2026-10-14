@@ -1168,6 +1168,17 @@ a.row{color:inherit;text-decoration:none}
 }
 .chart-line{stroke-dasharray:2400;stroke-dashoffset:2400;animation:draw 1.3s var(--spring) forwards}
 @keyframes draw{to{stroke-dashoffset:0}}
+/* Sparkline Marchés (motion design premium, phase 2, 2026-10-15) : même
+   principe que .chart-line (tracé progressif, stroke-dashoffset), mais un
+   dasharray bien plus petit et une durée plus courte -- adapté à un tracé
+   de 110×32 (2400 resterait quasi invisible à cette échelle). Classe
+   ajoutée par spark() (js/ui-primitives.js) UNIQUEMENT quand l'appelant la
+   demande explicitement (marketsRows(), 6 premières lignes seulement) --
+   voir le commentaire de spark() pour le raisonnement sur les longues
+   listes. */
+.spark-line{stroke-dasharray:260;stroke-dashoffset:260;animation:sparkDraw .6s var(--spring) forwards}
+@keyframes sparkDraw{to{stroke-dashoffset:0}}
+@media (prefers-reduced-motion:reduce){ .spark-line{animation:none} }
 .donut-svg{transform:rotate(-90deg);transform-origin:center;animation:donutIn .6s var(--spring)}
 @keyframes donutIn{from{opacity:0;transform:rotate(-90deg) scale(.85)}to{opacity:1;transform:rotate(-90deg) scale(1)}}
 @media (prefers-reduced-motion:reduce){ .donut-svg{animation:none} }

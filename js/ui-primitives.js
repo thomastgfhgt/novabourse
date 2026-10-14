@@ -424,13 +424,27 @@ function novabotChartTouchEnd(){
   const tip = document.getElementById('novabotChartTip');
   if (tip) tip.hidden = true;
 }
-function spark(vals, color){
+/* `animate` (motion design premium, phase 2, 2026-10-15) : tracé d'entrée
+   optionnel, réutilisant le même principe que .chart-line (stroke-
+   dashoffset) mais une classe/un dasharray dédiés (.spark-line), de taille
+   adaptée à ce tracé bien plus court -- 2400 (.chart-line) resterait
+   quasi invisible à l'échelle d'une puce de 110×32. Volontairement
+   plafonné par l'APPELANT aux 6 premières lignes visibles (voir
+   marketsRows(), js/page-markets.js) : jamais toutes les sparklines
+   d'une longue liste en même temps -- un rafraîchissement de cotation
+   reconstruit ces lignes régulièrement, rejouer un tracé sur 20-40
+   lignes à chaque fois serait exactement ce que le brief interdit
+   ("ne jamais animer toute une longue liste"). Radar n'affiche aucune
+   sparkline aujourd'hui (opts.spark jamais activé) -- hors de portée
+   de ce correctif, pas une régression. */
+function spark(vals, color, animate){
   if (!Array.isArray(vals) || vals.length < 2
       || !vals.every(v => typeof v === 'number' && Number.isFinite(v))) return '';
   const w=110,h=32,pad=3,min=Math.min(...vals),max=Math.max(...vals),sp=(max-min)||1;
   const d = vals.map((v,i)=>`${i?'L':'M'}${(i/(vals.length-1)*w).toFixed(1)},${(pad+(1-(v-min)/sp)*(h-pad*2)).toFixed(1)}`).join(' ');
   return `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" aria-hidden="true">
-    <path d="${d}" fill="none" stroke="${color}" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+    <path d="${d}" fill="none" stroke="${color}" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"
+      class="${animate ? 'spark-line' : ''}"/></svg>`;
 }
 function ring(score, size = 150){
   const R = size/2 - 12, C = 2*Math.PI*R, p = (score === null || score === undefined) ? 0 : score/100;
@@ -536,7 +550,7 @@ function stockRow(s, opts = {}){
       </span>
     </button>
     ${hist && hist.length >= 2
-      ? `<span class="row-spark">${spark(hist, varPct !== null && varPct < 0 ? 'var(--down)' : 'var(--up)')}</span>`
+      ? `<span class="row-spark">${spark(hist, varPct !== null && varPct < 0 ? 'var(--down)' : 'var(--up)', opts.animateSpark === true)}</span>`
       : ''}
     <span class="row-end">
       <span class="row-px tabular-nums${flashRow ? ` flash-${flashRow}` : ''}">${prix === null ? texteVide : fmt.num(prix)}</span>

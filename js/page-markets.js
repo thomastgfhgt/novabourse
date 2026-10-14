@@ -142,7 +142,7 @@ function marketsRows(){
      "Voir plus" répété fait grimper `visibles` sans limite, un logo
      encore INCONNU au-delà de ce plafond ne doit pas lancer sa propre
      requête (un déjà en cache s'affiche quand même, voir avatar()). */
-  return page.map((s,i)=>stockRow(s, {spark:true, logo: i < CHARGEMENT_MASSE_MAX_SYMBOLES})).join('') + (list.length > page.length
+  return page.map((s,i)=>stockRow(s, {spark:true, logo: i < CHARGEMENT_MASSE_MAX_SYMBOLES, animateSpark: i < 6})).join('') + (list.length > page.length
     ? `<button class="btn btn-ghost btn-sm" style="width:100%;margin-top:12px" data-markets-plus="1">
         Voir plus (${list.length - page.length} restants)</button>`
     : '');
