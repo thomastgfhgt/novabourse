@@ -414,17 +414,36 @@ async function novabotArchivesBasculer(){
 /* Révélation progressive (voir note d'en-tête : pas de vrai streaming
    serveur) — purement visuelle, le texte complet est déjà en mémoire.
    revealTimer gardé sur NOVABOT_CHAT pour pouvoir l'interrompre (bouton
-   Stop, §2) sans attendre la fin de l'animation. */
+   Stop, §2) sans attendre la fin de l'animation.
+   CORRECTIF (motion design premium, phase 1, 2026-10-15, décision
+   explicite après consultation : "ne pas ralentir les réponses avec un
+   effet de machine à écrire artificiel" entrait en conflit direct avec le
+   découpage mot par mot — 18ms/mot cumulés pouvaient dépasser 1s pour une
+   réponse de 50+ mots) : découpage par PHRASE au lieu de mot. "reply" est
+   borné côté serveur à 1-4 phrases courtes, jamais de markdown
+   (CONSIGNE_NOVABOT_CHAT, api/analyze.js) — donc 1 à 4 étapes réelles,
+   jamais plus, et rien à préserver (pas de tableau/lien/bloc). La
+   ponctuation forte (./!/?) suivie d'un espace sépare les phrases ; une
+   décimale/un pourcentage français ("12,5 %") utilise une virgule, jamais
+   un point, donc ce découpage ne fragmente pas un nombre dans le cas
+   courant. 90ms/étape mais 1-4 étapes au lieu de 25-40 : délai total
+   nettement plus court qu'avant pour une réponse typique. Sous
+   animationsDisabled() (js/core.js), aucune étape intermédiaire : la
+   réponse complète s'affiche immédiatement. */
 function novabotRevelerProgressivement(texteComplet){
   NOVABOT_CHAT.streamingText = '';
-  const mots = texteComplet.split(' ');
-  let i = 0;
+  if (animationsDisabled()){
+    NOVABOT_CHAT.streamingText = null; NOVABOT_CHAT.revealTimer = null; render(); return;
+  }
+  const phrases = texteComplet.match(/[^.!?]+[.!?]+(?:\s+|$)|[^.!?]+$/g) || [texteComplet];
+  let i = 0, accumule = '';
   const pas = () => {
-    if (i >= mots.length){ NOVABOT_CHAT.streamingText = null; NOVABOT_CHAT.revealTimer = null; render(); return; }
-    NOVABOT_CHAT.streamingText = mots.slice(0, i + 1).join(' ');
+    if (i >= phrases.length){ NOVABOT_CHAT.streamingText = null; NOVABOT_CHAT.revealTimer = null; render(); return; }
+    accumule += phrases[i];
+    NOVABOT_CHAT.streamingText = accumule;
     i++;
     render();
-    NOVABOT_CHAT.revealTimer = setTimeout(pas, 18);
+    NOVABOT_CHAT.revealTimer = setTimeout(pas, 90);
   };
   pas();
 }
