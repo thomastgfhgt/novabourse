@@ -3082,7 +3082,13 @@ async function pushNovaBot(){
       status: state.novabot.enabled ? 'active' : 'paused',
       mandate: { cashMinPct: mandate.cashMinPct, maxPositionPct: mandate.maxPositionPct,
         maxPositionsCount: mandate.maxPositionsCount, hardRules: mandate.hardRules, preferences: mandate.preferences,
-        objective: mandate.objective, riskLevel: mandate.riskLevel, horizonYears: mandate.horizonYears },
+        objective: mandate.objective, riskLevel: mandate.riskLevel, horizonYears: mandate.horizonYears,
+        /* CORRECTIF (audit 2026-10-14) : jusqu'ici jamais transmis au
+           serveur — le cycle automatique (api/market/extra.js, kind=
+           novabot-cron) utilisait donc toujours ses valeurs par défaut au
+           lieu d'un réglage personnalisé par l'utilisateur. */
+        tradingRules: { scoreAchat: state.novabot.scoreAchat, stopLossPct: state.novabot.stopLossPct,
+          takeProfitPct: state.novabot.takeProfitPct, tradeAmountEUR: state.novabot.tradeAmountEUR } },
       transactions: state.novabot.transactions.map(tx => ({ ...tx, reason: tx.motif })),
       snapshots: state.novabot.walletHistory || [],
       decisions: state.novabot.decisions.map(d => ({ ...d, occurredAt: d.date })),
@@ -3127,6 +3133,17 @@ async function syncNovaBot(){
       if (['growth','income','preserve'].includes(data.mandate.objective)) state.novabot.objective = data.mandate.objective;
       if (['low','moderate','high'].includes(data.mandate.riskLevel)) state.novabot.riskLevel = data.mandate.riskLevel;
       if (Number.isFinite(data.mandate.horizonYears)) state.novabot.horizonYears = data.mandate.horizonYears;
+      /* CORRECTIF (audit 2026-10-14) : relu depuis le serveur comme le
+         reste du mandat (ex. un réglage fait sur un autre appareil doit
+         se refléter ici) — mêmes bornes que NOVABOT_BORNES (js/core.js)
+         pour ne jamais accepter une valeur hors limites venue du serveur. */
+      const tr = data.mandate.tradingRules;
+      if (tr && typeof tr === 'object'){
+        if (Number.isFinite(tr.scoreAchat)) state.novabot.scoreAchat = Math.max(0, Math.min(100, tr.scoreAchat));
+        if (Number.isFinite(tr.stopLossPct)) state.novabot.stopLossPct = Math.max(1, Math.min(90, tr.stopLossPct));
+        if (Number.isFinite(tr.takeProfitPct)) state.novabot.takeProfitPct = Math.max(1, Math.min(500, tr.takeProfitPct));
+        if (Number.isFinite(tr.tradeAmountEUR)) state.novabot.tradeAmountEUR = Math.max(10, Math.min(1000000, tr.tradeAmountEUR));
+      }
     }
     if (data.account){
       if (['advice','semi_auto','auto'].includes(data.account.autonomyMode)) state.novabot.autonomyMode = data.account.autonomyMode;

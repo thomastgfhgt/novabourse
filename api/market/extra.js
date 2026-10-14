@@ -660,7 +660,20 @@ async function handleNovabotCron(req, res) {
       try {
         const mandateRows = await sb(`novabot_mandates?account_id=eq.${encodeURIComponent(compte.id)}&is_current=eq.true&select=*&limit=1`);
         const mandateRow = mandateRows[0];
-        const stopLossPct = 10, takeProfitPct = 20; // §24 : mêmes valeurs par défaut que state.novabot côté client
+        /* CORRECTIF (audit 2026-10-14) : relit maintenant les réglages
+           RÉELLEMENT choisis par l'utilisateur (voir sql/2026-10-14_
+           novabot_trading_rules.sql + pushNovaBot(), js/core.js) — avant
+           ce correctif, ce cycle utilisait TOUJOURS les mêmes valeurs par
+           défaut que l'application, quel que soit le réglage personnalisé
+           de l'utilisateur dans "Mon mandat -> Réglages avancés". Repli
+           sur ces mêmes défauts UNIQUEMENT si trading_rules est absent
+           (compte créé avant ce correctif, ou navigateur jamais rouvert
+           depuis) — jamais une valeur inventée à la place. */
+        const tr = mandateRow?.trading_rules || {};
+        const stopLossPct = Number.isFinite(tr.stopLossPct) ? tr.stopLossPct : 10;
+        const takeProfitPct = Number.isFinite(tr.takeProfitPct) ? tr.takeProfitPct : 20;
+        const scoreAchat = Number.isFinite(tr.scoreAchat) ? tr.scoreAchat : NOVABOT_CRON_SCORE_ACHAT;
+        const tradeAmountEUR = Number.isFinite(tr.tradeAmountEUR) ? tr.tradeAmountEUR : NOVABOT_CRON_TRADE_AMOUNT_EUR;
 
         /* --- sorties : positions détenues (inchangé) --- */
         for (const pos of [...wallet.positions]){
@@ -728,14 +741,14 @@ async function handleNovabotCron(req, res) {
           rapport.candidatsExamines++;
           const dossier = dossierCache.get(id);
           if (!dossier || dossier.score === null) continue; // §32 : NovaScore indisponible -> pas d'ordre
-          if (dossier.score < NOVABOT_CRON_SCORE_ACHAT) continue;
+          if (dossier.score < scoreAchat) continue;
 
           const pfCourant = { total: wallet.cash + wallet.positions.reduce((s, p) => {
             const pst = byId.get(p.id); const pd = dossierCache.get(p.id);
             return s + (pst && pd ? pd.prix * p.qty : p.avg * p.qty);
           }, 0) };
           const sizing = montantInvestissableServeur({
-            tradeAmountEUR: NOVABOT_CRON_TRADE_AMOUNT_EUR,
+            tradeAmountEUR,
             cashDispo: wallet.cash - (mandate.cashMinPct / 100) * pfCourant.total,
             pfTotalEUR: pfCourant.total, maxPositionPct: mandate.maxPositionPct, valeurExistanteEUR: 0,
           });
@@ -743,7 +756,7 @@ async function handleNovabotCron(req, res) {
 
           const intent = { action: 'buy', stockId: id, ticker: st.ticker, sector: st.sector, amountEUR: sizing };
           const verdict = novabotRiskCheckServeur(intent, wallet, mandate, pfCourant.total);
-          const motif = `NovaScore ${dossier.score} ≥ seuil ${NOVABOT_CRON_SCORE_ACHAT} (cycle automatique)`;
+          const motif = `NovaScore ${dossier.score} ≥ seuil ${scoreAchat} (cycle automatique)`;
           const decId = 'nd' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
           const nowIso = new Date().toISOString();
 

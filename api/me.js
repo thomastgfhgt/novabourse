@@ -681,7 +681,7 @@ const NOVABOT_AUTONOMY_MODES = ['advice', 'semi_auto', 'auto'];
 const NOVABOT_TX_TYPES = ['buy', 'sell', 'deposit', 'withdraw', 'fee'];
 const NOVABOT_MANDATE_KEYS = ['objective', 'horizon_years', 'risk_level', 'max_drawdown_pct', 'cash_min_pct',
   'max_position_pct', 'max_positions_count', 'preferences', 'hard_rules', 'allowed_regions', 'currencies',
-  'benchmark', 'notes'];
+  'benchmark', 'notes', 'trading_rules'];
 
 async function getNovaBotAccount(user) {
   const rows = await sb(`novabot_accounts?user_id=eq.${encodeURIComponent(user.id)}&select=*`);
@@ -725,6 +725,7 @@ async function handleNovaBot(req, res, user) {
           currencies: current.currencies,
           benchmark: current.benchmark,
           notes: current.notes,
+          tradingRules: current.trading_rules || null,
           createdAt: current.created_at,
         },
         mandateHistory: mandateRows.map(m => ({ id: m.id, isCurrent: m.is_current, createdAt: m.created_at })),
@@ -828,6 +829,20 @@ async function handleNovaBot(req, res, user) {
         currencies: Array.isArray(m.currencies) ? m.currencies : null,
         benchmark: str(m.benchmark, 20) || null,
         notes: str(m.notes, 2000) || null,
+        /* CORRECTIF (audit 2026-10-14) : NovaScore minimum pour acheter,
+           stop-loss, take-profit, montant par trade — jusqu'ici jamais
+           synchronisés côté serveur, le cycle automatique utilisait donc
+           systématiquement les valeurs par défaut au lieu d'un réglage
+           personnalisé (voir sql/2026-10-14_novabot_trading_rules.sql).
+           Bornes larges mais réelles (même esprit que setCapital()) :
+           jamais un NaN silencieux, jamais une valeur aberrante propagée
+           jusqu'au moteur de risque serveur. */
+        trading_rules: (m.tradingRules && typeof m.tradingRules === 'object') ? {
+          scoreAchat: Number.isFinite(m.tradingRules.scoreAchat) ? Math.max(0, Math.min(100, m.tradingRules.scoreAchat)) : null,
+          stopLossPct: Number.isFinite(m.tradingRules.stopLossPct) ? Math.max(1, Math.min(90, m.tradingRules.stopLossPct)) : null,
+          takeProfitPct: Number.isFinite(m.tradingRules.takeProfitPct) ? Math.max(1, Math.min(500, m.tradingRules.takeProfitPct)) : null,
+          tradeAmountEUR: Number.isFinite(m.tradingRules.tradeAmountEUR) ? Math.max(10, Math.min(1000000, m.tradingRules.tradeAmountEUR)) : null,
+        } : null,
       };
       const [currentRows] = await Promise.all([
         sb(`novabot_mandates?account_id=eq.${encodeURIComponent(account.id)}&is_current=eq.true&select=*`),
