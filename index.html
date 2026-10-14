@@ -613,13 +613,32 @@ function go(page, arg){
      revenir sur la page) ne redéclenche rien tant que déjà chargé. */
   if (page === 'novanews'){ chargerNovaNewsMonde(); demarrerRafraichissementNovaNews(); }
   else arreterRafraichissementNovaNews();
-  render(true);
+  avecTransitionVue(() => render(true));
 }
 function back(){
   const prev = history_.pop();
   route = prev || { page:'home', arg:null };
   if (route.page !== 'novanews') arreterRafraichissementNovaNews();
-  render(true);
+  avecTransitionVue(() => render(true));
+}
+/* API native View Transitions (motion design premium, phase 1, 2026-10-15,
+   brief §7 : "créer une continuité entre le bouton d'accès et le module
+   ouvert") -- zéro dépendance, zéro système concurrent : enveloppe le
+   SEUL point d'entrée de la navigation interne (go()/back(), tous deux
+   appellent déjà render(true) de façon synchrone) plutôt que de toucher
+   render() lui-même. Dégradation automatique et silencieuse : navigateur
+   sans support -> appelle juste callback() directement, comportement
+   identique à aujourd'hui (fondu instantané). Sautée entièrement sous
+   animationsDisabled() (js/core.js) : un view transition SANS élément
+   nommé correspondant fait déjà un fondu croisé par défaut, qu'il faut
+   aussi respecter. Les éléments effectivement nommés aujourd'hui
+   (view-transition-name:nova-icon-<module>, voir chessNovaIcon(),
+   js/ui-primitives.js, et .nb-rook, js/nova.js) profitent en plus d'une
+   vraie continuité de position/taille entre la carte d'accueil et
+   l'en-tête du module ouvert. */
+function avecTransitionVue(callback){
+  if (animationsDisabled() || !document.startViewTransition){ callback(); return; }
+  document.startViewTransition(callback);
 }
 
 function applySettings(){

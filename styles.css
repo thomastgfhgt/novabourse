@@ -1103,6 +1103,19 @@ a.row{color:inherit;text-decoration:none}
 .page-in>*:nth-child(3){animation-delay:.1s}  .page-in>*:nth-child(4){animation-delay:.14s}
 .page-in>*:nth-child(5){animation-delay:.18s} .page-in>*:nth-child(6){animation-delay:.22s}
 @keyframes stagger{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+/* View Transitions natives (motion design premium, phase 1, 2026-10-15) :
+   habille le fondu croisé par défaut du navigateur avec les jetons déjà
+   utilisés partout ailleurs (--spring) plutôt que le réglage générique du
+   navigateur (.25s ease) -- voir avecTransitionVue(), index.html, pour le
+   déclenchement (go()/back()) et son repli déjà géré en JS. Dérogation
+   reduced-motion ici aussi, en doublon volontaire du repli JS -- même
+   principe "ceinture et bretelles" déjà utilisé ailleurs dans ce fichier
+   (ex. le filet de sécurité JS du temple en plus de son CSS). */
+::view-transition-old(root),::view-transition-new(root){
+  animation-duration:.32s;animation-timing-function:var(--spring)}
+@media (prefers-reduced-motion:reduce){
+  ::view-transition-old(root),::view-transition-new(root){animation:none!important}
+}
 /* CORRECTIF (bug visuel réel et grave, audit complet 2026-09-17) : sous
    prefers-reduced-motion, la règle générique plus haut ("*{animation-
    duration:.001ms!important}") réduisait la durée à presque zéro mais

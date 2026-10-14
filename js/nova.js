@@ -1171,7 +1171,7 @@ function novabotTopBar(){
   return `<div class="nb-topbar">
     <div class="nb-topbar-row">
       <button type="button" class="nb-icon-btn" data-back aria-label="Retour" style="transform:scaleX(-1)">${svg(ICON.arrow,2)}</button>
-      <div class="nb-brand-mark"><span class="nb-rook">${svg(ICON.rook,2)}</span><b>NovaBot</b></div>
+      <div class="nb-brand-mark"><span class="nb-rook" style="view-transition-name:nova-icon-novabot">${svg(ICON.rook,2)}</span><b>NovaBot</b></div>
       ${NOVABOT_UI.view === 'chat'
         ? `<button type="button" class="nb-icon-btn" data-novabot-sidebar-open aria-label="Historique">${svg(ICON.list,2)}</button>`
         : `<span class="nb-icon-btn" style="visibility:hidden"></span>`}

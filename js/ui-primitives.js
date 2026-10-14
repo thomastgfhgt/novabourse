@@ -242,10 +242,24 @@ const NOVA_FEATURES = {
    .nova-hub-i pour l'ancienne grille compacte) — toujours la MÊME
    pièce/couleur pour un module donné, seule la taille du conteneur
    change. */
+/* view-transition-name (motion design premium, phase 1, 2026-10-15,
+   brief §7 : "créer une continuité entre le bouton d'accès et le module
+   ouvert") : API native du navigateur (zéro dépendance, dégradation
+   automatique et silencieuse sur un navigateur qui ne la supporte pas —
+   voir le wrapper autour de go(), index.html), jamais un système concurrent
+   fait maison. UN SEUL endroit sur l'accueil utilise actuellement cette
+   icône par module (les 4 xxxHomeCard(), js/nova.js) — novaHubCard()
+   plus bas dans ce fichier n'a plus aucun site d'appel (grille remplacée
+   par les grandes cartes) ; si elle est un jour réactivée EN MÊME TEMPS
+   qu'une xxxHomeCard() pour la MÊME clé sur la MÊME page, les deux
+   partageraient le même nom et le navigateur annulerait silencieusement
+   la transition nommée pour ce module (jamais une erreur bloquante, juste
+   un repli sur un fondu générique) — à garder à l'esprit avant de la
+   reconnecter. */
 function chessNovaIcon(key, cls = 'nova-big-icon'){
   const f = NOVA_FEATURES[key];
   if (!f) return '';
-  return `<span class="${cls}" style="--nf-accent:${f.accent};--nf-accent-rgb:${f.rgb}">${svg(ICON[f.icon],1.8)}</span>`;
+  return `<span class="${cls}" style="--nf-accent:${f.accent};--nf-accent-rgb:${f.rgb};view-transition-name:nova-icon-${key}">${svg(ICON[f.icon],1.8)}</span>`;
 }
 /* Carte compacte de la grille d'accueil (2x2 mobile → 4 colonnes
    desktop, voir le CSS .nova-hub) — icône + titre + accroche d'une
