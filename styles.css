@@ -1237,8 +1237,12 @@ a.row{color:inherit;text-decoration:none}
 .quota b{display:block;font-size:13px;font-weight:650;letter-spacing:.04em;text-transform:uppercase}
 .quota span{display:block;font-size:14px;color:var(--ink-3);margin-top:6px}
 .quota-bar{display:block;height:4px;border-radius:100px;background:var(--bg-3);margin-top:12px;overflow:hidden}
-.quota-bar em{display:block;height:100%;background:var(--ink);border-radius:100px;
-  transition:width .5s var(--spring)}
+/* Entrée animée (motion design premium, phase 2, 2026-10-15) : même
+   principe que .gauge i/.nsc-line em ci-dessus — width:0 + gaugeIn pour
+   le premier affichage, la transition existante gère toujours les mises
+   à jour suivantes (consommation qui change en direct). */
+.quota-bar em{display:block;height:100%;width:0;background:var(--ink);border-radius:100px;
+  transition:width .5s var(--spring);animation:gaugeIn 1.1s var(--spring) forwards}
 /* ============================================================
    ACCUEIL — refonte "temple" (2026-09-23)
    ============================================================
@@ -2319,6 +2323,16 @@ body:has(.nb-page)::-webkit-scrollbar-corner{ background:transparent; }
 .row-px.flash-up{animation:priceFlashUp .9s ease-out}
 .row-px.flash-down{animation:priceFlashDown .9s ease-out}
 @media (prefers-reduced-motion:reduce){ .row-px.flash-up,.row-px.flash-down{animation:none} }
+/* Flash de prix, Portefeuille (motion design premium, phase 2, 2026-10-15) :
+   mêmes keyframes exactes que .row-px ci-dessus (Marchés/Radar) — même
+   mécanisme partagé PRICE_FLASH (js/data-services.js), juste un sélecteur
+   différent car la valeur de position n'est pas construite par stockRow().
+   Liste bornée en pratique (positions réellement détenues par
+   l'utilisateur, jamais 40+), donc aucun risque de rejouer un flash sur
+   une longue liste. */
+.pf-value.flash-up{animation:priceFlashUp .9s ease-out}
+.pf-value.flash-down{animation:priceFlashDown .9s ease-out}
+@media (prefers-reduced-motion:reduce){ .pf-value.flash-up,.pf-value.flash-down{animation:none} }
 .row-var{font-size:14.3px;font-weight:550}
 .row-var.na{color:var(--ink-4)}
 /* CORRECTIF (bug réel mesuré en production, 2026-09-30) : 80x40 + carte
@@ -2368,7 +2382,16 @@ body:has(.nb-page)::-webkit-scrollbar-corner{ background:transparent; }
 .nsc-fam{margin-top:18px;display:grid;gap:9px}
 .nsc-line{display:grid;grid-template-columns:1fr 90px 32px;align-items:center;gap:12px;font-size:13.5px}
 .nsc-line i{display:block;height:4px;border-radius:100px;background:var(--bg-3);overflow:hidden}
-.nsc-line em{display:block;height:100%;background:var(--ink);border-radius:100px}
+/* Entrée animée (motion design premium, phase 2, 2026-10-15) : même forme
+   exacte que .gauge i (barre qui se remplit à X%, largeur fixée en ligne
+   par JS, voir novascoreBloc(), js/nova-ai.js) qui a déjà gaugeIn — .nsc-
+   line n'avait jusqu'ici aucune animation d'entrée, lacune confirmée par
+   audit. Réutilise la MÊME keyframe (styles.css, plus bas), zéro
+   duplication. Aucune dérogation reduced-motion dédiée ici, même
+   traitement que .gauge i : gaugeIn n'utilise ni délai ni fill-mode:
+   backwards (contrairement à .page-in), la règle générale suffit déjà. */
+.nsc-line em{display:block;height:100%;width:0;background:var(--ink);border-radius:100px;
+  transition:width 1.1s var(--spring);animation:gaugeIn 1.1s var(--spring) forwards}
 .nsc-line b{text-align:right;font-weight:650}
 @media (max-width:430px){ .nsc-line{grid-template-columns:1fr 56px 30px} }
 .hm{padding:var(--space-lg) 0 var(--space-md);text-align:center}

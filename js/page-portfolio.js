@@ -125,6 +125,16 @@ PAGES.portfolio = () => {
               <span class="row-end"><span class="tiny">indisponible</span></span>
             </div>`;
           }
+          /* Flash de prix (motion design premium, phase 2, 2026-10-15) :
+             réutilise EXACTEMENT le même mécanisme partagé que stockRow()
+             (js/ui-primitives.js) — PRICE_FLASH (js/data-services.js) est
+             déjà alimenté par le sondage de cotations pour TOUT stockId,
+             y compris ceux détenus ici. Consommé (supprimé) à la première
+             lecture, même règle que stockRow() : une position affichée
+             ailleurs au même instant ne rejoue pas deux fois le flash,
+             la donnée reste correcte dans tous les cas. */
+          const flashRow = PRICE_FLASH.get(l.stock.id);
+          if (flashRow) PRICE_FLASH.delete(l.stock.id);
           return `<div class="row">
             <button style="display:flex;align-items:center;gap:13px;flex:1;min-width:0;text-align:left"
               data-stock="${esc(l.stock.id)}">
@@ -135,7 +145,7 @@ PAGES.portfolio = () => {
             </button>
             <span class="row-end">
               ${l.priceAvailable ? `
-                <div class="tabular-nums" style="font-weight:650">${fmt.eur(l.marketValue)}</div>
+                <div class="tabular-nums pf-value${flashRow ? ` flash-${flashRow}` : ''}" style="font-weight:650">${fmt.eur(l.marketValue)}</div>
                 <div class="tabular-nums ${l.unrealizedPnL>=0?'up-t':'down-t'}" style="font-size:13px;margin-top:2px">
                   ${l.unrealizedPnL>=0?'+':''}${fmt.eur(l.unrealizedPnL)} · ${trendTxt(l.unrealizedPnLPercent)}</div>
               ` : `<div class="tiny" style="color:var(--ink-4)">cours indisponible</div>`}
