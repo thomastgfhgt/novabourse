@@ -497,14 +497,14 @@ PAGES.novareview = () => {
 
     ${positionsOuvertes.length ? `<section class="section">
       <div class="section-h"><h2 class="h2">Positions en cours</h2></div>
-      <div class="card"><div class="rows">
+      <div class="card"><div class="rows rows-stagger">
         ${positionsOuvertes.map(({ tx, ev }) => carteDecisionNovaReview(tx, ev)).join('')}
       </div></div>
     </section>` : ''}
 
     ${ventes.length ? `<section class="section">
       <div class="section-h"><h2 class="h2">Décisions passées</h2></div>
-      <div class="card"><div class="rows">
+      <div class="card"><div class="rows rows-stagger">
         ${ventes.map(tx => carteDecisionNovaReview(tx, evaluerVente(tx))).join('')}
       </div></div>
     </section>` : ''}
@@ -1456,7 +1456,7 @@ PAGES.novaevent = () => {
     <button class="btn btn-g btn-sm" data-back style="margin-bottom:20px">← Retour</button>
     <h2 style="margin-bottom:4px">Nova Event</h2>
     <p class="tiny" style="color:var(--ink-3);margin-bottom:18px">Résultats et dividendes à venir, pour vos valeurs suivies et détenues. Couverture : actions cotées aux États-Unis (Nasdaq/NYSE/AMEX) uniquement.</p>
-    ${evts.length ? `<div class="card"><div class="rows">
+    ${evts.length ? `<div class="card"><div class="rows rows-stagger">
       ${evts.map(e => `<div class="row row-static">
         <span class="row-main"><span class="row-t">${esc(e.ticker)} <span class="tiny" style="color:var(--ink-3)">${esc(e.label)}</span></span>
           <span class="row-s">${e.type === 'earnings'

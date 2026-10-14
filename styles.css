@@ -1120,6 +1120,24 @@ a.row{color:inherit;text-decoration:none}
 .page-in>*:nth-child(3){animation-delay:.1s}  .page-in>*:nth-child(4){animation-delay:.14s}
 .page-in>*:nth-child(5){animation-delay:.18s} .page-in>*:nth-child(6){animation-delay:.22s}
 @keyframes stagger{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+/* Entrée échelonnée des 6 premières lignes (motion design premium, phase 2,
+   2026-10-15) : .page-in>* ci-dessus ne couvre que les enfants DIRECTS de
+   la page, jamais les lignes à l'intérieur de .rows/.news-list -- lacune
+   confirmée par audit sur Nova Review/Nova News/Nova Event. Même keyframe
+   (stagger) et MÊMES délais que .page-in>* ci-dessus, plafonnés aux 6
+   premiers éléments (jamais une formule ouverte). Volontairement PAS
+   appliqué à .rows/.news-list en général (seulement .rows-stagger,
+   réservée à Nova Review/Nova Event) : Marchés/Portefeuille ont des
+   listes longues ou non bornées, et un chiffre qui se rafraîchit ne doit
+   jamais rejouer une animation d'apparition complète -- ces listes
+   restent donc inchangées. */
+.rows-stagger>.row,.news-list>.news-item{animation:stagger .5s var(--spring) backwards}
+.rows-stagger>.row:nth-child(1),.news-list>.news-item:nth-child(1){animation-delay:.02s}
+.rows-stagger>.row:nth-child(2),.news-list>.news-item:nth-child(2){animation-delay:.06s}
+.rows-stagger>.row:nth-child(3),.news-list>.news-item:nth-child(3){animation-delay:.1s}
+.rows-stagger>.row:nth-child(4),.news-list>.news-item:nth-child(4){animation-delay:.14s}
+.rows-stagger>.row:nth-child(5),.news-list>.news-item:nth-child(5){animation-delay:.18s}
+.rows-stagger>.row:nth-child(6),.news-list>.news-item:nth-child(6){animation-delay:.22s}
 /* View Transitions natives (motion design premium, phase 1, 2026-10-15) :
    habille le fondu croisé par défaut du navigateur avec les jetons déjà
    utilisés partout ailleurs (--spring) plutôt que le réglage générique du
@@ -1146,6 +1164,7 @@ a.row{color:inherit;text-decoration:none}
    animation:none. */
 @media (prefers-reduced-motion:reduce){
   .page-in,.page-in>*{animation:none}
+  .rows-stagger>.row,.news-list>.news-item{animation:none}
 }
 .chart-line{stroke-dasharray:2400;stroke-dashoffset:2400;animation:draw 1.3s var(--spring) forwards}
 @keyframes draw{to{stroke-dashoffset:0}}
