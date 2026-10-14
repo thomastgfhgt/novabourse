@@ -384,6 +384,19 @@ button:active{transform:scale(.97)}
   font-feature-settings:'tnum' 1,'cv01' 1}
 .mono{font-family:var(--mono)}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+/* CONTRAT (motion design premium, phase 1, 2026-10-15) : la règle
+   générale ci-dessous ne suffit PAS à elle seule pour toute NOUVELLE
+   animation ajoutée à partir de maintenant — elle réduit la durée à
+   quasi-zéro mais ne touche ni animation-delay ni fill-mode:backwards/
+   forwards. Bug réel déjà rencontré avec cette seule règle : .page-in>*
+   (fill-mode:backwards + delai) restait bloqué à opacity:0 indéfiniment
+   sous réduction de mouvement (voir plus bas, correctif .page-in,
+   .page-in>*{animation:none}). Toute animation d'entrée utilisant
+   opacity:0 + backwards/forwards DOIT donc fournir SA PROPRE dérogation
+   explicite (ex. .ma-classe{animation:none}), jamais compter sur cette
+   seule règle générale. Une transition/animation purement décorative
+   (couleur, ombre, fond) n'a besoin d'aucune dérogation supplémentaire,
+   la règle générale suffit déjà pour elle. */
 @media (prefers-reduced-motion:reduce){
   *,*::before,*::after{animation-duration:.001ms!important;transition-duration:.001ms!important}
 }
@@ -875,7 +888,13 @@ button:active{transform:scale(.97)}
   background:var(--bg-3);color:var(--ink-4)}
 .rows{display:flex;flex-direction:column}
 .row{display:flex;align-items:center;gap:var(--sp-2);width:100%;padding:14px 0;text-align:left;
-  border-bottom:1px solid var(--line-2);min-height:var(--tap);min-width:0}
+  border-bottom:1px solid var(--line-2);min-height:var(--tap);min-width:0;
+  /* Motion design premium, phase 1 (2026-10-15) : .row:hover existait déjà
+     (ligne suivante) mais sans transition -- le fond changeait d'un coup.
+     background-color UNIQUEMENT (jamais padding/margin, qui restent du
+     changement de mise en page) : une liste longue (Portefeuille, Watchlist)
+     ne doit jamais animer une propriété de layout sur chaque ligne. */
+  transition:background-color var(--fast) ease}
 /* CORRECTIF (2026-09-25, trouvé en testant Nova News) : `.row` sert aussi
    bien à un <button> (navigation interne, pas de style de lien par
    défaut) qu'à un <a href> (article de presse externe, Nova News par
@@ -996,6 +1015,18 @@ a.row{color:inherit;text-decoration:none}
 .sheet{width:100%;max-width:520px;background:var(--bg);border-radius:var(--r-xl);padding:var(--sp-3);
   max-height:86vh;overflow-y:auto;box-shadow:var(--shadow-3);animation:sheetIn .42s var(--spring)}
 @keyframes sheetIn{from{transform:translateY(24px) scale(.97);opacity:0}to{transform:none;opacity:1}}
+/* Fermeture, symétrique de sheetIn (motion design premium, phase 1,
+   2026-10-15 — jusqu'ici une feuille disparaissait instantanément, voir
+   closeSheet(), js/ui-primitives.js). .closing s'ajoute SANS retirer .on
+   tant que l'animation joue (closeSheet() retire les deux ensemble une
+   fois terminée) -- la spécificité de .sheet-bg.closing l'emporte donc
+   sur .sheet-bg.on ci-dessus pour la durée de la fermeture. */
+@keyframes sheetOut{from{transform:none;opacity:1}to{transform:translateY(18px) scale(.97);opacity:0}}
+.sheet-bg.closing{animation:fade .18s ease reverse forwards}
+.sheet-bg.closing .sheet{animation:sheetOut .22s var(--ease) forwards}
+@media (prefers-reduced-motion:reduce){
+  .sheet-bg.closing,.sheet-bg.closing .sheet{animation:none}
+}
 /* Morph de la recherche : voir openSearch() (JS) pour --morph-from. Classe
    plus spécifique que .sheet seul -> l'emporte sur sheetIn/sheetUp sans
    !important. */

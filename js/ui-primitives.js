@@ -332,13 +332,30 @@ function openSheet(html){
   document.body.style.overflow = 'hidden';
   (bg.querySelector('input,button:not([data-close])') || bg.querySelector('[data-close]'))?.focus();
 }
+/* Fermeture animée (motion design premium, phase 1, 2026-10-15) — jusqu'ici
+   une feuille/modale disparaissait INSTANTANÉMENT (bg.hidden=true direct),
+   seule l'OUVERTURE avait une animation (sheetIn, styles.css) : asymétrie
+   confirmée par un audit du dépôt avant ce correctif. .closing (styles.css)
+   joue sheetOut puis cette fonction attend animationend AVANT de vraiment
+   masquer/vider — avec un filet de sécurité setTimeout (même principe déjà
+   utilisé pour le temple, index.html) au cas où l'événement ne se
+   déclencherait pas sur un navigateur donné. animationsDisabled() (js/
+   core.js) saute l'attente entièrement : aucune signature de closeSheet()
+   ne change, aucun site d'appel n'a besoin d'être modifié. */
 function closeSheet(){
   const bg = document.getElementById('sheetBg');
-  bg.classList.remove('on'); bg.hidden = true;
   const corps = document.getElementById('sheet');
-  if (corps) corps.innerHTML = '';
-  document.body.style.overflow = '';
-  lastFocus?.focus?.(); lastFocus = null;
+  const terminer = () => {
+    bg.classList.remove('on', 'closing'); bg.hidden = true;
+    if (corps) corps.innerHTML = '';
+    document.body.style.overflow = '';
+    lastFocus?.focus?.(); lastFocus = null;
+  };
+  if (animationsDisabled() || !bg.classList.contains('on')){ terminer(); return; }
+  bg.classList.add('closing');
+  const surFin = () => { bg.removeEventListener('animationend', surFin); terminer(); };
+  bg.addEventListener('animationend', surFin);
+  setTimeout(surFin, 260);
 }
 
 /* --- graphiques ---
