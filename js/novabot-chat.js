@@ -426,10 +426,22 @@ async function novabotArchivesBasculer(){
    ponctuation forte (./!/?) suivie d'un espace sépare les phrases ; une
    décimale/un pourcentage français ("12,5 %") utilise une virgule, jamais
    un point, donc ce découpage ne fragmente pas un nombre dans le cas
-   courant. 90ms/étape mais 1-4 étapes au lieu de 25-40 : délai total
-   nettement plus court qu'avant pour une réponse typique. Sous
-   animationsDisabled() (js/core.js), aucune étape intermédiaire : la
-   réponse complète s'affiche immédiatement. */
+   courant.
+   CORRECTIF (retour utilisateur réel, 2026-10-15 : "je ne vois toujours
+   aucune animation" malgré un rechargement complet confirmé, code
+   vérifié présent et correct sur le serveur) : le code s'exécutait bel
+   et bien, mais à 90ms/étape, une réponse de 2-3 phrases ne prenait que
+   180-270ms au total — perçu comme "apparu d'un coup" par un œil humain,
+   pas comme une révélation progressive. Porté à 220ms/étape : pour 1 à 4
+   étapes, 220-880ms au total, encore nettement plus court que l'ancien
+   système mot par mot pour une réponse de plusieurs dizaines de mots
+   (18ms × 25-40 mots ≈ 450-720ms, SANS compter que chaque mot déclenchait
+   aussi un rendu complet), mais chaque étape reste cette fois clairement
+   perceptible — c'est la condition explicitement posée par l'utilisateur
+   ("garder un effet progressif mais plus rapide/perceptible différemment"),
+   pas seulement "plus rapide". Sous animationsDisabled() (js/core.js),
+   aucune étape intermédiaire : la réponse complète s'affiche
+   immédiatement. */
 function novabotRevelerProgressivement(texteComplet){
   NOVABOT_CHAT.streamingText = '';
   if (animationsDisabled()){
@@ -443,7 +455,7 @@ function novabotRevelerProgressivement(texteComplet){
     NOVABOT_CHAT.streamingText = accumule;
     i++;
     render();
-    NOVABOT_CHAT.revealTimer = setTimeout(pas, 90);
+    NOVABOT_CHAT.revealTimer = setTimeout(pas, 220);
   };
   pas();
 }
