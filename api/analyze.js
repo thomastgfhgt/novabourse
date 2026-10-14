@@ -162,10 +162,24 @@ function construireAssainisseur(contexte){
      Nouvelle regex : tente d'abord un nombre à groupes de milliers
      (espace OU point, 3 chiffres par groupe, virgule décimale optionnelle
      à la fin) AVANT de retomber sur un nombre simple — "10 000", "10.000"
-     et "1 500,50" deviennent chacun UN SEUL jeton. */
+     et "1 500,50" deviennent chacun UN SEUL jeton.
+
+     TROISIÈME CAUSE (audit 2026-10-14, même bug encore rapporté, cette
+     fois "autour de 10[donnée non vérifiée] %", SANS espace avant le
+     marqueur) : un INTERVALLE ("10-15 %", le modèle résumant plusieurs
+     poids de portefeuille proches plutôt qu'un chiffre exact) était lu
+     comme "10" PUIS "-15" (le tiret pris pour un signe moins) — "10"
+     correspondait à un poids réel et passait, "-15" (négatif, alors que
+     tous les poids réels sont positifs) ne correspondait jamais à rien
+     et était redacté, collé contre le "10" puisque le tiret séparateur,
+     lui, n'est jamais remplacé. (?<!\d) AVANT le signe optionnel :
+     un tiret immédiatement précédé d'un chiffre (fin du premier nombre
+     d'un intervalle) n'est plus jamais interprété comme un signe moins —
+     un tiret précédé d'un espace/début de texte (ex. "-5,2 %", une vraie
+     perte) continue d'être reconnu comme négatif normalement. */
   function assainirTexte(texte){
     if (typeof texte !== 'string') return texte;
-    return texte.replace(/-?\d{1,3}(?:[ .]\d{3})+(?:,\d+)?|-?\d+(?:[.,]\d+)?/g, jeton => {
+    return texte.replace(/(?<!\d)-?\d{1,3}(?:[ .]\d{3})+(?:,\d+)?|(?<!\d)-?\d+(?:[.,]\d+)?/g, jeton => {
       // Un jeton à groupes de milliers n'a de sens QUE si chaque groupe fait
       // exactement 3 chiffres (déjà garanti par la regex) : on retire les
       // séparateurs de milliers (espace/point) et on normalise la virgule

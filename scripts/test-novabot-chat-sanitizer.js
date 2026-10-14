@@ -40,7 +40,7 @@ function construireAssainisseur(contexte){
   const compteur = { retires: 0 };
   function assainirTexte(texte){
     if (typeof texte !== 'string') return texte;
-    return texte.replace(/-?\d{1,3}(?:[ .]\d{3})+(?:,\d+)?|-?\d+(?:[.,]\d+)?/g, jeton => {
+    return texte.replace(/(?<!\d)-?\d{1,3}(?:[ .]\d{3})+(?:,\d+)?|(?<!\d)-?\d+(?:[.,]\d+)?/g, jeton => {
       const normalise = /^-?\d{1,3}(?:[ .]\d{3})+(?:,\d+)?$/.test(jeton)
         ? jeton.replace(/[ .]/g, '').replace(',', '.')
         : jeton.replace(',', '.');
@@ -139,6 +139,23 @@ function check(name, cond){ results.push([name, Boolean(cond)]); }
   check('non-régression : un montant réellement présent dans le contexte structuré (portfolio.total) reste autorisé comme avant ce correctif',
     !assaini.includes('[donnée non vérifiée]'));
 }
+
+/* ---------- RÉGRESSION (audit 2026-10-14) : un intervalle de poids réels n'est plus coupé par un tiret pris pour un signe moins ---------- */
+{
+  const contexte = { mandateConfirmed:true, portfolio:{ positions:[{ weightPct:10 }, { weightPct:15 }] }, montantsDeclaresParUtilisateur:[] };
+  const { assainirTexte } = construireAssainisseur(contexte);
+  const reponseModele = "Tes positions tech sont toutes simulées autour de 10-15 % du portefeuille.";
+  const assaini = assainirTexte(reponseModele);
+  check('RÉGRESSION CENTRALE : "10-15 %" (intervalle de poids réels) n\'est plus redacté — le tiret n\'est plus lu comme un signe moins quand il suit directement un chiffre',
+    !assaini.includes('[donnée non vérifiée]'));
+  check('le texte reste identique à l\'intervalle près (rien d\'autre modifié)', assaini === reponseModele);
+}
+check('RÉGRESSION : une VRAIE perte négative (précédée d\'un espace, pas d\'un chiffre) reste correctement reconnue comme négative, pas cassée par ce correctif', (() => {
+  const contexte = { recentDecisions:[{ gainPct:-5.2 }], montantsDeclaresParUtilisateur:[] };
+  const { assainirTexte } = construireAssainisseur(contexte);
+  const assaini = assainirTexte("La position a perdu -5,2 % cette semaine.");
+  return !assaini.includes('[donnée non vérifiée]');
+})());
 
 /* ---------- rapport ---------- */
 const fails = results.filter(([, ok]) => !ok);

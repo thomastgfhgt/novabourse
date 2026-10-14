@@ -234,16 +234,29 @@ async function novabotConversationNouvelle(){
   render();
 }
 
+/* CORRECTIF (audit 2026-10-13, même classe de bug que l'archivage ci-
+   dessus) : le nouveau titre était affiché AVANT toute confirmation
+   serveur, sans annulation en cas d'échec réel — un rechargement
+   suivant aurait silencieusement ramené l'ancien titre, sans que
+   l'utilisateur comprenne pourquoi son renommage n'a "pas tenu". */
 async function novabotConversationRenommer(id, titre){
   const t = (titre || '').trim().slice(0, 200);
   if (!t) return;
   const entry = NOVABOT_CONVERSATIONS.list.find(c => c.id === id);
+  const ancienTitre = entry?.title;
   if (entry) entry.title = t;
   render();
+  let reussi = false;
   try {
-    await authFetch(`/api/me?resource=conversations&id=${encodeURIComponent(id)}&action=rename`,
+    const r = await authFetch(`/api/me?resource=conversations&id=${encodeURIComponent(id)}&action=rename`,
       { method:'POST', body: JSON.stringify({ title:t }) });
+    reussi = r.ok;
   } catch (e){ console.warn('[novabot-chat] renommage impossible :', e); }
+  if (!reussi && entry){
+    entry.title = ancienTitre;
+    toast('Renommage impossible — réessaie dans un instant.');
+    render();
+  }
 }
 /* Titre automatique (§2 : "titres générés automatiquement") — les 50
    premiers caractères du premier message utilisateur, jamais un appel
@@ -264,12 +277,28 @@ function novabotConversationSupprimerConfirmer(id){
       <button class="btn btn-s" data-close style="flex:1">Annuler</button>
       <button class="btn btn-a" data-novabot-conv-delete-ok="${esc(id)}" style="flex:1">Supprimer</button></div>`);
 }
+/* CORRECTIF (audit 2026-10-13, même classe de bug que l'archivage/le
+   renommage ci-dessous) : une suppression qui échouait réellement côté
+   serveur (réseau) faisait quand même disparaître la conversation de
+   l'écran — elle n'était jamais vraiment perdue (resterait visible au
+   prochain rechargement), mais sans rien pour l'utilisateur signalant
+   que "Supprimer" n'avait en fait rien supprimé. */
 async function novabotConversationSupprimer(id){
-  NOVABOT_CONVERSATIONS.list = NOVABOT_CONVERSATIONS.list.filter(c => c.id !== id);
+  const c = NOVABOT_CONVERSATIONS.list.find(x => x.id === id);
+  const index = NOVABOT_CONVERSATIONS.list.findIndex(x => x.id === id);
+  NOVABOT_CONVERSATIONS.list = NOVABOT_CONVERSATIONS.list.filter(x => x.id !== id);
   const eraitActive = NOVABOT_CHAT.conversationId === id;
+  let reussi = false;
   try {
-    await authFetch(`/api/me?resource=conversations&id=${encodeURIComponent(id)}`, { method:'DELETE' });
+    const r = await authFetch(`/api/me?resource=conversations&id=${encodeURIComponent(id)}`, { method:'DELETE' });
+    reussi = r.ok;
   } catch (e){ console.warn('[novabot-chat] suppression impossible :', e); }
+  if (!reussi && c){
+    NOVABOT_CONVERSATIONS.list.splice(index, 0, c);
+    toast('Suppression impossible — réessaie dans un instant.');
+    render();
+    return;
+  }
   if (eraitActive){
     if (NOVABOT_CONVERSATIONS.list.length) await novabotConversationOuvrir(NOVABOT_CONVERSATIONS.list[0].id);
     else await novabotConversationNouvelle();
@@ -283,6 +312,17 @@ async function novabotConversationSupprimer(id){
    suppression ci-dessus, destructive) : retire la conversation de la liste
    ACTIVE et, si la section "Archivées" a déjà été chargée, l'y ajoute
    immédiatement plutôt que de forcer un rechargement réseau complet. */
+/* CORRECTIF (audit 2026-10-13, même classe de bug que la perte
+   silencieuse de messages déjà corrigée : "conversations disparues") —
+   la mise à jour locale (retirer de list, ajouter à archivedList) était
+   appliquée AVANT toute confirmation du serveur, SANS annulation en cas
+   d'échec. Un archivage qui échouait réellement (réseau) retirait quand
+   même la conversation de l'écran — jusqu'au prochain rechargement, où
+   elle réapparaîtrait brusquement (le serveur ne l'a jamais archivée),
+   sans aucune explication pour l'utilisateur. Même chose en sens
+   inverse pour le désarchivage. Corrigé : la mise à jour locale est
+   annulée si le serveur confirme un échec, avec un toast explicite —
+   jamais un état visible qui ne correspond pas à la réalité serveur. */
 async function novabotConversationArchiver(id){
   const c = NOVABOT_CONVERSATIONS.list.find(x => x.id === id);
   NOVABOT_CONVERSATIONS.list = NOVABOT_CONVERSATIONS.list.filter(x => x.id !== id);
@@ -290,9 +330,18 @@ async function novabotConversationArchiver(id){
     NOVABOT_CONVERSATIONS.archivedList = [{ ...c, archived:true }, ...NOVABOT_CONVERSATIONS.archivedList];
   }
   const eraitActive = NOVABOT_CHAT.conversationId === id;
+  let reussi = false;
   try {
-    await authFetch(`/api/me?resource=conversations&id=${encodeURIComponent(id)}&action=archive`, { method:'POST' });
+    const r = await authFetch(`/api/me?resource=conversations&id=${encodeURIComponent(id)}&action=archive`, { method:'POST' });
+    reussi = r.ok;
   } catch (e){ console.warn('[novabot-chat] archivage impossible :', e); }
+  if (!reussi && c){
+    NOVABOT_CONVERSATIONS.archivedList = NOVABOT_CONVERSATIONS.archivedList.filter(x => x.id !== id);
+    NOVABOT_CONVERSATIONS.list = [c, ...NOVABOT_CONVERSATIONS.list];
+    toast('Archivage impossible — réessaie dans un instant.');
+    render();
+    return;
+  }
   if (eraitActive){
     if (NOVABOT_CONVERSATIONS.list.length) await novabotConversationOuvrir(NOVABOT_CONVERSATIONS.list[0].id);
     else await novabotConversationNouvelle();
@@ -308,9 +357,17 @@ async function novabotConversationDesarchiver(id){
       .sort((a, b) => new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt));
   }
   render();
+  let reussi = false;
   try {
-    await authFetch(`/api/me?resource=conversations&id=${encodeURIComponent(id)}&action=unarchive`, { method:'POST' });
+    const r = await authFetch(`/api/me?resource=conversations&id=${encodeURIComponent(id)}&action=unarchive`, { method:'POST' });
+    reussi = r.ok;
   } catch (e){ console.warn('[novabot-chat] désarchivage impossible :', e); }
+  if (!reussi && c){
+    NOVABOT_CONVERSATIONS.list = NOVABOT_CONVERSATIONS.list.filter(x => x.id !== id);
+    NOVABOT_CONVERSATIONS.archivedList = [c, ...NOVABOT_CONVERSATIONS.archivedList];
+    toast('Désarchivage impossible — réessaie dans un instant.');
+    render();
+  }
 }
 /* Chargement paresseux : seulement à la première ouverture de la section
    "Archivées" du panneau, jamais au chargement initial de NovaBot. */
