@@ -49,6 +49,17 @@ PAGES.portfolio = () => {
     <h1 class="title">Portefeuille</h1>
     <p class="lead" style="margin-top:10px">Portefeuille <b>virtuel</b> : suivez vos positions sans engager d'argent réel.</p>
 
+    <!-- Bloc Alpaca Sandbox réel (Phase 3) : rempli/affiché par
+         assurerPortefeuilleAlpacaReel() (index.html, hook route.page===
+         'portfolio'), UNIQUEMENT si le serveur confirme un compte Sandbox
+         réellement lié (double porte déjà en place côté serveur :
+         TRADING_ENABLED + TRADING_ADMIN_EMAILS). Masqué par défaut :
+         zéro changement visuel pour quiconque n'est pas dans ce cas —
+         voir #pfFictifContenu plus bas, cette portion n'est jamais
+         touchée par ce qui précède. -->
+    <div id="alpacaRealPortfolioBlock" hidden></div>
+
+    <div id="pfFictifContenu">
     <div class="card" style="margin-top:22px">
       <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px">
         <p class="small">Valeur totale</p>
@@ -252,7 +263,67 @@ PAGES.portfolio = () => {
         </div></div>
       </section>`;
     })()}
+    </div>
     </div>`;
 };
+
+/* Bascule entre le vrai compte Alpaca Sandbox et le journal fictif —
+   appelée depuis render() (index.html, hook route.page==='portfolio'),
+   jamais depuis PAGES.portfolio() elle-même (fonction synchrone, ne doit
+   jamais déclencher de fetch à chaque rendu — même règle que
+   assurerBenchmarkPortefeuille()). Double porte déjà appliquée côté
+   serveur (TRADING_ENABLED + TRADING_ADMIN_EMAILS) : un utilisateur
+   normal reçoit 'disabled'/403 et ne voit JAMAIS ce bloc — zéro risque
+   pour qui n'est pas en bêta. */
+async function assurerPortefeuilleAlpacaReel(){
+  const bloc = document.getElementById('alpacaRealPortfolioBlock');
+  const fictif = document.getElementById('pfFictifContenu');
+  if (!bloc || !fictif) return;
+
+  try {
+    const r = await authFetch('/api/me?resource=alpaca&action=account');
+    const compte = await r.json();
+    if (compte.status !== 'linked'){
+      bloc.hidden = true; fictif.hidden = false;
+      return;
+    }
+
+    const rs = await authFetch('/api/me?resource=alpaca&action=portfolio-summary');
+    const resume = await rs.json();
+    if (resume.status !== 'ok'){
+      bloc.hidden = true; fictif.hidden = false;
+      return;
+    }
+
+    const devise = resume.currency || 'USD';
+    bloc.innerHTML = `
+      <div class="notice" style="margin-bottom:18px"><b>Simulation — argent fictif.</b>
+        Compte Alpaca Sandbox réel n° ${esc(String(compte.accountNumber || '—'))}, statut ${esc(String(compte.accountStatus || '—'))}.
+        Montants en ${esc(devise)} (référence officielle) — jamais convertis en euros ici.</div>
+      <div class="card" style="margin-top:4px">
+        <p class="small">Valeur du portefeuille</p>
+        <p class="price" style="font-size:clamp(34px,7vw,52px);margin-top:4px">${fmt.cur(resume.portfolioValue, devise)}</p>
+        <div class="kv" style="margin-top:14px"><dt>Liquidités</dt><dd>${fmt.cur(resume.cash, devise)}</dd></div>
+        <div class="kv"><dt>Pouvoir d'achat</dt><dd>${fmt.cur(resume.buyingPower, devise)}</dd></div>
+        <div class="kv"><dt>Valeur nette (equity)</dt><dd>${fmt.cur(resume.equity, devise)}</dd></div>
+      </div>
+      <div class="card" style="margin-top:18px">
+        <p class="small" style="margin-bottom:12px">Positions (${resume.positionCount})</p>
+        ${resume.positions.length ? `<div class="rows rows-grid">${resume.positions.map(p => `
+          <div class="row row-static">
+            <span class="row-main"><span class="row-t">${esc(p.symbol)}</span>
+              <span class="row-s">${fmt.num(p.qty, 4)} titres · entrée ${fmt.cur(p.avgEntryPrice, devise)}</span></span>
+            <span style="text-align:right">
+              <span class="tabular-nums">${fmt.cur(p.marketValue, devise)}</span><br>
+              <span class="tiny ${p.unrealizedPl >= 0 ? 'up-t' : 'down-t'}">${fmt.cur(p.unrealizedPl, devise)} (${fmt.pct(p.unrealizedPlPc * 100)})</span>
+            </span>
+          </div>`).join('')}</div>`
+          : `<p class="small" style="color:var(--ink-4)">Aucune position — le compte n'a pas encore été financé ou aucun ordre n'a encore été exécuté.</p>`}
+      </div>`;
+    bloc.hidden = false; fictif.hidden = true;
+  } catch {
+    bloc.hidden = true; fictif.hidden = false;
+  }
+}
 
 /* ---------- COMPTE ---------- */

@@ -467,6 +467,7 @@ function render(navigated = false){
      Portefeuille — jamais un minuteur en tâche de fond (voir
      assurerRelevéQuotidien). */
   if (route.page === 'portfolio') assurerRelevéQuotidien();
+  if (route.page === 'portfolio') assurerPortefeuilleAlpacaReel();
   if (route.page === 'novabot' && state.novabot.mandateConfirmed) novabotAssurerReleveQuotidien();
 
   /* Rafraîchissement vivant — uniquement les instruments réellement
