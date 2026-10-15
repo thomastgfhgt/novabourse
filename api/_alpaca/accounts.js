@@ -47,7 +47,15 @@ function corpsCompteTest(ipAddress) {
       middle_name: 'P',
       family_name: 'Doe',
       date_of_birth: '1990-01-01',
-      tax_id: '666-55-4321',
+      // CORRECTIF (2026-10-15, testé réellement) : "666-55-4321" — pourtant
+      // l'exemple de la doc officielle Alpaca — est rejeté par la validation
+      // réelle (HTTP 422, "tax_id cannot have area 000 or 666 for SSN/ITIN").
+      // CORRECTIF 2 (même jour) : "123-45-6789" also rejeté, réellement
+      // cette fois pour une raison différente ("cannot be just increasing
+      // values") — la validation Alpaca Sandbox est visiblement plus
+      // stricte que le format attendu. Valeur non séquentielle, zone hors
+      // 000/666/900-999, sans lien avec un numéro réel historique connu.
+      tax_id: '452-69-8317',
       tax_id_type: 'USA_SSN',
       country_of_citizenship: 'USA',
       country_of_birth: 'USA',
