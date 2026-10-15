@@ -650,7 +650,9 @@ function onboardingScreen(){
     <div class="onb-steps">
       ${[[ICON.search,'Cherchez une entreprise','La barre de recherche s\'ouvre partout avec la touche « / ».'],
          [ICON.star,'Touchez l\'étoile','L\'entreprise rejoint votre liste de suivi, en un geste.'],
-         [ICON.plus,'Appuyez sur Acheter','Investissez de l\'argent fictif et suivez vos positions.']]
+         PORTEFEUILLE_FICTIF_PUBLIC
+           ? [ICON.plus,'Appuyez sur Acheter','Investissez de l\'argent fictif et suivez vos positions.']
+           : [ICON.plus,'Analysez avec Nova','Lancez une analyse IA pour comprendre une entreprise en détail.']]
         .map(([ic,t2,d],i)=>`<div class="onb-step">
           <span class="onb-n">${i+1}</span>
           <span class="onb-i">${svg(ic)}</span>

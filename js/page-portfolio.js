@@ -47,7 +47,9 @@ PAGES.portfolio = () => {
 
   return `<div class="page-in">
     <h1 class="title">Portefeuille</h1>
-    <p class="lead" style="margin-top:10px">Portefeuille <b>virtuel</b> : suivez vos positions sans engager d'argent réel.</p>
+    <p class="lead" style="margin-top:10px">${PORTEFEUILLE_FICTIF_PUBLIC
+      ? `Portefeuille <b>virtuel</b> : suivez vos positions sans engager d'argent réel.`
+      : `Suivez vos positions une fois un compte d'investissement réel connecté.`}</p>
 
     <!-- Bloc Alpaca Sandbox réel (Phase 3) : rempli/affiché par
          assurerPortefeuilleAlpacaReel() (index.html, hook route.page===
