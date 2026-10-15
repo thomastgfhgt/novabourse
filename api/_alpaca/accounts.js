@@ -107,8 +107,26 @@ async function recupererCompte(alpacaAccountId) {
   return data;
 }
 
+/* Lecture de l'état de trading réel (buying_power, cash, equity...) — le
+   compte seul (recupererCompte) ne porte PAS ces champs : confirmé par
+   appel réel, ils vivent sur /v1/trading/accounts/{id}/account. Sert à
+   vérifier qu'un dépôt a RÉELLEMENT changé le pouvoir d'achat, jamais une
+   valeur supposée. */
+async function lireCompteTrading(alpacaAccountId) {
+  const r = await appelBroker(`/v1/trading/accounts/${encodeURIComponent(alpacaAccountId)}/account`);
+  const data = await r.json().catch(() => null);
+  if (!r.ok) {
+    const err = new Error('alpaca_lecture_compte_trading_echouee');
+    err.status = r.status;
+    err.body = data;
+    throw err;
+  }
+  return data;
+}
+
 module.exports = {
   creerCompteSandbox,
   recupererCompte,
+  lireCompteTrading,
   corpsCompteTest,
 };
