@@ -59,6 +59,7 @@
 <script src="/js/page-watchlist.js"></script>
 <script src="/js/page-portfolio.js"></script>
 <script src="/js/page-account.js"></script>
+<script src="/js/page-admin-alpaca.js"></script>
 <script src="/js/page-compare.js"></script>
 <script src="/js/auth.js"></script>
 <script>/* ============================================================
@@ -571,6 +572,7 @@ function render(navigated = false){
      (voir assurerEvenementsSuivis(), js/nova.js) gère déjà son propre
      dédoublonnage/render(), jamais de double appel coûteux ici. */
   if (route.page === 'home' || route.page === 'novaevent') assurerEvenementsSuivis();
+  if (route.page === 'alpacaStatus') chargerStatutAlpaca();
 
   /* view.innerHTML vient de remplacer tout le DOM : #chart-pro (s'il existe
      dans la page courante) est un nouveau noeud, l'éventuelle instance

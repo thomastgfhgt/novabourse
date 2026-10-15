@@ -48,6 +48,12 @@ PAGES.account = () => {
         <button class="row" data-reset><span class="row-main">
           <span class="row-t">Effacer mes données locales</span>
           <span class="row-s">Liste de suivi et préférences</span></span></button>
+        <!-- Alpaca Sandbox, Phase 2 : visible pour tous (pas une faille — la
+             vraie protection est côté serveur, voir api/admin/alpaca-status.js),
+             un non-admin voit simplement "Accès refusé". -->
+        <button class="row" data-go="alpacaStatus"><span class="row-main">
+          <span class="row-t">Statut Alpaca (admin)</span>
+          <span class="row-s">Test de connexion Sandbox</span></span></button>
       </div></div>
     </section>
 
