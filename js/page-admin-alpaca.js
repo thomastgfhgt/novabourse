@@ -64,8 +64,9 @@ async function chargerCompteAlpaca(){
     }
     if (data.status === 'not_linked'){
       carte.innerHTML = `
-        <p class="small" style="margin-bottom:12px">Aucun compte lié. Le compte de test créé le 2026-10-15 (John Doe, Sandbox) peut être lié à ton compte NovaTitre pour continuer les vérifications.</p>
-        <button class="btn btn-a btn-sm" data-alpaca-lier>Lier le compte de test</button>`;
+        <p class="small" style="margin-bottom:12px">Aucun compte lié. Deux options : lier le compte de test déjà créé, ou ouvrir un vrai compte Sandbox avec tes propres informations (simulation, aucune donnée réelle transmise à une banque).</p>
+        <button class="btn btn-s btn-sm" data-alpaca-lier style="margin-bottom:18px">Lier le compte de test</button>
+        ${alpacaFormulaireOuverture()}`;
       return;
     }
     if (data.status === 'linked'){
@@ -80,6 +81,99 @@ async function chargerCompteAlpaca(){
     carte.innerHTML = `<p class="small">Indisponible${data.message ? ` (${esc(String(data.message))})` : ''}.</p>`;
   } catch {
     carte.innerHTML = `<p class="small">Indisponible.</p>`;
+  }
+}
+
+function alpacaFormulaireOuverture(){
+  return `<div style="margin-top:4px">
+    <p class="small" style="font-weight:600;margin-bottom:10px">Ouvrir mon propre compte Sandbox</p>
+    <p class="tiny" style="color:var(--ink-4);margin-bottom:14px">Ce Broker API Sandbox est américain : il demande un numéro fiscal au
+      format américain (SSN), même pour une simulation. Invente un numéro fictif au format
+      XXX-XX-XXXX (jamais une zone 000/666/900+, jamais une suite croissante) — jamais ton vrai numéro.</p>
+    <input class="field" id="alpOpenGivenName" type="text" placeholder="Prénom" style="margin-bottom:10px">
+    <input class="field" id="alpOpenFamilyName" type="text" placeholder="Nom" style="margin-bottom:10px">
+    <input class="field" id="alpOpenDob" type="date" placeholder="Date de naissance" style="margin-bottom:10px">
+    <input class="field" id="alpOpenTaxId" type="text" placeholder="Numéro fiscal fictif (XXX-XX-XXXX)" style="margin-bottom:10px">
+    <input class="field" id="alpOpenEmail" type="email" placeholder="E-mail" style="margin-bottom:10px">
+    <input class="field" id="alpOpenPhone" type="tel" placeholder="Téléphone (+33...)" style="margin-bottom:10px">
+    <input class="field" id="alpOpenStreet" type="text" placeholder="Adresse (fictive acceptée)" style="margin-bottom:10px">
+    <input class="field" id="alpOpenCity" type="text" placeholder="Ville" style="margin-bottom:10px">
+    <input class="field" id="alpOpenState" type="text" placeholder="État américain (ex. CA)" maxlength="2" style="margin-bottom:14px">
+
+    <p class="tiny" style="font-weight:600;margin-bottom:8px">Déclarations (réponds honnêtement — "Oui" entraîne une vérification manuelle par Alpaca)</p>
+    <label class="small" style="display:flex;gap:8px;align-items:center;margin-bottom:6px">
+      <input type="checkbox" id="alpOpenControlPerson"> Je suis dirigeant/administrateur d'une société cotée
+    </label>
+    <label class="small" style="display:flex;gap:8px;align-items:center;margin-bottom:6px">
+      <input type="checkbox" id="alpOpenFinra"> Je travaille pour une bourse ou un organisme type FINRA
+    </label>
+    <label class="small" style="display:flex;gap:8px;align-items:center;margin-bottom:6px">
+      <input type="checkbox" id="alpOpenPep"> Je suis une personne politiquement exposée
+    </label>
+    <label class="small" style="display:flex;gap:8px;align-items:center;margin-bottom:14px">
+      <input type="checkbox" id="alpOpenFamily"> Un membre de ma famille proche est politiquement exposé
+    </label>
+
+    <label class="small" style="display:flex;gap:8px;align-items:flex-start;margin-bottom:14px">
+      <input type="checkbox" id="alpOpenAccords" style="margin-top:3px">
+      <span>J'ai lu et j'accepte les accords de compte, de marge et client Alpaca (Sandbox, simulation uniquement).</span>
+    </label>
+
+    <button class="btn btn-a btn-sm" data-alpaca-ouvrir>Ouvrir le compte</button>
+    <p class="tiny" id="alpOpenErreur" style="color:var(--down);margin-top:10px"></p>
+  </div>`;
+}
+
+async function alpacaOuvrirCompte(){
+  const val = id => document.getElementById(id)?.value?.trim() || '';
+  const coché = id => document.getElementById(id)?.checked === true;
+  const erreurEl = document.getElementById('alpOpenErreur');
+  const bouton = document.querySelector('[data-alpaca-ouvrir]');
+
+  const donnees = {
+    givenName: val('alpOpenGivenName'),
+    familyName: val('alpOpenFamilyName'),
+    dateOfBirth: val('alpOpenDob'),
+    taxId: val('alpOpenTaxId'),
+    fundingSource: ['employment_income'],
+    emailAddress: val('alpOpenEmail'),
+    phoneNumber: val('alpOpenPhone'),
+    streetAddress: val('alpOpenStreet'),
+    city: val('alpOpenCity'),
+    state: val('alpOpenState').toUpperCase(),
+    disclosures: {
+      isControlPerson: coché('alpOpenControlPerson'),
+      isAffiliatedExchangeOrFinra: coché('alpOpenFinra'),
+      isPoliticallyExposed: coché('alpOpenPep'),
+      immediateFamilyExposed: coché('alpOpenFamily'),
+    },
+    accordsAcceptes: coché('alpOpenAccords'),
+  };
+
+  if (bouton) bouton.disabled = true;
+  if (erreurEl) erreurEl.textContent = '';
+  try {
+    const r = await authFetch('/api/me?resource=alpaca&action=open-account', {
+      method: 'POST',
+      body: JSON.stringify(donnees),
+    });
+    const data = await r.json();
+
+    if (data.status === 'opened'){
+      toast('Compte Sandbox ouvert.');
+      await chargerCompteAlpaca();
+      return;
+    }
+    if (data.status === 'validation_error'){
+      if (erreurEl) erreurEl.textContent = 'Formulaire incomplet ou invalide : ' + data.erreurs.join(', ');
+    } else {
+      const detail = data.alpacaBody?.message || data.message || data.status;
+      if (erreurEl) erreurEl.textContent = "Alpaca a refusé l'ouverture : " + detail;
+    }
+    if (bouton) bouton.disabled = false;
+  } catch {
+    if (erreurEl) erreurEl.textContent = 'Ouverture impossible — réessaie.';
+    if (bouton) bouton.disabled = false;
   }
 }
 

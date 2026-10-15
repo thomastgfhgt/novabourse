@@ -124,9 +124,135 @@ async function lireCompteTrading(alpacaAccountId) {
   return data;
 }
 
+/* ---------- Ouverture réelle (§4 : "parcours d'ouverture avec suivi
+   d'étapes") — données saisies par un vrai utilisateur NovaTitre, jamais
+   plus une identité de test fixe. Validation PURE (aucun réseau) avant
+   tout appel, pour un retour immédiat et clair côté formulaire — mais
+   Alpaca reste l'autorité finale (une validation client qui passe ici
+   peut encore être rejetée par Alpaca pour une raison non anticipée,
+   jamais présentée comme un échec de notre code). */
+const FUNDING_SOURCES_AUTORISEES = Object.freeze([
+  'employment_income', 'investments', 'inheritance', 'business_income', 'savings', 'family',
+]);
+
+/* Règles de format RÉELLEMENT observées (2026-10-15, voir le correctif
+   ci-dessus sur corpsCompteTest) — pas une supposition : zone 000/666
+   refusée, valeurs strictement croissantes refusées. Alpaca peut encore
+   refuser pour d'autres raisons non couvertes ici ; ce n'est qu'un
+   filtre de confort, jamais une garantie d'acceptation. */
+function taxIdFormatValide(taxId) {
+  const chiffres = String(taxId || '').replace(/\D/g, '');
+  if (chiffres.length !== 9) return false;
+  const zone = chiffres.slice(0, 3);
+  if (zone === '000' || zone === '666' || Number(zone) >= 900) return false;
+  if (/^(?:0123456789|123456789|012345678)/.test(chiffres)) return false;
+  const croissant = chiffres.split('').every((c, i) => i === 0 || Number(c) === Number(chiffres[i - 1]) + 1);
+  if (croissant) return false;
+  return true;
+}
+
+function validerDonneesCompte(d) {
+  const erreurs = [];
+  const p = d || {};
+
+  if (!p.givenName) erreurs.push('prenom_requis');
+  if (!p.familyName) erreurs.push('nom_requis');
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(p.dateOfBirth || '')) erreurs.push('date_naissance_invalide');
+  else {
+    const age = (Date.now() - new Date(p.dateOfBirth).getTime()) / (365.25 * 86400000);
+    if (age < 18) erreurs.push('age_minimum_18_ans');
+  }
+  if (!taxIdFormatValide(p.taxId)) erreurs.push('numero_fiscal_format_invalide');
+  if (!Array.isArray(p.fundingSource) || !p.fundingSource.length
+    || !p.fundingSource.every(f => FUNDING_SOURCES_AUTORISEES.includes(f))) erreurs.push('source_revenus_requise');
+
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(p.emailAddress || '')) erreurs.push('email_invalide');
+  if (!/^\+\d{8,15}$/.test(p.phoneNumber || '')) erreurs.push('telephone_invalide');
+  if (!p.streetAddress) erreurs.push('adresse_requise');
+  if (!p.city) erreurs.push('ville_requise');
+  // Pays TOUJOURS "USA" (voir corpsCompteDepuisFormulaire : le Broker API
+  // Sandbox utilisé ici est la région US, tax_id_type fixé à USA_SSN —
+  // aucun sélecteur de pays, pour ne jamais produire une combinaison
+  // incohérente ex. "résidence fiscale France" + "SSN américain"). `state`
+  // donc toujours requis (règle Alpaca : obligatoire si le pays OU la
+  // résidence fiscale vaut USA — ici toujours les deux).
+  if (!p.state) erreurs.push('etat_requis');
+
+  for (const champ of ['isControlPerson', 'isAffiliatedExchangeOrFinra', 'isPoliticallyExposed', 'immediateFamilyExposed']) {
+    if (typeof p.disclosures?.[champ] !== 'boolean') erreurs.push('declaration_' + champ + '_requise');
+  }
+
+  if (p.accordsAcceptes !== true) erreurs.push('accords_non_acceptes');
+
+  return { valide: erreurs.length === 0, erreurs };
+}
+
+function corpsCompteDepuisFormulaire(d, ipAddress) {
+  return {
+    account_type: 'trading',
+    contact: {
+      email_address: d.emailAddress,
+      phone_number: d.phoneNumber,
+      street_address: [d.streetAddress],
+      city: d.city,
+      state: d.state,
+      ...(d.postalCode ? { postal_code: d.postalCode } : {}),
+      country: 'USA',
+    },
+    identity: {
+      given_name: d.givenName,
+      family_name: d.familyName,
+      date_of_birth: d.dateOfBirth,
+      tax_id: d.taxId,
+      tax_id_type: 'USA_SSN',
+      country_of_citizenship: 'USA',
+      country_of_birth: 'USA',
+      country_of_tax_residence: 'USA',
+      funding_source: d.fundingSource,
+    },
+    disclosures: {
+      is_control_person: d.disclosures.isControlPerson,
+      is_affiliated_exchange_or_finra: d.disclosures.isAffiliatedExchangeOrFinra,
+      is_politically_exposed: d.disclosures.isPoliticallyExposed,
+      immediate_family_exposed: d.disclosures.immediateFamilyExposed,
+    },
+    agreements: accordsSandbox(ipAddress),
+    enabled_assets: ['us_equity'],
+  };
+}
+
+/* Ouverture réelle — valide d'abord (retour immédiat si incomplet),
+   n'appelle Alpaca QUE si la validation locale passe. */
+async function creerCompteDepuisFormulaire(donnees, ipAddress) {
+  verifierVerrouProduction();
+  const { valide, erreurs } = validerDonneesCompte(donnees);
+  if (!valide) {
+    const err = new Error('alpaca_formulaire_invalide');
+    err.erreurs = erreurs;
+    throw err;
+  }
+  const r = await appelBroker('/v1/accounts', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(corpsCompteDepuisFormulaire(donnees, ipAddress)),
+  });
+  const data = await r.json().catch(() => null);
+  if (!r.ok) {
+    const err = new Error('alpaca_creation_compte_echouee');
+    err.status = r.status;
+    err.body = data;
+    throw err;
+  }
+  return data;
+}
+
 module.exports = {
   creerCompteSandbox,
   recupererCompte,
   lireCompteTrading,
   corpsCompteTest,
+  FUNDING_SOURCES_AUTORISEES,
+  taxIdFormatValide,
+  validerDonneesCompte,
+  creerCompteDepuisFormulaire,
 };

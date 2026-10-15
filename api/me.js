@@ -1446,6 +1446,49 @@ async function handleAlpacaAdmin(req, res, user) {
     }
   }
 
+  /* §4 : "parcours d'ouverture avec suivi d'étapes et statut réel" —
+     ouverture RÉELLE avec les données saisies par l'utilisateur
+     (jamais plus l'identité de test fixe). Un seul compte par
+     utilisateur : refuse si broker_accounts a déjà une ligne pour lui. */
+  if (action === 'open-account' && req.method === 'POST') {
+    const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
+
+    try {
+      const existant = await sb(`broker_accounts?user_id=eq.${encodeURIComponent(user.id)}&select=id&limit=1`);
+      if (existant.length) {
+        return res.status(200).json({ status: 'error', message: 'compte_deja_existant' });
+      }
+
+      /* IP RÉELLE de la requête (x-forwarded-for, posée par Vercel) —
+         jamais une valeur inventée, voir accordsSandbox() dans
+         accounts.js qui l'exige pour les agreements. */
+      const ipReelle = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim()
+        || req.socket?.remoteAddress || '0.0.0.0';
+
+      const { creerCompteDepuisFormulaire } = require('./_alpaca/accounts.js');
+      const compte = await creerCompteDepuisFormulaire(body, ipReelle);
+
+      await sb('broker_accounts?on_conflict=user_id', {
+        method: 'POST',
+        headers: { Prefer: 'resolution=merge-duplicates,return=representation' },
+        body: JSON.stringify([{
+          user_id: user.id,
+          alpaca_account_id: compte.id,
+          account_number: compte.account_number,
+          region: regionConfiguree(),
+          env: 'sandbox',
+          status: compte.status,
+          updated_at: new Date().toISOString(),
+        }]),
+      });
+
+      return res.status(200).json({ status: 'opened', accountNumber: compte.account_number, accountStatus: compte.status });
+    } catch (e) {
+      if (e.erreurs) return res.status(200).json({ status: 'validation_error', erreurs: e.erreurs });
+      return res.status(200).json({ status: 'error', message: e.message, alpacaStatus: e.status, alpacaBody: e.body });
+    }
+  }
+
   if (action === 'link' && req.method === 'POST') {
     const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
     const { alpacaAccountId } = body;

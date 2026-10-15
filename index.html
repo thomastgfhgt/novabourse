@@ -1762,6 +1762,7 @@ document.addEventListener('click', e => {
   }
 
   if (q('[data-alpaca-lier]')){ alpacaLierCompteTest(); return; }
+  if (q('[data-alpaca-ouvrir]')){ alpacaOuvrirCompte(); return; }
 
   if (q('[data-reset]')){
     openSheet(`<h3 id="sheetTitle">Effacer les données locales ?</h3>
