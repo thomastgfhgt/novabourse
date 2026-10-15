@@ -200,19 +200,40 @@ async function obtenirToken() {
   return tokenCache.accessToken;
 }
 
+function attendre(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 /* Appel générique authentifié vers le Broker API Sandbox. `chemin` doit
-   commencer par '/' (ex. '/v1/assets'). Ne journalise jamais le token. */
+   commencer par '/' (ex. '/v1/assets'). Ne journalise jamais le token.
+   §9 : "retries uniquement sur les requêtes sans effet de bord (lecture)
+   avec délai progressif" — UNIQUEMENT si la méthode est GET (ou absente,
+   donc GET par défaut pour fetch) ET la réponse est 429/5xx. Jamais sur
+   POST/DELETE (création d'ordre, annulation, financement...) : rejouer
+   une requête avec effet de bord pourrait la dupliquer. 3 tentatives
+   maximum, délai progressif (300ms/900ms/2700ms). */
 async function appelBroker(chemin, init = {}) {
   validerConfiguration();
-  const token = await obtenirToken();
-  const r = await fetchSansRedirection(`${process.env.ALPACA_BROKER_BASE_URL}${chemin}`, {
-    ...init,
-    headers: {
-      ...(init.headers || {}),
-      Authorization: `Bearer ${token}`,
-    },
-  });
-  return r;
+  const methode = (init.method || 'GET').toUpperCase();
+  const lectureUniquement = methode === 'GET';
+  const maxEssais = lectureUniquement ? 3 : 1;
+
+  let derniereReponse;
+  for (let essai = 1; essai <= maxEssais; essai++) {
+    const token = await obtenirToken();
+    derniereReponse = await fetchSansRedirection(`${process.env.ALPACA_BROKER_BASE_URL}${chemin}`, {
+      ...init,
+      headers: {
+        ...(init.headers || {}),
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    const doitReessayer = lectureUniquement && essai < maxEssais
+      && (derniereReponse.status === 429 || derniereReponse.status >= 500);
+    if (!doitReessayer) break;
+    await attendre(300 * Math.pow(3, essai - 1));
+  }
+  return derniereReponse;
 }
 
 /* Réinitialise le cache de token — usage test uniquement (jamais appelé
