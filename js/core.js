@@ -361,6 +361,18 @@ const DEFAULT_STATE = {
     notifScore:false,
     notifPrice:false,
     notifWeekly:false,
+
+    /* §7 de la mission "Alpaca Sandbox Trading" : "Nova AI reçoit, AVEC
+       L'ACCORD DE L'UTILISATEUR (interrupteur dans les paramètres), un
+       résumé en lecture seule du portefeuille Sandbox." Faux par défaut —
+       jamais un partage activé en silence. N'a AUCUN effet pour l'instant
+       (le résumé serveur existe, api/_alpaca/portfolio.js, mais n'est pas
+       encore injecté dans un prompt IA — intégration délibérément
+       reportée, trop risqué de la greffer à la hâte sur le système de
+       prompts NovaBot déjà complexe, voir api/analyze.js). Le préparer
+       maintenant évite de devoir migrer les préférences sauvegardées plus
+       tard.*/
+    novaAiPortefeuilleAlpaca:false,
   },
 
   filters:{

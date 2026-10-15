@@ -48,6 +48,12 @@ PAGES.account = () => {
         <button class="row" data-reset><span class="row-main">
           <span class="row-t">Effacer mes données locales</span>
           <span class="row-s">Liste de suivi et préférences</span></span></button>
+        <!-- Alpaca Sandbox, Phase 2 : visible pour tous (pas une faille — la
+             vraie protection est côté serveur, voir api/admin/alpaca-status.js),
+             un non-admin voit simplement "Accès refusé". -->
+        <button class="row" data-go="alpacaStatus"><span class="row-main">
+          <span class="row-t">Statut Alpaca (admin)</span>
+          <span class="row-s">Test de connexion Sandbox</span></span></button>
       </div></div>
     </section>
 
@@ -147,6 +153,17 @@ PAGES.settings = () => {
         ${settingRow('Résumé hebdomadaire', null, switchControl('notifWeekly', st.notifWeekly === true))}
         <p class="tiny" style="margin-top:12px">Les notifications arrivent bientôt. Vos préférences
           sont enregistrées dès maintenant.</p>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2 class="h2">Alpaca Sandbox</h2>
+      <div class="card" style="margin-top:14px">
+        ${settingRow('Partager mon portefeuille Sandbox avec Nova AI',
+          'Un résumé en lecture seule (composition, performance) — Nova AI ne peut jamais passer, modifier ou annuler un ordre, avec ou sans ce réglage.',
+          switchControl('novaAiPortefeuilleAlpaca', st.novaAiPortefeuilleAlpaca === true))}
+        <p class="tiny" style="margin-top:12px">Simulation — argent fictif. Ce réglage n'a aucun effet
+          pour l'instant : la connexion entre ce résumé et Nova AI n'est pas encore active.</p>
       </div>
     </section>
 

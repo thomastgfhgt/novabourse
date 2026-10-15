@@ -59,6 +59,7 @@
 <script src="/js/page-watchlist.js"></script>
 <script src="/js/page-portfolio.js"></script>
 <script src="/js/page-account.js"></script>
+<script src="/js/page-admin-alpaca.js"></script>
 <script src="/js/page-compare.js"></script>
 <script src="/js/auth.js"></script>
 <script>/* ============================================================
@@ -466,6 +467,7 @@ function render(navigated = false){
      Portefeuille — jamais un minuteur en tâche de fond (voir
      assurerRelevéQuotidien). */
   if (route.page === 'portfolio') assurerRelevéQuotidien();
+  if (route.page === 'portfolio') assurerPortefeuilleAlpacaReel();
   if (route.page === 'novabot' && state.novabot.mandateConfirmed) novabotAssurerReleveQuotidien();
 
   /* Rafraîchissement vivant — uniquement les instruments réellement
@@ -571,6 +573,7 @@ function render(navigated = false){
      (voir assurerEvenementsSuivis(), js/nova.js) gère déjà son propre
      dédoublonnage/render(), jamais de double appel coûteux ici. */
   if (route.page === 'home' || route.page === 'novaevent') assurerEvenementsSuivis();
+  if (route.page === 'alpacaStatus') chargerStatutAlpaca();
 
   /* view.innerHTML vient de remplacer tout le DOM : #chart-pro (s'il existe
      dans la page courante) est un nouveau noeud, l'éventuelle instance
@@ -1758,6 +1761,39 @@ document.addEventListener('click', e => {
     closeSheet();
     return;
   }
+
+  if (q('[data-alpaca-lier]')){ alpacaLierCompteTest(); return; }
+  if (q('[data-alpaca-ouvrir]')){ alpacaOuvrirCompte(); return; }
+
+  if (q('[data-alpaca-depot-open]')){ alpacaOuvrirDepot(); return; }
+  const alpDepMontant = q('[data-alpaca-depot-montant]');
+  if (alpDepMontant){
+    const v = +alpDepMontant.dataset.alpacaDepotMontant;
+    document.getElementById('alpDepAmt').value = v;
+    document.getElementById('alpDepBig').textContent = fmt.int(v);
+    return;
+  }
+  if (q('[data-alpaca-depot-ok]')){ alpacaConfirmerDepot(); return; }
+
+  if (q('[data-alpaca-achat-open]')){ alpacaOuvrirAchat(); return; }
+  const alpAchatMontant = q('[data-alpaca-achat-montant]');
+  if (alpAchatMontant){
+    const v = +alpAchatMontant.dataset.alpacaAchatMontant;
+    document.getElementById('alpAchatMontant').value = v;
+    document.getElementById('alpAchatBig').textContent = fmt.int(v);
+    return;
+  }
+  if (q('[data-alpaca-achat-suivant]')){ alpacaReviewAchat(); return; }
+  const alpAchatOk = q('[data-alpaca-achat-ok]');
+  if (alpAchatOk){ alpacaConfirmerAchat(alpAchatOk.dataset.alpacaAchatOk, +alpAchatOk.dataset.montant); return; }
+
+  const alpVenteOpen = q('[data-alpaca-vente-open]');
+  if (alpVenteOpen){ alpacaOuvrirVente(alpVenteOpen.dataset.alpacaVenteOpen, +alpVenteOpen.dataset.qty); return; }
+  const alpVenteOk = q('[data-alpaca-vente-ok]');
+  if (alpVenteOk){ alpacaConfirmerVente(alpVenteOk.dataset.alpacaVenteOk, +alpVenteOk.dataset.qty); return; }
+
+  const alpAnnuler = q('[data-alpaca-annuler-ordre]');
+  if (alpAnnuler){ alpacaAnnulerOrdre(alpAnnuler.dataset.alpacaAnnulerOrdre); return; }
 
   if (q('[data-reset]')){
     openSheet(`<h3 id="sheetTitle">Effacer les données locales ?</h3>

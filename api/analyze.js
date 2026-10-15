@@ -444,6 +444,32 @@ actif") plutôt que de renvoyer une action sans effet.
 N'utilise "action" QUE si la demande est sans ambiguïté — en cas de doute, laisse "action":null et
 demande une clarification dans "reply" plutôt que de deviner une intention.`;
 
+/* ADDENDUM (2026-10-15, §7 de la mission "Alpaca Sandbox Trading") —
+   délibérément une CONSTANTE SÉPARÉE, concatenée à CONSIGNE_NOVABOT_CHAT
+   au moment de l'appel (voir novabotChatAnalyse ci-dessous), jamais
+   insérée à l'intérieur de son texte : zéro risque de perturber ce
+   prompt déjà long et finement calibré. N'apparaît dans le prompt final
+   QUE si contexte.alpacaSandbox est non nul (utilisateur opt-in ET
+   compte réellement lié) — un utilisateur qui n'a pas activé ce réglage
+   ne voit AUCUN changement de comportement de Nova. */
+const ADDENDUM_ALPACA_SANDBOX = `
+
+Portefeuille Alpaca Sandbox (distinct du mandat NovaBot ci-dessus) : si "alpacaSandbox" est présent
+dans les données, c'est un résumé RÉEL (positions/liquidités/performance) d'un compte de simulation
+Alpaca séparé, préparé par le serveur — jamais une donnée que tu as calculée ou devinée.
+
+Tu peux désormais, sur CE portefeuille, analyser et PROPOSER (jamais exécuter) un achat ou une vente :
+explique ton raisonnement précisément (pourquoi cette valeur, ce montant), présente les risques
+réels (volatilité, concentration déjà présente dans "concentrationTop", absence de diversification...)
+et les frais (commission à 0 chez Alpaca aujourd'hui, mais rappelle que ça peut changer). Une
+proposition reste une SUGGESTION en langage naturel dans "reply" — jamais le champ "action" plus haut
+(qui ne porte QUE sur le mandat NovaBot fictif) ni aucun autre mécanisme : tu n'as techniquement AUCUN
+moyen de passer, modifier ou annuler un ordre sur ce compte Alpaca, avec ou sans ce contexte. Dis
+explicitement à l'utilisateur qu'il doit exécuter lui-même l'opération (boutons "Acheter"/"Vendre" du
+Portefeuille) s'il est d'accord — il n'existe aujourd'hui aucun mandat ni autorisation automatique pour
+ce compte réel, contrairement au mandat NovaBot fictif : chaque opération y reste un geste manuel et
+volontaire de l'utilisateur. Précise que ce n'est pas un conseil en investissement personnalisé.`;
+
 const CONSIGNE = `Tu analyses une entreprise cotée à partir des seuls chiffres fournis.
 Réponds en JSON strict : {"whatItDoes":"...","verdict":"positif|neutre|negatif|insuffisant","uncertainty":"faible|moyenne|elevee","summary":"...","positive":["..."],"negative":["..."]}
 "whatItDoes" : 1 à 2 phrases expliquant simplement ce que fait l'entreprise et
@@ -883,8 +909,37 @@ async function novabotChatAnalyse(req, res, { user, plan, dispo }){
     pendingMandateAmendment: mandateConfirmed ? sanitiserDonnees(req.body?.pendingMandateAmendment) : null,
   };
 
+  /* §7 : "résumé en lecture seule du portefeuille Sandbox, AVEC L'ACCORD
+     DE L'UTILISATEUR (interrupteur dans les paramètres)". Le réglage vit
+     en localStorage (state.settings), jamais côté serveur — même motif
+     que mandate/portfolio ci-dessus : transmis par le client à CHAQUE
+     requête (req.body.novaAiPortefeuilleAlpaca), mais les CHIFFRES
+     eux-mêmes sont TOUJOURS recalculés ici, jamais acceptés depuis le
+     corps de la requête (contrairement à "portfolio" ci-dessus, qui lui
+     reste côté fictif/existant). Si l'interrupteur est faux ou qu'aucun
+     compte n'est lié : contexte.alpacaSandbox reste null, ADDENDUM
+     jamais ajouté au prompt — comportement identique à avant ce
+     correctif pour tout le monde d'autre. */
+  let alpacaSandbox = null;
+  if (req.body?.novaAiPortefeuilleAlpaca === true) {
+    try {
+      const { tradingActif } = require('./_alpaca/client.js');
+      if (tradingActif()) {
+        const lignes = await sb(`broker_accounts?user_id=eq.${encodeURIComponent(user.id)}&select=alpaca_account_id&limit=1`);
+        if (lignes.length) {
+          const { resumePortefeuille } = require('./_alpaca/portfolio.js');
+          alpacaSandbox = await resumePortefeuille(lignes[0].alpaca_account_id);
+        }
+      }
+    } catch (e) {
+      console.error('[analyze] résumé Alpaca pour Nova AI :', e.message);
+      alpacaSandbox = null;
+    }
+  }
+  contexte.alpacaSandbox = alpacaSandbox;
+
   const transcript = messages.map(m => `${m.role === 'user' ? 'Utilisateur' : 'Nova'} : ${m.content}`).join('\n');
-  const prompt = `${CONSIGNE_NOVABOT_CHAT}\n\nDonnées disponibles :\n${JSON.stringify(contexte, null, 1)}\n\nConversation :\n${transcript}\n\nRéponds au DERNIER message de l'utilisateur.`;
+  const prompt = `${CONSIGNE_NOVABOT_CHAT}${alpacaSandbox ? ADDENDUM_ALPACA_SANDBOX : ''}\n\nDonnées disponibles :\n${JSON.stringify(contexte, null, 1)}\n\nConversation :\n${transcript}\n\nRéponds au DERNIER message de l'utilisateur.`;
 
   /* CORRECTIF (V6 §8, bug réel rapporté : "Coucou" consommait une des 5
      analyses mensuelles du plan Découverte) : un message de conversation
