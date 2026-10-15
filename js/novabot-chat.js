@@ -526,6 +526,11 @@ async function novabotAppelerModeleEtRepondre(dernierMessageUtilisateur){
       mode:'novabot-chat',
       messages: NOVABOT_CHAT.messages,
       mandateConfirmed: state.novabot.mandateConfirmed,
+      /* §7 de la mission Alpaca Sandbox : réglage dans Compte > Réglages
+         (state.settings.novaAiPortefeuilleAlpaca), transmis à chaque
+         requête — le serveur recalcule les chiffres lui-même, ceci ne
+         sert qu'à indiquer le consentement de l'utilisateur. */
+      novaAiPortefeuilleAlpaca: state.settings.novaAiPortefeuilleAlpaca === true,
       ...novabotChatContexte(dernierMessageUtilisateur),
     })});
     if (!r.ok){
