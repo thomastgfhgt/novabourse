@@ -1,10 +1,13 @@
-/* ---------- STATUT ALPACA (admin, Phase 2) ----------
+/* ---------- STATUT ALPACA (admin, Phase 2/3) ----------
    Page de test de connexion (§2 de la mission "Alpaca Sandbox Trading") —
    visible dans l'UI pour quiconque (comme tout autre écran du Compte),
-   mais la vraie protection est CÔTÉ SERVEUR (api/admin/alpaca-status.js :
+   mais la vraie protection est CÔTÉ SERVEUR (api/me.js, ?resource=alpaca :
    TRADING_ENABLED + TRADING_ADMIN_EMAILS) — un non-admin voit simplement
    "Accès refusé", jamais une donnée réelle. Rien n'est jamais inventé ici :
-   l'état affiché est TOUJOURS la réponse serveur telle quelle. */
+   l'état affiché est TOUJOURS la réponse serveur telle quelle.
+   Repliée dans api/me.js plutôt que des fichiers api/admin/alpaca-*.js
+   séparés : le plafond de 12 fonctions serverless (plan Hobby) était déjà
+   atteint EXACTEMENT avant cet ajout (échec de déploiement réel). */
 PAGES.alpacaStatus = () => `<div class="page-in">
   <p class="eyebrow">Admin</p>
   <h1 class="title">Statut Alpaca</h1>
@@ -24,7 +27,7 @@ async function chargerStatutAlpaca(){
   const carte = document.getElementById('alpacaStatusCard');
   if (carte){
     try {
-      const r = await authFetch('/api/admin/alpaca-status');
+      const r = await authFetch('/api/me?resource=alpaca&action=status');
       const data = await r.json();
 
       if (r.status === 403){
@@ -52,7 +55,7 @@ async function chargerCompteAlpaca(){
   const carte = document.getElementById('alpacaAccountCard');
   if (!carte) return;
   try {
-    const r = await authFetch('/api/admin/alpaca-account');
+    const r = await authFetch('/api/me?resource=alpaca&action=account');
     const data = await r.json();
 
     if (r.status === 403){
@@ -84,7 +87,7 @@ async function alpacaLierCompteTest(){
   const bouton = document.querySelector('[data-alpaca-lier]');
   if (bouton) bouton.disabled = true;
   try {
-    const r = await authFetch('/api/admin/alpaca-link-account', {
+    const r = await authFetch('/api/me?resource=alpaca&action=link', {
       method: 'POST',
       body: JSON.stringify({ alpacaAccountId: 'b272cbc1-71b4-41c8-9aa5-26d8a12efcad' }),
     });

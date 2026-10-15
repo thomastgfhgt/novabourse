@@ -196,6 +196,17 @@ module.exports = async (req, res) => {
     return handleNovaBot(req, res, user);
   }
 
+  /* ---------- Alpaca Broker API Sandbox, admin (2026-10-15) ----------
+     Même raison que les ressources ci-dessus : repliée ici (3 fichiers
+     api/admin/alpaca-*.js supprimés) plutôt que 3 nouvelles fonctions
+     serverless — le plafond Hobby (12) était déjà atteint EXACTEMENT
+     avant cet ajout (échec de déploiement réel, 2026-10-15 :
+     "No more than 12 Serverless Functions"). Toute action Alpaca admin
+     passe par ?resource=alpaca&action=status|account|link. */
+  if (req.query?.resource === 'alpaca') {
+    return handleAlpacaAdmin(req, res, user);
+  }
+
   /* =========================================================
      POST — profil investisseur / onboarding
      ========================================================= */
@@ -1353,6 +1364,98 @@ async function handleNovaConversations(req, res, user) {
     console.error('[me] création conversation :', e.message);
     return res.status(503).json({ error: 'ecriture_impossible', detail: String(e.message || '').slice(0, 160) });
   }
+}
+
+/* ---------- Alpaca Broker API Sandbox, admin ----------
+   §2 de la mission "Alpaca Sandbox Trading" : page de test de connexion
+   + liaison du compte Sandbox à l'utilisateur réellement connecté.
+   Double porte : TRADING_ENABLED puis TRADING_ADMIN_EMAILS — même
+   logique que les anciens fichiers séparés, fusionnée ici pour rester
+   sous la limite de 12 fonctions serverless (plan Hobby). */
+async function handleAlpacaAdmin(req, res, user) {
+  const {
+    tradingActif,
+    estAdmin,
+    regionConfiguree,
+    appelBroker,
+  } = require('./_alpaca/client.js');
+  const { recupererCompte, lireCompteTrading } = require('./_alpaca/accounts.js');
+
+  if (!tradingActif()) {
+    return res.status(200).json({ status: 'disabled' });
+  }
+  if (!estAdmin(user.email)) {
+    return res.status(403).json({ error: 'acces_refuse' });
+  }
+
+  const action = req.query?.action;
+
+  if (action === 'status') {
+    const debut = Date.now();
+    try {
+      const r = await appelBroker('/v1/clock');
+      const latencyMs = Date.now() - debut;
+      if (!r.ok) {
+        return res.status(200).json({ status: 'error', region: regionConfiguree(), env: 'sandbox', latencyMs, httpStatus: r.status });
+      }
+      await r.json();
+      return res.status(200).json({ status: 'connected', region: regionConfiguree(), env: 'sandbox', latencyMs, permissionsVerified: ['read:clock'] });
+    } catch (e) {
+      return res.status(200).json({ status: 'error', region: regionConfiguree(), env: 'sandbox', message: e.code || 'erreur_inconnue' });
+    }
+  }
+
+  if (action === 'account') {
+    try {
+      const lignes = await sb(`broker_accounts?user_id=eq.${encodeURIComponent(user.id)}&select=alpaca_account_id,account_number,status&limit=1`);
+      if (!lignes.length) return res.status(200).json({ status: 'not_linked' });
+
+      const { alpaca_account_id } = lignes[0];
+      const [compte, trading] = await Promise.all([
+        recupererCompte(alpaca_account_id),
+        lireCompteTrading(alpaca_account_id).catch(() => null),
+      ]);
+      return res.status(200).json({
+        status: 'linked',
+        accountNumber: compte.account_number,
+        accountStatus: compte.status,
+        buyingPower: trading ? trading.buying_power : null,
+        cash: trading ? trading.cash : null,
+        portfolioValue: trading ? trading.portfolio_value : null,
+        currency: compte.currency,
+      });
+    } catch (e) {
+      return res.status(200).json({ status: 'error', message: e.message });
+    }
+  }
+
+  if (action === 'link' && req.method === 'POST') {
+    const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
+    const { alpacaAccountId } = body;
+    if (!alpacaAccountId) return res.status(400).json({ error: 'alpaca_account_id_requis' });
+
+    try {
+      const compte = await recupererCompte(alpacaAccountId);
+      await sb('broker_accounts?on_conflict=user_id', {
+        method: 'POST',
+        headers: { Prefer: 'resolution=merge-duplicates,return=representation' },
+        body: JSON.stringify([{
+          user_id: user.id,
+          alpaca_account_id: compte.id,
+          account_number: compte.account_number,
+          region: regionConfiguree(),
+          env: 'sandbox',
+          status: compte.status,
+          updated_at: new Date().toISOString(),
+        }]),
+      });
+      return res.status(200).json({ status: 'linked', alpacaAccountId: compte.id, accountNumber: compte.account_number, accountStatus: compte.status });
+    } catch (e) {
+      return res.status(200).json({ status: 'error', message: e.message });
+    }
+  }
+
+  return res.status(400).json({ error: 'action_inconnue' });
 }
 
 module.exports.userFromToken =
