@@ -130,6 +130,21 @@ const fmt = {
 };
 
 /* ---- état applicatif ---- */
+
+/* Verrou produit (2026-10-15, mission "NovaTitre : passage au trading
+   réel") — décision DÉLIBÉRÉE et confirmée explicitement par l'utilisateur
+   (reformulée deux fois pour éviter toute ambiguïté) : le portefeuille
+   fictif historique (state.wallet, les 5 000€/15 480€ de départ, les
+   achats/ventes simulés) ne doit plus être présenté comme utilisable dans
+   l'expérience publique. CETTE CONSTANTE NE SUPPRIME AUCUNE DONNÉE :
+   state.wallet, portfolio_transactions et portfolio_snapshots restent
+   intacts en base et en localStorage — seul ce que l'UI AFFICHE change
+   (voir PAGES.portfolio dans page-portfolio.js et le bloc "Mes positions"
+   dans page-home.js). Le lever exige de modifier cette ligne, donc un
+   commit et une revue — jamais une variable d'environnement ni un
+   réglage utilisateur. */
+const PORTEFEUILLE_FICTIF_PUBLIC = false;
+
 const STORAGE_KEY = 'novabourse_state_v1';
 const deepClone = (o) => JSON.parse(JSON.stringify(o));
 

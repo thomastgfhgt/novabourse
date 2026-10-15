@@ -231,7 +231,11 @@ PAGES.home = () => {
 
   <article class="nb-pf2">
     <p class="nb-pf2-eyebrow">Mes positions</p>
-    ${hasPositions ? `
+    ${!PORTEFEUILLE_FICTIF_PUBLIC ? `
+      <div class="nb-pf2-empty">
+        <p>Compte d'investissement non encore disponible.</p>
+      </div>
+    ` : hasPositions ? `
       <p class="nb-pf2-val tabular-nums">${fmt.eur(pf.total)}</p>
       <p class="nb-pf2-var ${pf.gain >= 0 ? 'up-t' : 'down-t'} tabular-nums">
         ${arrow(pf.gainPct)} ${fmt.eur(Math.abs(pf.gain))} · ${fmt.pct(pf.gainPct)}</p>
