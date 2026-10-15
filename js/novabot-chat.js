@@ -180,12 +180,22 @@ async function novabotConversationsCharger(){
   }
 }
 
+/* CORRECTIF (2026-10-15, "passage au trading réel") : le premier
+   message invitait un nouvel utilisateur à "confier un capital" à un
+   portefeuille simulé — une invitation à un mécanisme de simulation,
+   justement ce qui ne doit plus être proposé en avant de l'expérience
+   publique. Les utilisateurs ayant déjà confirmé un mandat (données
+   existantes, préservées) continuent normalement, avec une mention
+   explicite que le montant reste simulé. */
 function novabotAccueilTexte(){
   if (!state.novabot.mandateConfirmed){
+    if (!PORTEFEUILLE_FICTIF_PUBLIC){
+      return `Bonjour, je suis Nova. Je peux analyser des entreprises, t'expliquer une stratégie d'investissement et répondre à tes questions. Que veux-tu comprendre ?`;
+    }
     return `Bonjour, je suis Nova. Je vais gérer un portefeuille simulé pour toi — jamais d'argent réel. Pour commencer : quel capital souhaites-tu me confier, et pour quel objectif ?`;
   }
   const pf = novabotPortfolioValue();
-  return `Bonjour, ton portefeuille NovaBot vaut actuellement ${fmt.eur(pf.total)}. Demande-moi par exemple « que surveilles-tu aujourd'hui ? » ou « explique-moi tes dernières décisions ».`;
+  return `Bonjour, ton portefeuille NovaBot simulé vaut actuellement ${fmt.eur(pf.total)} (aucun argent réel). Demande-moi par exemple « que surveilles-tu aujourd'hui ? » ou « explique-moi tes dernières décisions ».`;
 }
 /* Suggestions (§3) : affichées sous l'accueil UNIQUEMENT si un mandat est
    confirmé (avant ça, la conversation est l'onboarding lui-même, pas de

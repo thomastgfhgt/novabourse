@@ -302,7 +302,17 @@ function novabotHomeCard(){
     ${chessNovaIcon('novabot')}
     <div class="nova-big-body">
     <p class="nova-big-eyebrow">NovaBot</p>
-    ${aDejaDecide ? (() => {
+    <!-- CORRECTIF (2026-10-15, "passage au trading réel") : cette carte
+         affichait un montant en euros et une performance calculés sur le
+         journal simulé (novabotPortfolioValue()) — un chiffre qui a
+         l'apparence d'un vrai résultat alors qu'il ne provient d'aucun
+         compte réel. Remplacé par un texte analytique, quel que soit
+         l'état (aDejaDecide/enabled) — la fonctionnalité d'analyse et de
+         pilotage par mandat reste entièrement accessible en ouvrant
+         NovaBot, seule cette vignette d'aperçu change. -->
+    ${!PORTEFEUILLE_FICTIF_PUBLIC ? `
+      <p class="nova-big-lead">Analyse les marchés selon votre stratégie et vos règles.</p>` :
+    aDejaDecide ? (() => {
       const pf = novabotPortfolioValue();
       return `
       <p class="nova-big-lead tabular-nums">${fmt.eur(pf.total)} <span class="${pf.gainPct>=0?'up-t':'down-t'}" style="font-size:15px;font-weight:700">${pf.gainPct>=0?'+':''}${fmt.num(pf.gainPct,2)} %</span></p>
@@ -982,6 +992,22 @@ function novabotActivitePanel(){
 /* ---------- vue Portefeuille (inspiration Revolut, §5) ---------- */
 function novabotPortfolioView(){
   const cfg = state.novabot;
+  /* CORRECTIF (2026-10-15, "passage au trading réel") : cette vue est un
+     véritable tableau de bord de courtage simulé (solde, boutons
+     "Ajouter/Retirer des fonds", graphique, répartition) — exactement
+     le type de mécanisme de simulation à ne plus proposer en avant de
+     l'expérience publique. L'onglet discussion (novabotChatView(),
+     analyse/conseil pédagogique) reste entièrement fonctionnel ; seule
+     cette vue "portefeuille" devient un message explicite. Rien n'est
+     supprimé : state.novabot et son historique restent intacts. */
+  if (!PORTEFEUILLE_FICTIF_PUBLIC){
+    return `<div class="card" style="margin-top:16px">
+      ${emptyState('Pilotage de portefeuille réel non encore disponible',
+        'NovaBot peut déjà analyser des entreprises et expliquer une stratégie dans l\'onglet discussion. Le suivi d\'un vrai portefeuille arrivera une fois un compte d\'investissement réel connecté.',
+        null)}
+      <button type="button" class="btn btn-a btn-sm" style="display:block;margin:20px auto 0" data-novabot-view="chat">Retour à la discussion</button>
+    </div>`;
+  }
   const pf = novabotPortfolioValue();
   const period = NOVABOT_UI.portfolioPeriod;
   const histPts = novabotWalletHistoryPourPeriode(period);

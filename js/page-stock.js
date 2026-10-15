@@ -93,6 +93,19 @@ PAGES.stock = (id) => {
     </div>`;
   })()}
 
+  <!-- CORRECTIF (2026-10-15, "passage au trading réel") : l'achat/vente
+       simulé restait accessible ici alors que la page Portefeuille
+       affiche désormais "non disponible" — incohérent (l'utilisateur
+       achèterait une position qu'il ne pourrait plus jamais voir).
+       Désactivé avec un message explicite ; pos/canBuy restent calculés
+       normalement, rien n'est supprimé côté données. -->
+  ${!PORTEFEUILLE_FICTIF_PUBLIC ? `
+    <div class="stk-cta">
+      <button class="btn btn-a btn-lg" style="flex:1" disabled aria-disabled="true">Acheter</button>
+    </div>
+    <p class="tiny" style="margin-top:8px;color:var(--ink-4)">
+      Compte d'investissement non encore disponible : l'achat sera activé une fois un compte réel connecté.</p>
+  ` : `
   <div class="stk-cta">
     <button class="btn btn-a btn-lg" data-buy="${esc(s.id)}" style="flex:1"
       ${canBuy ? '' : 'disabled aria-disabled="true"'}>Acheter</button>
@@ -100,6 +113,7 @@ PAGES.stock = (id) => {
   </div>
   ${!canBuy ? `<p class="tiny" style="margin-top:8px;color:var(--ink-4)">
     Cours temporairement indisponible pour cette valeur : achat désactivé tant qu'aucun prix vérifié n'est reçu.</p>` : ''}
+  `}
   ${(() => {
     /* Nova Memory (§27) : ne rappelle QUE si une raison a été saisie au
        moment de l'achat (openBuyReview, "Pourquoi cet achat ?") — jamais
