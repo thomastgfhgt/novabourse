@@ -301,28 +301,216 @@ async function assurerPortefeuilleAlpacaReel(){
         Compte Alpaca Sandbox réel n° ${esc(String(compte.accountNumber || '—'))}, statut ${esc(String(compte.accountStatus || '—'))}.
         Montants en ${esc(devise)} (référence officielle) — jamais convertis en euros ici.</div>
       <div class="card" style="margin-top:4px">
-        <p class="small">Valeur du portefeuille</p>
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px">
+          <p class="small">Valeur du portefeuille</p>
+          <button type="button" class="nova-add-funds" data-alpaca-depot-open aria-label="Ajouter des fonds fictifs">${svg(ICON.plus,2.4)}</button>
+        </div>
         <p class="price" style="font-size:clamp(34px,7vw,52px);margin-top:4px">${fmt.cur(resume.portfolioValue, devise)}</p>
         <div class="kv" style="margin-top:14px"><dt>Liquidités</dt><dd>${fmt.cur(resume.cash, devise)}</dd></div>
         <div class="kv"><dt>Pouvoir d'achat</dt><dd>${fmt.cur(resume.buyingPower, devise)}</dd></div>
         <div class="kv"><dt>Valeur nette (equity)</dt><dd>${fmt.cur(resume.equity, devise)}</dd></div>
+        <button class="btn btn-a btn-sm" style="margin-top:14px" data-alpaca-achat-open>Acheter des actions</button>
       </div>
       <div class="card" style="margin-top:18px">
         <p class="small" style="margin-bottom:12px">Positions (${resume.positionCount})</p>
         ${resume.positions.length ? `<div class="rows rows-grid">${resume.positions.map(p => `
-          <div class="row row-static">
+          <div class="row">
             <span class="row-main"><span class="row-t">${esc(p.symbol)}</span>
               <span class="row-s">${fmt.num(p.qty, 4)} titres · entrée ${fmt.cur(p.avgEntryPrice, devise)}</span></span>
             <span style="text-align:right">
               <span class="tabular-nums">${fmt.cur(p.marketValue, devise)}</span><br>
               <span class="tiny ${p.unrealizedPl >= 0 ? 'up-t' : 'down-t'}">${fmt.cur(p.unrealizedPl, devise)} (${fmt.pct(p.unrealizedPlPc * 100)})</span>
             </span>
+            <button type="button" class="btn btn-s btn-sm" style="margin-left:10px"
+              data-alpaca-vente-open="${esc(p.symbol)}" data-qty="${esc(String(p.qty))}">Vendre</button>
           </div>`).join('')}</div>`
           : `<p class="small" style="color:var(--ink-4)">Aucune position — le compte n'a pas encore été financé ou aucun ordre n'a encore été exécuté.</p>`}
+      </div>
+      <div class="card" style="margin-top:18px" id="alpacaHistoriqueCard">
+        <p class="small" style="margin-bottom:12px">Historique des ordres</p>
+        <p class="tiny" style="color:var(--ink-4)">Chargement…</p>
       </div>`;
     bloc.hidden = false; fictif.hidden = true;
+    alpacaChargerHistorique();
   } catch {
     bloc.hidden = true; fictif.hidden = false;
+  }
+}
+
+/* ---------- Dépôt fictif ---------- */
+function alpacaOuvrirDepot(){
+  openSheet(`<div class="buy">
+    <h3 id="sheetTitle" class="buy-title">Ajouter des fonds fictifs</h3>
+    <div class="buy-big"><span id="alpDepBig">1000</span><small>$</small></div>
+    <input class="buy-range" id="alpDepAmt" type="range" min="100" max="50000" step="100" value="1000" aria-label="Montant à déposer">
+    <div class="buy-chips">
+      ${[500,1000,5000,10000].map(a=>`<button class="chip" data-alpaca-depot-montant="${a}">${a} $</button>`).join('')}
+    </div>
+    <p class="buy-note">Simulation — aucune donnée bancaire réelle n'est demandée. Le règlement peut prendre plusieurs minutes (délai ACH simulé par Alpaca).</p>
+    <button class="btn btn-a btn-lg buy-cta" data-alpaca-depot-ok>Déposer</button>
+    <button class="btn btn-g" style="width:100%;margin-top:10px" data-close>Annuler</button>
+  </div>`);
+  const input = document.getElementById('alpDepAmt');
+  input.addEventListener('input', () => { document.getElementById('alpDepBig').textContent = fmt.int(+input.value); });
+}
+async function alpacaConfirmerDepot(){
+  const montant = +document.getElementById('alpDepAmt').value;
+  const bouton = document.querySelector('[data-alpaca-depot-ok]');
+  if (bouton) bouton.disabled = true;
+  try {
+    const r = await authFetch('/api/me?resource=alpaca&action=deposit', { method:'POST', body: JSON.stringify({ amount: montant }) });
+    const data = await r.json();
+    if (data.statut === 'depot_soumis'){
+      toast('Dépôt soumis — le règlement peut prendre quelques minutes.');
+      closeSheet();
+    } else if (data.statut === 'relation_en_preparation'){
+      toast('Configuration en cours — réessaie dans une minute.');
+      if (bouton) bouton.disabled = false;
+    } else {
+      toast('Dépôt impossible : ' + (data.message || data.status || 'erreur inconnue'));
+      if (bouton) bouton.disabled = false;
+    }
+  } catch {
+    toast('Dépôt impossible.');
+    if (bouton) bouton.disabled = false;
+  }
+}
+
+/* ---------- Achat réel ---------- */
+function alpacaOuvrirAchat(){
+  openSheet(`<div class="buy">
+    <h3 id="sheetTitle" class="buy-title">Acheter des actions (Sandbox)</h3>
+    <input class="field" id="alpAchatSymbole" type="text" placeholder="Symbole (ex. AAPL)" style="margin-bottom:14px;text-transform:uppercase">
+    <div class="buy-big"><span id="alpAchatBig">500</span><small>$</small></div>
+    <input class="buy-range" id="alpAchatMontant" type="range" min="10" max="20000" step="10" value="500" aria-label="Montant à investir">
+    <div class="buy-chips">
+      ${[100,250,500,1000].map(a=>`<button class="chip" data-alpaca-achat-montant="${a}">${a} $</button>`).join('')}
+    </div>
+    <p class="buy-note">Ordre au marché, en dollars américains — Sandbox, aucun argent réel.</p>
+    <button class="btn btn-a btn-lg buy-cta" data-alpaca-achat-suivant>Vérifier l'ordre</button>
+  </div>`);
+  const input = document.getElementById('alpAchatMontant');
+  input.addEventListener('input', () => { document.getElementById('alpAchatBig').textContent = fmt.int(+input.value); });
+}
+function alpacaReviewAchat(){
+  const symbole = document.getElementById('alpAchatSymbole').value.trim().toUpperCase();
+  const montant = +document.getElementById('alpAchatMontant').value;
+  if (!symbole){ toast('Indique un symbole.'); return; }
+  openSheet(`<div class="buy">
+    <p class="buy-co">${esc(symbole)}</p>
+    <h3 id="sheetTitle" class="buy-title">Vérifiez votre ordre</h3>
+    <dl class="buy-rows">
+      <div><dt>Type d'ordre</dt><dd>Achat au marché</dd></div>
+      <div><dt>Symbole</dt><dd>${esc(symbole)}</dd></div>
+      <div class="buy-total"><dt>Montant</dt><dd>${fmt.int(montant)} $</dd></div>
+    </dl>
+    <p class="buy-note">Simulation Sandbox — exécution réelle sur le compte de simulation, aucun argent réel.</p>
+    <button class="btn btn-a btn-lg buy-cta" data-alpaca-achat-ok="${esc(symbole)}" data-montant="${montant}">Confirmer l'achat</button>
+    <button class="btn btn-g" style="width:100%;margin-top:10px" data-close>Annuler</button>
+  </div>`);
+}
+async function alpacaConfirmerAchat(symbole, montant){
+  const bouton = document.querySelector('[data-alpaca-achat-ok]');
+  if (bouton) bouton.disabled = true;
+  try {
+    const r = await authFetch('/api/me?resource=alpaca&action=order-create', { method:'POST',
+      body: JSON.stringify({ symbol: symbole, side:'buy', notional: montant }) });
+    const data = await r.json();
+    if (data.status === 'submitted'){
+      toast('Ordre d\'achat soumis — statut : ' + data.order.status);
+      closeSheet();
+      assurerPortefeuilleAlpacaReel();
+    } else if (data.status === 'validation_error'){
+      toast('Ordre invalide : ' + data.erreurs.join(', '));
+      if (bouton) bouton.disabled = false;
+    } else {
+      toast('Ordre refusé : ' + (data.alpacaBody?.message || data.message || data.status));
+      if (bouton) bouton.disabled = false;
+    }
+  } catch {
+    toast('Ordre impossible.');
+    if (bouton) bouton.disabled = false;
+  }
+}
+
+/* ---------- Vente réelle ---------- */
+function alpacaOuvrirVente(symbole, qty){
+  openSheet(`<div class="buy">
+    <p class="buy-co">${esc(symbole)}</p>
+    <h3 id="sheetTitle" class="buy-title">Vérifiez votre vente</h3>
+    <dl class="buy-rows">
+      <div><dt>Type d'ordre</dt><dd>Vente au marché</dd></div>
+      <div><dt>Symbole</dt><dd>${esc(symbole)}</dd></div>
+      <div class="buy-total"><dt>Quantité</dt><dd>${fmt.num(qty, 4)} (position entière)</dd></div>
+    </dl>
+    <p class="buy-note">Simulation Sandbox — exécution réelle sur le compte de simulation, aucun argent réel.</p>
+    <button class="btn btn-a btn-lg buy-cta" data-alpaca-vente-ok="${esc(symbole)}" data-qty="${esc(String(qty))}">Confirmer la vente</button>
+    <button class="btn btn-g" style="width:100%;margin-top:10px" data-close>Annuler</button>
+  </div>`);
+}
+async function alpacaConfirmerVente(symbole, qty){
+  const bouton = document.querySelector('[data-alpaca-vente-ok]');
+  if (bouton) bouton.disabled = true;
+  try {
+    const r = await authFetch('/api/me?resource=alpaca&action=order-create', { method:'POST',
+      body: JSON.stringify({ symbol: symbole, side:'sell', qty }) });
+    const data = await r.json();
+    if (data.status === 'submitted'){
+      toast('Ordre de vente soumis — statut : ' + data.order.status);
+      closeSheet();
+      assurerPortefeuilleAlpacaReel();
+    } else if (data.status === 'validation_error'){
+      toast('Ordre invalide : ' + data.erreurs.join(', '));
+      if (bouton) bouton.disabled = false;
+    } else {
+      toast('Ordre refusé : ' + (data.alpacaBody?.message || data.message || data.status));
+      if (bouton) bouton.disabled = false;
+    }
+  } catch {
+    toast('Ordre impossible.');
+    if (bouton) bouton.disabled = false;
+  }
+}
+
+/* ---------- Historique + annulation ---------- */
+const ALPACA_STATUTS_ANNULABLES = ['new','accepted','pending_new','accepted_for_bidding','partially_filled'];
+async function alpacaChargerHistorique(){
+  const carte = document.getElementById('alpacaHistoriqueCard');
+  if (!carte) return;
+  try {
+    const r = await authFetch('/api/me?resource=alpaca&action=orders');
+    const data = await r.json();
+    if (data.status !== 'ok' || !data.orders.length){
+      carte.innerHTML = `<p class="small" style="margin-bottom:12px">Historique des ordres</p>
+        <p class="small" style="color:var(--ink-4)">Aucun ordre pour l'instant.</p>`;
+      return;
+    }
+    carte.innerHTML = `<p class="small" style="margin-bottom:12px">Historique des ordres</p>
+      <div class="rows">${data.orders.map(o => `
+        <div class="row row-static">
+          <span class="row-main"><span class="row-t">${o.side === 'buy' ? 'Achat' : 'Vente'} ${esc(o.symbol)}</span>
+            <span class="row-s">${esc(o.status)}${o.filledQty ? ` · ${fmt.num(+o.filledQty, 4)} exécuté${+o.filledQty>1?'s':''}` : ''}</span></span>
+          ${ALPACA_STATUTS_ANNULABLES.includes(o.status)
+            ? `<button type="button" class="btn btn-s btn-sm" data-alpaca-annuler-ordre="${esc(o.id)}">Annuler</button>` : ''}
+        </div>`).join('')}</div>`;
+  } catch {
+    carte.innerHTML = `<p class="small">Historique indisponible.</p>`;
+  }
+}
+async function alpacaAnnulerOrdre(orderId){
+  try {
+    const r = await authFetch('/api/me?resource=alpaca&action=order-cancel', { method:'POST', body: JSON.stringify({ orderId }) });
+    const data = await r.json();
+    if (data.status === 'cancel_requested'){
+      toast('Annulation demandée.');
+    } else if (data.status === 'not_cancelable'){
+      toast('Cet ordre n\'est plus annulable (déjà exécuté).');
+    } else {
+      toast('Annulation impossible : ' + (data.message || data.status));
+    }
+    alpacaChargerHistorique();
+  } catch {
+    toast('Annulation impossible.');
   }
 }
 

@@ -98,7 +98,8 @@ function alpacaFormulaireOuverture(){
     <input class="field" id="alpOpenPhone" type="tel" placeholder="Téléphone (+33...)" style="margin-bottom:10px">
     <input class="field" id="alpOpenStreet" type="text" placeholder="Adresse (fictive acceptée)" style="margin-bottom:10px">
     <input class="field" id="alpOpenCity" type="text" placeholder="Ville" style="margin-bottom:10px">
-    <input class="field" id="alpOpenState" type="text" placeholder="État américain (ex. CA)" maxlength="2" style="margin-bottom:14px">
+    <input class="field" id="alpOpenState" type="text" placeholder="État américain (ex. CA)" maxlength="2" style="margin-bottom:10px">
+    <input class="field" id="alpOpenPostalCode" type="text" placeholder="Code postal américain (ex. 94401)" maxlength="10" style="margin-bottom:14px">
 
     <p class="tiny" style="font-weight:600;margin-bottom:8px">Déclarations (réponds honnêtement — "Oui" entraîne une vérification manuelle par Alpaca)</p>
     <label class="small" style="display:flex;gap:8px;align-items:center;margin-bottom:6px">
@@ -141,6 +142,7 @@ async function alpacaOuvrirCompte(){
     streetAddress: val('alpOpenStreet'),
     city: val('alpOpenCity'),
     state: val('alpOpenState').toUpperCase(),
+    postalCode: val('alpOpenPostalCode'),
     disclosures: {
       isControlPerson: coché('alpOpenControlPerson'),
       isAffiliatedExchangeOrFinra: coché('alpOpenFinra'),

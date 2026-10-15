@@ -1765,6 +1765,36 @@ document.addEventListener('click', e => {
   if (q('[data-alpaca-lier]')){ alpacaLierCompteTest(); return; }
   if (q('[data-alpaca-ouvrir]')){ alpacaOuvrirCompte(); return; }
 
+  if (q('[data-alpaca-depot-open]')){ alpacaOuvrirDepot(); return; }
+  const alpDepMontant = q('[data-alpaca-depot-montant]');
+  if (alpDepMontant){
+    const v = +alpDepMontant.dataset.alpacaDepotMontant;
+    document.getElementById('alpDepAmt').value = v;
+    document.getElementById('alpDepBig').textContent = fmt.int(v);
+    return;
+  }
+  if (q('[data-alpaca-depot-ok]')){ alpacaConfirmerDepot(); return; }
+
+  if (q('[data-alpaca-achat-open]')){ alpacaOuvrirAchat(); return; }
+  const alpAchatMontant = q('[data-alpaca-achat-montant]');
+  if (alpAchatMontant){
+    const v = +alpAchatMontant.dataset.alpacaAchatMontant;
+    document.getElementById('alpAchatMontant').value = v;
+    document.getElementById('alpAchatBig').textContent = fmt.int(v);
+    return;
+  }
+  if (q('[data-alpaca-achat-suivant]')){ alpacaReviewAchat(); return; }
+  const alpAchatOk = q('[data-alpaca-achat-ok]');
+  if (alpAchatOk){ alpacaConfirmerAchat(alpAchatOk.dataset.alpacaAchatOk, +alpAchatOk.dataset.montant); return; }
+
+  const alpVenteOpen = q('[data-alpaca-vente-open]');
+  if (alpVenteOpen){ alpacaOuvrirVente(alpVenteOpen.dataset.alpacaVenteOpen, +alpVenteOpen.dataset.qty); return; }
+  const alpVenteOk = q('[data-alpaca-vente-ok]');
+  if (alpVenteOk){ alpacaConfirmerVente(alpVenteOk.dataset.alpacaVenteOk, +alpVenteOk.dataset.qty); return; }
+
+  const alpAnnuler = q('[data-alpaca-annuler-ordre]');
+  if (alpAnnuler){ alpacaAnnulerOrdre(alpAnnuler.dataset.alpacaAnnulerOrdre); return; }
+
   if (q('[data-reset]')){
     openSheet(`<h3 id="sheetTitle">Effacer les données locales ?</h3>
       <p>Votre liste de suivi, votre portefeuille virtuel et vos préférences seront effacés de ce navigateur.</p>

@@ -87,9 +87,41 @@ async function creerDepotSimule(brokerAccountId, relationshipId, montant) {
   return data;
 }
 
+/* Orchestration pour le bouton "Ajouter des fonds fictifs" (mission de
+   finalisation, 2026-10-15) : l'utilisateur ne saisit aucune donnée
+   bancaire (tout est fictif de toute façon, §5.3) — valeurs fixes déjà
+   testées réellement (voir scripts/verifier-financement-alpaca.js).
+   Ne bloque JAMAIS la requête HTTP en attendant un règlement (observé
+   réellement : jusqu'à ~6-7 minutes) : si la relation ACH n'existe pas
+   encore ou n'est pas encore APPROVED, retourne un statut d'attente
+   explicite plutôt que d'essayer de deviner ou de faire patienter le
+   serveur. Le dépôt lui-même reste toujours asynchrone côté Alpaca
+   (statut QUEUED à la soumission, jamais présenté comme réglé). */
+async function assurerDepotSimule(brokerAccountId, nomTitulaire, montant) {
+  const relations = await listerRelationsACH(brokerAccountId);
+  let relation = relations[0];
+
+  if (!relation) {
+    relation = await creerRelationACH(brokerAccountId, {
+      accountOwnerName: nomTitulaire || 'Titulaire Sandbox',
+      bankAccountType: 'CHECKING',
+      bankAccountNumber: '123456789012',
+      bankRoutingNumber: '021000021',
+    });
+  }
+
+  if (relation.status !== 'APPROVED') {
+    return { statut: 'relation_en_preparation', relationStatus: relation.status };
+  }
+
+  const depot = await creerDepotSimule(brokerAccountId, relation.id, montant);
+  return { statut: 'depot_soumis', transferStatus: depot.status, transferId: depot.id };
+}
+
 module.exports = {
   TYPES_COMPTE_BANCAIRE,
   creerRelationACH,
   listerRelationsACH,
   creerDepotSimule,
+  assurerDepotSimule,
 };

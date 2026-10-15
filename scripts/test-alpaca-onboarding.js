@@ -28,7 +28,7 @@ const { taxIdFormatValide, validerDonneesCompte } = require('../api/_alpaca/acco
     givenName: 'Marie', familyName: 'Curie', dateOfBirth: '1990-01-01',
     taxId: '452-69-8317', fundingSource: ['employment_income'],
     emailAddress: 'marie@exemple.com', phoneNumber: '+15556667788',
-    streetAddress: '1 rue du Test', city: 'San Mateo', state: 'CA',
+    streetAddress: '1 rue du Test', city: 'San Mateo', state: 'CA', postalCode: '94401',
     disclosures: { isControlPerson: false, isAffiliatedExchangeOrFinra: false, isPoliticallyExposed: false, immediateFamilyExposed: false },
     accordsAcceptes: true,
   });
@@ -42,6 +42,8 @@ const { taxIdFormatValide, validerDonneesCompte } = require('../api/_alpaca/acco
     validerDonneesCompte({ ...complet(), emailAddress: 'pas-un-email' }).erreurs.includes('email_invalide'));
   rapporte('état (state) manquant rejeté',
     validerDonneesCompte({ ...complet(), state: undefined }).erreurs.includes('etat_requis'));
+  rapporte('code postal manquant rejeté (réellement observé, divergence avec la doc officielle)',
+    validerDonneesCompte({ ...complet(), postalCode: undefined }).erreurs.includes('code_postal_requis'));
   rapporte('déclaration manquante (une des 4) rejetée',
     validerDonneesCompte({ ...complet(), disclosures: { isControlPerson: false } }).erreurs.some(e => e.startsWith('declaration_')));
   rapporte('accords non acceptés rejetés (jamais une création sans consentement explicite)',

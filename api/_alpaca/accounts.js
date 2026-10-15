@@ -177,6 +177,12 @@ function validerDonneesCompte(d) {
   // donc toujours requis (règle Alpaca : obligatoire si le pays OU la
   // résidence fiscale vaut USA — ici toujours les deux).
   if (!p.state) erreurs.push('etat_requis');
+  // CORRECTIF (2026-10-15, testé réellement) : la doc Alpaca liste
+  // postal_code comme optionnel ("Non" dans le tableau des champs), mais
+  // un vrai appel l'a rejeté (HTTP 422, "contact.postal_code is required
+  // for USA country") — doc et comportement réel divergent, le réel
+  // l'emporte toujours. Toujours requis puisque le pays est toujours USA.
+  if (!p.postalCode) erreurs.push('code_postal_requis');
 
   for (const champ of ['isControlPerson', 'isAffiliatedExchangeOrFinra', 'isPoliticallyExposed', 'immediateFamilyExposed']) {
     if (typeof p.disclosures?.[champ] !== 'boolean') erreurs.push('declaration_' + champ + '_requise');
