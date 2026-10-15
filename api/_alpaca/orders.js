@@ -107,6 +107,24 @@ async function rechercherOrdreParClientId(brokerAccountId, clientOrderId) {
   return data;
 }
 
+/* Annulation (§1, Phase 4 : "Ordres (achat, vente, annulation)") —
+   DELETE .../orders/{order_id}. Réponse réelle attendue : 204 si la
+   demande d'annulation est acceptée, 422 si l'ordre n'est plus annulable
+   (ex. déjà exécuté) — jamais présenté comme annulé dans ce cas. */
+async function annulerOrdre(brokerAccountId, alpacaOrderId) {
+  verifierVerrouProduction();
+  const r = await appelBroker(
+    `/v1/trading/accounts/${encodeURIComponent(brokerAccountId)}/orders/${encodeURIComponent(alpacaOrderId)}`,
+    { method: 'DELETE' }
+  );
+  if (r.status === 204) return { annule: true };
+  const data = await r.json().catch(() => null);
+  const err = new Error(r.status === 422 ? 'alpaca_ordre_non_annulable' : 'alpaca_annulation_echouee');
+  err.status = r.status;
+  err.body = data;
+  throw err;
+}
+
 module.exports = {
   SIDES_AUTORISES,
   TYPES_AUTORISES,
@@ -115,4 +133,5 @@ module.exports = {
   validerParametresOrdre,
   creerOrdre,
   rechercherOrdreParClientId,
+  annulerOrdre,
 };

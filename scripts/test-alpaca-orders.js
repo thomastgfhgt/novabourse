@@ -33,6 +33,37 @@ const { validerParametresOrdre, genererClientOrderId } = require('../api/_alpaca
   rapporte('client_order_id généré est bien un UUID unique à chaque appel',
     genererClientOrderId() !== genererClientOrderId());
 
+  // --- Annulation : 204 -> succès, 422 -> ordre non annulable (mock réseau) ---
+  const fetchOriginal = global.fetch;
+  delete require.cache[require.resolve('../api/_alpaca/client.js')];
+  delete require.cache[require.resolve('../api/_alpaca/orders.js')];
+
+  global.fetch = async (url) => {
+    if (String(url).includes('oauth2/token')) {
+      return { ok: true, status: 200, json: async () => ({ access_token: 'faux-token-test', expires_in: 900, token_type: 'Bearer' }) };
+    }
+    return { status: 204, ok: false, json: async () => null };
+  };
+  const { annulerOrdre } = require('../api/_alpaca/orders.js');
+  const res204 = await annulerOrdre('acc-1', 'ordre-1');
+  rapporte('204 -> annulation acceptée, jamais une erreur', res204.annule === true);
+  global.fetch = fetchOriginal;
+
+  global.fetch = async (url) => {
+    if (String(url).includes('oauth2/token')) {
+      return { ok: true, status: 200, json: async () => ({ access_token: 'faux-token-test', expires_in: 900, token_type: 'Bearer' }) };
+    }
+    return { status: 422, ok: false, json: async () => ({ code: 42210000, message: 'order is not cancelable' }) };
+  };
+  delete require.cache[require.resolve('../api/_alpaca/client.js')];
+  delete require.cache[require.resolve('../api/_alpaca/orders.js')];
+  const { annulerOrdre: annulerOrdre2 } = require('../api/_alpaca/orders.js');
+  let erreur422 = null;
+  try { await annulerOrdre2('acc-1', 'ordre-2'); } catch (e) { erreur422 = e; }
+  rapporte('422 -> ordre non annulable propagé, jamais présenté comme annulé',
+    erreur422 && erreur422.status === 422 && erreur422.message === 'alpaca_ordre_non_annulable');
+  global.fetch = fetchOriginal;
+
   console.log(allOk ? '\nTOUS LES TESTS PASSENT' : '\nECHEC');
   process.exit(allOk ? 0 : 1);
 })();
