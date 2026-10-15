@@ -1380,6 +1380,7 @@ async function handleAlpacaAdmin(req, res, user) {
     appelBroker,
   } = require('./_alpaca/client.js');
   const { recupererCompte, lireCompteTrading } = require('./_alpaca/accounts.js');
+  const { resumePortefeuille } = require('./_alpaca/portfolio.js');
 
   if (!tradingActif()) {
     return res.status(200).json({ status: 'disabled' });
@@ -1424,6 +1425,22 @@ async function handleAlpacaAdmin(req, res, user) {
         portfolioValue: trading ? trading.portfolio_value : null,
         currency: compte.currency,
       });
+    } catch (e) {
+      return res.status(200).json({ status: 'error', message: e.message });
+    }
+  }
+
+  /* §7 : "résumé en lecture seule du portefeuille Sandbox préparé par
+     le serveur" — lecture par l'utilisateur de SES PROPRES données,
+     toujours autorisée (distinct de l'interrupteur "partager avec Nova
+     AI" côté paramètres, qui ne concerne que l'injection dans un prompt
+     IA — pas encore câblée, voir le commentaire de resumePortefeuille()). */
+  if (action === 'portfolio-summary') {
+    try {
+      const lignes = await sb(`broker_accounts?user_id=eq.${encodeURIComponent(user.id)}&select=alpaca_account_id&limit=1`);
+      if (!lignes.length) return res.status(200).json({ status: 'not_linked' });
+      const resume = await resumePortefeuille(lignes[0].alpaca_account_id);
+      return res.status(200).json({ status: 'ok', ...resume });
     } catch (e) {
       return res.status(200).json({ status: 'error', message: e.message });
     }

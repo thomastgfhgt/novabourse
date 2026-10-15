@@ -157,6 +157,17 @@ PAGES.settings = () => {
     </section>
 
     <section class="section">
+      <h2 class="h2">Alpaca Sandbox</h2>
+      <div class="card" style="margin-top:14px">
+        ${settingRow('Partager mon portefeuille Sandbox avec Nova AI',
+          'Un résumé en lecture seule (composition, performance) — Nova AI ne peut jamais passer, modifier ou annuler un ordre, avec ou sans ce réglage.',
+          switchControl('novaAiPortefeuilleAlpaca', st.novaAiPortefeuilleAlpaca === true))}
+        <p class="tiny" style="margin-top:12px">Simulation — argent fictif. Ce réglage n'a aucun effet
+          pour l'instant : la connexion entre ce résumé et Nova AI n'est pas encore active.</p>
+      </div>
+    </section>
+
+    <section class="section">
       <h2 class="h2">Compte et données</h2>
       <div class="card" style="margin-top:14px">
         <div class="rows">
