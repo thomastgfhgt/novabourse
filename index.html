@@ -1761,6 +1761,8 @@ document.addEventListener('click', e => {
     return;
   }
 
+  if (q('[data-alpaca-lier]')){ alpacaLierCompteTest(); return; }
+
   if (q('[data-reset]')){
     openSheet(`<h3 id="sheetTitle">Effacer les données locales ?</h3>
       <p>Votre liste de suivi, votre portefeuille virtuel et vos préférences seront effacés de ce navigateur.</p>
