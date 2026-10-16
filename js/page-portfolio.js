@@ -47,7 +47,9 @@ PAGES.portfolio = () => {
 
   return `<div class="page-in">
     <h1 class="title">Portefeuille</h1>
-    <p class="lead" style="margin-top:10px">Portefeuille <b>virtuel</b> : suivez vos positions sans engager d'argent réel.</p>
+    <p class="lead" style="margin-top:10px">${PORTEFEUILLE_FICTIF_PUBLIC
+      ? `Portefeuille <b>virtuel</b> : suivez vos positions sans engager d'argent réel.`
+      : `Suivez vos positions une fois un compte d'investissement réel connecté.`}</p>
 
     <!-- Bloc Alpaca Sandbox réel (Phase 3) : rempli/affiché par
          assurerPortefeuilleAlpacaReel() (index.html, hook route.page===
@@ -60,6 +62,16 @@ PAGES.portfolio = () => {
     <div id="alpacaRealPortfolioBlock" hidden></div>
 
     <div id="pfFictifContenu">
+    ${!PORTEFEUILLE_FICTIF_PUBLIC ? `
+      <div class="card" style="margin-top:22px;text-align:center;padding:48px 24px">
+        <p class="small" style="font-weight:600;font-size:16px">Compte d'investissement non encore disponible</p>
+        <p class="small" style="color:var(--ink-4);margin-top:10px;max-width:420px;margin-inline:auto">
+          NovaTitre ne propose pas encore l'ouverture d'un compte de courtage réel.
+          Aucune donnée financière n'est affichée ici tant qu'aucun compte réel
+          n'est connecté — jamais un solde ou un historique inventé.
+        </p>
+      </div>
+    ` : `
     <div class="card" style="margin-top:22px">
       <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px">
         <p class="small">Valeur totale</p>
@@ -263,6 +275,8 @@ PAGES.portfolio = () => {
         </div></div>
       </section>`;
     })()}
+    </div>
+    `}
     </div>
     </div>`;
 };

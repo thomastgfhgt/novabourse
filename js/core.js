@@ -130,6 +130,21 @@ const fmt = {
 };
 
 /* ---- état applicatif ---- */
+
+/* Verrou produit (2026-10-15, mission "NovaTitre : passage au trading
+   réel") — décision DÉLIBÉRÉE et confirmée explicitement par l'utilisateur
+   (reformulée deux fois pour éviter toute ambiguïté) : le portefeuille
+   fictif historique (state.wallet, les 5 000€/15 480€ de départ, les
+   achats/ventes simulés) ne doit plus être présenté comme utilisable dans
+   l'expérience publique. CETTE CONSTANTE NE SUPPRIME AUCUNE DONNÉE :
+   state.wallet, portfolio_transactions et portfolio_snapshots restent
+   intacts en base et en localStorage — seul ce que l'UI AFFICHE change
+   (voir PAGES.portfolio dans page-portfolio.js et le bloc "Mes positions"
+   dans page-home.js). Le lever exige de modifier cette ligne, donc un
+   commit et une revue — jamais une variable d'environnement ni un
+   réglage utilisateur. */
+const PORTEFEUILLE_FICTIF_PUBLIC = false;
+
 const STORAGE_KEY = 'novabourse_state_v1';
 const deepClone = (o) => JSON.parse(JSON.stringify(o));
 
@@ -3003,7 +3018,17 @@ function novabotSetRegle(cle, valeurBrute){
    fine dans le pipeline de décision (ex. "advice" = demander confirmation
    avant CHAQUE transaction) n'est pas encore câblée — le pipeline exécute
    des transactions SIMULÉES comme avant, quel que soit le mode choisi. */
+/* CORRECTIF (2026-10-16, "passage au trading réel") : verrou central,
+   même principe qu'openBuyAmount()/openSellReview() (index.html) —
+   confirmer un mandat crée un dépôt SIMULÉ ; tant que le fictif est
+   retiré de l'expérience publique, aucun NOUVEAU mandat ne peut naître,
+   quel que soit le chemin (bouton, ancien brouillon). Les mandats déjà
+   confirmés (données existantes) ne passent jamais par ici : intacts. */
 function novabotConfirmerMandat(draft){
+  if (!PORTEFEUILLE_FICTIF_PUBLIC && !state.novabot.mandateConfirmed){
+    toast("Compte d'investissement non encore disponible.");
+    return false;
+  }
   const capital = Number.isFinite(draft.initialCapital) ? draft.initialCapital : 10000;
   state.novabot.transactions = [{ id:'nb'+Date.now().toString(36)+Math.random().toString(36).slice(2,6),
     date:new Date().toISOString(), type:'deposit', amountEUR:capital,

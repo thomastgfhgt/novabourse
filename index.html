@@ -680,7 +680,17 @@ function applyTheme(){
     </div>`);
   document.getElementById('alertTarget')?.focus();
 }
+/* CORRECTIF (2026-10-15, "passage au trading réel") : garde-fou central
+   — tous les points d'entrée d'achat simulé (fiche action, recherche
+   "Analyser/Ajouter", Radar, chips de montant...) appellent TOUS cette
+   même fonction. La bloquer ICI garantit qu'aucun chemin ne peut
+   contourner le retrait du fictif, plutôt que de dépendre d'avoir
+   désactivé chaque bouton un par un. */
 function openBuyAmount(st, initial){
+  if (!PORTEFEUILLE_FICTIF_PUBLIC){
+    toast('Compte d\'investissement non encore disponible.');
+    return;
+  }
   const max = Math.floor(state.wallet.cash);
   const v = Math.min(initial || Math.min(100, max), max);
   openSheet(`<div class="buy">
@@ -763,6 +773,10 @@ function openBuyReview(st, amount){
    accidentel. Ajoute l'écran de vérification manquant, symétrique à
    openBuyReview, avant tout appel réel à sellStock(). */
 function openSellReview(st){
+  if (!PORTEFEUILLE_FICTIF_PUBLIC){
+    toast('Compte d\'investissement non encore disponible.');
+    return;
+  }
   const pos = positionOf(st.id);
   if (!pos){ toast('Aucune position sur cette valeur'); return; }
   const prix = prixDe(st);

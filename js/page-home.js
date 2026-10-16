@@ -231,7 +231,11 @@ PAGES.home = () => {
 
   <article class="nb-pf2">
     <p class="nb-pf2-eyebrow">Mes positions</p>
-    ${hasPositions ? `
+    ${!PORTEFEUILLE_FICTIF_PUBLIC ? `
+      <div class="nb-pf2-empty">
+        <p>Compte d'investissement non encore disponible.</p>
+      </div>
+    ` : hasPositions ? `
       <p class="nb-pf2-val tabular-nums">${fmt.eur(pf.total)}</p>
       <p class="nb-pf2-var ${pf.gain >= 0 ? 'up-t' : 'down-t'} tabular-nums">
         ${arrow(pf.gainPct)} ${fmt.eur(Math.abs(pf.gain))} · ${fmt.pct(pf.gainPct)}</p>
@@ -286,7 +290,8 @@ function pricingBlock(compact = false){
   const P = [
     { id:'free', n:'Découverte', price:0, yr:0,
       d:"Comprendre les marchés et suivre quelques entreprises.",
-      f:['Cours et fondamentaux réels','10 entreprises suivies','Portefeuille virtuel',
+      f:['Cours et fondamentaux réels','10 entreprises suivies',
+         ...(PORTEFEUILLE_FICTIF_PUBLIC ? ['Portefeuille virtuel'] : []),
          '5 analyses multi-modèles par mois'] },
     { id:'pro', n:'Pro', price:9.99, yr:79, hot:true,
       d:"Analyser sérieusement, sans limite de suivi.",

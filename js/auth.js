@@ -530,7 +530,13 @@ const ONB_GOALS = [
   { id:'comprendre', t:'Comprendre la Bourse', d:'Apprendre à lire une entreprise.' },
   { id:'trouver', t:'Trouver des entreprises', d:'Filtrer selon mes critères.' },
   { id:'suivre', t:'Suivre des valeurs', d:'Garder un œil sur mes favorites.' },
-  { id:'portefeuille', t:'Gérer un portefeuille', d:'Tester mes idées sans risque.' },
+  /* CORRECTIF (2026-10-15) : "Tester mes idées sans risque" décrivait le
+     portefeuille fictif, retiré de l'expérience publique
+     (PORTEFEUILLE_FICTIF_PUBLIC, js/core.js) — reformulé pour ne plus
+     promettre une fonctionnalité de simulation. L'option elle-même reste
+     (toujours utile pour orienter le contenu montré ensuite), seule la
+     description change. */
+  { id:'portefeuille', t:'Préparer un investissement', d:'Me projeter avant d\'investir.' },
 ];
 /* Nova Explain — découverte (2026-09-28, onboarding adaptatif) : 5
    slides montrées UNIQUEMENT si level==='debutant' (step 1.5, entre le
@@ -592,6 +598,22 @@ function onboardingScreen(){
     <button class="btn btn-g" style="margin-top:18px;width:100%" data-onb-step="1">Retour</button>
   </div></div>`;
 
+  /* CORRECTIF (2026-10-15, mission "passage au trading réel") : cette
+     étape proposait un capital DE DÉPART FICTIF — un mécanisme de
+     simulation présenté à l'inscription, contraire à la décision
+     explicitement confirmée de ne plus en proposer dans l'expérience
+     publique. setCapital() (js/auth.js) reste intact (jamais supprimé :
+     data/fonctionnalités existantes préservées), simplement plus appelée
+     avec un montant choisi par l'utilisateur — avance directement avec
+     0, invisible de toute façon puisque PAGES.portfolio/la carte Accueil
+     n'affichent plus state.wallet tant que PORTEFEUILLE_FICTIF_PUBLIC
+     est faux (js/core.js). */
+  if (st === 3 && !PORTEFEUILLE_FICTIF_PUBLIC){
+    state.onboarding.step = 4;
+    saveState();
+    return onboardingScreen();
+  }
+
   if (st === 3) return `<div class="gate"><div class="gate-card onb">
     ${dots}
     <h1 class="title">Combien voulez-vous investir ?</h1>
@@ -628,7 +650,9 @@ function onboardingScreen(){
     <div class="onb-steps">
       ${[[ICON.search,'Cherchez une entreprise','La barre de recherche s\'ouvre partout avec la touche « / ».'],
          [ICON.star,'Touchez l\'étoile','L\'entreprise rejoint votre liste de suivi, en un geste.'],
-         [ICON.plus,'Appuyez sur Acheter','Investissez de l\'argent fictif et suivez vos positions.']]
+         PORTEFEUILLE_FICTIF_PUBLIC
+           ? [ICON.plus,'Appuyez sur Acheter','Investissez de l\'argent fictif et suivez vos positions.']
+           : [ICON.plus,'Analysez avec Nova','Lancez une analyse IA pour comprendre une entreprise en détail.']]
         .map(([ic,t2,d],i)=>`<div class="onb-step">
           <span class="onb-n">${i+1}</span>
           <span class="onb-i">${svg(ic)}</span>
