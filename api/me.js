@@ -1474,8 +1474,11 @@ async function handleAlpacaAdmin(req, res, user) {
       const ipReelle = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim()
         || req.socket?.remoteAddress || '0.0.0.0';
 
-      const { creerCompteDepuisFormulaire } = require('./_alpaca/accounts.js');
-      const compte = await creerCompteDepuisFormulaire(body, ipReelle);
+      /* Région EU (2026-10-16) : formulaire résident français (FRA_SPI,
+         EUR, W-8BEN) — voir api/_alpaca/eu.js. Région US : inchangé. */
+      const compte = regionConfiguree() === 'eu'
+        ? await require('./_alpaca/eu.js').creerCompteEU(body, ipReelle)
+        : await require('./_alpaca/accounts.js').creerCompteDepuisFormulaire(body, ipReelle);
 
       await sb('broker_accounts?on_conflict=user_id', {
         method: 'POST',
@@ -1538,8 +1541,18 @@ async function handleAlpacaAdmin(req, res, user) {
       const accountId = await compteAlpacaDeUtilisateur();
       if (!accountId) return res.status(200).json({ status: 'not_linked' });
 
-      const { assurerDepotSimule } = require('./_alpaca/funding.js');
-      const resultat = await assurerDepotSimule(accountId, user.email, montant);
+      let resultat;
+      if (regionConfiguree() === 'eu') {
+        /* EU : pas d'ACH — virement EUR entrant simulé (Sandbox
+           uniquement), référencé "<correspondant>-<numéro de compte>". */
+        const lignes = await sb(`broker_accounts?user_id=eq.${encodeURIComponent(user.id)}&select=account_number&limit=1`);
+        const { simulerVirementEntrantEU } = require('./_alpaca/eu.js');
+        const virement = await simulerVirementEntrantEU(process.env.ALPACA_CORRESPONDENT_ID, lignes[0]?.account_number, montant);
+        resultat = { statut: 'depot_soumis', transferStatus: virement.status, transferId: virement.id };
+      } else {
+        const { assurerDepotSimule } = require('./_alpaca/funding.js');
+        resultat = await assurerDepotSimule(accountId, user.email, montant);
+      }
 
       await sb('broker_sync_events', {
         method: 'POST',
@@ -1549,6 +1562,21 @@ async function handleAlpacaAdmin(req, res, user) {
       return res.status(200).json(resultat);
     } catch (e) {
       return res.status(200).json({ status: 'error', message: e.message, alpacaBody: e.body });
+    }
+  }
+
+  /* Instructions de virement EU (2026-10-16) — lecture seule : IBAN
+     Omnibus d'Alpaca + référence propre au compte de l'utilisateur. IBAN
+     null tant que le partenariat n'est pas signé (jamais inventé). */
+  if (action === 'funding-instructions') {
+    if (regionConfiguree() !== 'eu') return res.status(200).json({ status: 'non_applicable' });
+    try {
+      const lignes = await sb(`broker_accounts?user_id=eq.${encodeURIComponent(user.id)}&select=account_number&limit=1`);
+      if (!lignes.length) return res.status(200).json({ status: 'not_linked' });
+      const { instructionsDepot } = require('./_alpaca/eu.js');
+      return res.status(200).json({ status: 'ok', ...instructionsDepot(process.env.ALPACA_CORRESPONDENT_ID, lignes[0].account_number) });
+    } catch (e) {
+      return res.status(200).json({ status: 'error', message: e.message });
     }
   }
 

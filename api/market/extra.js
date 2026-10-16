@@ -586,6 +586,13 @@ function catalogueParId(){
   return CATALOGUE_PAR_ID;
 }
 
+/* Verrou produit (2026-10-16, "passage au trading réel", miroir serveur de
+   PORTEFEUILLE_FICTIF_PUBLIC dans js/core.js) : le cycle quotidien ne fait
+   plus tourner les mandats SIMULÉS. Aucune donnée supprimée —
+   novabot_accounts/transactions/décisions restent intacts, et remettre
+   cette constante à true relance le cycle exactement comme avant. */
+const NOVABOT_CRON_SIMULATION_ACTIF = false;
+
 async function handleNovabotCron(req, res) {
   res.setHeader('Cache-Control', 'no-store');
 
@@ -594,6 +601,10 @@ async function handleNovabotCron(req, res) {
   const auth = req.headers['authorization'] || '';
   const fourni = auth.startsWith('Bearer ') ? auth.slice(7) : null;
   if (fourni !== attendu) return res.status(401).json({ error: 'non_autorise' });
+
+  if (!NOVABOT_CRON_SIMULATION_ACTIF) {
+    return res.status(200).json({ status: 'en_pause', raison: 'simulation_retiree_experience_publique' });
+  }
 
   if (!configure()) return res.status(503).json({ error: 'supabase_indisponible' });
 
