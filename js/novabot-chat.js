@@ -536,6 +536,10 @@ async function novabotAppelerModeleEtRepondre(dernierMessageUtilisateur){
       mode:'novabot-chat',
       messages: NOVABOT_CHAT.messages,
       mandateConfirmed: state.novabot.mandateConfirmed,
+      /* 2026-10-16 ("passage au trading réel") : sans mandat existant et
+         fictif retiré, le serveur bascule sur un rôle d'analyse/conseil
+         pédagogique — plus jamais d'onboarding "quel capital me confier". */
+      modePedagogique: !PORTEFEUILLE_FICTIF_PUBLIC && !state.novabot.mandateConfirmed,
       /* §7 de la mission Alpaca Sandbox : réglage dans Compte > Réglages
          (state.settings.novaAiPortefeuilleAlpaca), transmis à chaque
          requête — le serveur recalcule les chiffres lui-même, ceci ne
@@ -587,7 +591,8 @@ async function novabotAppelerModeleEtRepondre(dernierMessageUtilisateur){
     if (d.mandateDraft){
       NOVABOT_CHAT.mandateDraft = { ...NOVABOT_CHAT.mandateDraft, ...d.mandateDraft };
     }
-    NOVABOT_CHAT.readyToConfirm = Boolean(d.readyToConfirm);
+    NOVABOT_CHAT.readyToConfirm = Boolean(d.readyToConfirm)
+      && (PORTEFEUILLE_FICTIF_PUBLIC || state.novabot.mandateConfirmed);
     /* mandateAmendment (2026-10-15) : REMPLACÉ, jamais fusionné —
        contrairement à mandateDraft ci-dessus (cumulatif pendant
        l'onboarding), une nouvelle proposition de modification ne doit
@@ -883,9 +888,10 @@ function novabotChatSoumetre(){
    quotidien côté serveur (vercel.json, "crons") prend ensuite le relais
    sans navigateur ouvert. */
 function novabotChatConfirmer(){
-  novabotConfirmerMandat(NOVABOT_CHAT.mandateDraft);
+  const ok = novabotConfirmerMandat(NOVABOT_CHAT.mandateDraft);
   NOVABOT_CHAT.readyToConfirm = false;
-  const recap = `Mandat confirmé — ${fmt.eur(state.novabot.wallet.invested)} confiés, activé en simulation. `
+  if (ok === false){ render(); return; }
+  const recap = `Mandat confirmé — ${fmt.eur(state.novabot.wallet.invested)} simulés (aucun argent réel). `
     + `Je lance une première évaluation tout de suite, puis je repasserai chaque jour automatiquement sans que tu aies rien à faire.`;
   const msgRecap = { role:'assistant', content:recap };
   NOVABOT_CHAT.messages.push(msgRecap);

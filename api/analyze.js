@@ -444,6 +444,38 @@ actif") plutôt que de renvoyer une action sans effet.
 N'utilise "action" QUE si la demande est sans ambiguïté — en cas de doute, laisse "action":null et
 demande une clarification dans "reply" plutôt que de deviner une intention.`;
 
+/* Mode pédagogique (2026-10-16, "passage au trading réel") : utilisé à
+   la place de CONSIGNE_NOVABOT_CHAT quand l'utilisateur n'a PAS de mandat
+   et que le portefeuille fictif est retiré de l'expérience publique
+   (req.body.modePedagogique, voir js/novabot-chat.js). Garde toute la
+   valeur d'analyse/conseil pédagogique, retire l'onboarding "quel capital
+   me confier ?" qui menait à un portefeuille simulé. Même schéma JSON
+   que CONSIGNE_NOVABOT_CHAT (le client ne change pas), mandateDraft/
+   action toujours null — revérifié côté serveur plus bas. */
+const CONSIGNE_NOVABOT_PEDAGOGIQUE = `Tu es Nova, l'IA conversationnelle de NovaTitre. Tu analyses des
+entreprises et des marchés et tu expliques des notions et des stratégies d'investissement, de
+façon pédagogique. Tu parles en français, ton direct et chaleureux, jamais robotique, jamais de
+jargon non expliqué.
+
+Réponds TOUJOURS en JSON strict :
+{"reply":"...","mandateDraft":null,"readyToConfirm":false,"newPreferences":null,"mandateAmendment":null,"readyToConfirmAmendment":false,"action":null}
+
+Règles absolues :
+- Tu ne gères AUCUN portefeuille, simulé ou réel : ne propose jamais de "confier un capital", de
+  créer un mandat ou de gérer de l'argent pour l'utilisateur. Si on te le demande, explique
+  simplement que NovaTitre ne propose pas encore de compte d'investissement réel, et que tu peux
+  en attendant analyser des entreprises et expliquer des stratégies.
+- Ne présente jamais un solde, une position, une performance ou un achat comme ceux de
+  l'utilisateur : tu n'as accès à aucun compte.
+- Pas de recommandation personnalisée d'achat/vente ni de montant ("achète X", "mets 500 € sur Y") :
+  tu expliques les critères, les risques, les points forts/faibles, ce que disent les chiffres.
+  Rappelle si utile que ce n'est pas un conseil en investissement personnalisé et qu'investir
+  comporte un risque de perte en capital.
+- N'invente aucun chiffre (cours, fondamentaux, actualité). Si tu n'as pas la donnée, dis-le et
+  invite à consulter la fiche de l'entreprise dans NovaTitre.
+- "reply" : 1 à 5 phrases, jamais un pavé, jamais de markdown. Tous les autres champs restent
+  exactement aux valeurs ci-dessus.`;
+
 /* ADDENDUM (2026-10-15, §7 de la mission "Alpaca Sandbox Trading") —
    délibérément une CONSTANTE SÉPARÉE, concatenée à CONSIGNE_NOVABOT_CHAT
    au moment de l'appel (voir novabotChatAnalyse ci-dessous), jamais
@@ -893,6 +925,7 @@ async function novabotChatAnalyse(req, res, { user, plan, dispo }){
   if (!messages.length) return res.status(400).json({ error: 'conversation_vide' });
 
   const mandateConfirmed = req.body?.mandateConfirmed === true;
+  const modePedagogique = !mandateConfirmed && req.body?.modePedagogique === true;
   const contexte = {
     mandateConfirmed,
     mandateDraftConnu: mandateConfirmed ? null : sanitiserDonnees(req.body?.mandateDraft),
@@ -939,7 +972,8 @@ async function novabotChatAnalyse(req, res, { user, plan, dispo }){
   contexte.alpacaSandbox = alpacaSandbox;
 
   const transcript = messages.map(m => `${m.role === 'user' ? 'Utilisateur' : 'Nova'} : ${m.content}`).join('\n');
-  const prompt = `${CONSIGNE_NOVABOT_CHAT}${alpacaSandbox ? ADDENDUM_ALPACA_SANDBOX : ''}\n\nDonnées disponibles :\n${JSON.stringify(contexte, null, 1)}\n\nConversation :\n${transcript}\n\nRéponds au DERNIER message de l'utilisateur.`;
+  const consigne = modePedagogique ? CONSIGNE_NOVABOT_PEDAGOGIQUE : CONSIGNE_NOVABOT_CHAT;
+  const prompt = `${consigne}${alpacaSandbox ? ADDENDUM_ALPACA_SANDBOX : ''}\n\nDonnées disponibles :\n${JSON.stringify(contexte, null, 1)}\n\nConversation :\n${transcript}\n\nRéponds au DERNIER message de l'utilisateur.`;
 
   /* CORRECTIF (V6 §8, bug réel rapporté : "Coucou" consommait une des 5
      analyses mensuelles du plan Découverte) : un message de conversation
@@ -978,8 +1012,8 @@ async function novabotChatAnalyse(req, res, { user, plan, dispo }){
         }
         return {
           reply: rep.reply.slice(0, 800),
-          mandateDraft: mandateConfirmed ? null : validerMandateDraft(rep.mandateDraft),
-          readyToConfirm: rep.readyToConfirm === true,
+          mandateDraft: (mandateConfirmed || modePedagogique) ? null : validerMandateDraft(rep.mandateDraft),
+          readyToConfirm: !modePedagogique && rep.readyToConfirm === true,
           /* newPreferences : UNIQUEMENT en conversation déjà confirmée (voir
              CONSIGNE_NOVABOT_CHAT, rôle 2) — jamais pendant l'onboarding, où
              les préférences passent par mandateDraft/readyToConfirm comme le

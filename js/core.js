@@ -3018,7 +3018,17 @@ function novabotSetRegle(cle, valeurBrute){
    fine dans le pipeline de décision (ex. "advice" = demander confirmation
    avant CHAQUE transaction) n'est pas encore câblée — le pipeline exécute
    des transactions SIMULÉES comme avant, quel que soit le mode choisi. */
+/* CORRECTIF (2026-10-16, "passage au trading réel") : verrou central,
+   même principe qu'openBuyAmount()/openSellReview() (index.html) —
+   confirmer un mandat crée un dépôt SIMULÉ ; tant que le fictif est
+   retiré de l'expérience publique, aucun NOUVEAU mandat ne peut naître,
+   quel que soit le chemin (bouton, ancien brouillon). Les mandats déjà
+   confirmés (données existantes) ne passent jamais par ici : intacts. */
 function novabotConfirmerMandat(draft){
+  if (!PORTEFEUILLE_FICTIF_PUBLIC && !state.novabot.mandateConfirmed){
+    toast("Compte d'investissement non encore disponible.");
+    return false;
+  }
   const capital = Number.isFinite(draft.initialCapital) ? draft.initialCapital : 10000;
   state.novabot.transactions = [{ id:'nb'+Date.now().toString(36)+Math.random().toString(36).slice(2,6),
     date:new Date().toISOString(), type:'deposit', amountEUR:capital,

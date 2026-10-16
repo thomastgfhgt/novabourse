@@ -290,7 +290,8 @@ function pricingBlock(compact = false){
   const P = [
     { id:'free', n:'Découverte', price:0, yr:0,
       d:"Comprendre les marchés et suivre quelques entreprises.",
-      f:['Cours et fondamentaux réels','10 entreprises suivies','Portefeuille virtuel',
+      f:['Cours et fondamentaux réels','10 entreprises suivies',
+         ...(PORTEFEUILLE_FICTIF_PUBLIC ? ['Portefeuille virtuel'] : []),
          '5 analyses multi-modèles par mois'] },
     { id:'pro', n:'Pro', price:9.99, yr:79, hot:true,
       d:"Analyser sérieusement, sans limite de suivi.",
