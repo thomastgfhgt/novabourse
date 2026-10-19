@@ -17,6 +17,7 @@
   <script src="https://unpkg.com/lightweight-charts@5.2.1/dist/lightweight-charts.standalone.production.js"></script><link rel="stylesheet" href="/styles.css">
 <link rel="stylesheet" href="/css/v2.css">
 <link rel="stylesheet" href="/css/v2-site.css">
+<link rel="stylesheet" href="/css/v2-legacy.css">
 </head>
 <body class="v-shell">
 
@@ -61,6 +62,7 @@
 <script src="/js/page-compare.js"></script>
 <script src="/js/v2-pages.js"></script>
 <script src="/js/v2-pages-2.js"></script>
+<script src="/js/v2-stock.js"></script>
 <script src="/js/auth.js"></script>
 <script>/* ============================================================
    NAVIGATION, ÉVÉNEMENTS, DÉMARRAGE
@@ -1044,6 +1046,7 @@ document.addEventListener('click', e => {
       const on = state.watchlist.includes(star.dataset.star);
       b.setAttribute('aria-pressed', String(on));
       b.querySelector('svg')?.setAttribute('fill', on ? 'currentColor' : 'none');
+      b.classList.toggle('v-on', on);
     });
     if (['watchlist','home'].includes(route.page)) render();
     return;

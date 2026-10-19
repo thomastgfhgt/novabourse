@@ -38,3 +38,6 @@ body.gated .v-wrap{padding:0;max-width:100%}
 
 /* Nom sur une ligne, comme la maquette (noms réels parfois plus longs). */
 .v-row .v-t b{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* Logo de la fiche valeur : carré arrondi (sk-id de la maquette). */
+.v2-sk-logo .v-logo-c{border-radius:18px}

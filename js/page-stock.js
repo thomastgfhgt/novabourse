@@ -430,25 +430,26 @@ PAGES.stock = (id) => {
     </div>`;
   })()}`;
 
+  /* Design v2 (2026-10-19) : en-tête et onglets de la maquette
+     (v2StockEntete, js/v2-stock.js) ; les actions de l'ancien onglet
+     "Actions" sont dans la rangée de raccourcis de l'en-tête. Contenu des
+     onglets inchangé, habillé par .v2-legacy (css/v2-site.css). */
   const TABS = [
-    { id:'apercu', label:"Vue d'ensemble", content:tabApercu },
+    { id:'apercu', label:'Aperçu', content:tabApercu + v2StockStats(s) },
     ...(isStock ? [
       { id:'donnees', label:'Données', content:tabDonnees },
       { id:'analyse', label:'Analyse', content:tabAnalyse },
-      { id:'actualites', label:'Actualités', content:tabActualites },
+      { id:'actualites', label:'Actus', content:tabActualites },
     ] : []),
-    { id:'actions', label:'Actions', content:tabActions },
   ];
+  void header; void tabActions;
   const activeTab = TABS.some(t => t.id === state.ui.stockTab) ? state.ui.stockTab : 'apercu';
-
-  return `<div class="page-in">
-  ${header}
-
-  <div class="seg" data-seg="stockTab" style="margin-top:22px;overflow-x:auto;flex-wrap:nowrap">
-    ${TABS.map(t => `<button data-stock-tab="${t.id}" aria-pressed="${activeTab===t.id}">${esc(t.label)}</button>`).join('')}
+  return `<div class="v-page">
+  ${v2StockEntete(s)}
+  <div class="v-tabs">
+    ${TABS.map(t => `<button data-stock-tab="${t.id}" class="${activeTab===t.id ? 'v-on' : ''}" aria-pressed="${activeTab===t.id}">${esc(t.label)}</button>`).join('')}
   </div>
-
-  ${TABS.find(t => t.id === activeTab)?.content || ''}
+  <div class="v2-legacy">${TABS.find(t => t.id === activeTab)?.content || ''}</div>
   </div>`;
 };
 

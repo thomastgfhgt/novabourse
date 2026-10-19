@@ -1,0 +1,72 @@
+/* ============================================================
+   DESIGN V2 — habillage des composants existants (2026-10-19)
+   ============================================================
+   Les contenus riches déjà en place (graphique pro, chiffres, analystes,
+   analyse Nova AI, actualités, panneaux, pages secondaires) gardent leur
+   balisage et leur logique ; ces règles leur donnent le rendu exact des
+   composants de la maquette (cartes, lignes, boutons, segments, puces).
+   Portée : .v2-legacy (contenu des onglets / pages non redessinées) et
+   #sheet (panneaux). */
+
+:is(.v2-legacy,#sheet){line-height:normal;color:#fff}
+
+/* Sections et titres (.v-sec / .v-sec-h / h2 de la maquette) */
+:is(.v2-legacy,#sheet) .section{margin-top:28px}
+:is(.v2-legacy,#sheet) .section-h{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;gap:12px}
+:is(.v2-legacy,#sheet) .h2{font-size:22px;font-weight:800;letter-spacing:-.03em;color:#fff}
+:is(.v2-legacy,#sheet) .title{font-size:30px;font-weight:900;letter-spacing:-.04em;line-height:1.1;color:#fff}
+:is(.v2-legacy,#sheet) .h3{font-size:18px;font-weight:800;color:#fff}
+:is(.v2-legacy,#sheet) .eyebrow{color:#a68cff;font-weight:800;font-size:13px;letter-spacing:.1em;text-transform:uppercase}
+:is(.v2-legacy,#sheet) .lead{color:#bdb6dd;font-size:15px;line-height:1.45}
+:is(.v2-legacy,#sheet) .small{color:#bdb6dd;font-size:14px;line-height:1.45}
+:is(.v2-legacy,#sheet) .tiny{color:#7f78a3;font-size:12px;line-height:1.5}
+
+/* Cartes (.v-card) */
+.v2-legacy .card{background:#181428;border:1px solid rgba(255,255,255,.07);border-radius:28px;padding:20px;box-shadow:none}
+
+/* Lignes clé / valeur (.v-statrow) */
+:is(.v2-legacy,#sheet) .kv{display:flex;justify-content:space-between;align-items:center;padding:12px 0;font-size:15px;border:0}
+:is(.v2-legacy,#sheet) .kv + .kv{border-top:1px solid rgba(255,255,255,.07)}
+:is(.v2-legacy,#sheet) .kv dt{color:#7f78a3;font-size:15px}
+:is(.v2-legacy,#sheet) .kv dd{font-family:inherit;font-weight:700;font-variant-numeric:tabular-nums;color:#fff}
+
+/* Lignes de liste (.v-row) */
+:is(.v2-legacy,#sheet) .rows .row,:is(.v2-legacy,#sheet) a.row{display:flex;align-items:center;gap:14px;padding:12px 0;color:#fff;text-decoration:none;border:0;background:none}
+:is(.v2-legacy,#sheet) .rows .row + .row{border-top:1px solid rgba(255,255,255,.07)}
+:is(.v2-legacy,#sheet) .row-t{font-size:15px;font-weight:700;color:#fff}
+:is(.v2-legacy,#sheet) .row-s{font-size:13px;color:#7f78a3}
+
+/* Boutons : blanc plein (.v-big-cta) / contour (.v-btn2) */
+:is(.v2-legacy,#sheet) .btn{height:50px;padding:0 22px;border-radius:999px;font-weight:800;font-size:15px;box-shadow:none;animation:none}
+:is(.v2-legacy,#sheet) .btn-sm{height:40px;padding:0 16px;font-size:14px}
+:is(.v2-legacy,#sheet) .btn-lg{height:56px;font-size:16px}
+:is(.v2-legacy,#sheet) .btn-a{background:#fff;color:#0b0912}
+:is(.v2-legacy,#sheet) .btn-a:hover{background:#fff;opacity:.9}
+:is(.v2-legacy,#sheet) :is(.btn-s,.btn-g,.btn-ghost,.btn-blue,.btn-blue-outline){background:transparent;color:#fff;box-shadow:inset 0 0 0 1.5px rgba(255,255,255,.25)}
+:is(.v2-legacy,#sheet) :is(.btn-s,.btn-g,.btn-ghost):hover{background:rgba(255,255,255,.06)}
+:is(.v2-legacy,#sheet) .btn[disabled]{opacity:.45}
+
+/* Interrupteurs segmentés (.v-seg) */
+:is(.v2-legacy,#sheet) .seg{display:flex;background:rgba(255,255,255,.06);border-radius:999px;padding:4px;gap:0}
+:is(.v2-legacy,#sheet) .seg button{flex:1;height:38px;padding:0 12px;border-radius:999px;font-weight:700;color:#7f78a3;font-size:14px;background:transparent}
+:is(.v2-legacy,#sheet) .seg button[aria-pressed="true"]{color:#fff;background:#2a2347}
+:is(.v2-legacy,#sheet) .seg .seg-pill{display:none}
+
+/* Puces (.v-chip) */
+:is(.v2-legacy,#sheet) .chip{height:40px;padding:0 16px;border-radius:999px;background:#181428;border:1px solid rgba(255,255,255,.07);font-weight:700;font-size:14px;color:#fff;display:inline-flex;align-items:center;gap:8px}
+:is(.v2-legacy,#sheet) .chip[aria-pressed="true"]{background:#fff;color:#0b0912;border-color:#fff}
+
+/* Encadrés (.v-tip) et champs (.v-search) */
+:is(.v2-legacy,#sheet) .notice{background:rgba(255,255,255,.07);border-radius:16px;padding:14px;font-size:14px;line-height:1.45;color:#bdb6dd}
+:is(.v2-legacy,#sheet) .notice b{color:#fff}
+:is(.v2-legacy,#sheet) .field{height:50px;border-radius:999px;background:#181428;border:1px solid rgba(255,255,255,.07);padding:0 18px;color:#fff;font-size:16px}
+:is(.v2-legacy,#sheet) textarea.field{height:auto;min-height:96px;border-radius:22px;padding:14px 18px}
+
+/* Panneaux : feuille du bas de la maquette (.v-sheet) */
+.sheet-bg{background:rgba(5,3,12,.6);backdrop-filter:blur(4px)}
+.sheet{max-width:560px;background:linear-gradient(180deg,#1d1835,#130f24);border:1px solid rgba(255,255,255,.08);border-bottom:0;border-radius:30px 30px 0 0;color:#fff}
+#sheet h3,#sheetTitle{font-size:24px;font-weight:900;letter-spacing:-.035em;color:#fff}
+#sheet .x{background:rgba(255,255,255,.08);color:#fff}
+
+/* Notifications (.v-toast) */
+.toast{background:#fff;color:#0b0912;font-weight:700;border-radius:999px}
