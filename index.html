@@ -23,12 +23,13 @@
 /* Filet de sécurité (2026-10-19) : styles.css cachait .top/.dock sur
    l'écran de connexion (body.gated) et .dock dans la discussion NovaBot
    (body.nb-immersive). Le design v2 a renommé ces éléments en
-   .v-top/.v-dock/.v-wrap : on reprend ces mêmes règles pour les nouveaux
-   noms. Sans effet si css/v2-*.css les définit déjà. */
+   .v-top/.v-dock/.v-wrap : on reprend la règle de l'écran de connexion
+   pour les nouveaux noms. Dans NovaBot, le dock reste volontairement
+   visible (css/v2-novabot.css). */
 body.gated .v-top,body.gated .v-dock{display:none!important}
 body.gated .v-wrap{padding:0;max-width:100%}
-body.nb-immersive .v-dock{display:none!important}
 </style>
+<link rel="stylesheet" href="/css/v2-nova.css">
 </head>
 <body class="v-shell">
 
@@ -74,6 +75,7 @@ body.nb-immersive .v-dock{display:none!important}
 <script src="/js/v2-pages.js"></script>
 <script src="/js/v2-pages-2.js"></script>
 <script src="/js/v2-stock.js"></script>
+<script src="/js/v2-nova.js"></script>
 <script src="/js/auth.js"></script>
 <script>
 /* Filet de sécurité design v2 (2026-10-19) : si un fichier js/v2-*.js ne
