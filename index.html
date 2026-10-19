@@ -479,7 +479,7 @@ function render(navigated = false){
   const listesParRoute = {
     stock: () => [byId[route.arg]].filter(Boolean),
     compare: () => state.compare.map(id => byId[id]).filter(Boolean),
-    markets: () => marketsListeVisible(),
+    markets: () => [...marketsListeVisible(), ...v2extrasCotations('markets')],
     watchlist: () => state.watchlist.map(id => byId[id]).filter(Boolean),
     home: () => [...state.watchlist.map(id => byId[id]), ...v2populaires()].filter(Boolean),
     portfolio: () => state.wallet.positions.map(p => byId[p.id]).filter(Boolean),
@@ -543,6 +543,8 @@ function render(navigated = false){
      surcharger le réseau pour des cartes hors ou presque hors écran. */
   if (route.page === 'markets') marketsListeVisible().slice(0, CHARGEMENT_MASSE_MAX_SYMBOLES)
     .forEach(s => { if (s) chargerGraphiquePeriode(s, '1j'); });
+  /* Design v2 : courbes du jour propres à chaque page (js/v2-pages.js). */
+  v2extrasCourbes(route.page).forEach(s => { if (s) chargerGraphiquePeriode(s, '1j'); });
 
   /* Chargement du catalogue mondial (audit performance, 2026-09-29) :
      plus jamais chargé au démarrage (voir boot()) — seules les routes
@@ -1574,7 +1576,7 @@ document.addEventListener('click', e => {
   const showFund = q('[data-show-fundamentals]');
   if (showFund){
     const st = byId[showFund.dataset.showFundamentals];
-    if (st){ chargerFondamentaux(st); render(); }
+    if (st){ st._fundEchecAt = 0; chargerFondamentaux(st); render(); }  // clic = nouvel essai immediat
     return;
   }
   const showNews = q('[data-show-news]');

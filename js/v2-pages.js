@@ -186,3 +186,98 @@ function v2envoyerANova(texte){
   if (texte) setTimeout(() => novabotChatEnvoyer(texte), 60);
 }
 const V2_SEG_HANDLERS = {};
+
+/* ---------- données supplémentaires par page (cotations / courbes) ---------- */
+const V2_EXTRAS = {
+  cotations: {
+    markets: () => [...v2cryptos(), ...v2universMouvements()],
+  },
+  courbes: {
+    home: () => state.watchlist.slice(0, 3).map(id => byId[id]),
+    markets: () => v2cryptos(),
+  },
+};
+function v2extrasCotations(page){ return ((V2_EXTRAS.cotations[page] || (() => []))()).filter(Boolean); }
+function v2extrasCourbes(page){ return ((V2_EXTRAS.courbes[page] || (() => []))()).filter(Boolean); }
+
+/* Bitcoin / Ethereum : même mécanisme que les résultats de recherche
+   (ensureRuntimeStock), symbole "BTC-USD" sur la place crypto CC —
+   vérifié sur l'API de cotations et d'historique en production. */
+let V2_CRYPTOS = null;
+function v2cryptos(){
+  if (!V2_CRYPTOS) V2_CRYPTOS = [
+    ensureRuntimeStock({ ticker:'BTC-USD', name:'Bitcoin', exchangeCode:'CC', assetType:'crypto', currency:'USD', sector:'Crypto' }, false),
+    ensureRuntimeStock({ ticker:'ETH-USD', name:'Ethereum', exchangeCode:'CC', assetType:'crypto', currency:'USD', sector:'Crypto' }, false),
+  ].filter(Boolean);
+  return V2_CRYPTOS;
+}
+
+/* Plus fortes variations : calculées sur les valeurs réellement cotées
+   (populaires + liste affichée + liste de suivi), jamais inventées. */
+function v2universMouvements(){
+  const ids = new Set([...V2_POPULAIRES.actions, ...V2_POPULAIRES.etf, ...state.watchlist]);
+  marketsListeVisible().forEach(s => s && ids.add(s.id));
+  return [...ids].map(id => byId[id]).filter(Boolean);
+}
+function v2mouvements(sens){
+  const cotees = v2universMouvements()
+    .map(s => ({ s, v: v2quote(s).varPct }))
+    .filter(x => x.v !== null && (sens === 'top' ? x.v > 0 : x.v < 0));
+  cotees.sort((a, b) => sens === 'top' ? b.v - a.v : a.v - b.v);
+  return cotees.slice(0, 8).map(x => x.s);
+}
+
+/* ---------- Marchés (PAGES.markets de la maquette) ---------- */
+V2_UI.moversTab = 'top';
+const V2_CATS = [['stock', 'Actions'], ['etf', 'ETF'], ['crypto', 'Crypto'], ['index', 'Indices'], ['forex', 'Devises']];
+function v2cryptoCard(c){
+  const { prix, varPct } = v2quote(c);
+  const sd = v2sparkData(c);
+  return `<button class="v-card" data-stock="${esc(c.id)}" style="text-align:left"><div class="v-h"><span class="v-label">${esc(c.ticker.split('-')[0])}</span>${v2logo(c)}</div>
+    <p class="v-val v-num">${prix === null ? '—' : v2nf(prix, prix < 10000 ? 2 : 0) + ' $'}</p><span class="${varPct === null ? '' : v2cls(varPct)}" style="font-weight:700;font-size:14px">${varPct === null ? '' : v2var(varPct)}</span>
+    <div class="v-chart">${sd ? v2area(sd, (varPct ?? 0) >= 0 ? 'var(--v-up)' : 'var(--v-down)', { base:true }) : ''}</div></button>`;
+}
+function v2moversGrid(){
+  const m = v2mouvements(V2_UI.moversTab);
+  return m.length ? v2tiles(m) : `<p class="v-sub" style="grid-column:1/-1;text-align:center">Les variations apparaissent dès que les cours sont reçus.</p>`;
+}
+PAGES.markets = () => {
+  const f = state.filters;
+  const cat = f.marketsCategory || 'tous';
+  const live = DATA.mode === 'live';
+  const list = marketsListeFiltree();
+  const visibles = f.marketsVisibles || 20;
+  const page = list.slice(0, visibles);
+  const filtres = marketsFiltresActifs();
+  return `<div class="v-page">
+  <div class="v-ph"><h1>Marchés</h1></div>
+  <button class="v-search" style="margin-top:14px;width:100%" data-search>${V2ICON.search}<span style="flex:1;text-align:left;font-size:16px">Action, ETF, crypto…</span></button>
+  <div class="v-chips" style="margin-top:14px">
+    <span class="v-chip"><span class="v-rec"${live ? '' : ' style="background:#e0a63a;box-shadow:0 0 0 3px rgba(224,166,58,.16)"'}></span>${live ? 'Live' : 'Différé'}</span>
+    ${V2_CATS.map(([v, l]) => `<button class="v-chip ${cat === v ? 'v-on' : ''}" data-v2cat="${v}">${l}</button>`).join('')}
+  </div>
+  <section class="v-sec v-duo">${v2cryptos().map(v2cryptoCard).join('')}</section>
+  <section class="v-sec"><div class="v-sec-h"><h2>Plus fortes variations</h2></div>
+    <div class="v-card">${v2seg('v2movers', [['top', 'En hausse'], ['flop', 'En baisse']], V2_UI.moversTab)}<div class="v-grid4" id="v2moversGrid">${v2moversGrid()}</div></div></section>
+  <section class="v-sec"><div class="v-sec-h"><h2>${cat === 'tous' ? 'Toutes les valeurs' : esc((MARKET_CATEGORIES.find(c => c.id === cat) || {}).label || 'Valeurs')}</h2><button class="v-link" data-open-market-filters>Filtres${filtres.length ? ` (${filtres.length})` : ''} ${V2ICON.chev}</button></div>
+    <div class="v-card" style="padding:8px 18px">${page.length
+      ? page.map(s => v2row(s, { spark:true })).join('')
+        + (list.length > page.length ? `<button class="v-more" data-markets-plus="1">Voir plus (${list.length - page.length} restants)</button>` : '')
+      : `<p class="v-sub" style="padding:14px 0">Aucun instrument ne correspond à ce filtre.</p>`}</div></section>
+  </div>`;
+};
+V2_SEG_HANDLERS.v2movers = v => {
+  V2_UI.moversTab = v;
+  const grid = document.getElementById('v2moversGrid');
+  if (grid){ grid.style.opacity = 0; setTimeout(() => { grid.innerHTML = v2moversGrid(); grid.style.opacity = 1; }, 150); }
+};
+document.addEventListener('click', e => {
+  const c = e.target.closest('[data-v2cat]');
+  if (!c) return;
+  const v = c.dataset.v2cat;
+  /* Re-cliquer la catégorie active revient à "Tous", comme un filtre. */
+  state.filters.marketsCategory = state.filters.marketsCategory === v ? 'tous' : v;
+  state.filters.marketsVisibles = 20;
+  saveState();
+  render();
+});
