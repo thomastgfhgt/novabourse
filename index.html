@@ -60,6 +60,7 @@
 <script src="/js/page-admin-alpaca.js"></script>
 <script src="/js/page-compare.js"></script>
 <script src="/js/v2-pages.js"></script>
+<script src="/js/v2-pages-2.js"></script>
 <script src="/js/auth.js"></script>
 <script>/* ============================================================
    NAVIGATION, ÉVÉNEMENTS, DÉMARRAGE
@@ -1409,7 +1410,7 @@ document.addEventListener('click', e => {
     state.filters[flt.dataset.filter] = isNaN(flt.dataset.val) ? flt.dataset.val : +flt.dataset.val;
     saveState();
     document.querySelectorAll(`[data-filter="${flt.dataset.filter}"]`).forEach(b=>
-      b.setAttribute('aria-pressed', String(b.dataset.val === flt.dataset.val)));
+      { b.setAttribute('aria-pressed', String(b.dataset.val === flt.dataset.val)); b.classList.toggle('v-on', b.dataset.val === flt.dataset.val); });
     if (route.page === 'radar') document.getElementById('radarOut').innerHTML = radarResults();
     return;
   }
