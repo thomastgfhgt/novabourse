@@ -46,6 +46,18 @@ const ENDPOINTS_AUTORISES = Object.freeze({
   }),
 });
 
+// Endpoints de PRODUCTION (2026-10-16, préparation "trading réel") — EU
+// uniquement, adresses publiées par la doc officielle (Getting Started,
+// "Live / Production"). Déclarés mais INATTEIGNABLES tant que
+// TRADING_ALLOWED_IN_PRODUCTION vaut false (voir validerConfiguration) :
+// les déclarer ici évite seulement d'élargir la liste fermée le jour J.
+const ENDPOINTS_PRODUCTION = Object.freeze({
+  eu: Object.freeze({
+    baseUrl: 'https://broker-api.eu.alpaca.markets',
+    authUrl: 'https://authx.eu.alpaca.markets/v1/oauth2/token',
+  }),
+});
+
 // Verrou production — constante dans LE CODE. Le lever exige de modifier
 // cette ligne (donc un commit + une revue), jamais une simple variable Vercel.
 const TRADING_ALLOWED_IN_PRODUCTION = false;
@@ -120,7 +132,9 @@ function hoteEtCheminAutorises(urlConfiguree, urlAttendue) {
 
 function endpointsAttendus() {
   const r = regionConfiguree();
-  return r ? ENDPOINTS_AUTORISES[r] : null;
+  if (!r) return null;
+  if (process.env.ALPACA_BROKER_ENV === 'production') return ENDPOINTS_PRODUCTION[r] || null;
+  return ENDPOINTS_AUTORISES[r];
 }
 
 /* Valide la configuration complète — région, env, base URL, auth URL —
@@ -129,7 +143,15 @@ function endpointsAttendus() {
    requêtes ne doit jamais passer inaperçue). Lève une erreur explicite,
    jamais un échec silencieux. */
 function validerConfiguration() {
-  if (process.env.ALPACA_BROKER_ENV !== 'sandbox') {
+  const env = process.env.ALPACA_BROKER_ENV;
+  if (env === 'production') {
+    /* Double condition, toutes deux obligatoires : le verrou du code levé
+       ET un vrai déploiement Production Vercel — jamais une Preview qui
+       aurait reçu ALPACA_BROKER_ENV=production par erreur. */
+    if (!TRADING_ALLOWED_IN_PRODUCTION || !estEnvironnementProduction()) {
+      throw new Error('alpaca_production_verrouillee');
+    }
+  } else if (env !== 'sandbox') {
     throw new Error('alpaca_environnement_non_autorise');
   }
   const attendu = endpointsAttendus();
@@ -244,6 +266,7 @@ function _reinitialiserCachePourTests() {
 
 module.exports = {
   ENDPOINTS_AUTORISES,
+  ENDPOINTS_PRODUCTION,
   TRADING_ALLOWED_IN_PRODUCTION,
   estEnvironnementProduction,
   verrouProductionActif,
