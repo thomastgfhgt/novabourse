@@ -826,7 +826,10 @@ function novabotEditBox(index, texteActuel){
 
 function novabotChatView(){
   const c = NOVABOT_CHAT;
-  const premierTour = c.messages.length <= 1 && state.novabot.mandateConfirmed;
+  /* Design v2 : suggestions sous l'accueil pour tout le monde (la
+     maquette les montre) — pédagogiques sans mandat, de pilotage avec. */
+  const premierTour = c.messages.length <= 1;
+  const suggestions = state.novabot.mandateConfirmed ? NOVABOT_SUGGESTIONS : V2_SUGGESTIONS_PEDAGOGIQUES;
   /* Pendant la révélation progressive (voir novabotRevelerProgressivement()
      dans novabot-chat.js), le DERNIER message (déjà en mémoire en texte
      complet) est retiré de la liste normale pour laisser la bulle
@@ -868,7 +871,7 @@ function novabotChatView(){
           ${c.sending ? `<div class="nb-msg-row"><div class="nb-avatar">${NOVABOT_ROOK_SVG}</div>
             <div class="nb-typing-row"><i></i><i></i><i></i><b>Nova prépare sa réponse…</b></div></div>` : ''}
           ${premierTour && !c.sending ? `<div class="nb-suggestions">
-            ${NOVABOT_SUGGESTIONS.map(s => `<button type="button" class="nb-suggestion-chip" data-novabot-suggestion="${esc(s)}">${esc(s)}</button>`).join('')}
+            ${suggestions.map(s => `<button type="button" class="nb-suggestion-chip" data-novabot-suggestion="${esc(s)}">${esc(s)}</button>`).join('')}
           </div>` : ''}
         </div>
         ${c.readyToConfirm ? `<button class="btn btn-a" style="width:100%;margin-top:12px" data-novabot-confirm-mandat>Confirmer le mandat</button>` : ''}
@@ -1193,25 +1196,22 @@ function novabotOuvrirMandat(){
    l'écran". Le bouton Historique n'a de sens qu'en vue Conversations —
    masqué (pas juste désactivé, pour ne pas suggérer une action possible)
    en vue Portefeuille. */
+/* Design v2 (2026-10-19) : en-tête de la maquette (nb-head + nb-seg) —
+   retour à gauche, titre centré, historique à droite ; mêmes attributs
+   data-back / data-novabot-sidebar-open / data-novabot-view qu'avant. */
 function novabotTopBar(){
-  return `<div class="nb-topbar">
-    <div class="nb-topbar-row">
-      <button type="button" class="nb-icon-btn" data-back aria-label="Retour" style="transform:scaleX(-1)">${svg(ICON.arrow,2)}</button>
-      <div class="nb-brand-mark"><span class="nb-rook" style="view-transition-name:nova-icon-novabot">${svg(ICON.rook,2)}</span><b>NovaBot</b></div>
-      ${NOVABOT_UI.view === 'chat'
-        ? `<button type="button" class="nb-icon-btn" data-novabot-sidebar-open aria-label="Historique">${svg(ICON.list,2)}</button>`
-        : `<span class="nb-icon-btn" style="visibility:hidden"></span>`}
-    </div>
-    <div class="nb-seg-pill" data-seg="novabotView">
-      <button type="button" data-novabot-view="chat" aria-pressed="${NOVABOT_UI.view==='chat'}">Conversations</button>
-      <button type="button" data-novabot-view="portfolio" aria-pressed="${NOVABOT_UI.view==='portfolio'}">Portefeuille</button>
-    </div>
-  </div>`;
+  const chat = NOVABOT_UI.view === 'chat';
+  return `<div class="v-nb-head"><button class="v-back v-circ" data-back aria-label="Retour">${V2ICON.back}</button>
+      <div class="v-nb-title"><span class="v-chess">${V2ICON.rook}</span>NovaBot</div>
+      ${chat ? `<button class="v-circ v2-nb-hist" data-novabot-sidebar-open aria-label="Historique">${V2ICON.list}</button>` : ''}</div>
+    <div class="v-nb-seg"><div class="v-seg"><span class="v-knob"></span>
+      <button type="button" data-novabot-view="chat" class="${chat ? 'v-on' : ''}" aria-pressed="${chat}">Conversations</button>
+      <button type="button" data-novabot-view="portfolio" class="${chat ? '' : 'v-on'}" aria-pressed="${!chat}">Portefeuille</button></div></div>`;
 }
 PAGES.novabot = () => {
   if (!NOVABOT_CONVERSATIONS.loaded && !NOVABOT_CONVERSATIONS.loading) novabotConversationsCharger();
 
-  return `<div class="page-in nb-page">
+  return `<div class="v-page v2-legacy nb-page">
     ${novabotTopBar()}
     ${NOVABOT_UI.view === 'chat' ? novabotChatView() : novabotPortfolioView()}
   </div>`;

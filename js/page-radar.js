@@ -98,14 +98,12 @@ function radarResults(){
     return vb - va;
   });
 
-  if (!list.length) return `<div class="card">${emptyState('Aucune entreprise ne correspond',
-    'Élargissez un critère : le Radar n’ajoute jamais de résultat approchant.')}</div>`;
+  if (!list.length) return `<section class="v-sec v-card"><b>Aucune entreprise ne correspond</b>
+    <p class="v-sub">Élargis un critère : le Radar n’ajoute jamais de résultat approchant.</p></section>`;
 
-  return `
-    <p class="small" style="margin-bottom:12px">${list.length} résultat${list.length>1?'s':''}</p>
-    <div class="card"><div class="rows rows-grid">
-      ${list.slice(0, 40).map(s => stockRow(s)).join('')}
-    </div></div>`;
+  /* Design v2 (2026-10-19) : "N résultats" + lignes de la maquette. */
+  return `<section class="v-sec"><div class="v-sec-h"><h2>${fmt.int(list.length)} résultat${list.length>1?'s':''}</h2></div>
+    <div class="v-card" style="padding:8px 18px">${list.slice(0, 40).map(s => v2row(s, { spark:true })).join('')}</div></section>`;
 }
 
 /* ---------- MARCHÉS ----------

@@ -439,6 +439,9 @@ async function chargerGraphique(stock){
   if (!stock) return;
   const existing = HIST.get(stock.id);
   if (existing && existing.status !== 'error') return;   // déjà chargé ou en cours
+  /* CORRECTIF (2026-10-19) : même boucle que chargerFondamentaux — un échec
+     relancé à chaque render(). Pas de nouvel essai avant 60 s. */
+  if (existing && existing.status === 'error' && Date.now() - (existing.at || 0) < 60000) return;
   if (HIST_ENCOURS.has(stock.id)) return;
 
   HIST_ENCOURS.add(stock.id);
@@ -452,7 +455,7 @@ async function chargerGraphique(stock){
     const r = await fetch(`/api/market/history?ticker=${encodeURIComponent(stock.ticker)}`
       + `&exchange=${encodeURIComponent(exch)}&type=${encodeURIComponent(stock.type || 'stock')}`);
     if (!r.ok){
-      HIST.set(stock.id, { status:'error', data:[] });
+      HIST.set(stock.id, { status:'error', data:[], at: Date.now() });
       return;
     }
     const d = await r.json();
@@ -463,7 +466,7 @@ async function chargerGraphique(stock){
       ? { status:'ready', data:points }
       : { status:'empty', data:[] });
   } catch {
-    HIST.set(stock.id, { status:'error', data:[] });
+    HIST.set(stock.id, { status:'error', data:[], at: Date.now() });
   } finally {
     HIST_ENCOURS.delete(stock.id);
     render();
@@ -508,6 +511,9 @@ async function chargerGraphiquePeriode(stock, period){
   const cle = cleHISTP(stock.id, period);
   const existing = HISTP.get(cle);
   if (existing && existing.status !== 'error') return;   // déjà chargé ou en cours
+  /* CORRECTIF (2026-10-19) : même boucle que chargerFondamentaux — un échec
+     relancé à chaque render(). Pas de nouvel essai avant 60 s. */
+  if (existing && existing.status === 'error' && Date.now() - (existing.at || 0) < 60000) return;
   if (HISTP_ENCOURS.has(cle)) return;
 
   HISTP_ENCOURS.add(cle);
@@ -520,7 +526,7 @@ async function chargerGraphiquePeriode(stock, period){
       + `&period=${encodeURIComponent(period)}`);
     if (!r.ok){
       console.warn(`[NovaTitre][chargerGraphiquePeriode] HTTP ${r.status} pour ${stock.ticker}@${exch} (période ${period})`);
-      HISTP.set(cle, { status:'error', data:[] });
+      HISTP.set(cle, { status:'error', data:[], at: Date.now() });
       return;
     }
     const d = await r.json();
@@ -535,7 +541,7 @@ async function chargerGraphiquePeriode(stock, period){
       : { status:'empty', data:[] });
   } catch (e) {
     console.warn(`[NovaTitre][chargerGraphiquePeriode] exception pour ${stock.ticker}@${exch} (période ${period}) :`, e);
-    HISTP.set(cle, { status:'error', data:[] });
+    HISTP.set(cle, { status:'error', data:[], at: Date.now() });
   } finally {
     HISTP_ENCOURS.delete(cle);
     renderSparklinesGroupe();
@@ -554,10 +560,18 @@ const FUND_ENCOURS = new Set();
    revenuePerShare, revenueSeries, epsSeries, fcfSeries, netIncome, eps,
    profitMargin, operatingMargin, roe, debt, cash, freeCashFlow, pe,
    forwardPE, priceToBook, evToEbitda, dividendYield, marketCap. */
+const FUND_RECUL_MS = 60000;
 async function chargerFondamentaux(stock){
   if (!stock) return;
   if (stock.fundamentalsStatus === 'loaded' || stock.fundamentalsStatus === 'loading') return;
   if (FUND_ENCOURS.has(stock.id)) return;
+  /* CORRECTIF (2026-10-19, boucle réelle mesurée : ~100 render()/s) : un
+     échec repassait le statut à 'error', et assurerEvenementsSuivis(),
+     appelé à CHAQUE render(), relançait aussitôt la requête — qui échouait
+     de nouveau, puis render()... à l'infini tant que l'API répondait en
+     erreur (symbole inconnu, quota). Même recul qu'après un échec de
+     cotation : pas de nouvel essai avant FUND_RECUL_MS. */
+  if (stock.fundamentalsStatus === 'error' && Date.now() - (stock._fundEchecAt || 0) < FUND_RECUL_MS) return;
 
   FUND_ENCOURS.add(stock.id);
   stock.fundamentalsStatus = 'loading';
@@ -570,6 +584,7 @@ async function chargerFondamentaux(stock){
       stock.fundamentals = null;
       stock.hasFundamentals = false;
       stock.fundamentalsStatus = 'error';
+      stock._fundEchecAt = Date.now();
       return;
     }
     const d = await r.json();
@@ -589,6 +604,7 @@ async function chargerFondamentaux(stock){
     stock.fundamentals = null;
     stock.hasFundamentals = false;
     stock.fundamentalsStatus = 'error';
+    stock._fundEchecAt = Date.now();
   } finally {
     FUND_ENCOURS.delete(stock.id);
     render();

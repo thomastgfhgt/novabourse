@@ -1,0 +1,43 @@
+/* ============================================================
+   DESIGN V2 — ajustements propres au site (2026-10-19)
+   ============================================================
+   css/v2.css est généré tel quel depuis la maquette. Ce fichier ne
+   contient que ce que la maquette ne prévoit pas : états réels (marché
+   non connecté, logos d'entreprise, champ de chat), écran de connexion,
+   et le passage des anciennes pages au même rendu. */
+
+/* Point "cours en direct" : orange quand aucune source n'est connectée. */
+.v-live-dot.v-off{background:#e0a63a;box-shadow:0 0 0 4px rgba(224,166,58,.16)}
+
+/* Avatar sans pastille de notification (aucune notification réelle). */
+.v-avatar{font-weight:800;font-size:14px}
+
+/* Logo réel d'entreprise dans le rond .v-logo-c */
+.v2-logo-img{overflow:hidden}
+.v2-logo-img img{width:72%;height:72%;object-fit:contain}
+
+/* Temple : animation d'entrée jouée une seule fois par session. */
+.v2-no-intro .v-tp,.v2-no-intro .v-t-logo{animation:none!important;opacity:1}
+
+/* Héros NovaBot sans montant : titre au lieu du chiffre de la maquette. */
+.v2-big-txt{font-size:32px;line-height:1.08}
+.v2-hero-sugg{margin-top:16px;gap:8px}
+.v2-hero-sugg button{padding:10px 16px;font-size:14px;background:rgba(255,255,255,.08)}
+
+/* Écran de connexion : ni en-tête ni barre de navigation. */
+body.gated .v-top,body.gated .v-dock{display:none}
+body.gated .v-wrap{padding:0;max-width:100%}
+
+/* Les pages pas encore converties s'affichent dans la colonne de 560 px
+   de la maquette : on neutralise l'ancienne largeur de .wrap. */
+.v-wrap > :not(.v-page){max-width:100%}
+
+/* La maquette garde l'interligne par défaut du navigateur ; styles.css
+   impose 1.6 à body, à neutraliser dans les pages converties et l'en-tête. */
+.v-page,.v-top,.v-dock,.v-sheet{line-height:normal}
+
+/* Nom sur une ligne, comme la maquette (noms réels parfois plus longs). */
+.v-row .v-t b{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* Logo de la fiche valeur : carré arrondi (sk-id de la maquette). */
+.v2-sk-logo .v-logo-c{border-radius:18px}

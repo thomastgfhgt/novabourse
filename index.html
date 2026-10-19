@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>NovaTitre — Trois IA analysent les marchés. Vous décidez.</title>
 <meta name="description" content="NovaTitre analyse les entreprises cotées avec trois intelligences artificielles et un score de qualité et de risque expliqué en clair.">
-<meta name="theme-color" content="#ffffff">
+<meta name="theme-color" content="#0b0912">
 <meta name="color-scheme" content="light dark">
 <meta name="supported-color-schemes" content="light dark">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -15,30 +15,29 @@
 <noscript><link rel="stylesheet"
   href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=IBM+Plex+Mono:wght@400;500;600&display=swap"></noscript>
   <script src="https://unpkg.com/lightweight-charts@5.2.1/dist/lightweight-charts.standalone.production.js"></script><link rel="stylesheet" href="/styles.css">
+<link rel="stylesheet" href="/css/v2.css">
+<link rel="stylesheet" href="/css/v2-site.css">
+<link rel="stylesheet" href="/css/v2-legacy.css">
+<link rel="stylesheet" href="/css/v2-novabot.css">
 </head>
-<body>
+<body class="v-shell">
 
-<div class="aurora-bg" aria-hidden="true"><span class="aurora-3"></span></div>
+<!-- Design v2 (2026-10-19) : en-tête, fond et navigation repris
+     exactement de la maquette novatitre-v2.html. -->
+<div class="v-aurora" aria-hidden="true"></div>
 
-<header class="top">
-  <div class="top-in">
-    <button class="logo" data-go="home" aria-label="NovaTitre, accueil">
-      <span class="logo-m" aria-hidden="true">
-        <svg viewBox="0 0 1536 1024" aria-hidden="true"><path fill="currentColor" stroke="none" d="M 770,180 L 781,283 L 781,293 L 783,303 L 784,324 L 802,500 L 803,521 L 808,559 L 808,569 L 810,583 L 815,594 L 828,607 L 1028,718 L 1125,770 L 949,475 Z"/><path fill="currentColor" stroke="none" d="M 758,181 L 616,414 L 402,770 L 410,766 L 510,699 L 615,626 L 741,535 L 754,520 L 758,508 Z"/><path fill="currentColor" stroke="none" d="M 410,774 L 1120,774 L 861,663 L 849,659 L 747,615 L 727,608 L 712,608 L 697,614 L 572,686 Z"/></svg>
-      </span>NovaTitre
-    </button>
-    <nav class="top-nav" id="topNav" aria-label="Navigation"></nav>
-    <div class="top-act">
-      <span id="srcBadge"></span>
-      <button class="icon-btn" data-search aria-label="Rechercher"></button>
-      <button class="btn btn-a btn-sm cta-offres" data-go="pricing">
-        <span class="cta-full">Voir les offres</span><span class="cta-short">Offres</span></button>
-    </div>
-  </div>
+<header class="v-top">
+  <button class="v-logo" data-go="home" aria-label="NovaTitre, accueil">
+    <svg viewBox="392 172 742 610" fill="currentColor" aria-hidden="true"><path d="M 770,180 L 781,283 L 781,293 L 783,303 L 784,324 L 802,500 L 803,521 L 808,559 L 808,569 L 810,583 L 815,594 L 828,607 L 1028,718 L 1125,770 L 949,475 Z"/><path d="M 758,181 L 616,414 L 402,770 L 410,766 L 510,699 L 615,626 L 741,535 L 754,520 L 758,508 Z"/><path d="M 410,774 L 1120,774 L 861,663 L 849,659 L 747,615 L 727,608 L 712,608 L 697,614 L 572,686 Z"/></svg>
+    NovaTitre
+  </button>
+  <span class="v-live-dot" id="liveDot" title="Cours"></span>
+  <button class="v-ibtn" data-search aria-label="Rechercher"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg></button>
+  <button class="v-ibtn v-avatar" data-go="account" id="avatarBtn" aria-label="Compte"></button>
 </header>
 
-<main class="wrap" id="view" tabindex="-1"></main>
-<nav class="dock" id="dock" aria-label="Navigation"></nav>
+<main class="v-wrap" id="view" tabindex="-1"></main>
+<nav class="v-dock" id="dock" aria-label="Navigation"></nav>
 
 <div class="sheet-bg" id="sheetBg" role="dialog" aria-modal="true" aria-labelledby="sheetTitle" hidden>
   <div class="sheet" id="sheet"></div>
@@ -48,6 +47,7 @@
 <script src="/js/core.js"></script>
 <script src="/js/ui-primitives.js"></script>
 <script src="/js/data-services.js"></script>
+<script src="/js/v2-ui.js"></script>
 <script src="/js/page-home.js"></script>
 <script src="/js/nova.js"></script>
 <script src="/js/novabot-chat.js"></script>
@@ -61,6 +61,9 @@
 <script src="/js/page-account.js"></script>
 <script src="/js/page-admin-alpaca.js"></script>
 <script src="/js/page-compare.js"></script>
+<script src="/js/v2-pages.js"></script>
+<script src="/js/v2-pages-2.js"></script>
+<script src="/js/v2-stock.js"></script>
 <script src="/js/auth.js"></script>
 <script>/* ============================================================
    NAVIGATION, ÉVÉNEMENTS, DÉMARRAGE
@@ -69,11 +72,11 @@
    Filtres remplacent le "mur" de puces secteur/pays affiché en
    permanence) — 6 destinations -> 5. Voir PAGES.markets(). */
 const NAV = [
-  { id:'home',      label:'Accueil',      icon:ICON.home },
-  { id:'markets',   label:'Marchés',      icon:ICON.chart },
-  { id:'radar',     label:'Radar',        icon:ICON.radar },
-  { id:'portfolio', label:'Portefeuille', icon:ICON.wallet },
-  { id:'account',   label:'Compte',       icon:ICON.user },
+  { id:'home',      label:'Accueil',      svg:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M4 10.5 12 4l8 6.5V20a1 1 0 0 1-1 1h-4.5v-6h-5v6H5a1 1 0 0 1-1-1z"/></svg>' },
+  { id:'markets',   label:'Marchés',      svg:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19h16M5 15l4.5-5 3.5 3 6-7"/></svg>' },
+  { id:'radar',     label:'Radar',        svg:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg>' },
+  { id:'portfolio', label:'Portefeuille', svg:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="3" y="7" width="18" height="13" rx="2.5"/><path d="M9 7V5.5A1.5 1.5 0 0 1 10.5 4h3A1.5 1.5 0 0 1 15 5.5V7M3 12.5h18"/></svg>' },
+  { id:'account',   label:'Compte',       svg:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4.5 21a7.5 7.5 0 0 1 15 0"/></svg>' },
 ];
 let route = { page:'home', arg:null };
 let history_ = [];
@@ -111,32 +114,42 @@ function paintNav(){
      paintNav() tourne à chaque render(), donc toujours à jour dès que
      state.settings.mode change (segmenté Simple/Détaillé compris). */
   document.documentElement.setAttribute('data-nova-level', novaLevel());
-  const topNav = document.getElementById('topNav');
-  if (!topNavBuilt){
-    topNav.innerHTML = `<span class="top-nav-pill" aria-hidden="true"></span>` + NAV.map(n=>`
-      <a href="#" data-go="${n.id}">${n.label}</a>`).join('');
-    topNavBuilt = true;
-  }
-  topNav.querySelectorAll('a[data-go]').forEach(a => syncActiveAttr(a, a.dataset.go === route.page));
-  positionTopNavPill();
   const dock = document.getElementById('dock');
   if (!dockBuilt){
-    dock.innerHTML = `<span class="dock-pill" aria-hidden="true"></span>` + NAV.map(n=>`
-      <button data-go="${n.id}" aria-label="${n.label}">${svg(n.icon)}<span>${n.label}</span></button>`).join('');
+    dock.innerHTML = `<span class="v-pill" aria-hidden="true"></span>` + NAV.map(n=>`
+      <button data-go="${n.id}">${n.svg}<span>${n.label}</span></button>`).join('');
     dockBuilt = true;
   }
-  dock.querySelectorAll('button[data-go]').forEach(b => syncActiveAttr(b, b.dataset.go === route.page));
+  dock.querySelectorAll('button[data-go]').forEach(b => {
+    const on = b.dataset.go === route.page;
+    syncActiveAttr(b, on);
+    b.classList.toggle('v-on', on);
+  });
   positionDockPill();
-  document.querySelector('[data-search]').innerHTML = svg(ICON.search);
+  paintAvatar();
 }
+/* Pilule de la maquette : left/width posés sur le bouton actif (même
+   mécanique que movePill() de novatitre-v2.html). */
 function positionDockPill(){
   const dock = document.getElementById('dock');
-  const pill = dock.querySelector('.dock-pill');
-  const active = dock.querySelector('button[aria-current]');
+  const pill = dock.querySelector('.v-pill');
+  const active = dock.querySelector('button.v-on');
   if (!pill) return;
-  if (!active){ pill.style.width = '0px'; return; }
-  pill.style.transform = `translateX(${active.offsetLeft}px)`;
+  if (!active){ pill.style.opacity = 0; return; }
+  pill.style.opacity = 1;
+  pill.style.left = active.offsetLeft + 'px';
   pill.style.width = active.offsetWidth + 'px';
+}
+/* Avatar de l'en-tête : initiales réelles de l'utilisateur connecté
+   (nom si connu, sinon e-mail) — jamais des initiales d'exemple. */
+function paintAvatar(){
+  const el = document.getElementById('avatarBtn');
+  if (!el) return;
+  const nom = String(state.auth.name || '').trim();
+  const base = nom || String(state.auth.email || '').split('@')[0];
+  const parts = base.split(/[\s._-]+/).filter(Boolean);
+  const ini = ((parts[0]?.[0] || '') + (parts[1]?.[0] || '')).toUpperCase() || '·';
+  if (el.textContent !== ini) el.textContent = ini;
 }
 /* Même mécanique FLIP que .dock-pill juste au-dessus (nœud persistant,
    seules transform/width bougent d'un render à l'autre) appliquée à la
@@ -144,32 +157,19 @@ function positionDockPill(){
    paintNav() (voir topNavBuilt plus haut, même correctif que dockBuilt
    en son temps) : une pilule sur des nœuds recréés en continu n'aurait
    jamais pu réellement glisser. */
-function positionTopNavPill(){
-  const topNav = document.getElementById('topNav');
-  const pill = topNav.querySelector('.top-nav-pill');
-  const active = topNav.querySelector('a[aria-current]');
-  if (!pill) return;
-  if (!active){ pill.style.width = '0px'; return; }
-  pill.style.transform = `translateX(${active.offsetLeft}px)`;
-  pill.style.width = active.offsetWidth + 'px';
-}
+function positionTopNavPill(){}
 /* La position mesurée en pixels ne survit pas à une rotation d'écran ou à
    l'ouverture du clavier (qui redimensionne le viewport sur mobile) —
    sans ce listener, la pilule resterait figée à ses anciennes coordonnées
    jusqu'au prochain changement d'onglet. */
 window.addEventListener('resize', () => {
-  const dockPill = document.querySelector('.dock-pill');
+  const dockPill = document.querySelector('.v-dock .v-pill');
   if (dockPill){
     dockPill.classList.add('no-anim');
     positionDockPill();
     requestAnimationFrame(() => dockPill.classList.remove('no-anim'));
   }
-  const topPill = document.querySelector('.top-nav-pill');
-  if (topPill){
-    topPill.classList.add('no-anim');
-    positionTopNavPill();
-    requestAnimationFrame(() => topPill.classList.remove('no-anim'));
-  }
+
 });
 
 /* Clavier iOS pendant la conversation NovaBot (retour utilisateur
@@ -204,7 +204,7 @@ if (window.visualViewport){
    par body.nb-immersive .wrap (styles.css) pour que la vue Conversations
    NovaBot occupe exactement l'espace sous le bandeau, jamais plus. */
 function syncTopHeaderHeight(){
-  const top = document.querySelector('header.top');
+  const top = document.querySelector('header.v-top');
   if (top) document.documentElement.style.setProperty('--top-header-h', top.getBoundingClientRect().height + 'px');
 }
 syncTopHeaderHeight();
@@ -347,6 +347,7 @@ function render(navigated = false){
      existe encore) : était-on déjà proche du bas ? Si oui (ou si le fil
      vient d'apparaître), on le recolle en bas après coup ; si
      l'utilisateur avait remonté lire l'historique, on ne le force pas. */
+  const v2etat = v2avantRender();
   const ancienLog = document.getElementById('novabotChatLog');
   const recollerEnBas = !ancienLog || (ancienLog.scrollHeight - ancienLog.scrollTop - ancienLog.clientHeight) < 80;
   /* CORRECTIF (même cause que le scroll ci-dessus, pas encore couverte) :
@@ -379,6 +380,10 @@ function render(navigated = false){
         ${esc(route.page)} · ${esc(err && err.message ? err.message : String(err))} · ${esc(BUILD)}</p>
     </div>`;
   }
+  /* Design v2 (2026-10-19) : les pages que la maquette ne dessine pas
+     gardent leur contenu, habillé aux composants de la maquette
+     (css/v2-legacy.css). Les pages redessinées commencent par .v-page. */
+  if (!/^\s*<div class="v-page/.test(html)) html = `<div class="v-page v2-legacy">${html}</div>`;
   view.innerHTML = html;
   /* CORRECTIF (2026-09-23, signalé "je vois le temple sur mon PC mais pas
      sur mon téléphone") : bug WebKit/mobile connu — une animation CSS
@@ -429,6 +434,7 @@ function render(navigated = false){
   }
   paintNav();
   syncAllSegPills();
+  v2afterRender(v2etat);
   if (recollerEnBas){
     const nouveauLog = document.getElementById('novabotChatLog');
     if (nouveauLog) nouveauLog.scrollTop = nouveauLog.scrollHeight;
@@ -481,9 +487,9 @@ function render(navigated = false){
   const listesParRoute = {
     stock: () => [byId[route.arg]].filter(Boolean),
     compare: () => state.compare.map(id => byId[id]).filter(Boolean),
-    markets: () => marketsListeVisible(),
+    markets: () => [...marketsListeVisible(), ...v2extrasCotations('markets')],
     watchlist: () => state.watchlist.map(id => byId[id]).filter(Boolean),
-    home: () => [...state.watchlist.map(id => byId[id]), ...stocks.slice(0, 6)].filter(Boolean),
+    home: () => [...state.watchlist.map(id => byId[id]), ...v2populaires()].filter(Boolean),
     portfolio: () => state.wallet.positions.map(p => byId[p.id]).filter(Boolean),
   };
   const liveParRoute = {
@@ -545,6 +551,8 @@ function render(navigated = false){
      surcharger le réseau pour des cartes hors ou presque hors écran. */
   if (route.page === 'markets') marketsListeVisible().slice(0, CHARGEMENT_MASSE_MAX_SYMBOLES)
     .forEach(s => { if (s) chargerGraphiquePeriode(s, '1j'); });
+  /* Design v2 : courbes du jour propres à chaque page (js/v2-pages.js). */
+  v2extrasCourbes(route.page).forEach(s => { if (s) chargerGraphiquePeriode(s, '1j'); });
 
   /* Chargement du catalogue mondial (audit performance, 2026-09-29) :
      plus jamais chargé au démarrage (voir boot()) — seules les routes
@@ -652,9 +660,9 @@ function applySettings(){
   document.body.classList.toggle('no-spark', state.settings.sparklines === false);
 }
 function applyTheme(){
-  const wanted = state.settings.theme === 'auto'
-    ? (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
-    : (state.settings.theme === 'dark' ? 'dark' : 'light');
+  /* Design v2 (2026-10-19) : la maquette n'existe qu'en sombre — le
+     réglage de thème est conservé en mémoire mais n'a plus d'effet. */
+  const wanted = 'dark';
   document.documentElement.setAttribute('data-theme', wanted);
   document.querySelector('meta[name="theme-color"]')
     ?.setAttribute('content', wanted === 'dark' ? '#0b0912' : '#ffffff');
@@ -1043,6 +1051,7 @@ document.addEventListener('click', e => {
       const on = state.watchlist.includes(star.dataset.star);
       b.setAttribute('aria-pressed', String(on));
       b.querySelector('svg')?.setAttribute('fill', on ? 'currentColor' : 'none');
+      b.classList.toggle('v-on', on);
     });
     if (['watchlist','home'].includes(route.page)) render();
     return;
@@ -1331,7 +1340,7 @@ document.addEventListener('click', e => {
   if (retryChart){
     const s2 = byId[retryChart.dataset.retryChart];
     const period = CHART_PERIODS.some(p => p.api === state.ui.chartPeriod) ? state.ui.chartPeriod : '3m';
-    if (s2) chargerGraphiquePeriode(s2, period);
+    if (s2){ HISTP.delete(cleHISTP(s2.id, period)); chargerGraphiquePeriode(s2, period); }  // clic = nouvel essai immediat
     return;
   }
 
@@ -1409,7 +1418,7 @@ document.addEventListener('click', e => {
     state.filters[flt.dataset.filter] = isNaN(flt.dataset.val) ? flt.dataset.val : +flt.dataset.val;
     saveState();
     document.querySelectorAll(`[data-filter="${flt.dataset.filter}"]`).forEach(b=>
-      b.setAttribute('aria-pressed', String(b.dataset.val === flt.dataset.val)));
+      { b.setAttribute('aria-pressed', String(b.dataset.val === flt.dataset.val)); b.classList.toggle('v-on', b.dataset.val === flt.dataset.val); });
     if (route.page === 'radar') document.getElementById('radarOut').innerHTML = radarResults();
     return;
   }
@@ -1576,7 +1585,7 @@ document.addEventListener('click', e => {
   const showFund = q('[data-show-fundamentals]');
   if (showFund){
     const st = byId[showFund.dataset.showFundamentals];
-    if (st){ chargerFondamentaux(st); render(); }
+    if (st){ st._fundEchecAt = 0; chargerFondamentaux(st); render(); }  // clic = nouvel essai immediat
     return;
   }
   const showNews = q('[data-show-news]');
@@ -1921,8 +1930,13 @@ function sourceBadge(){
     <i></i><span class="src-txt">Marché non connecté</span></span>`;
 }
 function paintSource(){
-  const el = document.getElementById('srcBadge');
-  if (el) el.innerHTML = sourceBadge() + `<span class="build" title="Version">${esc(BUILD)}</span>`;
+  const dot = document.getElementById('liveDot');
+  if (!dot) return;
+  const live = DATA.mode === 'live';
+  dot.classList.toggle('v-off', !live);
+  dot.title = live
+    ? `Cours réels · ${new Date(DATA.at).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})} · ${BUILD}`
+    : `Marché non connecté · ${BUILD}`;
 }
 </script>
 <script src="/js/nova-ai.js"></script>
