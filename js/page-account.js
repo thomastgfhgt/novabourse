@@ -109,8 +109,7 @@ PAGES.settings = () => {
     <section class="section">
       <h2 class="h2">Apparence</h2>
       <div class="card" style="margin-top:14px">
-        ${settingRow('Thème', 'Suivre le système ajuste selon l\'heure de votre appareil.',
-          segControl('theme', THEMES, st.theme))}
+        ${/* Design v2 (2026-10-19) : thème unique (sombre), réglage retiré. */ ''}
         ${settingRow('Niveau de détail', 'Simple masque les ratios avancés.',
           segControl('mode', [{id:'debutant',label:'Simple'},{id:'expert',label:'Détaillé'}], st.mode))}
         ${settingRow('Animations', 'Réduit les mouvements si vous préférez.',

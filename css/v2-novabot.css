@@ -1,0 +1,70 @@
+/* ============================================================
+   DESIGN V2 — NovaBot (2026-10-19, maquette novatitre-v2.html)
+   ============================================================
+   La conversation garde toute sa logique (historique, édition, reprise,
+   arrêt, retours) ; ces règles lui donnent le rendu de la maquette :
+   bulle d'accueil, suggestions en pilules, champ "Écris à Nova…" flottant
+   au-dessus de la barre de navigation, qui reste visible. */
+
+/* Palette de la maquette (remplace celle propre à .nb-page) */
+.nb-page{--bg:#0b0912;--bg-2:#181428;--bg-3:#211b38;--bg-4:#2a2347;
+  --ink:#fff;--ink-2:#bdb6dd;--ink-3:#7f78a3;--ink-4:#7f78a3;
+  --line:rgba(255,255,255,.07);--line-2:rgba(255,255,255,.05);
+  --accent:#7c5cff;--accent-hover:#a68cff;--accent-soft:rgba(124,92,255,.16);
+  background:transparent;line-height:normal;border-radius:0}
+
+/* En-tête : bouton historique à droite, symétrique du retour */
+.v-nb-head .v2-nb-hist{position:absolute;right:0}
+.v-nb-head .v-circ svg{width:20px;height:20px}
+/* Interrupteur Conversations / Portefeuille : curseur violet (.nb-seg .knob) */
+.v-nb-seg .v-knob{background:var(--v-accent)}
+.v-nb-seg .v-seg button.v-on{color:#fff}
+
+/* La barre de navigation reste visible (maquette) : on annule le plein
+   écran mobile de l'ancienne version. */
+body.nb-immersive .v-dock{display:flex}
+.nb-chat-shell,.nb-thread-col,.nb-chat{display:block;background:transparent;border:0;box-shadow:none;padding:0;min-height:0}
+.nb-thread-head{display:none}
+.nb-chat-log{max-height:none!important;overflow:visible;padding:0 0 110px}
+
+/* Messages : bulle de la maquette (.bubble) */
+.nb-msg-row{display:flex;gap:0;margin-top:20px}
+.nb-msg-row .nb-avatar{display:none}
+.nb-msg-col{flex:1;min-width:0}
+.nb-msg.nb-msg-bot{background:#181428;border:1px solid rgba(255,255,255,.07);border-radius:22px 22px 22px 6px;padding:16px;
+  line-height:1.5;color:#bdb6dd;font-size:15px;max-width:100%}
+.nb-msg.nb-msg-bot b,.nb-msg.nb-msg-bot strong{color:#fff}
+.nb-msg.nb-msg-error{border-color:rgba(255,107,107,.3)}
+.nb-msg-user-wrap{margin-top:20px}
+.nb-msg.nb-msg-user{background:#2a2347;border:1px solid rgba(255,255,255,.07);border-radius:22px 22px 6px 22px;padding:14px 16px;
+  color:#fff;font-size:15px;line-height:1.45;max-width:85%}
+.nb-typing-row{background:#181428;border:1px solid rgba(255,255,255,.07);border-radius:22px 22px 22px 6px;padding:14px 16px;color:#bdb6dd}
+
+/* Suggestions (.sugg) */
+.nb-suggestions{display:flex;flex-direction:column;align-items:flex-start;gap:10px;margin-top:16px}
+.nb-suggestion-chip{padding:12px 18px;border-radius:999px;background:#211b38;border:1px solid rgba(255,255,255,.07);
+  font-weight:600;font-size:15px;text-align:left;color:#fff;height:auto}
+
+/* Champ de saisie flottant (.compose / .ask) */
+.nb-chat-input{position:fixed;left:16px;right:16px;bottom:calc(env(safe-area-inset-bottom) + 116px + var(--kb-inset, 0px));
+  max-width:528px;margin:0 auto;z-index:20;display:flex;align-items:center;gap:8px;
+  background:#211b38;border:1px solid rgba(255,255,255,.1);border-radius:999px;padding:8px 8px 8px 20px;box-shadow:0 10px 30px rgba(0,0,0,.5)}
+.nb-chat-input textarea{flex:1;background:none;border:0;outline:0;font:inherit;font-size:16px;color:#fff;resize:none;
+  min-height:24px;max-height:120px;padding:0;line-height:1.4}
+.nb-chat-input textarea::placeholder{color:#bdb6dd}
+.nb-send-btn{width:44px;height:44px;border-radius:50%;background:#fff;color:#0b0912;display:grid;place-items:center;flex:none}
+.nb-send-btn svg{width:18px;height:18px}
+.nb-send-btn.nb-stop-btn{background:#2a2347;color:#fff}
+
+/* Historique : tiroir latéral à toutes les tailles d'écran (la maquette
+   n'a pas de colonne permanente) — même comportement que l'ancien mobile. */
+.nb-sidebar{position:fixed;top:0;left:0;bottom:0;width:86vw;max-width:340px;z-index:90;margin:0;
+  border-radius:0 28px 28px 0;max-height:none;transform:translateX(-100%);transition:transform .25s cubic-bezier(.2,.8,.2,1);
+  padding:calc(14px + env(safe-area-inset-top)) 14px 14px;background:#110e1c;border:1px solid rgba(255,255,255,.07)}
+.nb-sidebar-open .nb-sidebar{transform:translateX(0)}
+.nb-sidebar-backdrop{display:block;position:fixed;inset:0;background:rgba(5,3,12,.6);z-index:85;opacity:0;pointer-events:none;transition:opacity .25s ease}
+.nb-sidebar-open .nb-sidebar-backdrop{opacity:1;pointer-events:auto}
+@media (prefers-reduced-motion:reduce){.nb-sidebar{transition:none}}
+
+/* Pleine largeur de la colonne, comme la maquette. */
+.nb-page{padding:0!important;margin:0!important;max-width:none!important}

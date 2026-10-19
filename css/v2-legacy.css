@@ -70,3 +70,8 @@
 
 /* Notifications (.v-toast) */
 .toast{background:#fff;color:#0b0912;font-weight:700;border-radius:999px}
+
+/* Bouton retour des pages secondaires : rond de la maquette (.circ). */
+.v2-legacy button.btn[data-back]{width:42px;height:42px;padding:0;border-radius:50%;font-size:0;color:transparent;
+  background:#181428 url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27white%27 stroke-width=%272.4%27 stroke-linecap=%27round%27%3E%3Cpath d=%27m15 6-6 6 6 6%27/%3E%3C/svg%3E") center/22px no-repeat;
+  box-shadow:none;border:1px solid rgba(255,255,255,.07)}

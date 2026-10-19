@@ -237,3 +237,12 @@ function v2afterRender(etat){
   v2animateGauges();
   v2templeScroll();
 }
+
+/* Suggestions NovaBot sans mandat (mode pédagogique). */
+const V2_SUGGESTIONS_PEDAGOGIQUES = [
+  "Que penses-tu d'Apple ?",
+  'Explique-moi le PER',
+  'Comment diversifier un portefeuille ?',
+  "C'est quoi un ETF ?",
+  'Quels risques pour un débutant ?',
+];

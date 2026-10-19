@@ -133,3 +133,6 @@ document.addEventListener('click', e => {
   go('home');
   setTimeout(() => document.getElementById('offres')?.scrollIntoView({ behavior:'smooth' }), 400);
 });
+
+/* ---------- Offres (page dédiée) : bloc offres de la maquette ---------- */
+PAGES.pricing = () => `<div class="v-page">${v2offersSection()}<div style="height:24px"></div></div>`;
