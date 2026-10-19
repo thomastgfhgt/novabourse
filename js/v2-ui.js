@@ -67,6 +67,9 @@ function v2area(data, color, { h = 100, fill = true, base = false } = {}){
     <path d="${d}" fill="none" stroke="${color}" stroke-width="2.4" stroke-linecap="round" vector-effect="non-scaling-stroke"/></svg>`;
 }
 
+/* Couleurs officielles des cryptos (pas de logo d'entreprise disponible). */
+const V2_COULEURS_MARQUE = { BTC:'#f7931a', ETH:'#627eea' };
+
 /* ---------- logo rond (logo-c) : vrai logo si disponible ---------- */
 function v2logo(s, size){
   const url = logoUrl(s);
@@ -74,7 +77,9 @@ function v2logo(s, size){
   if (url && !pret && !LOGO_FAILED.has(url)) assurerLogo(url);
   const st = size ? `width:${size}px;height:${size}px;` : '';
   if (pret) return `<span class="v-logo-c v2-logo-img" style="${st}background:#fff"><img src="${esc(url)}" alt="" decoding="async"></span>`;
-  return `<span class="v-logo-c" style="${st}background:${SECTOR_HUE[s.sector] || '#2a2347'};color:#fff">${esc(String(s.ticker || '').slice(0, 4))}</span>`;
+  const sigle = String(s.ticker || '').split(/[-/]/)[0].slice(0, 4);
+  const fond = V2_COULEURS_MARQUE[sigle] || SECTOR_HUE[s.sector] || '#2a2347';
+  return `<span class="v-logo-c" style="${st}background:${fond};color:#fff">${esc(sigle)}</span>`;
 }
 
 /* Nom court comme dans la maquette ("Alphabet" plutôt que "Alphabet Inc

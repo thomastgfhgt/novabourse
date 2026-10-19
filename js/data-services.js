@@ -439,6 +439,9 @@ async function chargerGraphique(stock){
   if (!stock) return;
   const existing = HIST.get(stock.id);
   if (existing && existing.status !== 'error') return;   // déjà chargé ou en cours
+  /* CORRECTIF (2026-10-19) : même boucle que chargerFondamentaux — un échec
+     relancé à chaque render(). Pas de nouvel essai avant 60 s. */
+  if (existing && existing.status === 'error' && Date.now() - (existing.at || 0) < 60000) return;
   if (HIST_ENCOURS.has(stock.id)) return;
 
   HIST_ENCOURS.add(stock.id);
@@ -452,7 +455,7 @@ async function chargerGraphique(stock){
     const r = await fetch(`/api/market/history?ticker=${encodeURIComponent(stock.ticker)}`
       + `&exchange=${encodeURIComponent(exch)}&type=${encodeURIComponent(stock.type || 'stock')}`);
     if (!r.ok){
-      HIST.set(stock.id, { status:'error', data:[] });
+      HIST.set(stock.id, { status:'error', data:[], at: Date.now() });
       return;
     }
     const d = await r.json();
@@ -463,7 +466,7 @@ async function chargerGraphique(stock){
       ? { status:'ready', data:points }
       : { status:'empty', data:[] });
   } catch {
-    HIST.set(stock.id, { status:'error', data:[] });
+    HIST.set(stock.id, { status:'error', data:[], at: Date.now() });
   } finally {
     HIST_ENCOURS.delete(stock.id);
     render();
@@ -508,6 +511,9 @@ async function chargerGraphiquePeriode(stock, period){
   const cle = cleHISTP(stock.id, period);
   const existing = HISTP.get(cle);
   if (existing && existing.status !== 'error') return;   // déjà chargé ou en cours
+  /* CORRECTIF (2026-10-19) : même boucle que chargerFondamentaux — un échec
+     relancé à chaque render(). Pas de nouvel essai avant 60 s. */
+  if (existing && existing.status === 'error' && Date.now() - (existing.at || 0) < 60000) return;
   if (HISTP_ENCOURS.has(cle)) return;
 
   HISTP_ENCOURS.add(cle);
@@ -520,7 +526,7 @@ async function chargerGraphiquePeriode(stock, period){
       + `&period=${encodeURIComponent(period)}`);
     if (!r.ok){
       console.warn(`[NovaTitre][chargerGraphiquePeriode] HTTP ${r.status} pour ${stock.ticker}@${exch} (période ${period})`);
-      HISTP.set(cle, { status:'error', data:[] });
+      HISTP.set(cle, { status:'error', data:[], at: Date.now() });
       return;
     }
     const d = await r.json();
@@ -535,7 +541,7 @@ async function chargerGraphiquePeriode(stock, period){
       : { status:'empty', data:[] });
   } catch (e) {
     console.warn(`[NovaTitre][chargerGraphiquePeriode] exception pour ${stock.ticker}@${exch} (période ${period}) :`, e);
-    HISTP.set(cle, { status:'error', data:[] });
+    HISTP.set(cle, { status:'error', data:[], at: Date.now() });
   } finally {
     HISTP_ENCOURS.delete(cle);
     renderSparklinesGroupe();

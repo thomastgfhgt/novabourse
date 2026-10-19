@@ -1331,7 +1331,7 @@ document.addEventListener('click', e => {
   if (retryChart){
     const s2 = byId[retryChart.dataset.retryChart];
     const period = CHART_PERIODS.some(p => p.api === state.ui.chartPeriod) ? state.ui.chartPeriod : '3m';
-    if (s2) chargerGraphiquePeriode(s2, period);
+    if (s2){ HISTP.delete(cleHISTP(s2.id, period)); chargerGraphiquePeriode(s2, period); }  // clic = nouvel essai immediat
     return;
   }
 
