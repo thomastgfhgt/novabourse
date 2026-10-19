@@ -19,6 +19,16 @@
 <link rel="stylesheet" href="/css/v2-site.css">
 <link rel="stylesheet" href="/css/v2-legacy.css">
 <link rel="stylesheet" href="/css/v2-novabot.css">
+<style id="v2-securite">
+/* Filet de sécurité (2026-10-19) : styles.css cachait .top/.dock sur
+   l'écran de connexion (body.gated) et .dock dans la discussion NovaBot
+   (body.nb-immersive). Le design v2 a renommé ces éléments en
+   .v-top/.v-dock/.v-wrap : on reprend ces mêmes règles pour les nouveaux
+   noms. Sans effet si css/v2-*.css les définit déjà. */
+body.gated .v-top,body.gated .v-dock{display:none!important}
+body.gated .v-wrap{padding:0;max-width:100%}
+body.nb-immersive .v-dock{display:none!important}
+</style>
 </head>
 <body class="v-shell">
 
@@ -65,6 +75,16 @@
 <script src="/js/v2-pages-2.js"></script>
 <script src="/js/v2-stock.js"></script>
 <script src="/js/auth.js"></script>
+<script>
+/* Filet de sécurité design v2 (2026-10-19) : si un fichier js/v2-*.js ne
+   se charge pas (404, cache, erreur de syntaxe), on retombe sur des
+   fonctions neutres plutôt que d'avoir une page blanche. */
+(function(){
+  const neutres = { v2avantRender:()=>null, v2afterRender:()=>{}, v2extrasCotations:()=>[], v2populaires:()=>[], v2extrasCourbes:()=>[] };
+  for (const [nom, f] of Object.entries(neutres)) if (typeof window[nom] !== 'function') { window[nom] = f; console.warn('[v2] fonction absente, repli neutre :', nom); }
+})();
+function v2sur(fn, repli){ try { const r = fn(); return r ?? repli; } catch (e){ console.warn('[v2]', e); return repli; } }
+</script>
 <script>/* ============================================================
    NAVIGATION, ÉVÉNEMENTS, DÉMARRAGE
    ============================================================ */
@@ -117,7 +137,7 @@ function paintNav(){
   const dock = document.getElementById('dock');
   if (!dockBuilt){
     dock.innerHTML = `<span class="v-pill" aria-hidden="true"></span>` + NAV.map(n=>`
-      <button data-go="${n.id}">${n.svg}<span>${n.label}</span></button>`).join('');
+      <button data-go="${n.id}" aria-label="${n.label}">${n.svg}<span>${n.label}</span></button>`).join('');
     dockBuilt = true;
   }
   dock.querySelectorAll('button[data-go]').forEach(b => {
@@ -347,7 +367,7 @@ function render(navigated = false){
      existe encore) : était-on déjà proche du bas ? Si oui (ou si le fil
      vient d'apparaître), on le recolle en bas après coup ; si
      l'utilisateur avait remonté lire l'historique, on ne le force pas. */
-  const v2etat = v2avantRender();
+  const v2etat = v2sur(() => v2avantRender(), null);
   const ancienLog = document.getElementById('novabotChatLog');
   const recollerEnBas = !ancienLog || (ancienLog.scrollHeight - ancienLog.scrollTop - ancienLog.clientHeight) < 80;
   /* CORRECTIF (même cause que le scroll ci-dessus, pas encore couverte) :
@@ -434,7 +454,7 @@ function render(navigated = false){
   }
   paintNav();
   syncAllSegPills();
-  v2afterRender(v2etat);
+  v2sur(() => v2afterRender(v2etat));
   if (recollerEnBas){
     const nouveauLog = document.getElementById('novabotChatLog');
     if (nouveauLog) nouveauLog.scrollTop = nouveauLog.scrollHeight;
@@ -487,9 +507,9 @@ function render(navigated = false){
   const listesParRoute = {
     stock: () => [byId[route.arg]].filter(Boolean),
     compare: () => state.compare.map(id => byId[id]).filter(Boolean),
-    markets: () => [...marketsListeVisible(), ...v2extrasCotations('markets')],
+    markets: () => [...marketsListeVisible(), ...v2sur(() => v2extrasCotations('markets'), [])],
     watchlist: () => state.watchlist.map(id => byId[id]).filter(Boolean),
-    home: () => [...state.watchlist.map(id => byId[id]), ...v2populaires()].filter(Boolean),
+    home: () => [...state.watchlist.map(id => byId[id]), ...v2sur(() => v2populaires(), [])].filter(Boolean),
     portfolio: () => state.wallet.positions.map(p => byId[p.id]).filter(Boolean),
   };
   const liveParRoute = {
@@ -552,7 +572,7 @@ function render(navigated = false){
   if (route.page === 'markets') marketsListeVisible().slice(0, CHARGEMENT_MASSE_MAX_SYMBOLES)
     .forEach(s => { if (s) chargerGraphiquePeriode(s, '1j'); });
   /* Design v2 : courbes du jour propres à chaque page (js/v2-pages.js). */
-  v2extrasCourbes(route.page).forEach(s => { if (s) chargerGraphiquePeriode(s, '1j'); });
+  v2sur(() => v2extrasCourbes(route.page), []).forEach(s => { if (s) chargerGraphiquePeriode(s, '1j'); });
 
   /* Chargement du catalogue mondial (audit performance, 2026-09-29) :
      plus jamais chargé au démarrage (voir boot()) — seules les routes
@@ -670,7 +690,7 @@ function applyTheme(){
 
 /* ---------- recherche ----------
    searchToken protège contre les réponses obsolètes : si l'utilisateur tape
-   vite, seule la dernière requête a le droit de peindre le résultat. */</script>
+   vite, seule la dernière requête a le droit de peindre le résultat. */</script>
 <script src="/js/search.js"></script>
 <script>function openCreateAlerte(st){
   const prix = prixDe(st);
@@ -1299,6 +1319,8 @@ document.addEventListener('click', e => {
      render() complet), pour ne rien perdre de ce correctif-là. */
   const th = q('[data-set-theme]');
   if (th){
+    /* Design v2 : seul le thème sombre existe pour l'instant. */
+    if (th.dataset.setTheme !== 'dark'){ toast('Le thème clair revient bientôt : NovaTitre est en mode sombre.'); return; }
     state.settings.theme = th.dataset.setTheme;
     saveState(); applyTheme(); render(); mountChartPro();
     return;
@@ -1938,7 +1960,7 @@ function paintSource(){
     ? `Cours réels · ${new Date(DATA.at).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})} · ${BUILD}`
     : `Marché non connecté · ${BUILD}`;
 }
-</script>
+</script>
 <script src="/js/nova-ai.js"></script>
 <script>async function loadCatalog(){
   try {
