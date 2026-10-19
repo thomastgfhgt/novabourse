@@ -3,6 +3,20 @@ Dernière mise à jour : 2026-09-23
 
 **Note de cadrage** (comme pour l'audit d'étape 1) : ce document décrit un système de design réel, implémenté en CSS/variables custom properties dans `index.html` — pas des composants React (`NovaButton`, `design/tokens/colors.ts`...). Il n'y a ni framework ni bundler. "Composant" ci-dessous signifie : une classe CSS + éventuellement une fonction JS qui génère le HTML correspondant (ex. `esc()`, `svg()`, `avatar()`).
 
+## Design v2 — thème sombre (2026-10-19)
+
+Reprise du design de la maquette `novatitre-v2.html`, choisie par l'utilisateur. Thème sombre uniquement : le thème clair est inchangé. Implémenté en fin de `styles.css` (blocs « DESIGN V2 ») ; les sections plus bas décrivent l'historique.
+
+| Token | Valeur | Rôle |
+|---|---|---|
+| `--bg` | `#0b0912` + lueurs violettes radiales sur `html` | fond de page |
+| `--bg-2` / `-3` / `-4` | `#181428` `#211b38` `#2a2347` | surfaces pleines empilées (plus de verre translucide) |
+| `--ink` / `-2` / `-3` / `-4` | `#fff` `#e6e2f5` `#bdb6dd` `#8b84b0` | texte principal → discret (`-4` ≥ 4,7:1 sur toutes les surfaces) |
+| `--accent` | `#7c5cff` (survol `#a68cff`) | accent violet |
+| `--up` / `--down` | `#3fd39a` / `#ff6b6b` | hausse / baisse |
+
+Composants : boutons d'en-tête ronds pleins (42 px), raccourcis du temple en cercles de 58 px sans halo (description masquée visuellement sous 600 px, toujours lue par les lecteurs d'écran), titre d'accueil en graisse 900, cartes NovaBot / Nova Review en dégradé teinté par `--nf-accent-rgb`. La barre de navigation basse garde sa géométrie ; seule sa teinte change.
+
 ## Palette officielle
 
 Noir et blanc structurent l'interface, orange/bleu/vert portent l'identité de marque.

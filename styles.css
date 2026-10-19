@@ -254,6 +254,31 @@
      §3 ("CTA décoratifs"). Repris en bleu électrique (--accent). */
   --shadow-accent:0 8px 24px rgba(77,124,255,.3);
 }
+/* DESIGN V2 (2026-10-19) — maquette novatitre-v2.html, reprise de son
+   design choisie explicitement par l'utilisateur. Remplace le fond indigo
+   translucide du 2026-10-07 par la palette de la maquette : noir violet
+   profond, surfaces PLEINES empilées, trois niveaux de texte, accent violet.
+   Bloc séparé (cascade : déclaré après, il l'emporte) pour garder
+   l'historique ci-dessus lisible et rendre le retour arrière trivial.
+   --ink-4 : #8b84b0 au lieu du #7f78a3 de la maquette — ce dernier tombe
+   à 4,0:1 sur --bg-3, sous le seuil 4,5:1 ; #8b84b0 reste ≥ 4,7:1 partout. */
+[data-theme="dark"]{
+  --bg:#0b0912; --bg-2:#181428; --bg-3:#211b38; --bg-4:#2a2347;
+  --ink:#ffffff; --ink-2:#e6e2f5; --ink-3:#bdb6dd; --ink-4:#8b84b0;
+  --accent:#7c5cff; --accent-hover:#a68cff; --accent-press:#6b46f0;
+  --accent-soft:rgba(124,92,255,.16); --accent-ink:#ffffff;
+  --up:#3fd39a; --up-soft:rgba(63,211,154,.14); --down:#ff6b6b; --down-soft:rgba(255,107,107,.14);
+  --line:rgba(255,255,255,.07); --line-2:rgba(255,255,255,.05);
+  --nova-bg:#0b0912; --nova-bg-deep:#0b0912;
+  --nova-surface:#181428; --nova-surface-secondary:#110e1c; --nova-surface-hover:#211b38;
+  --nova-border:rgba(255,255,255,.07);
+  --nova-text:#ffffff; --nova-text-secondary:#bdb6dd; --nova-text-muted:#8b84b0;
+  --nova-bot:#7c5cff; --nova-review:#e45bb0; --nova-event:#45c2f0;
+  --glass-header:rgba(11,9,18,.72); --glass-navigation:rgba(24,20,40,.86);
+  --glass-icon:rgba(255,255,255,.07);
+  --r-l:22px; --r-xl:28px;
+  --shadow-accent:0 8px 24px rgba(124,92,255,.35);
+}
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 /* overflow-x:hidden ajouté ici le 2026-09-23 (bug réel trouvé en testant
    le temple sur une vraie largeur étroite, pas simulée) : body a déjà
@@ -271,7 +296,13 @@ html{background:var(--bg)}
    clair) et --nova-bg-deep (bas) — uniquement en thème sombre, le thème
    clair reste un blanc plat comme avant (non concerné par cette
    demande). */
-[data-theme="dark"] html{background:linear-gradient(180deg,var(--nova-bg) 0%,var(--nova-bg-deep) 100%) fixed}
+/* Design v2 (2026-10-19) : lueurs violettes de la maquette (".aurora")
+   sur fond noir violet, au lieu du dégradé indigo vertical. */
+[data-theme="dark"] html{background:
+  radial-gradient(60% 40% at 15% 0%, rgba(124,92,255,.22), transparent 70%),
+  radial-gradient(50% 35% at 100% 25%, rgba(69,60,180,.18), transparent 70%),
+  radial-gradient(60% 40% at 50% 100%, rgba(124,92,255,.10), transparent 70%),
+  var(--bg) fixed}
 [data-theme="xxx"] body::before{
   content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
   background:
@@ -457,7 +488,7 @@ button:active{transform:scale(.97)}
    une variable, d'où les canaux R/G/B recopiés en dur ici (valeur de
    base identique à --glass-header, voir son commentaire). --top-fade
    (opacité dynamique au scroll, pilotée en JS) inchangée. */
-[data-theme="dark"] .top{background:rgba(25,20,62,calc(.70 * var(--top-fade,1)));border-bottom-color:rgba(255,255,255,.10)}
+[data-theme="dark"] .top{background:rgba(11,9,18,calc(.72 * var(--top-fade,1)));border-bottom-color:transparent}
 .top-in{max-width:1120px;margin:0 auto;padding:10px 20px;display:flex;align-items:center;
   gap:12px;min-width:0}
 .logo{display:flex;align-items:center;gap:9px;font-weight:700;font-size:17px;
@@ -2905,3 +2936,61 @@ table.t td:last-child,table.t th:last-child{text-align:right;padding-right:0}
 .chart-stats b{display:block;margin-top:2px;font-size:14.5px}
 .chart-skel{width:100%;height:320px;border-radius:var(--r-m)}
 @media (max-width:430px){ .chart-pro{height:260px} .chart-skel{height:260px} .cp-price{font-size:21px} }
+
+/* ============================================================
+   DESIGN V2 — COMPOSANTS (2026-10-19, maquette novatitre-v2.html)
+   ============================================================
+   Thème sombre uniquement (la maquette n'a pas de mode clair : le thème
+   clair reste exactement tel qu'avant). Mêmes contenus, mêmes données
+   réelles — seul le rendu change. La barre de navigation basse garde sa
+   géométrie (la maquette la reprend "à l'identique de la version
+   actuelle") : seule sa teinte suit la nouvelle palette. */
+[data-theme="dark"] .card{background-color:var(--bg-2);border-color:var(--line);border-radius:var(--r-xl)}
+
+/* En-tête : boutons ronds pleins, comme .ibtn de la maquette. */
+[data-theme="dark"] .icon-btn{width:42px;height:42px;background:var(--bg-2);border:1px solid var(--line);color:var(--ink)}
+[data-theme="dark"] .icon-btn:hover{background:var(--bg-3)}
+[data-theme="dark"] .icon-btn svg{width:20px;height:20px}
+
+/* Raccourcis sous le temple : cercles pleins discrets, sans halo. */
+[data-theme="dark"] .nova-action-circle{width:58px;height:58px;background:rgba(255,255,255,.07);
+  border:1px solid var(--line);box-shadow:none;backdrop-filter:none;-webkit-backdrop-filter:none}
+[data-theme="dark"] .nova-action-circle svg{width:24px;height:24px}
+@media (hover:hover){
+  [data-theme="dark"] .nova-quick-action:hover .nova-action-circle{background:rgba(255,255,255,.12);
+    border-color:var(--line);box-shadow:none}
+}
+[data-theme="dark"] .nova-action-title{margin-top:8px;font-size:12px}
+/* Sur mobile, libellé seul (maquette) : la description reste lue par les
+   lecteurs d'écran, elle n'est que masquée visuellement. */
+@media (max-width:600px){
+  [data-theme="dark"] .nova-action-description{position:absolute;width:1px;height:1px;overflow:hidden;
+    clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap}
+}
+
+/* Accueil : titre plus massif, sous-titre en gris secondaire. */
+[data-theme="dark"] .nb-hero-title{font-weight:900;letter-spacing:-.04em}
+[data-theme="dark"] .nb-hero-sub2{color:var(--ink-3)}
+
+/* Navigation basse : teinte de la maquette, géométrie inchangée. */
+@media (max-width:900px){
+  [data-theme="dark"] .dock{background:rgba(28,22,62,.78);border-color:rgba(255,255,255,.12);
+    box-shadow:0 10px 36px rgba(0,0,0,.45)}
+}
+
+/* Cartes NovaBot / Nova Review : dégradé teinté par la couleur du module
+   (.hero.bot / .hero.rev de la maquette), à partir de --nf-accent-rgb déjà
+   posé par js/nova.js — aucune couleur de module en dur ici. */
+[data-theme="dark"] .nova-big-card[data-go="novabot"],
+[data-theme="dark"] .nova-big-card[data-go="novareview"]{
+  background:linear-gradient(160deg,rgba(var(--nf-accent-rgb),.26) 0%,#1a1438 55%,#140f28 100%);
+  border-color:rgba(var(--nf-accent-rgb),.22)}
+@media (hover:hover){
+  [data-theme="dark"] .nova-big-card[data-go="novabot"]:hover,
+  [data-theme="dark"] .nova-big-card[data-go="novareview"]:hover{
+    background:linear-gradient(160deg,rgba(var(--nf-accent-rgb),.34) 0%,#1d1640 55%,#160f2c 100%)}
+}
+
+/* Temple : lavande de la maquette ; plus clair que son #9e99b6 car le
+   site atténue déjà le temple par opacité (--temple-fade). */
+[data-theme="dark"] .temple-line{stroke:#d9d4f2}
