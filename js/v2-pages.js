@@ -191,10 +191,13 @@ const V2_SEG_HANDLERS = {};
 const V2_EXTRAS = {
   cotations: {
     markets: () => [...v2cryptos(), ...v2universMouvements()],
+    radar: () => RADAR_AFFICHES,
   },
   courbes: {
     home: () => state.watchlist.slice(0, 3).map(id => byId[id]),
     markets: () => v2cryptos(),
+    radar: () => RADAR_AFFICHES.slice(0, CHARGEMENT_MASSE_MAX_SYMBOLES),
+    watchlist: () => state.watchlist.map(id => byId[id]),
   },
 };
 function v2extrasCotations(page){ return ((V2_EXTRAS.cotations[page] || (() => []))()).filter(Boolean); }

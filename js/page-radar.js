@@ -59,6 +59,9 @@ function parseNaturalQuery(q){
   if (/grosse|grande|g[ée]ant|large/.test(t)) applied.push('grande capitalisation');
   return { filters:f, applied, big:/grosse|grande|g[ée]ant|large/.test(t) };
 }
+/* Valeurs réellement affichées par le Radar (cours et courbes chargés
+   pour elles seules, voir V2_EXTRAS dans js/v2-pages.js). */
+let RADAR_AFFICHES = [];
 function radarResults(){
   const f = state.filters;
   let list = [...stocks];
@@ -103,7 +106,7 @@ function radarResults(){
 
   /* Design v2 (2026-10-19) : "N résultats" + lignes de la maquette. */
   return `<section class="v-sec"><div class="v-sec-h"><h2>${fmt.int(list.length)} résultat${list.length>1?'s':''}</h2></div>
-    <div class="v-card" style="padding:8px 18px">${list.slice(0, 40).map(s => v2row(s, { spark:true })).join('')}</div></section>`;
+    <div class="v-card" style="padding:8px 18px">${(RADAR_AFFICHES = list.slice(0, 40)).map(s => v2row(s, { spark:true })).join('')}</div></section>`;
 }
 
 /* ---------- MARCHÉS ----------

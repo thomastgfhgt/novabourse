@@ -518,6 +518,7 @@ function render(navigated = false){
     compare: () => state.compare.map(id => byId[id]).filter(Boolean),
     markets: () => [...marketsListeVisible(), ...v2sur(() => v2extrasCotations('markets'), [])],
     watchlist: () => state.watchlist.map(id => byId[id]).filter(Boolean),
+    radar: () => v2sur(() => v2extrasCotations('radar'), []),
     home: () => [...state.watchlist.map(id => byId[id]), ...v2sur(() => v2populaires(), [])].filter(Boolean),
     portfolio: () => state.wallet.positions.map(p => byId[p.id]).filter(Boolean),
   };
