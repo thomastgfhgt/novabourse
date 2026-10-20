@@ -28,6 +28,13 @@
    visible (css/v2-novabot.css). */
 body.gated .v-top,body.gated .v-dock{display:none!important}
 body.gated .v-wrap{padding:0;max-width:100%}
+/* Dégradé de fond (2026-10-20) : noir-violet en haut, de plus en plus
+   bleu en descendant. Posé sur toute la hauteur de la page (il défile
+   avec elle) ; les halos violets de .v-aurora restent par-dessus. */
+html{background:#0b0912;min-height:100%}
+body.v-shell{min-height:100vh;background:
+  linear-gradient(180deg,#0b0912 0%,#100d22 22%,#131a45 55%,#15296a 80%,#17378f 100%) !important;
+  background-color:#0b0912 !important}
 </style>
 <link rel="stylesheet" href="/css/v2-nova.css">
 </head>
