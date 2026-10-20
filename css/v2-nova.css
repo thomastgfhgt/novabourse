@@ -219,3 +219,69 @@ body:has(.n2-page) .v-wrap{padding-bottom:calc(env(safe-area-inset-bottom,0px) +
 /* Sans la barre du bas, le champ "Écris à Nova…" redescend tout en bas. */
 body:has(.nb-page) .nb-chat-input{bottom:calc(env(safe-area-inset-bottom,0px) + 12px + var(--kb-inset,0px)) !important}
 .nb-page .nb-chat-log{padding-bottom:110px !important}
+
+/* ============================================================
+   Écran de connexion v2 + mode visiteur (js/auth.js), 2026-10-20
+   Tout tient sur un écran de téléphone, sans défilement.
+   ============================================================ */
+.nt-gate{min-height:100vh;min-height:100dvh;display:flex;justify-content:center;color:#fff;
+  font-family:Inter,system-ui,-apple-system,sans-serif;position:relative;overflow:hidden;
+  background:linear-gradient(180deg,#0b0912 0%,#110d24 34%,#141a45 70%,#17378f 100%)}
+.nt-gate::before,.nt-gate::after{content:"";position:absolute;border-radius:50%;pointer-events:none}
+.nt-gate::before{left:-90px;top:-70px;width:400px;height:400px;background:radial-gradient(circle,rgba(124,92,255,.45),rgba(124,92,255,0) 70%)}
+.nt-gate::after{right:-130px;top:150px;width:360px;height:360px;background:radial-gradient(circle,rgba(240,103,181,.26),rgba(240,103,181,0) 70%)}
+.nt-gate-in{position:relative;z-index:1;width:100%;max-width:440px;min-height:100vh;min-height:100dvh;box-sizing:border-box;display:flex;flex-direction:column;
+  padding:calc(env(safe-area-inset-top,0px) + 14px) max(20px,env(safe-area-inset-right,0px)) calc(env(safe-area-inset-bottom,0px) + 14px) max(20px,env(safe-area-inset-left,0px))}
+.nt-gate-top{display:flex;align-items:center;gap:9px}
+.nt-gate-logo{width:26px;height:26px;display:grid;place-items:center;color:#fff}
+.nt-gate-logo svg{width:26px;height:26px}
+.nt-gate-name{font-size:18px;font-weight:800;letter-spacing:-.03em;flex:1}
+.nt-gate-live{font-size:11.5px;font-weight:700;color:#3fd39a;background:rgba(63,211,154,.14);padding:5px 9px;border-radius:999px}
+.nt-phones{position:relative;height:min(330px,39vh);margin-top:10px;flex:none}
+.nt-ph{position:absolute;display:block;box-sizing:border-box;background:#1a1630;border:1px solid rgba(255,255,255,.12);box-shadow:0 20px 40px rgba(0,0,0,.55)}
+.nt-ph img{width:100%;height:100%;object-fit:cover;object-position:top;display:block}
+.nt-ph-l,.nt-ph-r{top:16%;width:29%;height:74%;border-radius:22px;padding:5px}
+.nt-ph-l img,.nt-ph-r img{border-radius:17px}
+.nt-ph-l{left:4%;transform:rotate(-9deg)}
+.nt-ph-r{right:4%;transform:rotate(9deg)}
+.nt-ph-c{left:50%;top:1%;height:98%;aspect-ratio:154/322;max-width:46%;margin-left:0;transform:translateX(-50%);border-radius:32px;padding:7px;
+  background:linear-gradient(160deg,#2c2650,#121024);border-color:rgba(255,255,255,.18);
+  box-shadow:0 26px 60px rgba(0,0,0,.6),0 0 0 1px rgba(166,140,255,.25),0 0 50px rgba(124,92,255,.35);animation:ntFloat 6s ease-in-out infinite}
+.nt-ph-screen{position:relative;display:block;width:100%;height:100%;border-radius:26px;overflow:hidden;background:#0b0912}
+.nt-ph-screen i{position:absolute;top:6px;left:50%;width:50px;height:14px;margin-left:-25px;border-radius:999px;background:#000}
+@keyframes ntFloat{0%,100%{transform:translate(-50%,0)}50%{transform:translate(-50%,-6px)}}
+.nt-gate-h1{margin:12px 0 0;text-align:center;font-size:clamp(26px,7.6vw,32px);line-height:1.05;font-weight:900;letter-spacing:-.045em;text-wrap:balance}
+.nt-gate-lead{margin:8px auto 0;max-width:310px;text-align:center;font-size:14.5px;line-height:1.45;color:#c9c3e6}
+.nt-gate-btns{display:flex;flex-direction:column;gap:10px;margin-top:18px}
+.nt-gate-row{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.nt-btn{height:52px;border-radius:999px;font:inherit;font-size:15.5px;font-weight:800;display:flex;align-items:center;justify-content:center;gap:9px;cursor:pointer;width:100%;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+.nt-btn svg{width:19px;height:19px;flex:none}
+.nt-btn-google{height:54px;border:0;background:#fff;color:#0b0912;font-size:16px;box-shadow:0 10px 30px rgba(0,0,0,.35)}
+.nt-btn-ghost{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.16);color:#fff;font-weight:700}
+.nt-btn-visit{background:transparent;border:1.5px dashed rgba(166,140,255,.55);color:#c4b5ff}
+.nt-btn-text{background:none;border:0;color:#a8a2c8;font-weight:700;height:44px}
+.nt-btn:active{transform:scale(.98)}
+.nt-btn:focus-visible{outline:3px solid #a68cff;outline-offset:2px}
+.nt-gate-hint{margin:2px 0 0;text-align:center;font-size:12px;line-height:1.4;color:#a8a2c8}
+.nt-gate-legal{margin:auto 0 0;padding-top:14px;text-align:center;font-size:11px;line-height:1.45;color:#8d87b0}
+.nt-notice{margin-top:14px;padding:12px 14px;border-radius:16px;font-size:13.5px;line-height:1.45;background:rgba(255,107,107,.12);border:1px solid rgba(255,107,107,.3);color:#ffd0d0}
+.nt-notice.nt-ok{background:rgba(63,211,154,.12);border-color:rgba(63,211,154,.3);color:#c9f5e2}
+.nt-notice b{color:#fff}
+/* Formulaire e-mail (même balisage qu'avant, nouveau style) */
+.nt-gate-form{margin-top:18px;padding:18px;border-radius:24px;background:rgba(24,20,40,.75);border:1px solid rgba(255,255,255,.1)}
+.nt-gate-form .h3{margin:0;font-size:18px;font-weight:800;color:#fff}
+.nt-gate-form .field{width:100%;box-sizing:border-box;height:50px;border-radius:14px;border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.06);color:#fff;font:inherit;font-size:16px;padding:0 14px}
+.nt-gate-form .field::placeholder{color:#8d87b0}
+.nt-gate-form .btn-a{border-radius:999px;background:#fff!important;color:#0b0912!important;font-weight:800;border:0}
+.nt-gate-form .linklike{color:#c4b5ff;font-weight:700;background:none;border:0;font:inherit;font-size:14px;cursor:pointer}
+@media (max-height:700px){.nt-phones{height:30vh}.nt-gate-lead{display:none}}
+@media (prefers-reduced-motion:reduce){.nt-ph-c{animation:none}}
+/* Mode visiteur : bandeau discret sous l'en-tête */
+.nt-visitor-bar{position:sticky;top:calc(env(safe-area-inset-top,0px) + 64px);z-index:40;display:flex;align-items:center;gap:10px;
+  max-width:560px;margin:8px auto 0;padding:7px 7px 7px 14px;border-radius:999px;background:rgba(242,181,74,.12);border:1px solid rgba(242,181,74,.28);
+  backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);font-family:Inter,system-ui,sans-serif;width:calc(100% - 32px);box-sizing:border-box}
+.nt-visitor-bar span{flex:1;font-size:13px;font-weight:800;color:#f2d39a}
+.nt-visitor-bar button{height:34px;padding:0 14px;border-radius:999px;border:0;background:#fff;color:#0b0912;font:inherit;font-size:13px;font-weight:800;cursor:pointer}
+body:not(.nt-visitor) .nt-visitor-bar{display:none}
+body:has(.nb-page) .nt-visitor-bar,body:has(.n2-page) .nt-visitor-bar{display:none}
+.nt-sheet-btns{display:flex;flex-direction:column;gap:10px;margin-top:20px}
