@@ -208,3 +208,14 @@ body.nb-immersive .nb-chat-input,
 /* Clavier ouvert (--kb-inset > 0) : le champ suit le clavier */
 /* Sélecteur Conversations / Portefeuille : boutons aérés */
 .v-nb-seg .v-seg button{padding:9px 18px;white-space:nowrap}
+
+/* ---------- 2026-10-20 : pas de barre de navigation dans les modules Nova ----------
+   NovaBot, Nova News, Nova Review et Nova Event s'ouvrent comme des
+   applications plein écran : la barre du bas disparaît, on revient avec
+   le bouton retour (en haut à gauche). */
+body:has(.nb-page) .v-dock,
+body:has(.n2-page) .v-dock{display:none !important}
+body:has(.n2-page) .v-wrap{padding-bottom:calc(env(safe-area-inset-bottom,0px) + 32px) !important}
+/* Sans la barre du bas, le champ "Écris à Nova…" redescend tout en bas. */
+body:has(.nb-page) .nb-chat-input{bottom:calc(env(safe-area-inset-bottom,0px) + 12px + var(--kb-inset,0px)) !important}
+.nb-page .nb-chat-log{padding-bottom:110px !important}
