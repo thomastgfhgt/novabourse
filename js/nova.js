@@ -676,7 +676,7 @@ function novabotSidebarMarkup(){
   const groupe = (titre, items) => items.length ? `<p class="tiny" style="margin:10px 0 2px;font-weight:650;color:var(--ink-3);text-transform:uppercase;letter-spacing:.03em;font-size:11px">${titre}</p>${items.map(novabotConvItem).join('')}` : '';
   const ac = NOVABOT_CONVERSATIONS;
   return `<aside class="nb-sidebar">
-    <button type="button" class="btn btn-a btn-sm" style="width:100%" data-novabot-new-conv">+ Nouvelle conversation</button>
+    <button type="button" class="btn btn-a btn-sm" style="width:100%" data-novabot-new-conv>+ Nouvelle conversation</button>
     <div class="nb-sidebar-search">
       <input type="text" class="field" placeholder="Rechercher…" value="${esc(NOVABOT_CONVERSATIONS.search || '')}"
         oninput="NOVABOT_CONVERSATIONS.search=this.value;render()">
@@ -1128,7 +1128,7 @@ function novabotPortfolioView(){
       </dl></div>
     </details>
 
-    <button type="button" class="btn btn-ghost btn-sm" style="width:100%;margin-top:8px" data-novabot-mandat-open">Mon mandat</button>
+    <button type="button" class="btn btn-ghost btn-sm" style="width:100%;margin-top:8px" data-novabot-mandat-open>Mon mandat</button>
     <p class="tiny" style="margin-top:18px;color:var(--ink-4)">NovaBot ne place jamais d'ordre réel. Ce portefeuille est entièrement simulé et distinct du vôtre.</p>
   `;
 }
@@ -1518,4 +1518,4 @@ function novaEventHomeCard(){
     <span class="nova-big-link">Voir le calendrier →</span>
     </div>
   </button>`;
-}
+}
