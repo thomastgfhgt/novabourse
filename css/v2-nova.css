@@ -183,3 +183,28 @@
 @media (prefers-reduced-motion:reduce){.n2-blob,.n2-spin svg,.n2-skel{animation:none}}
 
 .n2-evrow .n2-t span{white-space:normal}
+
+/* ---------- Correctif 2026-10-20 : barre "Écris à Nova…" visible ----------
+   styles.css colle le champ en bas de l'écran en mode discussion
+   (body.nb-immersive .nb-chat-input{bottom:8px}), soit DERRIÈRE la barre
+   de navigation que le design v2 garde affichée. On le remonte au-dessus
+   du dock, et on le passe devant lui. */
+body.nb-immersive .nb-chat-input,
+.nb-page .nb-chat-input{
+  position:fixed !important;
+  left:max(12px,env(safe-area-inset-left,0px)) !important;
+  right:max(12px,env(safe-area-inset-right,0px)) !important;
+  bottom:calc(env(safe-area-inset-bottom,0px) + 112px + var(--kb-inset,0px)) !important;
+  max-width:536px;margin:0 auto;z-index:65 !important;
+  display:flex !important;align-items:center;gap:8px;
+  padding:8px 8px 8px 20px !important;border-radius:999px !important;
+  background:rgba(32,26,62,.92) !important;border:1px solid rgba(255,255,255,.12) !important;
+  backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
+  box-shadow:0 14px 40px rgba(0,0,0,.55) !important}
+.nb-page .nb-chat-input textarea{font-size:16px;color:#fff}
+.nb-page .nb-send-btn{width:44px;height:44px;flex:none}
+/* Espace sous les messages pour qu'aucun ne passe sous le champ + le dock */
+.nb-page .nb-chat-log{padding-bottom:200px !important}
+/* Clavier ouvert (--kb-inset > 0) : le champ suit le clavier */
+/* Sélecteur Conversations / Portefeuille : boutons aérés */
+.v-nb-seg .v-seg button{padding:9px 18px;white-space:nowrap}
