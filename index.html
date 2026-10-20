@@ -355,7 +355,10 @@ function syncAllSegPills(){
 function render(navigated = false){
   /* Filet de sécurité : tant que la session n'est pas confirmée et
      l'onboarding terminé, jamais de contenu privé. */
-  if (state.auth.status !== 'authenticated' || !state.onboarding.done){
+  /* Mode visiteur (2026-10-20, js/auth.js) : parcourt le site sans
+     compte ; les actions qui consomment un jeton y sont bloquées. */
+  const visiteur = state.auth.status === 'visitor';
+  if (!visiteur && (state.auth.status !== 'authenticated' || !state.onboarding.done)){
     renderGate();
     return;
   }
