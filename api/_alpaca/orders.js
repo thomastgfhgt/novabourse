@@ -125,7 +125,28 @@ async function annulerOrdre(brokerAccountId, alpacaOrderId) {
   throw err;
 }
 
+/* "Veux-tu tout vendre ?" (NovaBot, 2026-10-21) — appelé UNIQUEMENT après
+   la confirmation explicite de l'utilisateur (route novabot-tout-vendre,
+   api/me.js). Ferme toutes les positions au marché et annule les ordres
+   encore ouverts (endpoint officiel Broker API). */
+async function fermerToutesPositions(brokerAccountId) {
+  verifierVerrouProduction();
+  const r = await appelBroker(
+    `/v1/trading/accounts/${encodeURIComponent(brokerAccountId)}/positions?cancel_orders=true`,
+    { method: 'DELETE' }
+  );
+  const data = await r.json().catch(() => null);
+  if (!r.ok && r.status !== 207) {
+    const err = new Error('alpaca_fermeture_positions_echouee');
+    err.status = r.status;
+    err.body = data;
+    throw err;
+  }
+  return Array.isArray(data) ? data : [];
+}
+
 module.exports = {
+  fermerToutesPositions,
   SIDES_AUTORISES,
   TYPES_AUTORISES,
   TIME_IN_FORCE_AUTORISES,

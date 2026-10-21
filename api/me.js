@@ -1642,6 +1642,110 @@ async function handleAlpacaAdmin(req, res, user) {
     }
   }
 
+  /* ---------- NovaBot sur le compte réel (2026-10-21) ----------
+     Propositions motivées (achats, ventes, "veux-tu tout vendre ?")
+     calculées par api/_alpaca/novabot-moteur.js à partir des données
+     RÉELLES du compte et du marché. Aucun ordre sans confirmation : chaque
+     exécution recalcule les propositions à l'instant et refuse un ordre qui
+     n'est plus proposé. Mêmes portes que le reste de cette section
+     (TRADING_ENABLED + administrateurs) et verrou production des ordres. */
+  async function donneesNovaBot(accountId, profil) {
+    const moteur = require('./_alpaca/novabot-moteur.js');
+    const { lirePositions } = require('./_alpaca/portfolio.js');
+    const base = `${req.headers['x-forwarded-proto'] || 'https'}://${req.headers.host}`;
+    const [compteBrut, positionsBrutes] = await Promise.all([lireCompteTrading(accountId), lirePositions(accountId)]);
+    const infoUnivers = new Map(moteur.UNIVERS_ACHAT.map(u => [u.symbol, u]));
+    const positions = (positionsBrutes || []).map(p => ({
+      symbol: p.symbol, qty: Number(p.qty), marketValue: Number(p.market_value),
+      unrealizedPlPc: Number(p.unrealized_plpc), currentPrice: Number(p.current_price),
+      name: infoUnivers.get(p.symbol)?.name || p.symbol, sector: infoUnivers.get(p.symbol)?.sector || null,
+    }));
+    const dossier = async (symbol, exchange, type = 'stock') => {
+      try {
+        const r = await fetch(`${base}/api/market/company?ticker=${encodeURIComponent(symbol)}&exchange=${encodeURIComponent(exchange || '')}&type=${type}`);
+        const d = r.ok ? await r.json() : null;
+        return d ? { prix: Number(d.market?.price), variationPct: Number(d.market?.changePercent),
+          score: Number.isFinite(d.novaScore?.score) ? d.novaScore.score : null,
+          volatility: Number.isFinite(d.novaScore?.volatility) ? d.novaScore.volatility : null } : null;
+      } catch { return null; }
+    };
+    const symbolesDetenus = positions.map(p => p.symbol).filter(s => !infoUnivers.has(s));
+    const [univers, detenus, spy] = await Promise.all([
+      Promise.all(moteur.UNIVERS_ACHAT.map(async u => ({ ...u, ...(await dossier(u.symbol, u.exchange)) }))),
+      Promise.all(symbolesDetenus.map(async s => ({ symbol: s, ...(await dossier(s, '')) }))),
+      dossier('SPY', '', 'etf'),
+    ]);
+    const scores = Object.fromEntries([...univers, ...detenus].filter(d => Number.isFinite(d.score)).map(d => [d.symbol, d.score]));
+    return moteur.propositionsNovaBot({
+      compte: { cash: Number(compteBrut.cash), equity: Number(compteBrut.equity), lastEquity: Number(compteBrut.last_equity), positions },
+      marche: { indiceVariationPct: spy && Number.isFinite(spy.variationPct) ? spy.variationPct : null },
+      profil, candidats: univers.filter(u => Number.isFinite(u.prix) && u.prix > 0), scores,
+    });
+  }
+  /* Profil envoyé par le navigateur (mémoire NovaBot) : seuls les champs
+     connus et bien formés sont gardés. */
+  function profilNettoye(p) {
+    const out = {};
+    if (['low', 'moderate', 'high'].includes(p?.riskLevel)) out.riskLevel = p.riskLevel;
+    if (Number.isFinite(p?.budgetEUR) && p.budgetEUR > 0) out.budgetEUR = p.budgetEUR;
+    if (Array.isArray(p?.hardRules)) out.hardRules = p.hardRules
+      .filter(r => r && ['excluded_sector', 'excluded_asset'].includes(r.type) && typeof r.value === 'string')
+      .slice(0, 20).map(r => ({ type: r.type, value: r.value.slice(0, 60) }));
+    return out;
+  }
+
+  if (action === 'novabot-propositions' && req.method === 'POST') {
+    const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
+    try {
+      const accountId = await compteAlpacaDeUtilisateur();
+      if (!accountId) return res.status(200).json({ status: 'not_linked' });
+      return res.status(200).json({ status: 'ok', ...(await donneesNovaBot(accountId, profilNettoye(body.profil))) });
+    } catch (e) {
+      return res.status(200).json({ status: 'error', message: e.message });
+    }
+  }
+
+  if (action === 'novabot-executer' && req.method === 'POST') {
+    const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
+    if (body.confirme !== true) return res.status(400).json({ error: 'confirmation_requise' });
+    try {
+      const accountId = await compteAlpacaDeUtilisateur();
+      if (!accountId) return res.status(200).json({ status: 'not_linked' });
+      const moteur = require('./_alpaca/novabot-moteur.js');
+      const courantes = await donneesNovaBot(accountId, profilNettoye(body.profil));
+      const p = moteur.propositionToujoursValable(courantes, { type: body.type, symbol: String(body.symbol || '') });
+      if (!p) return res.status(200).json({ status: 'plus_valable', message: "Cette proposition n'est plus d'actualité avec les cours du moment." });
+      const { creerOrdre } = require('./_alpaca/orders.js');
+      const ordre = await creerOrdre(accountId, p.type === 'achat'
+        ? { symbol: p.symbol, side: 'buy', notional: p.notional }
+        : { symbol: p.symbol, side: 'sell', qty: p.qty });
+      await sb('broker_sync_events', { method: 'POST',
+        body: JSON.stringify([{ user_id: user.id, kind: 'novabot_' + p.type, detail: { symbol: p.symbol, raisons: p.raisons, orderId: ordre.id } }]),
+      }).catch(() => {});
+      return res.status(200).json({ status: 'submitted', order: { id: ordre.id, symbol: ordre.symbol, side: ordre.side, status: ordre.status } });
+    } catch (e) {
+      if (e.erreurs) return res.status(200).json({ status: 'validation_error', erreurs: e.erreurs });
+      return res.status(200).json({ status: 'error', message: e.message, alpacaBody: e.body });
+    }
+  }
+
+  if (action === 'novabot-tout-vendre' && req.method === 'POST') {
+    const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
+    if (body.confirmation !== 'TOUT_VENDRE') return res.status(400).json({ error: 'confirmation_requise' });
+    try {
+      const accountId = await compteAlpacaDeUtilisateur();
+      if (!accountId) return res.status(200).json({ status: 'not_linked' });
+      const { fermerToutesPositions } = require('./_alpaca/orders.js');
+      const resultats = await fermerToutesPositions(accountId);
+      await sb('broker_sync_events', { method: 'POST',
+        body: JSON.stringify([{ user_id: user.id, kind: 'novabot_tout_vendre', detail: { positions: resultats.length } }]),
+      }).catch(() => {});
+      return res.status(200).json({ status: 'submitted', positions: resultats.length });
+    } catch (e) {
+      return res.status(200).json({ status: 'error', message: e.message, alpacaBody: e.body });
+    }
+  }
+
   if (action === 'order-cancel' && req.method === 'POST') {
     const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
     if (!body.orderId) return res.status(400).json({ error: 'order_id_requis' });

@@ -453,28 +453,49 @@ demande une clarification dans "reply" plutôt que de deviner une intention.`;
    que CONSIGNE_NOVABOT_CHAT (le client ne change pas), mandateDraft/
    action toujours null — revérifié côté serveur plus bas. */
 const CONSIGNE_NOVABOT_PEDAGOGIQUE = `Tu es Nova, l'IA conversationnelle de NovaTitre. Tu analyses des
-entreprises et des marchés et tu expliques des notions et des stratégies d'investissement, de
-façon pédagogique. Tu parles en français, ton direct et chaleureux, jamais robotique, jamais de
-jargon non expliqué.
+entreprises et des marchés et tu expliques des notions et des stratégies d'investissement. Tu parles
+en français, ton direct et chaleureux, jamais robotique, jamais de jargon non expliqué.
 
 Réponds TOUJOURS en JSON strict :
-{"reply":"...","mandateDraft":null,"readyToConfirm":false,"newPreferences":null,"mandateAmendment":null,"readyToConfirmAmendment":false,"action":null}
+{"reply":"...","mandateDraft":null,"readyToConfirm":false,"newPreferences":null,"mandateAmendment":null,"readyToConfirmAmendment":false,"action":null,"profil":null}
 
-Règles absolues :
-- Tu ne gères AUCUN portefeuille, simulé ou réel : ne propose jamais de "confier un capital", de
-  créer un mandat ou de gérer de l'argent pour l'utilisateur. Si on te le demande, explique
-  simplement que NovaTitre ne propose pas encore de compte d'investissement réel, et que tu peux
-  en attendant analyser des entreprises et expliquer des stratégies.
-- Ne présente jamais un solde, une position, une performance ou un achat comme ceux de
-  l'utilisateur : tu n'as accès à aucun compte.
-- Pas de recommandation personnalisée d'achat/vente ni de montant ("achète X", "mets 500 € sur Y") :
-  tu expliques les critères, les risques, les points forts/faibles, ce que disent les chiffres.
-  Rappelle si utile que ce n'est pas un conseil en investissement personnalisé et qu'investir
-  comporte un risque de perte en capital.
-- N'invente aucun chiffre (cours, fondamentaux, actualité). Si tu n'as pas la donnée, dis-le et
-  invite à consulter la fiche de l'entreprise dans NovaTitre.
-- "reply" : 1 à 5 phrases, jamais un pavé, jamais de markdown. Tous les autres champs restent
-  exactement aux valeurs ci-dessus.`;
+1) LE PROFIL DE L'UTILISATEUR EST UNE RÈGLE, PAS UNE SUGGESTION.
+   "profilUtilisateur" (transmis ci-dessous) contient ce que l'utilisateur t'a déjà dit, dans CETTE
+   conversation ou une précédente : niveau de risque, horizon, objectif, budget, secteurs ou
+   entreprises exclus (hardRules), préférences. Chaque réponse doit le respecter :
+   - ne cite JAMAIS comme piste une entreprise ou un secteur exclu ; si l'utilisateur en parle
+     lui-même, réponds à sa question mais rappelle en une phrase que c'est hors de ses règles ;
+   - adapte le niveau de risque, l'horizon et le budget de tes explications à son profil ;
+   - quand tu proposes des pistes, dis en une phrase comment tu as appliqué ses règles
+     ("j'ai écarté l'armement comme tu me l'as demandé, et gardé des entreprises peu volatiles").
+   Si l'utilisateur énonce une NOUVELLE règle ou préférence durable, ou en modifie une, renvoie-la
+   dans "profil" (sinon null) :
+   {"riskLevel":"low|moderate|high"|null,"horizonYears":nombre|null,"objective":"growth|income|preserve"|null,
+    "budgetEUR":nombre|null,"hardRules":[{"type":"excluded_sector"|"excluded_asset","value":"..."}]|null,
+    "preferences":[{"type":"investment_style","value":"..."}]|null,"effacer":false}
+   Uniquement ce qu'il a dit EXPLICITEMENT, jamais déduit. "effacer":true uniquement s'il demande
+   d'oublier son profil. Ne répète pas dans "profil" une règle déjà présente dans profilUtilisateur.
+
+2) DES RÉPONSES PRÉCISES, AVEC DE VRAIS CHIFFRES.
+   "donneesMarche" contient les données RÉELLES de NovaTitre sur les entreprises dont parle
+   l'utilisateur (cours, variation du jour, secteur, Nova Score, ratios). Appuie-toi dessus et
+   cite les chiffres utiles (ex. "Apple cote 342,7 $, -0,2 % aujourd'hui, PER de 33"). Une réponse
+   doit contenir des faits concrets : noms, chiffres, raisons — jamais des généralités vagues.
+   N'invente AUCUN chiffre absent de ces données : si une donnée manque, dis-le en une phrase et
+   invite à ouvrir la fiche de l'entreprise dans NovaTitre.
+   "listeSuivie" : les valeurs que l'utilisateur suit, avec leurs vrais cours du jour.
+
+3) CE QUE TU NE FAIS PAS (cadre légal).
+   - Tu ne gères aucun portefeuille et tu n'as accès à aucun compte : NovaTitre ne propose pas
+     encore de compte d'investissement réel. Ne présente jamais un solde ou une position comme les
+     siens.
+   - Tu peux citer des entreprises qui correspondent à ses critères comme PISTES À ÉTUDIER, avec
+     leurs chiffres, leurs forces et leurs risques ; jamais "achète X", jamais un montant à investir.
+   - Rappelle en fin de réponse, quand tu cites des pistes, que ce n'est pas un conseil en
+     investissement personnalisé et qu'investir comporte un risque de perte en capital.
+
+"reply" : 2 à 8 phrases selon la question, sans markdown, structurée et concrète. Tous les champs
+autres que "reply" et "profil" restent exactement aux valeurs ci-dessus.`;
 
 /* ADDENDUM (2026-10-15, §7 de la mission "Alpaca Sandbox Trading") —
    délibérément une CONSTANTE SÉPARÉE, concatenée à CONSIGNE_NOVABOT_CHAT
@@ -878,6 +899,22 @@ function validerHardRules(arr, max){
     .slice(0, max).map(r => ({ type:r.type, value: texteBorne(r.value, 60) }));
   return regles.length ? regles : null;
 }
+/* Profil mémorisé (mode pédagogique, 2026-10-21) : seuls les champs
+   présents et valides sont gardés, jamais une valeur hors liste. */
+function validerProfil(d){
+  if (!d || typeof d !== 'object' || Array.isArray(d)) return null;
+  const out = {};
+  if (d.effacer === true) return { effacer: true };
+  if (NOVABOT_RISK_LEVELS.has(d.riskLevel)) out.riskLevel = d.riskLevel;
+  if (NOVABOT_OBJECTIVES.has(d.objective)) out.objective = d.objective;
+  if (Number.isFinite(d.horizonYears) && d.horizonYears > 0 && d.horizonYears <= 60) out.horizonYears = d.horizonYears;
+  if (Number.isFinite(d.budgetEUR) && d.budgetEUR > 0 && d.budgetEUR <= 1e9) out.budgetEUR = d.budgetEUR;
+  const regles = validerHardRules(d.hardRules, 10);
+  if (regles) out.hardRules = regles;
+  const prefs = validerPreferences(d.preferences, 5);
+  if (prefs) out.preferences = prefs;
+  return Object.keys(out).length ? out : null;
+}
 function validerMandateDraft(d){
   if (!d || typeof d !== 'object' || Array.isArray(d)) return null;
   const out = {};
@@ -928,6 +965,14 @@ async function novabotChatAnalyse(req, res, { user, plan, dispo }){
   const modePedagogique = !mandateConfirmed && req.body?.modePedagogique === true;
   const contexte = {
     mandateConfirmed,
+    /* 2026-10-21 ("qu'il respecte les règles, réponses moins vagues, qu'il
+       se souvienne") : profil mémorisé + données de marché RÉELLES des
+       entreprises citées, préparées par le client (jamais générées ici). */
+    profilUtilisateur: modePedagogique ? sanitiserDonnees(req.body?.profil) : null,
+    donneesMarche: modePedagogique && Array.isArray(req.body?.donneesMarche)
+      ? req.body.donneesMarche.slice(0, 8).map(d => sanitiserDonnees(d)).filter(Boolean) : null,
+    listeSuivie: modePedagogique && Array.isArray(req.body?.listeSuivie)
+      ? req.body.listeSuivie.slice(0, 20).map(d => sanitiserDonnees(d)).filter(Boolean) : null,
     mandateDraftConnu: mandateConfirmed ? null : sanitiserDonnees(req.body?.mandateDraft),
     mandate: mandateConfirmed ? sanitiserDonnees(req.body?.mandate) : null,
     portfolio: mandateConfirmed ? sanitiserDonnees(req.body?.portfolio) : null,
@@ -1001,7 +1046,7 @@ async function novabotChatAnalyse(req, res, { user, plan, dispo }){
   let id, modele, parsed, usage;
   try {
     ({ id, modele, parsed, usage } = await appelModeleAvecBascule(dispo, {
-      prompt, maxTokens: 500, timeoutMs: 25000,
+      prompt, maxTokens: modePedagogique ? 900 : 500, timeoutMs: 25000,
       validerEtNormaliser: (rep) => {
         if (
           !rep || typeof rep !== 'object' || Array.isArray(rep)
@@ -1011,7 +1056,8 @@ async function novabotChatAnalyse(req, res, { user, plan, dispo }){
           throw new Error('schema_novabot_chat_invalide');
         }
         return {
-          reply: rep.reply.slice(0, 800),
+          reply: rep.reply.slice(0, modePedagogique ? 2000 : 800),
+          profil: modePedagogique ? validerProfil(rep.profil) : null,
           mandateDraft: (mandateConfirmed || modePedagogique) ? null : validerMandateDraft(rep.mandateDraft),
           readyToConfirm: !modePedagogique && rep.readyToConfirm === true,
           /* newPreferences : UNIQUEMENT en conversation déjà confirmée (voir
