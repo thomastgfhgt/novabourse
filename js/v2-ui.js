@@ -50,10 +50,15 @@ function v2prenom(){
 
 /* ---------- courbe (area() de la maquette) ---------- */
 let v2gid = 0;
-function v2area(data, color, { h = 100, fill = true, base = false } = {}){
+function v2area(data, color, { h = 100, fill = true, base = false, pad = null } = {}){
   if (!Array.isArray(data) || data.length < 2 || !data.every(Number.isFinite)) return '';
   const w = 300, min = Math.min(...data), max = Math.max(...data), r = (max - min) || 1;
-  const pts = data.map((v, i) => [i / (data.length - 1) * w, h - 6 - (v - min) / r * (h - 14)]);
+  /* pad : marge haute/basse en unités du viewBox. Par défaut celle de la
+     maquette (6 en bas, 8 en haut) ; les mini-courbes de ligne passent 2
+     pour utiliser toute leur hauteur (sinon une séance réelle de ±1 %
+     paraissait plate sur 28 px). */
+  const bas = pad === null ? 6 : pad, haut = pad === null ? 8 : pad;
+  const pts = data.map((v, i) => [i / (data.length - 1) * w, h - bas - (v - min) / r * (h - bas - haut)]);
   let d = `M${pts[0][0]},${pts[0][1]}`;
   for (let i = 1; i < pts.length; i++){
     const [x0, y0] = pts[i - 1], [x1, y1] = pts[i], cx = (x0 + x1) / 2;
@@ -113,6 +118,18 @@ function v2derniereSeance(data){
   const pts = data.filter(p => String(p.date).slice(0, 10) === jour).map(p => p.close).filter(Number.isFinite);
   return pts.length >= 2 ? pts : null;
 }
+function v2lisser(pts, n = 30){
+  if (!pts || pts.length <= n) return pts;
+  const out = [];
+  for (let i = 0; i < n; i++){
+    const a = Math.floor(i * pts.length / n), b = Math.max(a + 1, Math.floor((i + 1) * pts.length / n));
+    const tranche = pts.slice(a, b);
+    out.push(tranche.reduce((x, y) => x + y, 0) / tranche.length);
+  }
+  /* Le dernier point reste le dernier cours réel (fin de courbe exacte). */
+  out[out.length - 1] = pts[pts.length - 1];
+  return out;
+}
 function v2sparkData(s){
   const e = HISTP.get(cleHISTP(s.id, '1j'));
   return e && e.status === 'ready' ? v2derniereSeance(e.data) : null;
@@ -128,7 +145,7 @@ function v2row(s, opts = {}){
   const sd = opts.spark ? v2sparkData(s) : null;
   return `<button class="v-row" data-stock="${esc(s.id)}">${v2logo(s)}
     <span class="v-t"><b>${opts.title || esc(v2nomCourt(s.name))}</b><span>${opts.sub || esc(s.ticker + (s.sector ? ' · ' + s.sector : ''))}</span></span>
-    ${opts.spark ? `<span class="v-spark">${sd ? v2area(sd, (varPct ?? 0) >= 0 ? 'var(--v-up)' : 'var(--v-down)', { h:28, fill:false }) : ''}</span>` : ''}
+    ${opts.spark ? `<span class="v-spark">${sd ? v2area(v2lisser(sd), (varPct ?? 0) >= 0 ? 'var(--v-up)' : 'var(--v-down)', { h:28, fill:false, pad:2 }) : ''}</span>` : ''}
     <span class="v-p">${right}</span></button>`;
 }
 
