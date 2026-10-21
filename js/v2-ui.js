@@ -143,7 +143,7 @@ function v2row(s, opts = {}){
     ? `<b class="v-num">${enChargement ? '…' : '—'}</b><span></span>`
     : `<b class="v-num">${v2nf(prix, prix < 100 ? 2 : 0)}</b><span class="${varPct === null ? '' : v2cls(varPct)}">${varPct === null ? '' : v2var(varPct)}</span>`);
   const sd = opts.spark ? v2sparkData(s) : null;
-  return `<button class="v-row" data-stock="${esc(s.id)}">${v2logo(s)}
+  return `<button class="v-row" data-stock="${esc(s.id)}"${opts.spark ? ` data-v2courbe="${esc(s.id)}"` : ''}>${v2logo(s)}
     <span class="v-t"><b>${opts.title || esc(v2nomCourt(s.name))}</b><span>${opts.sub || esc(s.ticker + (s.sector ? ' · ' + s.sector : ''))}</span></span>
     ${opts.spark ? `<span class="v-spark">${sd ? v2area(v2lisser(sd), (varPct ?? 0) >= 0 ? 'var(--v-up)' : 'var(--v-down)', { h:28, fill:false, pad:2 }) : ''}</span>` : ''}
     <span class="v-p">${right}</span></button>`;
@@ -246,6 +246,40 @@ function v2templeScroll(){
   addEventListener('resize', () => { v2syncSegs(); });
 })();
 
+/* ---------- courbes sur TOUTES les lignes affichées (2026-10-21) ----------
+   Chaque ligne marquée data-v2courbe demande sa courbe du jour quand elle
+   entre à l'écran (jamais des centaines d'un coup) : 4 requêtes à la fois,
+   chacune dédoublonnée par chargerGraphiquePeriode(). */
+const V2_COURBES = { file: [], enCours: 0, vues: new Set() };
+function v2courbeSuivante(){
+  while (V2_COURBES.enCours < 4 && V2_COURBES.file.length){
+    const st = byId[V2_COURBES.file.shift()];
+    if (!st || HISTP.get(cleHISTP(st.id, '1j'))) continue;
+    V2_COURBES.enCours++;
+    Promise.resolve(chargerGraphiquePeriode(st, '1j')).catch(() => {}).finally(() => {
+      V2_COURBES.enCours--;
+      v2courbeSuivante();
+    });
+  }
+}
+const v2observateurCourbes = typeof IntersectionObserver === 'function' ? new IntersectionObserver(entries => {
+  for (const e of entries){
+    if (!e.isIntersecting) continue;
+    v2observateurCourbes.unobserve(e.target);
+    const id = e.target.dataset.v2courbe;
+    if (!id || V2_COURBES.vues.has(id) || HISTP.get(cleHISTP(id, '1j'))) continue;
+    V2_COURBES.vues.add(id);
+    V2_COURBES.file.push(id);
+  }
+  v2courbeSuivante();
+}, { rootMargin: '200px 0px' }) : null;
+function v2observerCourbes(){
+  if (!v2observateurCourbes) return;
+  document.querySelectorAll('[data-v2courbe]').forEach(el => {
+    if (!HISTP.get(cleHISTP(el.dataset.v2courbe, '1j'))) v2observateurCourbes.observe(el);
+  });
+}
+
 /* render() recrée tout #view à chaque cotation reçue : sans ça, chaque
    rafraîchissement ramènerait les carrousels sur leur première carte. */
 function v2avantRender(){
@@ -263,6 +297,7 @@ function v2afterRender(etat){
   });
   v2animateGauges();
   v2templeScroll();
+  v2observerCourbes();
 }
 
 /* Suggestions NovaBot sans mandat (mode pédagogique). */

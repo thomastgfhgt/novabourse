@@ -6,7 +6,7 @@ PAGES.watchlist = () => {
     <h1 class="title">Ma liste</h1>
     <p class="lead" style="margin-top:10px">${list.length} entreprise${list.length>1?'s':''} suivie${list.length>1?'s':''}.</p>
     <div class="card" style="margin-top:22px">
-      ${list.length ? `<div class="rows rows-grid">${list.map(x=>stockRow(x)).join('')}</div>`
+      ${list.length ? `<div class="rows rows-grid">${list.map(x=>stockRow(x, { spark:true })).join('')}</div>`
         : emptyState('Votre liste est vide',
             'Touchez l’étoile pour suivre une valeur. Sa note et son évolution vous attendront ici.',
             { go:'radar', label:'Parcourir le Radar' })}
@@ -50,7 +50,7 @@ PAGES.listDetail = (listId) => {
       <button class="btn btn-s btn-sm" data-delete-list="${esc(l.id)}">Supprimer</button>
     </div>
     <div class="card">
-      ${items.length ? `<div class="rows rows-grid">${items.map(x => stockRow(x)).join('')}</div>`
+      ${items.length ? `<div class="rows rows-grid">${items.map(x => stockRow(x, { spark:true })).join('')}</div>`
         : emptyState('Cette liste est vide',
             'Ouvrez une fiche action et utilisez « Ajouter à une liste » pour la remplir.',
             { go:'markets', label:'Explorer les entreprises' })}

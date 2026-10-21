@@ -542,7 +542,7 @@ function stockRow(s, opts = {}){
   const enChargement = prix === null && cotationEnCours(s.id);
   const texteVide = enChargement ? 'Chargement…' : '—';
 
-  return `<div class="row">
+  return `<div class="row"${opts.spark === true ? ` data-v2courbe="${esc(s.id)}"` : ''}>
     <button style="display:flex;align-items:center;gap:10px;flex:1;min-width:0;text-align:left"
       data-stock="${esc(s.id)}">
       ${avatar(s, opts.logo !== false)}
