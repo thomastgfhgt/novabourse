@@ -269,7 +269,19 @@ function v2templeScroll(){
       rafraîchissement existant (liveTick, js/data-services.js). */
 const V2_SPARKS = new Map();          // id -> { points:[prix], at }
 const V2_COURBES = { demandes: new Set(), lot: new Set(), minuteur: null };
-const V2_VISIBLES = new Set();
+/* Éléments observés / actuellement visibles. render() recrée les lignes à
+   chaque cotation reçue : on n'interrompt JAMAIS l'observation en cours
+   (un disconnect() à chaque rendu annulait les notifications en attente,
+   aucune ligne n'était jamais vue), on retire seulement les éléments
+   sortis du DOM et on ajoute les nouveaux. */
+const V2_OBSERVES = new Set();
+const V2_VISIBLES_EL = new Set();
+const V2_VISIBLES = { forEach(fn){ v2idsVisibles().forEach(fn); } };
+function v2idsVisibles(){
+  const ids = new Set();
+  V2_VISIBLES_EL.forEach(el => { if (el.isConnected && el.dataset.v2courbe) ids.add(el.dataset.v2courbe); });
+  return [...ids];
+}
 
 function v2envoyerLotCourbes(){
   V2_COURBES.minuteur = null;
@@ -304,21 +316,26 @@ const v2observateurCourbes = typeof IntersectionObserver === 'function' ? new In
   for (const e of entries){
     const id = e.target.dataset.v2courbe;
     if (!id) continue;
-    if (e.isIntersecting){ V2_VISIBLES.add(id); v2demanderCourbe(id); }
-    else V2_VISIBLES.delete(id);
+    if (e.isIntersecting){ V2_VISIBLES_EL.add(e.target); v2demanderCourbe(id); }
+    else V2_VISIBLES_EL.delete(e.target);
   }
 }, { rootMargin: '200px 0px' }) : null;
 function v2observerCourbes(){
   if (!v2observateurCourbes) return;
-  v2observateurCourbes.disconnect();
-  V2_VISIBLES.clear();
-  document.querySelectorAll('[data-v2courbe]').forEach(el => v2observateurCourbes.observe(el));
+  for (const el of V2_OBSERVES){
+    if (!el.isConnected){ v2observateurCourbes.unobserve(el); V2_OBSERVES.delete(el); V2_VISIBLES_EL.delete(el); }
+  }
+  document.querySelectorAll('[data-v2courbe]').forEach(el => {
+    if (V2_OBSERVES.has(el)) return;
+    V2_OBSERVES.add(el);
+    v2observateurCourbes.observe(el);
+  });
 }
 
 /* Cours en direct de tout ce qui est à l'écran (toutes les 8 s). */
 async function v2coursVisiblesTick(){
   if (document.visibilityState !== 'visible') return;
-  const ids = [...V2_VISIBLES].filter(id => !liveIds.includes(id)).slice(0, 30);
+  const ids = v2idsVisibles().filter(id => !liveIds.includes(id)).slice(0, 30);
   const cibles = ids.map(id => byId[id]).filter(s => s && s.ticker);
   if (!cibles.length) return;
   try {
