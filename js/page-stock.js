@@ -52,7 +52,7 @@ PAGES.stock = (id) => {
            fournisseur non reconnu) plutôt que d'inventer un libellé —
            mais "Fraîcheur inconnue" s'affiche bien si le serveur renvoie
            explicitement UNKNOWN. */
-        const labelFraicheur = FRESHNESS_LABEL[q.freshness] || '';
+        const labelFraicheur = libelleFraicheur(q);
         /* Statut de séance (voir MARKET_STATUS_LABEL) : ajouté au même
            préfixe que la fraîcheur, jamais à sa place — un "Différé ·
            Séance fermée" reste avant tout une info de FRAÎCHEUR ; le

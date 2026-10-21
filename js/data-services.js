@@ -83,7 +83,8 @@ const MARKET_CODE = { NASDAQ:'NASDAQ', NYSE:'NYSE', 'Euronext Paris':'PA',
    portefeuille) — jamais tout le catalogue. Coupé quand l'onglet est
    masqué (aucun crédit consommé pendant ce temps), repris à la reprise
    de visibilité. */
-const LIVE_INTERVALLE_MS = 8000;
+/* 8 s -> 4 s (2026-10-21, "la bourse en temps réel"). */
+const LIVE_INTERVALLE_MS = 4000;
 const LIVE_MAX_SYMBOLES = 7;
 let liveTimer = null;
 let liveIds = [];

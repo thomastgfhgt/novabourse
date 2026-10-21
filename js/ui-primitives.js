@@ -523,7 +523,7 @@ function stockRow(s, opts = {}){
      déjà suffisamment honnête) ; sinon montre TOUJOURS le libellé exact
      renvoyé par le serveur, y compris "Fraîcheur inconnue" — jamais un
      silence qui laisserait sous-entendre du temps réel par défaut. */
-  const labelFraicheur = (prix !== null && q) ? (FRESHNESS_LABEL[q.freshness] || '') : '';
+  const labelFraicheur = (prix !== null && q) ? libelleFraicheur(q) : '';
   /* AnimatedFinancialNumber, même mécanisme que la fiche action
      (voir PRICE_FLASH plus bas) — mais une ligne peut apparaître dans
      plusieurs listes à la fois (ex. "Ma liste" ET "Marché" sur l'accueil) ;
