@@ -156,7 +156,7 @@ function v2row(s, opts = {}){
   const sd = opts.spark ? v2sparkData(s) : null;
   return `<button class="v-row" data-stock="${esc(s.id)}"${opts.spark ? ` data-v2courbe="${esc(s.id)}"` : ''}>${v2logo(s)}
     <span class="v-t"><b>${opts.title || esc(v2nomCourt(s.name))}</b><span>${opts.sub || esc(s.ticker + (s.sector ? ' · ' + s.sector : ''))}</span></span>
-    ${opts.spark ? `<span class="v-spark">${sd ? v2area(v2lisser(sd), (varPct ?? 0) >= 0 ? 'var(--v-up)' : 'var(--v-down)', { h:28, fill:false, pad:2 }) : ''}</span>` : ''}
+    ${opts.spark ? `<span class="v-spark"${V2_SPARKS.get(s.id)?.periode === '1mo' ? ` title="Tendance sur 1 mois : pas d'échange aujourd'hui"` : ''}>${sd ? v2area(v2lisser(sd), (varPct ?? 0) >= 0 ? 'var(--v-up)' : 'var(--v-down)', { h:28, fill:false, pad:2 }) : ''}</span>` : ''}
     <span class="v-p">${right}</span></button>`;
 }
 
@@ -297,7 +297,7 @@ function v2envoyerLotCourbes(){
       if (!d || !Array.isArray(d.sparks)) return;
       for (const sp of d.sparks){
         const s = parSymbole.get(sp.id);
-        if (s && Array.isArray(sp.points)) V2_SPARKS.set(s.id, { points: sp.points.map(p => p[1]), at: Date.now() });
+        if (s && Array.isArray(sp.points)) V2_SPARKS.set(s.id, { points: sp.points.map(p => p[1]), at: Date.now(), periode: sp.periode || '1j' });
       }
       renderSparklinesGroupe();
     })
