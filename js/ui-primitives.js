@@ -516,7 +516,8 @@ function stockRow(s, opts = {}){
     && hEntry.data[hEntry.data.length - 1].date.slice(0, 10) === new Date().toISOString().slice(0, 10);
   void dernierPointEstAujourdhui;
   /* 2026-10-20 : dernière séance réelle (voir v2derniereSeance, js/v2-ui.js). */
-  const hist = hEntry && hEntry.status === 'ready' ? v2derniereSeance(hEntry.data) : null;
+  void hEntry;
+  const hist = typeof v2sparkData === 'function' ? v2sparkData(s) : null;
   /* Fraîcheur (voir api/market/_freshness.js / FRESHNESS_LABEL) : n'affiche
      rien tant qu'aucune cotation n'a été reçue pour cette ligne (prix = —
      déjà suffisamment honnête) ; sinon montre TOUJOURS le libellé exact
