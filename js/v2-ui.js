@@ -131,8 +131,19 @@ function v2lisser(pts, n = 30){
   return out;
 }
 function v2sparkData(s){
-  const e = HISTP.get(cleHISTP(s.id, '1j'));
-  return e && e.status === 'ready' ? v2derniereSeance(e.data) : null;
+  /* Courbe groupée (kind=sparks) d'abord, sinon l'historique déjà chargé
+     (fiche valeur, cartes crypto). Le dernier point suit le cours en
+     direct quand celui-ci est plus récent que la courbe. */
+  const sp = V2_SPARKS.get(s.id);
+  let pts = sp ? sp.points.slice() : null;
+  if (!pts){
+    const e = HISTP.get(cleHISTP(s.id, '1j'));
+    pts = e && e.status === 'ready' ? v2derniereSeance(e.data) : null;
+  }
+  if (!pts || pts.length < 2) return null;
+  const q = QUOTES.get(s.id);
+  if (sp && q && Number.isFinite(q.price) && q.price !== pts[pts.length - 1] && Date.now() - sp.at < 10 * 60000) pts.push(q.price);
+  return pts;
 }
 
 /* ---------- ligne valeur (row() de la maquette) ---------- */
@@ -246,39 +257,110 @@ function v2templeScroll(){
   addEventListener('resize', () => { v2syncSegs(); });
 })();
 
-/* ---------- courbes sur TOUTES les lignes affichées (2026-10-21) ----------
-   Chaque ligne marquée data-v2courbe demande sa courbe du jour quand elle
-   entre à l'écran (jamais des centaines d'un coup) : 4 requêtes à la fois,
-   chacune dédoublonnée par chargerGraphiquePeriode(). */
-const V2_COURBES = { file: [], enCours: 0, vues: new Set() };
-function v2courbeSuivante(){
-  while (V2_COURBES.enCours < 4 && V2_COURBES.file.length){
-    const st = byId[V2_COURBES.file.shift()];
-    if (!st || HISTP.get(cleHISTP(st.id, '1j'))) continue;
-    V2_COURBES.enCours++;
-    Promise.resolve(chargerGraphiquePeriode(st, '1j')).catch(() => {}).finally(() => {
-      V2_COURBES.enCours--;
-      v2courbeSuivante();
-    });
-  }
+/* ---------- courbes et cours EN DIRECT sur toutes les lignes (2026-10-21) ----------
+   Retour utilisateur : "y en a encore plein [sans courbe] et il n'y a pas
+   la bourse en temps réel".
+   1. Courbes : chaque ligne marquée data-v2courbe qui entre à l'écran est
+      regroupée avec les autres ; un SEUL appel /api/market/extra?kind=sparks
+      renvoie la séance du jour de 30 valeurs à la fois (au lieu d'un appel
+      par ligne). Les courbes visibles sont relues toutes les 60 s.
+   2. Cours : toutes les lignes visibles à l'écran (pas seulement 7) sont
+      relues toutes les 8 s via /api/market/quotes?fresh=1, en plus du
+      rafraîchissement existant (liveTick, js/data-services.js). */
+const V2_SPARKS = new Map();          // id -> { points:[prix], at }
+const V2_COURBES = { demandes: new Set(), lot: new Set(), minuteur: null };
+/* Éléments observés / actuellement visibles. render() recrée les lignes à
+   chaque cotation reçue : on n'interrompt JAMAIS l'observation en cours
+   (un disconnect() à chaque rendu annulait les notifications en attente,
+   aucune ligne n'était jamais vue), on retire seulement les éléments
+   sortis du DOM et on ajoute les nouveaux. */
+const V2_OBSERVES = new Set();
+const V2_VISIBLES_EL = new Set();
+const V2_VISIBLES = { forEach(fn){ v2idsVisibles().forEach(fn); } };
+function v2idsVisibles(){
+  const ids = new Set();
+  V2_VISIBLES_EL.forEach(el => { if (el.isConnected && el.dataset.v2courbe) ids.add(el.dataset.v2courbe); });
+  return [...ids];
+}
+
+function v2envoyerLotCourbes(){
+  V2_COURBES.minuteur = null;
+  const ids = [...V2_COURBES.lot].slice(0, 30);
+  ids.forEach(id => V2_COURBES.lot.delete(id));
+  if (V2_COURBES.lot.size) V2_COURBES.minuteur = setTimeout(v2envoyerLotCourbes, 50);
+  const stocksLot = ids.map(id => byId[id]).filter(s => s && s.ticker);
+  if (!stocksLot.length) return;
+  const parSymbole = new Map(stocksLot.map(s => [symboleDe(s), s]));
+  fetch('/api/market/extra?kind=sparks&symbols=' + encodeURIComponent([...parSymbole.keys()].join(',')))
+    .then(r => r.ok ? r.json() : null)
+    .then(d => {
+      if (!d || !Array.isArray(d.sparks)) return;
+      for (const sp of d.sparks){
+        const s = parSymbole.get(sp.id);
+        if (s && Array.isArray(sp.points)) V2_SPARKS.set(s.id, { points: sp.points.map(p => p[1]), at: Date.now() });
+      }
+      renderSparklinesGroupe();
+    })
+    .catch(() => {})
+    .finally(() => { ids.forEach(id => V2_COURBES.demandes.delete(id)); });
+}
+function v2demanderCourbe(id){
+  const e = V2_SPARKS.get(id);
+  if (e && Date.now() - e.at < 60000) return;
+  if (V2_COURBES.demandes.has(id)) return;
+  V2_COURBES.demandes.add(id);
+  V2_COURBES.lot.add(id);
+  if (!V2_COURBES.minuteur) V2_COURBES.minuteur = setTimeout(v2envoyerLotCourbes, 50);
 }
 const v2observateurCourbes = typeof IntersectionObserver === 'function' ? new IntersectionObserver(entries => {
   for (const e of entries){
-    if (!e.isIntersecting) continue;
-    v2observateurCourbes.unobserve(e.target);
     const id = e.target.dataset.v2courbe;
-    if (!id || V2_COURBES.vues.has(id) || HISTP.get(cleHISTP(id, '1j'))) continue;
-    V2_COURBES.vues.add(id);
-    V2_COURBES.file.push(id);
+    if (!id) continue;
+    if (e.isIntersecting){ V2_VISIBLES_EL.add(e.target); v2demanderCourbe(id); }
+    else V2_VISIBLES_EL.delete(e.target);
   }
-  v2courbeSuivante();
 }, { rootMargin: '200px 0px' }) : null;
 function v2observerCourbes(){
   if (!v2observateurCourbes) return;
+  for (const el of V2_OBSERVES){
+    if (!el.isConnected){ v2observateurCourbes.unobserve(el); V2_OBSERVES.delete(el); V2_VISIBLES_EL.delete(el); }
+  }
   document.querySelectorAll('[data-v2courbe]').forEach(el => {
-    if (!HISTP.get(cleHISTP(el.dataset.v2courbe, '1j'))) v2observateurCourbes.observe(el);
+    if (V2_OBSERVES.has(el)) return;
+    V2_OBSERVES.add(el);
+    v2observateurCourbes.observe(el);
   });
 }
+
+/* Cours en direct de tout ce qui est à l'écran (toutes les 8 s). */
+async function v2coursVisiblesTick(){
+  if (document.visibilityState !== 'visible') return;
+  const ids = v2idsVisibles().filter(id => !liveIds.includes(id)).slice(0, 30);
+  const cibles = ids.map(id => byId[id]).filter(s => s && s.ticker);
+  if (!cibles.length) return;
+  try {
+    const r = await fetch('/api/market/quotes?fresh=1&symbols=' + encodeURIComponent(cibles.map(symboleDe).join(',')));
+    if (!r.ok) return;
+    const d = await r.json();
+    const parId = new Map(cibles.map(s => [idDeCotation(s), s]));
+    let change = false;
+    for (const q of d.quotes || []){
+      const s = parId.get(q.symbol);
+      if (!s || !Number.isFinite(q.price) || q.price <= 0) continue;
+      const ancien = QUOTES.get(s.id);
+      if (ancien && Number.isFinite(ancien.price) && q.price !== ancien.price){
+        PRICE_FLASH.set(s.id, q.price > ancien.price ? 'up' : 'down');
+      }
+      if (!ancien || ancien.price !== q.price || ancien.changePercent !== q.changePercent) change = true;
+      QUOTES.set(s.id, q);
+      verifierAlertes(s.id, q.price);
+    }
+    if (change){ state.ui.liveAt = Date.now(); render(); }
+  } catch { /* le prochain cycle réessaiera */ }
+}
+setInterval(v2coursVisiblesTick, 8000);
+/* Courbes visibles relues toutes les 60 s (la séance avance). */
+setInterval(() => { if (document.visibilityState === 'visible') V2_VISIBLES.forEach(v2demanderCourbe); }, 60000);
 
 /* render() recrée tout #view à chaque cotation reçue : sans ça, chaque
    rafraîchissement ramènerait les carrousels sur leur première carte. */

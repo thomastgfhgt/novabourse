@@ -42,6 +42,7 @@ const {
   NEWS,
   KEYS,
   yahooSymbole,
+  getJSON,
   tdSymbol,
   coingeckoRef,
   frankfurterRef,
@@ -842,10 +843,60 @@ async function handleNovabotCron(req, res) {
 /* ============================================================
    dispatch
    ============================================================ */
+
+/* ============================================================
+   kind=sparks — courbes du jour groupées (2026-10-21)
+   ============================================================
+   "y en a encore plein [sans courbe]" : une requête /api/market/history
+   PAR ligne rendait une liste de 100 valeurs lente à se remplir. Ici, un
+   seul appel renvoie la séance du jour (5 min) de jusqu'à 30 valeurs,
+   lues en parallèle chez Yahoo (/v8/finance/chart, range=1d : séance en
+   cours, ou la dernière séance si le marché est fermé). Uniquement des
+   points réels ; une valeur sans donnée est simplement absente de la
+   réponse, jamais complétée. Cache mémoire 60 s par symbole. */
+const SPARKS_MAX = 30;
+const SPARKS_TTL_MS = 60 * 1000;
+const SPARKS_CACHE = new Map();
+const SPARKS_UA = { 'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36' };
+
+async function sparkUnSymbole(brut) {
+  const [ticker, exchange = '', type = 'stock'] = String(brut).split('@');
+  const symbole = yahooSymbole(ticker, exchange, type);
+  if (!symbole) return null;
+  const cle = symbole;
+  const enCache = SPARKS_CACHE.get(cle);
+  if (enCache && Date.now() - enCache.at < SPARKS_TTL_MS) return { id: brut, ...enCache.v };
+  const d = await getJSON(
+    `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbole)}?range=1d&interval=5m`,
+    8000, SPARKS_UA
+  );
+  const r = d?.chart?.result?.[0];
+  const ts = r?.timestamp || [];
+  const closes = r?.indicators?.quote?.[0]?.close || [];
+  const points = [];
+  for (let i = 0; i < ts.length; i++) {
+    const c = closes[i];
+    if (typeof c === 'number' && Number.isFinite(c)) points.push([ts[i], Math.round(c * 1e6) / 1e6]);
+  }
+  if (points.length < 2) return null;
+  const v = { points, prix: typeof r?.meta?.regularMarketPrice === 'number' ? r.meta.regularMarketPrice : null };
+  SPARKS_CACHE.set(cle, { at: Date.now(), v });
+  return { id: brut, ...v };
+}
+
+async function handleSparks(req, res) {
+  const symboles = String(req.query?.symbols || '').split(',').map(s => s.trim()).filter(Boolean).slice(0, SPARKS_MAX);
+  if (!symboles.length) return res.status(400).json({ error: 'symbols_requis' });
+  const resultats = await Promise.all(symboles.map(s => sparkUnSymbole(s).catch(() => null)));
+  res.setHeader('Cache-Control', 'public, max-age=30, s-maxage=60');
+  return res.status(200).json({ source: 'yahoo', sparks: resultats.filter(Boolean) });
+}
+
 module.exports = async (req, res) => {
   const kind = String(req.query?.kind || '').toLowerCase();
   if (kind === 'news') return handleNews(req, res);
   if (kind === 'worldnews') return handleWorldNews(req, res);
+  if (kind === 'sparks') return handleSparks(req, res);
   if (kind === 'catalog') return handleCatalog(req, res);
   if (kind === 'health') return handleHealth(req, res);
   if (kind === 'novabot-cron') return handleNovabotCron(req, res);

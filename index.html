@@ -583,8 +583,8 @@ function render(navigated = false){
      chargement de masse ci-dessous) : au-delà, les lignes les plus bas
      dans la page restent simplement sans sparkline plutôt que de
      surcharger le réseau pour des cartes hors ou presque hors écran. */
-  if (route.page === 'markets') marketsListeVisible().slice(0, CHARGEMENT_MASSE_MAX_SYMBOLES)
-    .forEach(s => { if (s) chargerGraphiquePeriode(s, '1j'); });
+  /* 2026-10-21 : les courbes des lignes passent par kind=sparks (groupé,
+     voir v2observerCourbes, js/v2-ui.js) — plus une requête par ligne. */
   /* Design v2 : courbes du jour propres à chaque page (js/v2-pages.js). */
   v2sur(() => v2extrasCourbes(route.page), []).forEach(s => { if (s) chargerGraphiquePeriode(s, '1j'); });
 
