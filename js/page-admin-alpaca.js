@@ -21,6 +21,7 @@ PAGES.alpacaStatus = () => `<div class="page-in">
   <div class="card" style="margin-top:14px" id="alpacaAccountCard">
     <p class="small" style="color:var(--ink-4)">Chargement…</p>
   </div>
+  ${typeof nbAlpacaBloc === 'function' ? nbAlpacaBloc() : ''}
 </div>`;
 
 /* Région renvoyée par le serveur (ALPACA_BROKER_REGION) — choisit le
