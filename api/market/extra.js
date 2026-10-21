@@ -866,20 +866,28 @@ async function sparkUnSymbole(brut) {
   const cle = symbole;
   const enCache = SPARKS_CACHE.get(cle);
   if (enCache && Date.now() - enCache.at < SPARKS_TTL_MS) return { id: brut, ...enCache.v };
-  const d = await getJSON(
-    `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbole)}?range=1d&interval=5m`,
-    8000, SPARKS_UA
-  );
-  const r = d?.chart?.result?.[0];
-  const ts = r?.timestamp || [];
-  const closes = r?.indicators?.quote?.[0]?.close || [];
-  const points = [];
-  for (let i = 0; i < ts.length; i++) {
-    const c = closes[i];
-    if (typeof c === 'number' && Number.isFinite(c)) points.push([ts[i], Math.round(c * 1e6) / 1e6]);
-  }
-  if (points.length < 2) return null;
-  const v = { points, prix: typeof r?.meta?.regularMarketPrice === 'number' ? r.meta.regularMarketPrice : null };
+  const lirePoints = async (range, interval) => {
+    const d = await getJSON(
+      `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbole)}?range=${range}&interval=${interval}`,
+      8000, SPARKS_UA
+    );
+    const r = d?.chart?.result?.[0];
+    const ts = r?.timestamp || [];
+    const closes = r?.indicators?.quote?.[0]?.close || [];
+    const points = [];
+    for (let i = 0; i < ts.length; i++) {
+      const c = closes[i];
+      if (typeof c === 'number' && Number.isFinite(c)) points.push([ts[i], Math.round(c * 1e6) / 1e6]);
+    }
+    return { points, prix: typeof r?.meta?.regularMarketPrice === 'number' ? r.meta.regularMarketPrice : null };
+  };
+  let lu = await lirePoints('1d', '5m');
+  let periode = '1j';
+  /* Valeur peu liquide, sans échange sur la séance : sa vraie courbe des
+     clôtures du dernier mois plutôt qu'aucune courbe (2026-10-21). */
+  if (lu.points.length < 2) { lu = await lirePoints('1mo', '1d'); periode = '1mo'; }
+  if (lu.points.length < 2) return null;
+  const v = { points: lu.points, prix: lu.prix, periode };
   SPARKS_CACHE.set(cle, { at: Date.now(), v });
   return { id: brut, ...v };
 }
