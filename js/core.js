@@ -1143,7 +1143,9 @@ function seedCryptosEtDevises(){
       sector:'Crypto', country:'—', currency:'EUR', assetType:'crypto' }, false);
   }
   for (const [paire, nom] of DEVISES_VERIFIEES){
-    ensureRuntimeStock({ ticker: paire, name: nom, exchangeCode:'', exchange:'Devises',
+    /* Place vide (et non "Devises") : le serveur renvoie l'identifiant en
+       majuscules, une place libellée ne se raccrochait jamais à sa ligne. */
+    ensureRuntimeStock({ ticker: paire, name: nom, exchangeCode:'', market:'Devises',
       sector:'Devises', country:'—', currency: paire.split('/')[1], assetType:'forex' }, false);
   }
 }
