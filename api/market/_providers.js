@@ -922,6 +922,24 @@ const YAHOO_SUFFIX = {
   OL: '.OL',                                                // VÉRIFIÉ (AKER.OL)
   BR: '.BR',                                                // VÉRIFIÉ (ABI.BR)
   LS: '.LS',                                                // VÉRIFIÉ (EDP.LS)
+  /* 2026-10-21 ("il y a encore plein d'actions sans chiffres ni courbe") :
+     8 072 valeurs du catalogue étaient sur des places sans conversion
+     Yahoo, donc jamais cotées. Chaque suffixe ci-dessous VÉRIFIÉ EN DIRECT
+     le 2026-10-21 sur 3 valeurs réelles du catalogue (cours + devise reçus).
+     Philippines (PSE) : non servie par Yahoo, laissée de côté. */
+  KQ: '.KQ',                                                // VÉRIFIÉ (000250.KQ, KOSDAQ)
+  V: '.V',                                                  // VÉRIFIÉ (AAG.V, TSX Venture)
+  NEO: '.NE',                                               // VÉRIFIÉ (AMZN.NE, Cboe Canada)
+  TWO: '.TWO',                                              // VÉRIFIÉ (1240.TWO, Taipei Exchange)
+  KLSE: '.KL',                                              // VÉRIFIÉ (0002.KL, Bursa Malaysia)
+  JK: '.JK',                                                // VÉRIFIÉ (AALI.JK, Indonésie)
+  WAR: '.WA',                                               // VÉRIFIÉ (11B.WA, Varsovie)
+  KAR: '.KA',                                               // VÉRIFIÉ (AABS.KA, Karachi)
+  MC: '.MC',                                                // VÉRIFIÉ (ACS.MC, Madrid)
+  AT: '.AT',                                                // VÉRIFIÉ (ADMIE.AT, Athènes)
+  VN: '.VN',                                                // VÉRIFIÉ (BIC.VN, Vietnam)
+  MX: '.MX',                                                // VÉRIFIÉ (AC.MX, Mexico)
+  SN: '.SN',                                                // VÉRIFIÉ (ABC.SN, Santiago)
 };
 
 function yahooSymbole(ticker, exchange, type) {
@@ -951,6 +969,11 @@ function yahooSymbole(ticker, exchange, type) {
   const code = String(exchange || '').toUpperCase().trim();
   const suffixe = Object.prototype.hasOwnProperty.call(YAHOO_SUFFIX, code) ? YAHOO_SUFFIX[code] : null;
   if (suffixe === null) return code ? null : t; // place non vérifiée -> null, SAUF composite US implicite (exchange vide)
+  /* Hong Kong (2026-10-21) : le catalogue écrit les codes sur 5 chiffres
+     ("00700"), Yahoo les attend sur 4 ("0700.HK") — VÉRIFIÉ EN DIRECT :
+     00700/09988/00001 sans prix, 0700/9988/0001 cotés. Les 2 854 valeurs
+     de Hong Kong n'avaient jamais de cours Yahoo à cause de ce zéro. */
+  if (code === 'HK' && /^\d{5,}$/.test(t)) return `${t.replace(/^0+(?=\d{4,}$)/, '')}${suffixe}`;
   return `${t}${suffixe}`;
 }
 
