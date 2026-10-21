@@ -647,6 +647,26 @@ const SECTEUR_CATALOGUE = {
    ci-dessous) — c'est la valeur attendue et fréquente pour crypto/forex/
    indices/matières premières ou une place non couverte, pas une anomalie à
    signaler comme "fraîcheur inconnue" l'est pour une cotation. */
+/* Libellé de fraîcheur MESURÉ (2026-10-21, "la bourse en temps réel") :
+   le fournisseur marque "Différé" des cours américains qui, mesurés,
+   n'ont que quelques secondes de retard. On affiche l'âge RÉEL du cours :
+   "Temps réel" sous 60 s pendant la séance, "Différé de X min" au-delà,
+   "Clôture" quand le marché est fermé. Sans horodatage : libellé du
+   fournisseur, tel quel. */
+function libelleFraicheur(q){
+  if (!q) return '';
+  const t = q.timestamp ? new Date(q.timestamp).getTime() : NaN;
+  if (q.marketStatus === 'closed') return 'Clôture';
+  if (Number.isFinite(t)){
+    const ageS = (Date.now() - t) / 1000;
+    if (q.marketStatus === 'open' || ageS < 3600){
+      if (ageS < 60) return 'Temps réel';
+      if (ageS < 3600) return `Différé de ${Math.max(1, Math.round(ageS / 60))} min`;
+    }
+  }
+  return FRESHNESS_LABEL[q.freshness] || '';
+}
+
 const MARKET_STATUS_LABEL = {
   open: 'Séance en cours',
   closed: 'Séance fermée',

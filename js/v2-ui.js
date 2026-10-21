@@ -358,7 +358,7 @@ async function v2coursVisiblesTick(){
     if (change){ state.ui.liveAt = Date.now(); render(); }
   } catch { /* le prochain cycle réessaiera */ }
 }
-setInterval(v2coursVisiblesTick, 8000);
+setInterval(v2coursVisiblesTick, 4000);
 /* Courbes visibles relues toutes les 60 s (la séance avance). */
 setInterval(() => { if (document.visibilityState === 'visible') V2_VISIBLES.forEach(v2demanderCourbe); }, 60000);
 

@@ -11,7 +11,7 @@ function v2StockEntete(s){
   const prix = q && Number.isFinite(q.price) ? q.price : null;
   const v = q && Number.isFinite(q.changePercent) ? q.changePercent : null;
   const suivie = state.watchlist.includes(s.id);
-  const labelFraicheur = q ? (FRESHNESS_LABEL[q.freshness] || '') : '';
+  const labelFraicheur = q ? libelleFraicheur(q) : '';
   const labelSeance = q ? (MARKET_STATUS_LABEL[q.marketStatus] || '') : '';
   const maj = state.ui.liveAt && route.page === 'stock' && route.arg === s.id
     ? 'Actualisé à ' + new Date(state.ui.liveAt).toLocaleTimeString('fr-FR', { hour:'2-digit', minute:'2-digit' }) : '';
