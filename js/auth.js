@@ -477,7 +477,7 @@ function gateScreen(){
         </div>
         <p class="nt-gate-hint">Sans compte, tu explores librement. Les analyses Nova demandent un compte gratuit.</p>
       </div>`}
-      <p class="nt-gate-legal">Connexion sécurisée · En continuant, tu acceptes nos conditions. NovaTitre ne donne aucun conseil en investissement personnalisé.</p>
+      <p class="nt-gate-legal">Connexion sécurisée · En continuant, tu acceptes nos <button type="button" data-legal="cgu" style="color:inherit;text-decoration:underline;background:none;border:0;padding:0;font:inherit;cursor:pointer">conditions</button> et notre <button type="button" data-legal="confidentialite" style="color:inherit;text-decoration:underline;background:none;border:0;padding:0;font:inherit;cursor:pointer">politique de confidentialité</button>. NovaTitre ne donne aucun conseil en investissement personnalisé. <button type="button" data-legal="mentions" style="color:inherit;text-decoration:underline;background:none;border:0;padding:0;font:inherit;cursor:pointer">Mentions légales</button></p>
     </div>
   </div>`;
 }

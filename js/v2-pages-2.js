@@ -106,6 +106,9 @@ PAGES.account = () => {
     ['lists', 'Mes listes'],
     ['method', 'Comment fonctionne le Nova Score'],
     ['trust', 'Aide et transparence'],
+    ['cgu', "Conditions d'utilisation et de vente"],
+    ['confidentialite', 'Confidentialité'],
+    ['mentions', 'Mentions légales'],
   ];
   const ligne = (attr, titre, sous) => `<button class="v-mini-row" ${attr}><span class="v-t" style="text-align:left"><b>${titre}</b>${sous ? `<span>${sous}</span>` : ''}</span>${V2ICON.chev}</button>`;
   return `<div class="v-page">
