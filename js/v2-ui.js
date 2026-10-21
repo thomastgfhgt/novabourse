@@ -101,11 +101,21 @@ function v2quote(s){
   };
 }
 /* Courbe du jour réelle (même règle que stockRow : dernier point = aujourd'hui). */
+/* CORRECTIF (2026-10-20, "je veux des vraies courbes dans le Radar et le
+   Marché") : la courbe n'apparaissait que si son dernier point datait
+   d'aujourd'hui (UTC) — donc AUCUNE courbe américaine avant l'ouverture de
+   Wall Street, et l'API "1j" renvoie en réalité plusieurs jours de points.
+   On trace maintenant la DERNIÈRE SÉANCE réellement disponible (celle du
+   jour dès que le marché est ouvert) : uniquement des points réels. */
+function v2derniereSeance(data){
+  if (!Array.isArray(data) || data.length < 2) return null;
+  const jour = String(data[data.length - 1].date).slice(0, 10);
+  const pts = data.filter(p => String(p.date).slice(0, 10) === jour).map(p => p.close).filter(Number.isFinite);
+  return pts.length >= 2 ? pts : null;
+}
 function v2sparkData(s){
   const e = HISTP.get(cleHISTP(s.id, '1j'));
-  const ok = e && e.status === 'ready' && e.data.length
-    && e.data[e.data.length - 1].date.slice(0, 10) === new Date().toISOString().slice(0, 10);
-  return ok ? e.data.map(p => p.close) : null;
+  return e && e.status === 'ready' ? v2derniereSeance(e.data) : null;
 }
 
 /* ---------- ligne valeur (row() de la maquette) ---------- */
