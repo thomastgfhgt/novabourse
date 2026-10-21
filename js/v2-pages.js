@@ -209,8 +209,9 @@ function v2extrasCourbes(page){ return ((V2_EXTRAS.courbes[page] || (() => []))(
 let V2_CRYPTOS = null;
 function v2cryptos(){
   if (!V2_CRYPTOS) V2_CRYPTOS = [
-    ensureRuntimeStock({ ticker:'BTC-USD', name:'Bitcoin', exchangeCode:'CC', assetType:'crypto', currency:'USD', sector:'Crypto' }, false),
-    ensureRuntimeStock({ ticker:'ETH-USD', name:'Ethereum', exchangeCode:'CC', assetType:'crypto', currency:'USD', sector:'Crypto' }, false),
+    /* En euros, mêmes entrées que la liste Crypto (seedCryptosEtDevises). */
+    ensureRuntimeStock({ ticker:'BTC-EUR', name:'Bitcoin', exchangeCode:'CC', exchange:'Crypto', assetType:'crypto', currency:'EUR', sector:'Crypto' }, false),
+    ensureRuntimeStock({ ticker:'ETH-EUR', name:'Ethereum', exchangeCode:'CC', exchange:'Crypto', assetType:'crypto', currency:'EUR', sector:'Crypto' }, false),
   ].filter(Boolean);
   return V2_CRYPTOS;
 }
@@ -237,7 +238,7 @@ function v2cryptoCard(c){
   const { prix, varPct } = v2quote(c);
   const sd = v2sparkData(c);
   return `<button class="v-card" data-stock="${esc(c.id)}" style="text-align:left"><div class="v-h"><span class="v-label">${esc(c.ticker.split('-')[0])}</span>${v2logo(c)}</div>
-    <p class="v-val v-num">${prix === null ? '—' : v2nf(prix, prix < 10000 ? 2 : 0) + ' $'}</p><span class="${varPct === null ? '' : v2cls(varPct)}" style="font-weight:700;font-size:14px">${varPct === null ? '' : v2var(varPct)}</span>
+    <p class="v-val v-num">${prix === null ? '—' : v2nf(prix, prix < 10000 ? 2 : 0) + ' ' + esc(c.curSymbol || c.cur || '')}</p><span class="${varPct === null ? '' : v2cls(varPct)}" style="font-weight:700;font-size:14px">${varPct === null ? '' : v2var(varPct)}</span>
     <div class="v-chart">${sd ? v2area(sd, (varPct ?? 0) >= 0 ? 'var(--v-up)' : 'var(--v-down)', { base:true }) : ''}</div></button>`;
 }
 function v2moversGrid(){

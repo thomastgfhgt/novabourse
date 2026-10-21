@@ -1116,6 +1116,38 @@ function seedIndices(){
   }
 }
 
+/* Cryptomonnaies et devises (2026-10-21, "il n'y a aucune devise ni
+   crypto") : absentes de catalog.json (actions et ETF uniquement), donc
+   les filtres Crypto/Devises de Marchés étaient vides. Même mécanisme que
+   les indices ci-dessus. Chaque symbole VÉRIFIÉ EN DIRECT le 2026-10-21
+   sur l'API de cotations en production (cours reçu) ; TON, NEAR et
+   Uniswap écartés (non servis ou symbole source illisible). Cryptos
+   cotées en euros. */
+const CRYPTOS_VERIFIEES = [
+  ['BTC', 'Bitcoin'], ['ETH', 'Ethereum'], ['SOL', 'Solana'], ['XRP', 'XRP'], ['BNB', 'BNB'],
+  ['ADA', 'Cardano'], ['DOGE', 'Dogecoin'], ['TRX', 'TRON'], ['AVAX', 'Avalanche'], ['DOT', 'Polkadot'],
+  ['LINK', 'Chainlink'], ['LTC', 'Litecoin'], ['BCH', 'Bitcoin Cash'], ['XLM', 'Stellar'], ['SHIB', 'Shiba Inu'],
+  ['ATOM', 'Cosmos'], ['ETC', 'Ethereum Classic'],
+];
+const DEVISES_VERIFIEES = [
+  ['EUR/USD', 'Euro / Dollar américain'], ['EUR/GBP', 'Euro / Livre sterling'], ['EUR/CHF', 'Euro / Franc suisse'],
+  ['EUR/JPY', 'Euro / Yen'], ['EUR/CAD', 'Euro / Dollar canadien'], ['EUR/AUD', 'Euro / Dollar australien'],
+  ['EUR/CNY', 'Euro / Yuan'], ['EUR/SEK', 'Euro / Couronne suédoise'], ['EUR/NOK', 'Euro / Couronne norvégienne'],
+  ['GBP/USD', 'Livre sterling / Dollar américain'], ['USD/JPY', 'Dollar américain / Yen'], ['USD/CHF', 'Dollar américain / Franc suisse'],
+  ['USD/CAD', 'Dollar américain / Dollar canadien'], ['AUD/USD', 'Dollar australien / Dollar américain'],
+  ['NZD/USD', 'Dollar néo-zélandais / Dollar américain'], ['USD/CNY', 'Dollar américain / Yuan'],
+];
+function seedCryptosEtDevises(){
+  for (const [sigle, nom] of CRYPTOS_VERIFIEES){
+    ensureRuntimeStock({ ticker: `${sigle}-EUR`, name: nom, exchangeCode:'CC', exchange:'Crypto',
+      sector:'Crypto', country:'—', currency:'EUR', assetType:'crypto' }, false);
+  }
+  for (const [paire, nom] of DEVISES_VERIFIEES){
+    ensureRuntimeStock({ ticker: paire, name: nom, exchangeCode:'', exchange:'Devises',
+      sector:'Devises', country:'—', currency: paire.split('/')[1], assetType:'forex' }, false);
+  }
+}
+
 /* Matières premières — même constat et même mécanisme que les indices
    ci-dessus (ni dans catalog.json, ni découvrables via /api/market/search
    pour "Gold"/"Silver"/"Crude Oil"...). Seulement 3 tickers ont une
