@@ -24,7 +24,8 @@
     "test-nova-review-ia": "node scripts/test-nova-review-ia.js",
     "test-secedgar": "node scripts/test-secedgar.js",
     "test-circuit-breaker": "node scripts/test-circuit-breaker.js",
-    "test-alpaca-eu": "node scripts/test-alpaca-eu.js"
+    "test-alpaca-eu": "node scripts/test-alpaca-eu.js",
+    "test-novabot-memoire": "node scripts/test-novabot-memoire.js"
   },
   "dependencies": {
     "stripe": "^16.12.0"

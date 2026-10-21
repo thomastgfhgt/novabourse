@@ -546,6 +546,9 @@ async function novabotAppelerModeleEtRepondre(dernierMessageUtilisateur){
          sert qu'à indiquer le consentement de l'utilisateur. */
       novaAiPortefeuilleAlpaca: state.settings.novaAiPortefeuilleAlpaca === true,
       ...novabotChatContexte(dernierMessageUtilisateur),
+      /* Mémoire du profil + vrais chiffres des entreprises citées
+         (js/novabot-intelligence.js). */
+      ...(await novabotEnrichissement(dernierMessageUtilisateur)),
     })});
     if (!r.ok){
       const err = await r.json().catch(() => ({}));
@@ -604,6 +607,7 @@ async function novabotAppelerModeleEtRepondre(dernierMessageUtilisateur){
     }
     NOVABOT_CHAT.readyToConfirmAmendment = Boolean(d.readyToConfirmAmendment);
     if (d.newPreferences) novabotAjouterPreferences(d.newPreferences);
+    if (d.profil) novabotProfilAppliquer(d.profil);
     if (d.action) novabotTraiterAction(d.action);
     /* id serveur du message capturé une fois la réponse arrivée (V6 §5 :
        nécessaire pour pouvoir le cibler ensuite via "Régénérer"/
