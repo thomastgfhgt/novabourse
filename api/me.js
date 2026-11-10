@@ -89,6 +89,7 @@ const {
   consommationCoach,
   coachBlock,
 } = require('./_limits.js');
+const { facturationDuPrix } = require('./stripe/_stripe.js');
 
 module.exports = async (req, res) => {
   res.setHeader('Cache-Control', 'no-store');
@@ -216,6 +217,14 @@ module.exports = async (req, res) => {
 
     cancelAtPeriodEnd:
       Boolean(profile?.cancel_at_period_end),
+
+    /* 'mensuel' ou 'annuel' (affichage seulement). */
+    facturation:
+      facturationDuPrix(profile?.stripe_price_id),
+
+    /* Essai gratuit seulement au premier abonnement. */
+    essaiPossible:
+      !profile?.stripe_subscription_id,
 
     coach:
       coachBlock(plan, utilise),

@@ -7,7 +7,7 @@
      site s'affiche tout de suite. La copie gardée ne sert que hors ligne.
    - Les réponses de /api/ ne sont jamais gardées (comptes, coach, cours). */
 
-const CACHE = 'novatitre-ecole-v2';
+const CACHE = 'novatitre-ecole-v3';
 const FICHIERS = [
   '/',
   '/manifest.webmanifest',
@@ -38,6 +38,7 @@ const FICHIERS = [
   '/content/sessions.js',
   '/content/sessions-2.js',
   '/content/realdata.js',
+  '/js/branchements.js',
   '/js/ai.js',
   '/js/app.js',
 ];

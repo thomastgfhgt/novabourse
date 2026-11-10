@@ -17,7 +17,12 @@
  *     effacés avant l'envoi.
  *   - Limite de messages par mois selon l'offre + limite par heure
  *     (api/_limits.js), réservée AVANT l'appel à l'IA.
- *   - Clé ANTHROPIC_API_KEY : variable Vercel, jamais dans le navigateur.
+ *   - Trois IA en relais : Claude (Anthropic) répond d'abord ; s'il est
+ *     en panne, surchargé ou non configuré, Grok (xAI) prend le relais,
+ *     puis OpenAI. Mêmes règles et mêmes données pour les trois. Un REFUS
+ *     de sécurité de Claude n'est jamais renvoyé aux deux autres.
+ *   - Clés ANTHROPIC_API_KEY, XAI_API_KEY, OPENAI_API_KEY : variables
+ *     Vercel, jamais dans le navigateur. Une IA sans clé est sautée.
  */
 
 const { Anthropic } = require('@anthropic-ai/sdk');
@@ -102,11 +107,26 @@ function lireCorps(req) {
   return null;
 }
 
+/* Relais Grok puis OpenAI (même format d'appel, « chat completions »).
+   Modèles réglables par variable Vercel, sinon ceux de l'ancienne route. */
+const RELAIS = [
+  { id: 'xai', nom: 'Grok', env: 'XAI_API_KEY', url: 'https://api.x.ai/v1/chat/completions',
+    model: () => process.env.XAI_MODEL || 'grok-4.6' },
+  { id: 'openai', nom: 'OpenAI', env: 'OPENAI_API_KEY', url: 'https://api.openai.com/v1/chat/completions',
+    model: () => process.env.OPENAI_MODEL || 'gpt-4.1-mini' },
+];
+const DELAI_RELAIS_MS = 12_000;
+
+const iaConfiguree = () =>
+  Boolean(process.env.ANTHROPIC_API_KEY) || RELAIS.some(p => process.env[p.env]);
+
+/* Délais choisis pour que Claude + les deux relais tiennent dans les
+   60 secondes accordées à la route (vercel.json). */
 let client = null;
 const claude = () => client || (client = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
-  timeout: 50_000,
-  maxRetries: 1,
+  timeout: 30_000,
+  maxRetries: 0,
 }));
 
 async function demanderAClaude({ tache, json, messages }) {
@@ -134,7 +154,59 @@ async function demanderAClaude({ tache, json, messages }) {
     .join('')
     .trim();
 
-  return { text, model: reponse.model || model };
+  if (!text) throw new Error('reponse_vide');
+  return { text, model: reponse.model || model, provider: 'anthropic' };
+}
+
+async function demanderAuRelais(p, { json, messages }) {
+  const ctrl = new AbortController();
+  const minuterie = setTimeout(() => ctrl.abort(), DELAI_RELAIS_MS);
+  try {
+    const r = await fetch(p.url, {
+      method: 'POST',
+      signal: ctrl.signal,
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${process.env[p.env]}` },
+      body: JSON.stringify({
+        model: p.model(),
+        messages: [{ role: 'system', content: json ? `${REGLES}\n\n${CONSIGNE_JSON}` : REGLES }, ...messages],
+      }),
+    });
+    const d = await r.json().catch(() => null);
+    if (!r.ok) {
+      const err = new Error('relais_en_erreur');
+      err.status = r.status;
+      throw err;
+    }
+    const text = String(d?.choices?.[0]?.message?.content || '').trim();
+    if (!text) throw new Error('reponse_vide');
+    return { text, model: p.model(), provider: p.id };
+  } finally {
+    clearTimeout(minuterie);
+  }
+}
+
+/* Claude d'abord, puis les relais. Seules les pannes passent au suivant :
+   un refus de Claude est rendu tel quel. Aucun contenu n'est journalisé. */
+async function demanderAuxIA(demande) {
+  let derniere = null;
+  if (process.env.ANTHROPIC_API_KEY) {
+    try {
+      return await demanderAClaude(demande);
+    } catch (e) {
+      derniere = e;
+      console.error('[coach] Claude indisponible', e && (e.status || e.name));
+    }
+  }
+  for (const p of RELAIS) {
+    if (!process.env[p.env]) continue;
+    try {
+      return await demanderAuRelais(p, demande);
+    } catch (e) {
+      derniere = e;
+      console.error('[coach]', p.nom, 'indisponible', e && (e.status || e.name));
+    }
+  }
+  throw derniere || new Error('aucune_ia');
 }
 
 module.exports = async (req, res) => {
@@ -145,7 +217,7 @@ module.exports = async (req, res) => {
     return res.status(405).json({ error: 'methode_non_autorisee' });
   }
 
-  if (!process.env.ANTHROPIC_API_KEY) {
+  if (!iaConfiguree()) {
     return res.status(503).json({ error: 'coach_non_configure' });
   }
 
@@ -177,7 +249,7 @@ module.exports = async (req, res) => {
   }
 
   try {
-    const r = await demanderAClaude(demande);
+    const r = await demanderAuxIA(demande);
 
     if (r.refus) {
       await cloturerCoach(sb, place.reservationId, 'ok');
@@ -193,17 +265,12 @@ module.exports = async (req, res) => {
        journalisé : seulement le type d'erreur. */
     await cloturerCoach(sb, place.reservationId, 'failed');
 
-    if (e instanceof Anthropic.RateLimitError) {
-      console.error('[coach] limite Anthropic atteinte');
+    /* Les trois IA ont échoué (ou seule une partie est configurée). */
+    if (e instanceof Anthropic.RateLimitError || e?.status === 429) {
       return res.status(429).json({ error: 'ia_surchargee' });
     }
-    if (e instanceof Anthropic.APIError) {
-      console.error('[coach] erreur Anthropic', e.status);
-      return res.status(e.status === 529 ? 503 : 502).json({ error: 'ia_indisponible' });
-    }
-    console.error('[coach] erreur', e && e.name);
-    return res.status(502).json({ error: 'ia_indisponible' });
+    return res.status(503).json({ error: 'ia_indisponible' });
   }
 };
 
-module.exports._test = { lireDemande, effacerDonneesPerso, REGLES, TACHES };
+module.exports._test = { lireDemande, effacerDonneesPerso, REGLES, TACHES, RELAIS };

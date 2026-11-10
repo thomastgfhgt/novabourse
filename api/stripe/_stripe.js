@@ -47,6 +47,12 @@ function offreDuPrix(priceId) {
   return premium.includes(priceId) ? 'premium' : null;
 }
 
+/* Identifiant de prix → 'mensuel' ou 'annuel' (affichage du site). */
+function facturationDuPrix(priceId) {
+  if (!priceId) return null;
+  return Object.keys(PRIX_PREMIUM).find(k => process.env[PRIX_PREMIUM[k]] === priceId) || null;
+}
+
 module.exports = {
   PAIEMENT_REEL_AUTORISE,
   SITE,
@@ -55,4 +61,5 @@ module.exports = {
   cleAutorisee,
   stripeAutorise,
   offreDuPrix,
+  facturationDuPrix,
 };

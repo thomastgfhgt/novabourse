@@ -58,7 +58,8 @@ Règles absolues :
     if (mode === 'api'){
       const r = await fetch(window.NT_AI_ENDPOINT, { method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: opts.signal,
         body: JSON.stringify({ task: opts.task || 'coach', prompt, turns: opts.turns || null, json: !!opts.json }) });
-      if (!r.ok) throw { code: r.status === 429 ? 'rate_limited' : 'upstream_error', message: 'HTTP ' + r.status };
+      if (!r.ok){ let err = ''; try { err = (await r.json()).error || ''; } catch (e){}
+        throw { code: r.status === 401 ? 'login' : err === 'limite_mensuelle' ? 'quota' : r.status === 429 ? 'rate_limited' : 'upstream_error', message: 'HTTP ' + r.status }; }
       const d = await r.json(); const text = d.text || '';
       if (opts.onText) opts.onText({ text, delta: text });
       if (!opts.json) return text;
@@ -72,6 +73,8 @@ Règles absolues :
     sampling_disabled: 'L’IA n’est pas disponible pour ce compte.',
     rate_limited: 'Nova Coach est très sollicité : réessaie dans un moment.',
     session_expired: 'Reconnecte-toi pour utiliser l’IA.',
+    login: 'Connecte-toi pour parler à Nova Coach.',
+    quota: 'Tu as utilisé tous tes messages Nova Coach de ce mois. Ils reviennent le 1er du mois prochain.',
     refused: 'Nova Coach n’a pas pu répondre à cette demande. Reformule autrement.',
     invalid_json: 'La réponse de l’IA était incomplète. Réessaie.',
     local: 'L’IA n’est pas branchée sur cette version : voici l’analyse automatique.',

@@ -417,7 +417,7 @@ PAGES.profile = () => { const { r, nx } = rankOf(S.score), cert = S.score >= win
     <div class="toggle"><span>Mon profil et mon plan d’entraînement</span><span class="row" style="gap:6px"><button class="btn ghost sm" data-go="monplan">Voir</button><button class="btn ghost sm" data-redoprofile>Refaire</button></span></div>
     <div class="toggle"><span>Rappel quotidien (1 par jour maximum)${S.profile && S.profile.moment && S.profile.moment !== 'libre' ? ` · ${h(PQ_LABEL('moment', S.profile.moment).toLowerCase())}` : ''}</span><button class="sw-t" role="switch" aria-checked="${S.reminder}" data-toggle="reminder" aria-label="Rappel quotidien"></button></div>
     <div class="toggle"><span>Sons et vibrations</span><button class="sw-t" role="switch" aria-checked="${S.sound}" data-toggle="sound" aria-label="Sons et vibrations"></button></div>
-    <div class="toggle"><span>Simuler l’abonnement Premium <span class="small">(prototype)</span></span><button class="sw-t" role="switch" aria-checked="${S.premium}" data-toggle="premium" aria-label="Simuler Premium"></button></div>
+    ${window.NT_PAY ? '' : `<div class="toggle"><span>Simuler l’abonnement Premium <span class="small">(prototype)</span></span><button class="sw-t" role="switch" aria-checked="${S.premium}" data-toggle="premium" aria-label="Simuler Premium"></button></div>`}
     <div class="toggle"><span>Espaces pros</span><span class="row" style="gap:6px"><button class="btn ghost sm" data-go="campus">Campus</button><button class="btn ghost sm" data-go="pro">Pro</button></span></div>
     <div class="toggle"><span>Offres</span><button class="btn ghost sm" data-go="pricing">Voir les offres</button></div>
     <div class="toggle"><span>Passer au jour suivant <span class="small">(pour tester le prototype)</span></span><button class="btn ghost sm" data-nextday>Jour +1</button></div>
@@ -1410,12 +1410,13 @@ ${minorMode() ? 'L’élève est peut-être mineur : réponds uniquement aux que
   const turns = S.coach.slice(-10).map(m => ({ role: m.me ? 'user' : 'assistant', content: m.t }));
   while (turns.length && turns[0].role !== 'user') turns.shift();
   const sp = bub.querySelector('span');
-  try { const t = await AI.ask(ctx, { turns, nocache: true, task: 'coach', onText: ({ text }) => { sp.className = ''; sp.textContent = text.replace(/\[\[(mission|fiche):[^\]]+\]\]/g, ''); } });
+  try { if (AUTH.cfg() && !S.account) throw { code: 'login' };
+    const t = await AI.ask(ctx, { turns, nocache: true, task: 'coach', onText: ({ text }) => { sp.className = ''; sp.textContent = text.replace(/\[\[(mission|fiche):[^\]]+\]\]/g, ''); } });
     S.coach.push({ me: 0, t }); }
-  catch (e){ const a = (COACH.find(([re]) => re.test(q)) || [null, AI.errorText(e) || 'Je n’ai pas pu répondre. Réessaie.'])[1]; S.coach.push({ me: 0, t: a }); }
+  catch (e){ const a = (COACH.find(([re]) => re.test(q)) || [null, e && e.code === 'login' ? 'Connecte-toi pour parler à Nova Coach. [[connexion]]' : AI.errorText(e) || 'Je n’ai pas pu répondre. Réessaie.'])[1]; S.coach.push({ me: 0, t: a }); }
   S.coach = S.coach.slice(-30); save(); render(); setTimeout(() => { const c = $('#cmsgs'); if (c) c.lastElementChild.scrollIntoView({ block: 'end' }); }, 30);
 }
-function coachText(t){ let out = h(t); out = out.replace(/\[\[(mission|fiche):([\w-]+)\]\]/g, (_, k, id) => { const ok = k === 'mission' ? MS.find(m => m.id === id) || POOL.find(m => m.id === id) : CO.find(f => f.id === id); if (!ok) return '';
+function coachText(t){ let out = h(t).replace('[[connexion]]', `<button class="btn ghost sm cbtn" data-go="connexion">Se connecter</button>`); out = out.replace(/\[\[(mission|fiche):([\w-]+)\]\]/g, (_, k, id) => { const ok = k === 'mission' ? MS.find(m => m.id === id) || POOL.find(m => m.id === id) : CO.find(f => f.id === id); if (!ok) return '';
   return `<button class="btn ghost sm cbtn" ${k === 'mission' ? `data-play="${id}"` : `data-fiche="${id}"`}>${k === 'mission' ? I.play : I.book}${h(ok.title)}</button>`; }); return out; }
 
 /* « Explique-moi autrement » après une erreur */
@@ -1775,9 +1776,27 @@ function syncRail(){ const r = document.querySelector('[data-rail]'); if (!r) re
 const PRICE = { mensuel: 7.99, annuel: 59.99, trialDays: 7 };
 function refreshSub(){ if (S.trialEnd && !S.sub && S.premium && today() > S.trialEnd){ S.premium = false; S.trialOver = true; save(); } if (S.subEnd && today() > S.subEnd && !S.sub){ S.premium = false; S.subEnd = null; save(); } }
 const trialLeft = () => S.trialEnd && !S.sub ? Math.max(0, Math.round((Date.parse(S.trialEnd) - Date.parse(today())) / 864e5)) : null;
-function startTrial(){ if (S.trialUsed){ toast('Tu as déjà profité de l’essai gratuit.'); return openPaywall(); } S.premium = true; S.trialUsed = true; S.trialEnd = addDays(today(), PRICE.trialDays); S.trialOver = false; save(); closeSheet(); sfx('win'); toast(`Essai Premium activé jusqu’au ${S.trialEnd.split('-').reverse().join('/')}.`); render(); }
-function subscribe(plan){ S.premium = true; S.sub = plan; S.subSince = today(); S.trialEnd = null; S.subEnd = null; save(); closeSheet(); sfx('win'); toast(plan === 'annuel' ? 'Premium annuel activé (simulation).' : 'Premium mensuel activé (simulation).'); render(); }
+function startTrial(){ if (window.NT_PAY) return payerStripe(window.__an !== false ? 'annuel' : 'mensuel'); if (S.trialUsed){ toast('Tu as déjà profité de l’essai gratuit.'); return openPaywall(); } S.premium = true; S.trialUsed = true; S.trialEnd = addDays(today(), PRICE.trialDays); S.trialOver = false; save(); closeSheet(); sfx('win'); toast(`Essai Premium activé jusqu’au ${S.trialEnd.split('-').reverse().join('/')}.`); render(); }
+function subscribe(plan){ if (window.NT_PAY) return payerStripe(plan); S.premium = true; S.sub = plan; S.subSince = today(); S.trialEnd = null; S.subEnd = null; save(); closeSheet(); sfx('win'); toast(plan === 'annuel' ? 'Premium annuel activé (simulation).' : 'Premium mensuel activé (simulation).'); render(); }
 function cancelSub(){ const end = addDays(today(), S.sub === 'annuel' ? 365 : 30); S.sub = null; S.subEnd = end; save(); closeSheet(); toast(`Abonnement résilié. Premium reste actif jusqu’au ${end.split('-').reverse().join('/')}.`); render(); }
+/* Vrai site : paiement et espace client Stripe (js/branchements.js).
+   L'offre vient toujours du serveur (/api/me), jamais du navigateur. */
+async function payerStripe(plan){
+  if (!S.account){ closeSheet(); return authOpen('premium'); }
+  try { toast('Ouverture du paiement sécurisé…'); await window.NT_PAY.payer(plan); }
+  catch (e){ toast(e.status === 409 ? 'Tu as déjà un abonnement en cours.' : 'Le paiement n’a pas pu s’ouvrir. Réessaie dans un instant.'); } }
+async function gererStripe(){
+  try { await window.NT_PAY.gerer(); } catch (e){ toast('L’espace abonnement n’a pas pu s’ouvrir. Réessaie dans un instant.'); } }
+async function syncPremium(){
+  if (!window.NT_PAY) return; let d = null;
+  try { d = await window.NT_PAY.statut(); } catch (e){ return; }
+  const avant = JSON.stringify([S.premium, S.sub, S.subEnd, S.trialUsed]), premium = !!(d && d.plan && d.plan !== 'free');
+  if (premium){ S.premium = true; S.sub = d.cancelAtPeriodEnd ? null : (d.facturation || 'mensuel'); S.subSince = S.subSince || today();
+    S.subEnd = d.cancelAtPeriodEnd && d.subscriptionPeriodEnd ? d.subscriptionPeriodEnd.slice(0, 10) : null; S.trialEnd = null; }
+  else { S.premium = false; S.sub = null; S.subEnd = null; S.trialEnd = null; }
+  S.trialUsed = !(d && d.essaiPossible);
+  if (JSON.stringify([S.premium, S.sub, S.subEnd, S.trialUsed]) !== avant){ save(); render(); }
+  if (premium && /[?&]paiement=ok/.test(location.search)) toast('Premium activé.'); }
 const priceToggle = () => { const an = window.__an !== false; return `<div class="seg" role="group" aria-label="Facturation"><button data-anp="1" aria-pressed="${an}">Annuel · ${num(PRICE.annuel, 2)} €</button><button data-anp="0" aria-pressed="${!an}">Mensuel · ${num(PRICE.mensuel, 2)} €</button></div>
   <p class="small" style="margin-top:6px">${an ? `Soit ${num(PRICE.annuel / 12, 2)} € par mois, ${Math.round((1 - PRICE.annuel / (PRICE.mensuel * 12)) * 100)} % de moins que le mensuel.` : 'Sans engagement, résiliable à tout moment.'}</p>`; };
 function openPaywall(reason){
@@ -1789,7 +1808,7 @@ function openPaywall(reason){
     ${!S.trialUsed ? `<button class="btn v full big" style="margin-top:12px" data-trial>Essayer gratuitement ${PRICE.trialDays} jours</button><p class="small" style="text-align:center;margin-top:6px">Puis ${window.__an !== false ? num(PRICE.annuel, 2) + ' € par an' : num(PRICE.mensuel, 2) + ' € par mois'}. Annulable avant la fin de l’essai, sans frais.</p>`
       : `<button class="btn v full big" style="margin-top:12px" data-subscribe="${window.__an !== false ? 'annuel' : 'mensuel'}">S’abonner</button>`}
     <button class="btn ghost full" style="margin-top:8px" data-sheetclose>Plus tard</button>
-    <p class="note">Prototype : aucun paiement réel. Sur le site, paiement sécurisé par Stripe après acceptation des CGV ; rétractation et résiliation en 3 clics. Prix indicatifs, à valider.</p>`, 'pay-sheet');
+    <p class="note">${window.NT_PAY ? 'Paiement sécurisé par Stripe. Résiliable à tout moment.' : 'Prototype : aucun paiement réel. Sur le site, paiement sécurisé par Stripe après acceptation des CGV ; rétractation et résiliation en 3 clics. Prix indicatifs, à valider.'}</p>`, 'pay-sheet');
 }
 function trialBanner(){ const tl = trialLeft();
   if (tl != null && S.premium) return `<section class="sec"><div class="card trial-card"><b>${I.star} Essai Premium : ${tl} jour${tl > 1 ? 's' : ''} restant${tl > 1 ? 's' : ''}</b><p class="small" style="margin-top:4px">Tout est débloqué. Garde Premium pour ne pas perdre ta progression dans les niveaux avancés.</p><button class="btn v sm" style="margin-top:10px" data-paywall>Garder Premium</button></div></section>`;
@@ -1803,6 +1822,7 @@ function subRow(){ const tl = trialLeft();
   const st = S.sub ? `Premium ${S.sub} depuis le ${S.subSince.split('-').reverse().join('/')}` : tl != null && S.premium ? `Essai Premium · ${tl} jour${tl > 1 ? 's' : ''} restant${tl > 1 ? 's' : ''}` : S.subEnd && S.premium ? `Résilié · actif jusqu’au ${S.subEnd.split('-').reverse().join('/')}` : S.premium ? 'Premium (simulé)' : 'Découverte (gratuit)';
   return `<div class="toggle"><span>Mon abonnement<span class="small" style="display:block">${h(st)}</span></span><button class="btn ghost sm" data-managesub>${S.sub ? 'Gérer' : 'Voir'}</button></div>`; }
 function manageSub(){
+  if (window.NT_PAY && (S.sub || S.subEnd)) return gererStripe();
   if (!S.sub) return openPaywall();
   openSheet(`<span class="eyebrow">Mon abonnement</span><h2 class="fiche-t">Premium ${S.sub}</h2><p class="small">Depuis le ${S.subSince.split('-').reverse().join('/')}. ${S.sub === 'annuel' ? num(PRICE.annuel, 2) + ' € par an' : num(PRICE.mensuel, 2) + ' € par mois'}.</p>
     <button class="btn ghost full" style="margin-top:12px" data-subscribe="${S.sub === 'annuel' ? 'mensuel' : 'annuel'}">Passer en ${S.sub === 'annuel' ? 'mensuel' : 'annuel'}</button>
@@ -4177,7 +4197,7 @@ const AU_GATE = ['play', 'sheetplay', 'eclair', 'replay', 'session', 'exam', 'ep
 const AU_KEY = 'nt-auth-next';
 function authOpen(reason, next){ if (S.page !== 'connexion') AU.from = S.page || 'home'; AU.reason = reason || ''; AU.err = ''; AU.busy = false; if (AU.step !== 'code') AU.step = 'start';
   try { if (next) sessionStorage.setItem(AU_KEY, JSON.stringify(next)); } catch(e){} go('connexion'); }
-function authDone(u){ S.account = u; save(); AU.step = 'start'; AU.err = ''; AU.busy = false; toast(u.provider === 'google' ? 'Connecté avec Google.' : 'Connecté.');
+function authDone(u){ S.account = u; save(); syncPremium(); AU.step = 'start'; AU.err = ''; AU.busy = false; toast(u.provider === 'google' ? 'Connecté avec Google.' : 'Connecté.');
   let next = null; try { next = JSON.parse(sessionStorage.getItem(AU_KEY) || 'null'); sessionStorage.removeItem(AU_KEY); } catch(e){}
   go(next && next.page ? next.page : AU.from && AU.from !== 'connexion' ? AU.from : 'home');
   if (next && next.k && AU_GATE.includes(next.k)) setTimeout(() => { const b = document.createElement('button'); b.hidden = true; b.dataset[next.k] = next.v; document.body.appendChild(b); b.click(); b.remove(); }, 350); }
@@ -4213,7 +4233,7 @@ PAGES.connexion = () => { const ok = AUTH.ready(), demo = AUTH.demo() && NT_FX.a
 document.addEventListener('click', async ev => { if (!ev.target.closest) return; const t = ev.target.closest('[data-authclose],[data-authgoogle],[data-authresend],[data-authback],[data-authlogout]'); if (!t || t.disabled) return; const d = t.dataset;
   if (d.authclose !== undefined){ AU.step = 'start'; AU.err = ''; try { sessionStorage.removeItem(AU_KEY); } catch(e){} return go(AU.from && AU.from !== 'connexion' ? AU.from : 'home'); }
   if (d.authback !== undefined){ AU.step = 'start'; AU.err = ''; return render(); }
-  if (d.authlogout !== undefined){ try { await AUTH.logout(); } catch(e){} S.account = null; save(); toast('Tu es déconnecté.'); return render(); }
+  if (d.authlogout !== undefined){ try { await AUTH.logout(); } catch(e){} S.account = null; save(); syncPremium(); toast('Tu es déconnecté.'); return render(); }
   if (d.authgoogle !== undefined){ AU.busy = true; AU.err = ''; render(); try { const r = await AUTH.google(); if (r && r !== 'redirect') authDone(r); } catch(e){ AU.busy = false; AU.err = AUTH.err(e); render(); } return; }
   if (d.authresend !== undefined){ AU.busy = true; render(); try { await AUTH.sendCode(AU.email); AU.resendAt = Date.now() + 30000; toast('Nouveau code envoyé.'); } catch(e){ AU.err = AUTH.err(e); } AU.busy = false; render(); } });
 document.addEventListener('submit', async ev => { const id = ev.target.id; if (id !== 'authMail' && id !== 'authCode') return; ev.preventDefault();
@@ -4232,7 +4252,7 @@ PAGES.profile = () => { const out = _profileV37(); if (!NT_FX.auth || !AUTH.read
     : `<section class="au-card"><span class="au-card-k">Mon compte</span><b>Pas encore connecté</b><span class="au-card-s">Connecte-toi pour faire ton parcours et garder ta progression.</span><button class="au-b1 sm" data-go="connexion">Se connecter</button></section>`;
   return out.replace(at, card + at); };
 /* au chargement : on récupère la session (retour de Google compris) et on reprend l'action en attente */
-(function(){ document.body.classList.toggle('nt-app', S.page === 'connexion');
+(function(){ document.body.classList.toggle('nt-app', S.page === 'connexion'); syncPremium();
   const app = document.getElementById('app'); if (app) new MutationObserver(() => { if (S.page === 'connexion'){ document.body.classList.add('nt-app'); document.title = 'NovaTitre — Connexion'; } }).observe(app, { childList: true });
   if (!AUTH.cfg()) return; const was = !!S.account;
   AUTH.session().then(u => { if (u === undefined) return; if (u){ let next = null; try { next = sessionStorage.getItem(AU_KEY); } catch(e){} if (!was || next){ AU.from = S.page; return authDone(u); } S.account = Object.assign({}, S.account, u); save(); }

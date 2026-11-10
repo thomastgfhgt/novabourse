@@ -55,6 +55,10 @@
 <script src="content/realdata.js" defer></script>
 
 <!-- 4. Coach (sans clé dans le navigateur : il passe par /api/coach ou reste en mode local), puis l'application. -->
+<!-- 3 bis. Branchements du vrai site : configuration publique (Supabase), connexion, coach et paiement. -->
+<script src="/api/config?format=js" defer></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.4/dist/umd/supabase.js" integrity="sha384-rwykjmWNwVxboyFmvK9OXN0wj9hnMHA2aAHtits54DuACyCq0M2PrSNxhRb+hvXT" crossorigin="anonymous" defer></script>
+<script src="js/branchements.js" defer></script>
 <script src="js/ai.js" defer></script>
 <script src="js/app.js" defer></script>
 <script>if ('serviceWorker' in navigator) addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}));</script>
