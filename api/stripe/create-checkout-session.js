@@ -1,32 +1,31 @@
 /**
  * POST /api/stripe/create-checkout-session
- * Corps attendu : { "plan": "pro" | "elite" }
+ * Corps attendu : { "plan": "mensuel" | "annuel" }
+ *
+ * Offre Premium de l'école : 7,99 € / mois ou 59,99 € / an, avec un essai
+ * gratuit de 7 jours au premier abonnement (carte demandée au début, rien
+ * n'est payé pendant l'essai).
  *
  * Le navigateur ne choisit jamais un prix ni un montant.
  * La correspondance plan → price_id reste exclusivement côté serveur.
+ * MODE TEST UNIQUEMENT : voir api/stripe/_stripe.js.
  */
 
-const Stripe = require('stripe');
 const { userFromToken, sb } = require('../me.js');
-
-const PRICE = {
-  pro: 'STRIPE_PRICE_PRO',
-  elite: 'STRIPE_PRICE_ELITE'
-};
-
-const SITE = (
-  process.env.NEXT_PUBLIC_SITE_URL ||
-  'https://www.novabourse.site'
-).replace(/\/+$/, '');
+const { SITE, PRIX_PREMIUM, ESSAI_JOURS, stripeAutorise } = require('./_stripe.js');
 
 module.exports = async (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+
   if (req.method !== 'POST') {
     return res.status(405).json({
       error: 'methode_non_autorisee'
     });
   }
 
-  if (!process.env.STRIPE_SECRET_KEY) {
+  const stripe = stripeAutorise();
+
+  if (!stripe) {
     return res.status(503).json({
       error: 'stripe_non_configure'
     });
@@ -44,23 +43,21 @@ module.exports = async (req, res) => {
     (req.body && req.body.plan) || ''
   );
 
-  if (!PRICE[plan]) {
+  if (!PRIX_PREMIUM[plan]) {
     return res.status(400).json({
       error: 'plan_invalide',
-      accepte: ['pro', 'elite']
+      accepte: Object.keys(PRIX_PREMIUM)
     });
   }
 
-  const price = process.env[PRICE[plan]];
+  const price = process.env[PRIX_PREMIUM[plan]];
 
   if (!price || !price.startsWith('price_')) {
     return res.status(503).json({
       error: 'prix_absent',
-      variable: PRICE[plan]
+      variable: PRIX_PREMIUM[plan]
     });
   }
-
-  const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
   let profile = null;
 
@@ -78,7 +75,7 @@ module.exports = async (req, res) => {
     });
   }
 
-  // Empêche de créer plusieurs abonnements actifs pour le même utilisateur.
+  // Empêche de créer plusieurs abonnements actifs pour le même élève.
   if (
     profile?.stripe_subscription_id &&
     ['active', 'trialing', 'past_due'].includes(profile.subscription_status)
@@ -92,6 +89,8 @@ module.exports = async (req, res) => {
 
   try {
     if (!customer) {
+      /* L'e-mail sert à Stripe pour envoyer les factures ; il n'est
+         transmis à aucun autre service. */
       const createdCustomer = await stripe.customers.create({
         email: user.email,
         metadata: {
@@ -112,6 +111,16 @@ module.exports = async (req, res) => {
       );
     }
 
+    /* Essai gratuit : seulement si ce client n'a jamais eu d'abonnement
+       (Stripe garde l'historique, aucune colonne de base en plus). */
+    const anciens = await stripe.subscriptions.list({
+      customer,
+      status: 'all',
+      limit: 1
+    });
+
+    const essai = anciens.data.length === 0;
+
     const session = await stripe.checkout.sessions.create({
       mode: 'subscription',
       customer,
@@ -127,15 +136,21 @@ module.exports = async (req, res) => {
 
       metadata: {
         supabase_id: user.id,
-        plan
+        plan: 'premium',
+        facturation: plan
       },
 
       subscription_data: {
         metadata: {
           supabase_id: user.id,
-          plan
-        }
+          plan: 'premium',
+          facturation: plan
+        },
+        ...(essai ? { trial_period_days: ESSAI_JOURS } : {})
       },
+
+      // Carte demandée dès le début, même pendant l'essai.
+      payment_method_collection: 'always',
 
       success_url: `${SITE}/?paiement=ok`,
       cancel_url: `${SITE}/?paiement=annule`,
@@ -144,10 +159,9 @@ module.exports = async (req, res) => {
       locale: 'fr'
     });
 
-    res.setHeader('Cache-Control', 'no-store');
-
     return res.status(200).json({
-      url: session.url
+      url: session.url,
+      essai
     });
 
   } catch (e) {

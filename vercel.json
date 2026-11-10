@@ -33,5 +33,10 @@
       "destination": "/api/stripe/webhook",
       "permanent": true
     }
-  ]
+  ],
+  "functions": {
+    "api/coach.js": {
+      "maxDuration": 60
+    }
+  }
 }

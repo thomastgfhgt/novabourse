@@ -84,10 +84,10 @@ async function sb(path, init = {}) {
 }
 
 const {
-  PLAN_LIMITS,
+  OFFRES,
   planReel,
-  consommation,
-  quotaBlock,
+  consommationCoach,
+  coachBlock,
 } = require('./_limits.js');
 
 module.exports = async (req, res) => {
@@ -109,9 +109,7 @@ module.exports = async (req, res) => {
     });
   }
 
-  /* =========================================================
-     GET — profil
-     ========================================================= */
+  /* ---------- profil (créé à la première connexion) ---------- */
 
   let profile = null;
 
@@ -125,37 +123,28 @@ module.exports = async (req, res) => {
       rows[0]
       || null;
 
-    /*
-     * Première connexion.
-     */
     if (!profile) {
       const created =
         await sb(
           'profiles',
           {
             method: 'POST',
-
             headers: {
               Prefer:
                 'resolution=merge-duplicates,return=representation',
             },
-
             body:
               JSON.stringify([
                 {
                   id: user.id,
-
                   email:
                     user.email,
-
                   full_name:
                     user.user_metadata?.full_name
                     || null,
-
                   avatar_url:
                     user.user_metadata?.avatar_url
                     || null,
-
                   plan: 'free',
                 },
               ]),
@@ -166,7 +155,6 @@ module.exports = async (req, res) => {
         created[0]
         || null;
     }
-
   } catch (e) {
     console.error(
       '[me]',
@@ -175,99 +163,62 @@ module.exports = async (req, res) => {
 
     return res.status(200).json({
       authenticated: true,
-
-      ...quotaBlock(
-        'free',
-        0
-      ),
-
-      planLabel:
-        'Découverte',
-
-
-      email:
-        user.email,
-
-      degraded:
-        'base_indisponible',
+      plan: 'free',
+      planLabel: OFFRES.free.label,
+      coach: coachBlock('free', 0),
+      degraded: 'base_indisponible',
     });
   }
 
-  /* ---------- plan réel ---------- */
+  /* ---------- offre réelle ---------- */
 
-  const planInfo =
+  const { plan } =
     await planReel(
       sb,
       user.id
     );
 
-  const plan =
-    Object.prototype.hasOwnProperty.call(
-      PLAN_LIMITS,
-      planInfo.plan
-    )
-      ? planInfo.plan
-      : 'free';
-
-  /* ---------- quota ---------- */
+  /* ---------- messages du coach ce mois-ci ---------- */
 
   let utilise = 0;
 
   try {
     utilise =
-      await consommation(
+      await consommationCoach(
         sb,
         user.id
       );
-
   } catch (e) {
     console.error(
-      '[me] consommation :',
+      '[me] messages du coach :',
       e.message
     );
-
-    utilise = 0;
   }
 
-  const quota =
-    quotaBlock(
-      plan,
-      utilise
-    );
-
-  /* ---------- réponse ---------- */
+  /* ---------- réponse ----------
+     Ni nom ni e-mail : le site n'en a pas besoin ici. */
 
   return res.status(200).json({
-    ...quota,
-
-    planLabel:
-      PLAN_LIMITS[plan].label,
-
     authenticated: true,
 
-    email:
-      profile?.email
-      || user.email,
+    plan,
 
-    name:
-      profile?.full_name
-      || user.user_metadata?.full_name
-      || null,
-
-    avatar:
-      profile?.avatar_url
-      || null,
+    planLabel:
+      OFFRES[plan].label,
 
     status:
       profile?.subscription_status
       || null,
 
-    /*
-     * Différent de quota.periodEnd.
-     */
     subscriptionPeriodEnd:
       profile?.subscription_current_period_end
       || null,
+
+    cancelAtPeriodEnd:
+      Boolean(profile?.cancel_at_period_end),
+
+    coach:
+      coachBlock(plan, utilise),
   });
 };
 

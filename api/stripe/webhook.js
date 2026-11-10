@@ -4,22 +4,18 @@
  * - Vérification de la signature Stripe
  * - Corps brut obligatoire
  * - Idempotence des événements
- * - Mise à jour du plan uniquement côté serveur
+ * - Mise à jour de l'offre uniquement côté serveur
+ * - MODE TEST UNIQUEMENT : voir api/stripe/_stripe.js
  */
 
-const Stripe = require('stripe');
 const { sb } = require('../me.js');
+const { stripeAutorise, offreDuPrix } = require('./_stripe.js');
 
 module.exports.config = {
   api: {
     bodyParser: false
   }
 };
-
-const PLAN_BY_PRICE = () => ({
-  [process.env.STRIPE_PRICE_PRO]: 'pro',
-  [process.env.STRIPE_PRICE_ELITE]: 'elite',
-});
 
 const ACTIFS = ['active', 'trialing', 'past_due'];
 
@@ -87,7 +83,7 @@ async function appliquer(sub) {
 
   const plan =
     ACTIFS.includes(sub.status)
-      ? (PLAN_BY_PRICE()[priceId] || 'free')
+      ? (offreDuPrix(priceId) || 'free')
       : 'free';
 
   const userId =
@@ -149,15 +145,12 @@ module.exports = async (req, res) => {
   const webhookSecret =
     process.env.STRIPE_WEBHOOK_SECRET;
 
-  const stripeSecret =
-    process.env.STRIPE_SECRET_KEY;
+  const stripe =
+    stripeAutorise();
 
-  if (!webhookSecret || !stripeSecret) {
+  if (!webhookSecret || !stripe) {
     return res.status(503).send('non configure');
   }
-
-  const stripe =
-    new Stripe(stripeSecret);
 
   let event;
 

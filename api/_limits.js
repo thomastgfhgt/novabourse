@@ -1,90 +1,50 @@
 /**
- * api/_limits.js — SOURCE UNIQUE DES QUOTAS
+ * api/_limits.js — offres de l'école et limite de messages de Nova Coach.
  *
- * Utilisé par /api/me (affichage) et /api/analyze (application).
+ * Utilisé par /api/me (affichage) et /api/coach (application).
+ *
+ * OFFRES : 'free' (Découverte), 'premium', 'ecole' (Écoles / Entreprises,
+ * prix à venir). L'offre est lue en base, jamais décidée par le navigateur.
+ *
+ * MESSAGES DU COACH : table nova_chat_usage et fonction Postgres
+ * reserve_chat_message() (déjà en base, voir
+ * sql/2026-10-12_nova_chat_quota.sql). Aucun changement de base.
  *
  * PÉRIODE : mois calendaire UTC.
  *
- * STATUTS :
+ * STATUTS d'un message :
  *   pending    réservation en cours
- *   ok         analyse terminée
- *   cancelled  appel annulé
- *   failed     appel échoué
+ *   ok         réponse reçue
+ *   failed     appel échoué (non compté)
  */
 
-const PLAN_LIMITS = {
+const OFFRES = {
   free: {
-    analyses: 5,
     label: 'Découverte',
-    showLimit: true,
+    coachParMois: 30,
   },
 
-  pro: {
-    analyses: 200,
-    label: 'Pro',
-    showLimit: true,
+  premium: {
+    label: 'Premium',
+    coachParMois: 300,
   },
 
-  elite: {
-    analyses: Infinity,
-    label: 'Elite',
-    showLimit: false,
+  ecole: {
+    label: 'Écoles / Entreprises',
+    coachParMois: 300,
   },
 };
 
-/**
- * Protection anti-abus indépendante du quota mensuel.
- */
-const DEBIT_HORAIRE = {
-  free: 10,
-  pro: 40,
-  elite: 120,
-};
+/* Protection anti-abus, quelle que soit l'offre. */
+const COACH_PAR_HEURE = 20;
 
-/* ============================================================
-   QUOTA SÉPARÉ — MESSAGES DE CONVERSATION NOVABOT (V6 §8)
-   ============================================================
-   Bug diagnostiqué en production : un simple "Coucou" dans NovaBot
-   consommait une des `analyses` ci-dessus (5/mois sur le plan free) —
-   le même coût qu'une analyse NovaScore complète. Un message de
-   conversation (novabotChatAnalyse(), api/analyze.js) coûte structurellement
-   moins cher (maxTokens:500, pas de récupération de dossier complet) et
-   n'a rien d'une "analyse" au sens produit — il a donc son PROPRE
-   compteur (table nova_chat_usage, fonction reserve_chat_message(), voir
-   sql/2026-10-12_nova_chat_quota.sql), jamais mélangé à `ai_usage`.
-   Limites volontairement généreuses : bavarder avec Nova ne doit jamais
-   épuiser le budget d'analyses réelles d'un utilisateur, ni l'inverse. */
-const CHAT_LIMITS = {
-  free: 50,
-  pro: 1000,
-  elite: Infinity,
-};
-const CHAT_DEBIT_HORAIRE = {
-  free: 20,
-  pro: 80,
-  elite: 240,
-};
-const limiteChatDe = plan => CHAT_LIMITS[plan] ?? CHAT_LIMITS.free;
-
+/* Statuts Stripe qui donnent accès à l'offre payante
+   ('trialing' = essai gratuit de 7 jours). */
 const ACTIFS = [
   'active',
   'trialing',
   'past_due',
 ];
-
-const COMPTES = [
-  'pending',
-  'ok',
-];
-
-/**
- * Une réservation Vercel abandonnée ne doit pas bloquer
- * définitivement une place.
- *
- * Cette durée DOIT rester synchronisée avec reserve_analysis()
- * dans PostgreSQL.
- */
-const PENDING_EXPIRE_MS = 15 * 60 * 1000;
 
 /* =========================================================
    PÉRIODE
@@ -120,7 +80,7 @@ function periode(now = new Date()) {
 }
 
 /* =========================================================
-   PLAN RÉEL
+   OFFRE RÉELLE
    ========================================================= */
 
 async function planReel(sb, userId) {
@@ -165,7 +125,7 @@ async function planReel(sb, userId) {
 
     const plan =
       Object.prototype.hasOwnProperty.call(
-        PLAN_LIMITS,
+        OFFRES,
         profile.plan
       )
         ? profile.plan
@@ -190,164 +150,32 @@ async function planReel(sb, userId) {
   }
 }
 
-const limiteDe = plan =>
-  (PLAN_LIMITS[plan] || PLAN_LIMITS.free).analyses;
+const limiteCoach = plan =>
+  (OFFRES[plan] || OFFRES.free).coachParMois;
 
 /* =========================================================
-   PENDING VALIDE
+   MESSAGES DU COACH
    ========================================================= */
 
-function pendingEncoreValide(row, maintenant = Date.now()) {
-  if (row.status !== 'pending') {
-    return true;
-  }
-
-  const created = new Date(row.created_at).getTime();
-
-  /*
-   * Une date invalide ne doit pas pouvoir occuper
-   * indéfiniment une place.
-   */
-  if (!Number.isFinite(created)) {
-    return false;
-  }
-
-  return created > maintenant - PENDING_EXPIRE_MS;
-}
-
-/* =========================================================
-   CONSOMMATION MENSUELLE
-   ========================================================= */
-
-async function consommation(sb, userId) {
+/* Messages comptés ce mois-ci (réservés ou réussis). */
+async function consommationCoach(sb, userId) {
   const { debut, fin } = periode();
 
   const rows = await sb(
-    `ai_usage?user_id=eq.${encodeURIComponent(userId)}`
-    + `&created_at=gte.${debut.toISOString()}`
-    + `&created_at=lt.${fin.toISOString()}`
-    + `&status=in.(${COMPTES.join(',')})`
-    + `&select=id,status,created_at`
+    `nova_chat_usage?user_id=eq.${encodeURIComponent(userId)}`
+    + `&status=in.(pending,ok)`
+    + `&created_at=gte.${encodeURIComponent(debut.toISOString())}`
+    + `&created_at=lt.${encodeURIComponent(fin.toISOString())}`
+    + `&select=id`
   );
 
-  const maintenant = Date.now();
-
-  return rows.filter(
-    row => pendingEncoreValide(row, maintenant)
-  ).length;
+  return rows.length;
 }
 
-/* =========================================================
-   DÉBIT RÉCENT
-   ========================================================= */
-
-async function debitRecent(sb, userId) {
-  const depuis =
-    new Date(Date.now() - 60 * 60 * 1000).toISOString();
-
-  const rows = await sb(
-    `ai_usage?user_id=eq.${encodeURIComponent(userId)}`
-    + `&created_at=gte.${depuis}`
-    + `&status=in.(${COMPTES.join(',')})`
-    + `&select=id,status,created_at`
-  );
-
-  const maintenant = Date.now();
-
-  return rows.filter(
-    row => pendingEncoreValide(row, maintenant)
-  ).length;
-}
-
-/* =========================================================
-   RÉSERVATION ATOMIQUE
-   ========================================================= */
-
-async function reserver(sb, userId, plan) {
+/* Réserve une place AVANT d'appeler l'IA (verrou Postgres par élève :
+   deux messages envoyés en même temps ne dépassent jamais la limite). */
+async function reserverCoach(sb, userId, plan, model) {
   const { debut, fin } = periode();
-
-  const limite = limiteDe(plan);
-
-  try {
-    const r = await sb(
-      'rpc/reserve_analysis',
-      {
-        method: 'POST',
-
-        body: JSON.stringify({
-          p_user: userId,
-
-          /*
-           * NULL = pas de plafond mensuel.
-           */
-          p_limit:
-            Number.isFinite(limite)
-              ? limite
-              : null,
-
-          p_period_start:
-            debut.toISOString(),
-
-          p_period_end:
-            fin.toISOString(),
-
-          p_hourly_limit:
-            DEBIT_HORAIRE[plan]
-            || DEBIT_HORAIRE.free,
-
-          p_provider: 'pending',
-          p_model: 'pending',
-        }),
-      }
-    );
-
-    const out =
-      Array.isArray(r)
-        ? r[0]
-        : r;
-
-    if (!out) {
-      return {
-        ok: false,
-        reason: 'reservation_indisponible',
-      };
-    }
-
-    if (!out.granted) {
-      return {
-        ok: false,
-        reason:
-          out.reason
-          || 'quota_exceeded',
-
-        used:
-          out.used
-          ?? null,
-      };
-    }
-
-    return {
-      ok: true,
-      used: out.used,
-      reservationId: out.id,
-    };
-
-  } catch (e) {
-    return {
-      ok: false,
-      reason: 'reservation_indisponible',
-      detail: e.message,
-    };
-  }
-}
-
-/* =========================================================
-   RÉSERVATION ATOMIQUE — CHAT (V6 §8, voir plus haut)
-   ========================================================= */
-
-async function reserverChat(sb, userId, plan) {
-  const { debut, fin } = periode();
-  const limite = limiteChatDe(plan);
 
   try {
     const r = await sb(
@@ -356,12 +184,12 @@ async function reserverChat(sb, userId, plan) {
         method: 'POST',
         body: JSON.stringify({
           p_user: userId,
-          p_limit: Number.isFinite(limite) ? limite : null,
+          p_limit: limiteCoach(plan),
           p_period_start: debut.toISOString(),
           p_period_end: fin.toISOString(),
-          p_hourly_limit: CHAT_DEBIT_HORAIRE[plan] || CHAT_DEBIT_HORAIRE.free,
-          p_provider: 'pending',
-          p_model: 'pending',
+          p_hourly_limit: COACH_PAR_HEURE,
+          p_provider: 'anthropic',
+          p_model: model,
         }),
       }
     );
@@ -374,133 +202,47 @@ async function reserverChat(sb, userId, plan) {
     }
     return { ok: true, used: out.used, reservationId: out.id };
   } catch (e) {
-    return { ok: false, reason: 'reservation_indisponible', detail: e.message };
+    return { ok: false, reason: 'reservation_indisponible' };
   }
 }
 
-/* =========================================================
-   CLÔTURE
-   ========================================================= */
-
-async function cloturer(
-  sb,
-  id,
-  statut,
-  extra = {}
-) {
-  if (!id) {
-    return;
-  }
-
-  await sb(
-    `ai_usage?id=eq.${encodeURIComponent(id)}`,
-    {
-      method: 'PATCH',
-
-      headers: {
-        Prefer: 'return=minimal',
-      },
-
-      body: JSON.stringify({
-        status: statut,
-        ...extra,
-      }),
-    }
-  ).catch(() => {});
-}
-
-async function cloturerChat(sb, id, statut, extra = {}) {
+async function cloturerCoach(sb, id, statut) {
   if (!id) return;
   await sb(
     `nova_chat_usage?id=eq.${encodeURIComponent(id)}`,
     {
       method: 'PATCH',
       headers: { Prefer: 'return=minimal' },
-      body: JSON.stringify({ status: statut, updated_at: new Date().toISOString(), ...extra }),
+      body: JSON.stringify({ status: statut, updated_at: new Date().toISOString() }),
     }
   ).catch(() => {});
 }
 
-function quotaChatBlock(plan, used) {
-  const limite = limiteChatDe(plan);
+/* Bloc renvoyé par /api/me. */
+function coachBlock(plan, used) {
+  const limite = limiteCoach(plan);
   const { debut, fin } = periode();
-  const unlimited = !Number.isFinite(limite);
   return {
-    plan, used,
-    limit: unlimited ? null : limite,
-    remaining: unlimited ? null : Math.max(0, limite - used),
-    unlimited,
+    used,
+    limit: limite,
+    remaining: Math.max(0, limite - used),
+    perHour: COACH_PAR_HEURE,
     periodStart: debut.toISOString(),
     periodEnd: fin.toISOString(),
   };
 }
 
-/* =========================================================
-   BLOC FRONTEND
-   ========================================================= */
-
-function quotaBlock(plan, used) {
-  const conf =
-    PLAN_LIMITS[plan]
-    || PLAN_LIMITS.free;
-
-  const { debut, fin } = periode();
-
-  const unlimited =
-    !conf.showLimit
-    || !Number.isFinite(conf.analyses);
-
-  return {
-    plan,
-
-    used,
-
-    limit:
-      unlimited
-        ? null
-        : conf.analyses,
-
-    remaining:
-      unlimited
-        ? null
-        : Math.max(
-            0,
-            conf.analyses - used
-          ),
-
-    unlimited,
-
-    periodStart:
-      debut.toISOString(),
-
-    periodEnd:
-      fin.toISOString(),
-  };
-}
-
 module.exports = {
-  PLAN_LIMITS,
-  DEBIT_HORAIRE,
+  OFFRES,
   ACTIFS,
-  COMPTES,
-  PENDING_EXPIRE_MS,
+  COACH_PAR_HEURE,
 
   periode,
   planReel,
-  limiteDe,
+  limiteCoach,
 
-  consommation,
-  debitRecent,
-
-  reserver,
-  cloturer,
-
-  quotaBlock,
-
-  CHAT_LIMITS,
-  CHAT_DEBIT_HORAIRE,
-  limiteChatDe,
-  reserverChat,
-  cloturerChat,
-  quotaChatBlock,
+  consommationCoach,
+  reserverCoach,
+  cloturerCoach,
+  coachBlock,
 };
