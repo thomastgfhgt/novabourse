@@ -25,15 +25,6 @@
           "value": "camera=(), microphone=(), geolocation=()"
         }
       ]
-    },
-    {
-      "source": "/catalog.json",
-      "headers": [
-        {
-          "key": "Cache-Control",
-          "value": "public, max-age=3600, stale-while-revalidate=86400"
-        }
-      ]
     }
   ],
   "redirects": [
@@ -41,17 +32,6 @@
       "source": "/api/stripe/webbook",
       "destination": "/api/stripe/webhook",
       "permanent": true
-    }
-  ],
-  "functions": {
-    "api/market/extra.js": {
-      "maxDuration": 60
-    }
-  },
-  "crons": [
-    {
-      "path": "/api/market/extra?kind=novabot-cron",
-      "schedule": "0 7 * * *"
     }
   ]
 }
