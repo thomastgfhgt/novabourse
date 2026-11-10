@@ -1794,7 +1794,7 @@ async function syncPremium(){
   if (premium){ S.premium = true; S.sub = d.cancelAtPeriodEnd ? null : (d.facturation || 'mensuel'); S.subSince = S.subSince || today();
     S.subEnd = d.cancelAtPeriodEnd && d.subscriptionPeriodEnd ? d.subscriptionPeriodEnd.slice(0, 10) : null; S.trialEnd = null; }
   else { S.premium = false; S.sub = null; S.subEnd = null; S.trialEnd = null; }
-  S.trialUsed = !(d && d.essaiPossible);
+  S.trialUsed = d ? !d.essaiPossible : false;   // sans compte : essai proposé ; connecté : le serveur décide
   if (JSON.stringify([S.premium, S.sub, S.subEnd, S.trialUsed]) !== avant){ save(); render(); }
   if (premium && /[?&]paiement=ok/.test(location.search)) toast('Premium activé.'); }
 const priceToggle = () => { const an = window.__an !== false; return `<div class="seg" role="group" aria-label="Facturation"><button data-anp="1" aria-pressed="${an}">Annuel · ${num(PRICE.annuel, 2)} €</button><button data-anp="0" aria-pressed="${!an}">Mensuel · ${num(PRICE.mensuel, 2)} €</button></div>
