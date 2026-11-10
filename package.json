@@ -2,6 +2,10 @@
   "name": "novatitre",
   "version": "1.0.0",
   "private": true,
+  "description": "NovaTitre, école de Bourse (argent fictif) : site, moteur et routes serveur",
+  "scripts": {
+    "test": "node --test"
+  },
   "dependencies": {
     "@anthropic-ai/sdk": "1.7.0",
     "stripe": "^16.12.0"
