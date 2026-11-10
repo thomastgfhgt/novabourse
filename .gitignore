@@ -2,3 +2,7 @@
 .env*
 !.env.example
 node_modules
+
+# résultats du test de fumée (Playwright)
+test-results
+playwright-report

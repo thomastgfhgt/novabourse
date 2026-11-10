@@ -4,7 +4,8 @@
   "private": true,
   "description": "NovaTitre, école de Bourse (argent fictif) : site, moteur et routes serveur",
   "scripts": {
-    "test": "node --test"
+    "test": "node --test",
+    "test:fumee": "playwright test"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "1.7.0",
@@ -12,5 +13,8 @@
   },
   "engines": {
     "node": ">=18"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.49.1"
   }
 }
